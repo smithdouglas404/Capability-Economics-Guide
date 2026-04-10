@@ -241,7 +241,3 @@ async function seedProjects() {
 }
 
 export { seedProjects };
-
-if (require.main === module) {
-  seedProjects().catch(console.error).finally(() => process.exit(0));
-}

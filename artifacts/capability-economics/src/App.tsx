@@ -11,6 +11,7 @@ import KnowledgeGraph from "@/pages/knowledge-graph";
 import OrganizationSetup from "@/pages/organization";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
+import InsightsPage from "@/pages/insights";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function Router() {
       <Route path="/c-suite" component={CSuite} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />
       <Route path="/projects" component={Projects} />
+      <Route path="/insights" component={InsightsPage} />
       <Route path="/organization" component={OrganizationSetup} />
       <Route path="/dashboard" component={Dashboard} />
       <Route component={NotFound} />

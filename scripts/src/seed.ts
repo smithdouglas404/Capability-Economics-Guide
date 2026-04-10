@@ -174,7 +174,6 @@ async function seed() {
   }
 
   console.log("Seed complete!");
-  process.exit(0);
 }
 
 function getRoleMappingsForCapability(capSlug: string, capId: number, roleMap: Record<string, number>) {
@@ -305,9 +304,13 @@ async function run() {
   await seed();
   const { seedProjects } = await import("./seed-projects");
   await seedProjects();
+  const { seedInsights } = await import("./seed-insights");
+  await seedInsights();
 }
 
-run().catch((err) => {
+run().then(() => {
+  process.exit(0);
+}).catch((err) => {
   console.error("Seed failed:", err);
   process.exit(1);
 });

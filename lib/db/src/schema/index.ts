@@ -3,3 +3,5 @@ export * from "./capabilities";
 export * from "./c-suite-roles";
 export * from "./organizations";
 export * from "./projects";
+export * from "./insights";
+export * from "./ontology";

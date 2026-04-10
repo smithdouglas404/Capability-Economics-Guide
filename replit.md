@@ -32,6 +32,7 @@ Full-stack educational platform teaching novice users about capability economics
 - `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO)
 - `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings. Cross-Industry Comparison tab with benchmark bar chart, industry cards, and shared thematic capabilities
 - `/projects` — Technology Project Impact Analysis: 6 projects across AI, App Mod, Mainframe, and Data domains. Each project has capability impact overlay (bar + radar charts), executive agenda (CFO/CEO/CIO perspectives with metrics and decision frameworks), and risk-of-inaction analysis
+- `/insights` — AI-Powered Insights & Recommendations: R/Y/G threshold monitoring, AI-generated analysis (Anthropic Claude), industry leaderboard with company benchmarks, capability ontology with relationship mapping and industry adapters, curated white papers library
 - `/organization` — Organization setup wizard (2-step: create org + assess capabilities with sliders)
 - `/dashboard` — Personalized dashboard comparing org maturity vs industry benchmarks, gap analysis, role-filtered views
 
@@ -45,6 +46,8 @@ Full-stack educational platform teaching novice users about capability economics
 - Cross-industry comparison endpoint with theme-based shared capabilities
 - Input validation on all routes (PUT org, CSV import enums, dashboard query)
 - Technology projects endpoints: list with category filter, detail with capability impacts/executive insights/risks
+- Insights endpoints: thresholds (R/Y/G), insights, leaderboard, white papers, ontology, AI insight generation (POST)
+- Anthropic AI integration via Replit AI Integrations proxy (`@workspace/integrations-anthropic-ai`)
 
 ### Database Schema (`lib/db/`)
 - `industries` — 6 seeded industries (Insurance, Healthcare, Banking, Manufacturing, Technology, Retail)
@@ -59,6 +62,12 @@ Full-stack educational platform teaching novice users about capability economics
 - `project_capability_impacts` — How each project impacts specific capabilities (uplift, timeline)
 - `project_executive_insights` — CFO/CEO/CIO agenda items per project
 - `project_risks` — Risks of inaction per project with severity, consequence, mitigation
+- `capability_thresholds` — R/Y/G threshold definitions per capability
+- `capability_insights` — AI-generated and seeded strategic insights
+- `industry_leaderboard` — Company benchmark rankings per industry
+- `industry_white_papers` — Curated research papers by industry
+- `ontology_relationships` — Capability-to-capability relationships (enables, competes_with, etc.)
+- `ontology_industry_adapters` — Industry-specific ontology customizations with maturity models
 
 ### Key Dependencies
 - **wouter** for client-side routing
