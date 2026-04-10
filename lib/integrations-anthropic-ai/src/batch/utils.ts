@@ -1,33 +1,6 @@
 import pLimit from "p-limit";
 import pRetry from "p-retry";
 
-/**
- * Batch Processing Utilities
- *
- * Generic batch processing with built-in rate limiting and automatic retries.
- * Use for any task that requires processing multiple items through an LLM or external API.
- *
- * USAGE:
- * ```typescript
- * import { batchProcess } from "@workspace/integrations-anthropic-ai/batch";
- * import { anthropic } from "@workspace/integrations-anthropic-ai";
- *
- * const results = await batchProcess(
- *   artworks,
- *   async (artwork) => {
- *     const message = await anthropic.messages.create({
- *       model: "claude-sonnet-4-6",
- *       max_tokens: 8192,
- *       messages: [{ role: "user", content: `Categorize: ${artwork.name}` }],
- *     });
- *     const block = message.content[0];
- *     return block.type === "text" ? block.text : "";
- *   },
- *   { concurrency: 2, retries: 5 }
- * );
- * ```
- */
-
 export interface BatchOptions {
   concurrency?: number;
   retries?: number;
@@ -75,9 +48,9 @@ export async function batchProcess<T, R>(
             if (isRateLimitError(error)) {
               throw error;
             }
-            throw new pRetry.AbortError(
-              error instanceof Error ? error : new Error(String(error))
-            );
+            const abortErr = new Error(error instanceof Error ? error.message : String(error));
+            (abortErr as any).name = "AbortError";
+            throw abortErr;
           }
         },
         { retries, minTimeout, maxTimeout, factor: 2 }
@@ -115,9 +88,9 @@ export async function batchProcessWithSSE<T, R>(
           factor: 2,
           onFailedAttempt: (error) => {
             if (!isRateLimitError(error)) {
-              throw new pRetry.AbortError(
-                error instanceof Error ? error : new Error(String(error))
-              );
+              const abortErr = new Error(error instanceof Error ? error.message : String(error));
+              (abortErr as any).name = "AbortError";
+              throw abortErr;
             }
           },
         }

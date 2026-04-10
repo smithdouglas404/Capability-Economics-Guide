@@ -12,7 +12,8 @@ import {
 } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
 
-let anthropicClient: any = null;
+import type Anthropic from "@anthropic-ai/sdk";
+let anthropicClient: Anthropic | null = null;
 async function getAnthropic() {
   if (!anthropicClient) {
     try {
@@ -273,9 +274,10 @@ Only output the JSON array, no other text.`;
     }
 
     res.json({ insights, cached: false });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("AI insight generation failed:", err);
-    res.status(500).json({ error: "Failed to generate insights", details: err.message });
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Failed to generate insights", details: message });
   }
 });
 
