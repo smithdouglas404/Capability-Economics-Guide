@@ -8,18 +8,26 @@ import {
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
 } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { GetDashboardParams, GetDashboardQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.get("/organizations/:sessionToken/dashboard", async (req, res) => {
-  const { sessionToken } = req.params;
-  const rawRoleSlug = req.query.roleSlug;
-  if (rawRoleSlug !== undefined && (typeof rawRoleSlug !== "string" || rawRoleSlug.trim().length === 0)) {
-    res.status(400).json({ error: "roleSlug must be a non-empty string" });
+  const paramsParsed = GetDashboardParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
     return;
   }
-  const roleSlug = rawRoleSlug as string | undefined;
+
+  const queryParsed = GetDashboardQueryParams.safeParse(req.query);
+  if (!queryParsed.success) {
+    res.status(400).json({ error: "Invalid query parameters: roleSlug must be a string" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
+  const { roleSlug } = queryParsed.data;
 
   const [org] = await db
     .select({

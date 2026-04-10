@@ -10,7 +10,15 @@ import {
   capabilitiesTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import {
+  ListThresholdsQueryParams,
+  ListInsightsQueryParams,
+  ListLeaderboardQueryParams,
+  ListWhitePapersQueryParams,
+  GetOntologyQueryParams,
+  GenerateInsightsBody,
+} from "@workspace/api-zod";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let anthropicClient: AnthropicClient | null = null;
@@ -30,15 +38,20 @@ async function getAnthropic(): Promise<AnthropicClient | null> {
 const router: IRouter = Router();
 
 router.get("/insights", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = ListInsightsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
 
-  let query = db
+  const { industryId } = parsed.data;
+
+  const insights = await db
     .select()
     .from(capabilityInsightsTable)
     .orderBy(desc(capabilityInsightsTable.generatedAt));
 
-  const insights = await query;
-  const filtered = industryId
+  const filtered = industryId !== undefined
     ? insights.filter(i => i.industryId === industryId)
     : insights;
 
@@ -46,9 +59,13 @@ router.get("/insights", async (req, res) => {
 });
 
 router.get("/thresholds", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = ListThresholdsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
 
-  const conditions = [eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId)];
+  const { industryId } = parsed.data;
 
   let query = db
     .select({
@@ -65,20 +82,26 @@ router.get("/thresholds", async (req, res) => {
     .from(capabilityThresholdsTable)
     .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId));
 
-  const thresholds = industryId
+  const thresholds = industryId !== undefined
     ? await query.where(eq(capabilitiesTable.industryId, industryId))
     : await query;
 
   const enriched = thresholds.map(t => ({
     ...t,
-    status: t.benchmarkScore >= t.greenMin ? "green" : t.benchmarkScore >= t.yellowMin ? "yellow" : "red",
+    status: t.benchmarkScore >= t.greenMin ? "green" as const : t.benchmarkScore >= t.yellowMin ? "yellow" as const : "red" as const,
   }));
 
   res.json(enriched);
 });
 
 router.get("/leaderboard", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = ListLeaderboardQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { industryId } = parsed.data;
 
   const entries = await db
     .select({
@@ -99,7 +122,7 @@ router.get("/leaderboard", async (req, res) => {
     .innerJoin(industriesTable, eq(industriesTable.id, industryLeaderboardTable.industryId))
     .orderBy(industryLeaderboardTable.rank);
 
-  const filtered = industryId
+  const filtered = industryId !== undefined
     ? entries.filter(e => e.industryId === industryId)
     : entries;
 
@@ -107,7 +130,13 @@ router.get("/leaderboard", async (req, res) => {
 });
 
 router.get("/white-papers", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = ListWhitePapersQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { industryId } = parsed.data;
 
   const papers = await db
     .select({
@@ -127,7 +156,7 @@ router.get("/white-papers", async (req, res) => {
     .innerJoin(industriesTable, eq(industriesTable.id, industryWhitePapersTable.industryId))
     .orderBy(desc(industryWhitePapersTable.relevanceScore));
 
-  const filtered = industryId
+  const filtered = industryId !== undefined
     ? papers.filter(p => p.industryId === industryId)
     : papers;
 
@@ -135,7 +164,13 @@ router.get("/white-papers", async (req, res) => {
 });
 
 router.get("/ontology", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = GetOntologyQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { industryId } = parsed.data;
 
   const relationships = await db
     .select({
@@ -148,9 +183,9 @@ router.get("/ontology", async (req, res) => {
     })
     .from(ontologyRelationshipsTable);
 
-  const sourceCap = await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name, slug: capabilitiesTable.slug, industryId: capabilitiesTable.industryId, benchmarkScore: capabilitiesTable.benchmarkScore }).from(capabilitiesTable);
-  const capLookup: Record<number, typeof sourceCap[0]> = {};
-  for (const c of sourceCap) capLookup[c.id] = c;
+  const allCaps = await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name, slug: capabilitiesTable.slug, industryId: capabilitiesTable.industryId, benchmarkScore: capabilitiesTable.benchmarkScore }).from(capabilitiesTable);
+  const capLookup: Record<number, typeof allCaps[0]> = {};
+  for (const c of allCaps) capLookup[c.id] = c;
 
   const enriched = relationships.map(r => ({
     ...r,
@@ -162,11 +197,11 @@ router.get("/ontology", async (req, res) => {
     targetIndustryId: capLookup[r.targetCapabilityId]?.industryId,
   }));
 
-  const filtered = industryId
+  const filtered = industryId !== undefined
     ? enriched.filter(r => r.sourceIndustryId === industryId || r.targetIndustryId === industryId)
     : enriched;
 
-  const adapters = industryId
+  const adapters = industryId !== undefined
     ? await db.select().from(ontologyIndustryAdaptersTable).where(eq(ontologyIndustryAdaptersTable.industryId, industryId))
     : await db.select().from(ontologyIndustryAdaptersTable);
 
@@ -174,12 +209,13 @@ router.get("/ontology", async (req, res) => {
 });
 
 router.post("/insights/generate", async (req, res) => {
-  const { industryId, capabilityId, context } = req.body;
-
-  if (!industryId) {
-    res.status(400).json({ error: "industryId is required" });
+  const parsed = GenerateInsightsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
     return;
   }
+
+  const { industryId, capabilityId, context } = parsed.data;
 
   const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, industryId));
   if (!industry) {

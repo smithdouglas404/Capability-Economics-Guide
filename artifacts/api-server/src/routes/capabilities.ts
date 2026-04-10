@@ -8,14 +8,21 @@ import {
   cSuiteRolesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.get("/capabilities", async (req, res) => {
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const parsed = ListCapabilitiesQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { industryId } = parsed.data;
 
   let query = db.select().from(capabilitiesTable);
-  if (industryId && !isNaN(industryId)) {
+  if (industryId !== undefined) {
     query = query.where(eq(capabilitiesTable.industryId, industryId)) as typeof query;
   }
 
@@ -24,11 +31,13 @@ router.get("/capabilities", async (req, res) => {
 });
 
 router.get("/capabilities/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const parsed = GetCapabilityParams.safeParse(req.params);
+  if (!parsed.success) {
     res.status(400).json({ error: "Invalid capability ID" });
     return;
   }
+
+  const { id } = parsed.data;
 
   const [capability] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, id));
   if (!capability) {

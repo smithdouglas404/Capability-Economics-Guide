@@ -44,7 +44,7 @@ Full-stack educational platform teaching novice users about capability economics
 - CSV upload for bulk assessment import (with enum validation)
 - Dashboard aggregation with role-specific filtering (strict roleSlug validation)
 - Cross-industry comparison endpoint with theme-based shared capabilities
-- Input validation on all routes (PUT org, CSV import enums, dashboard query)
+- Standardized Zod validation on ALL routes using generated schemas from OpenAPI spec (params, query, body)
 - Technology projects endpoints: list with category filter, detail with capability impacts/executive insights/risks
 - Insights endpoints: thresholds (R/Y/G), insights, leaderboard, white papers, ontology, AI insight generation (POST)
 - Anthropic AI integration via Replit AI Integrations proxy (`@workspace/integrations-anthropic-ai`)

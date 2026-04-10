@@ -8,23 +8,21 @@ import {
 } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { CreateOrganizationBody, UpsertAssessmentsBody } from "@workspace/api-zod";
+import {
+  CreateOrganizationBody,
+  UpsertAssessmentsBody,
+  UpdateOrganizationBody,
+  GetOrganizationParams,
+  UpdateOrganizationParams,
+  DeleteOrganizationParams,
+  ListAssessmentsParams,
+  UpsertAssessmentsParams,
+  DeleteAssessmentParams,
+  UploadCsvParams,
+} from "@workspace/api-zod";
 
-const validSizes = new Set(["small", "mid", "large", "enterprise"]);
 const validInvestmentLevels = new Set(["minimal", "low", "moderate", "high", "strategic"]);
 const validImportanceLevels = new Set(["low", "medium", "high", "critical"]);
-
-function validateUpdateOrganization(body: unknown): { valid: true; data: { name?: string; size?: string } } | { valid: false; error: string } {
-  if (!body || typeof body !== "object") return { valid: false, error: "Body must be an object" };
-  const b = body as Record<string, unknown>;
-  if (b.name !== undefined && (typeof b.name !== "string" || b.name.trim().length === 0)) {
-    return { valid: false, error: "name must be a non-empty string" };
-  }
-  if (b.size !== undefined && (typeof b.size !== "string" || !validSizes.has(b.size))) {
-    return { valid: false, error: `size must be one of: ${[...validSizes].join(", ")}` };
-  }
-  return { valid: true, data: { name: b.name as string | undefined, size: b.size as string | undefined } };
-}
 
 const router: IRouter = Router();
 
@@ -62,7 +60,13 @@ router.post("/organizations", async (req, res) => {
 });
 
 router.get("/organizations/:sessionToken", async (req, res) => {
-  const { sessionToken } = req.params;
+  const paramsParsed = GetOrganizationParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db
     .select({
@@ -96,7 +100,13 @@ router.get("/organizations/:sessionToken", async (req, res) => {
 });
 
 router.get("/organizations/:sessionToken/assessments", async (req, res) => {
-  const { sessionToken } = req.params;
+  const paramsParsed = ListAssessmentsParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -126,7 +136,13 @@ router.get("/organizations/:sessionToken/assessments", async (req, res) => {
 });
 
 router.put("/organizations/:sessionToken/assessments", async (req, res) => {
-  const { sessionToken } = req.params;
+  const paramsParsed = UpsertAssessmentsParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -210,7 +226,13 @@ router.put("/organizations/:sessionToken/assessments", async (req, res) => {
 });
 
 router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
-  const { sessionToken } = req.params;
+  const paramsParsed = UploadCsvParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -325,13 +347,19 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
 });
 
 router.put("/organizations/:sessionToken", async (req, res) => {
-  const { sessionToken } = req.params;
-
-  const parsed = validateUpdateOrganization(req.body);
-  if (!parsed.valid) {
-    res.status(400).json({ error: parsed.error });
+  const paramsParsed = UpdateOrganizationParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
     return;
   }
+
+  const bodyParsed = UpdateOrganizationBody.safeParse(req.body);
+  if (!bodyParsed.success) {
+    res.status(400).json({ error: bodyParsed.error.message });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -339,7 +367,7 @@ router.put("/organizations/:sessionToken", async (req, res) => {
     return;
   }
 
-  const { name, size } = parsed.data;
+  const { name, size } = bodyParsed.data;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (name) updates.name = name;
   if (size) updates.size = size;
@@ -373,7 +401,13 @@ router.put("/organizations/:sessionToken", async (req, res) => {
 });
 
 router.delete("/organizations/:sessionToken", async (req, res) => {
-  const { sessionToken } = req.params;
+  const paramsParsed = DeleteOrganizationParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+
+  const { sessionToken } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -386,13 +420,13 @@ router.delete("/organizations/:sessionToken", async (req, res) => {
 });
 
 router.delete("/organizations/:sessionToken/assessments/:capabilityId", async (req, res) => {
-  const { sessionToken, capabilityId } = req.params;
-  const capId = parseInt(capabilityId);
-
-  if (isNaN(capId)) {
-    res.status(400).json({ error: "Invalid capability ID" });
+  const paramsParsed = DeleteAssessmentParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid parameters" });
     return;
   }
+
+  const { sessionToken, capabilityId } = paramsParsed.data;
 
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
@@ -400,12 +434,12 @@ router.delete("/organizations/:sessionToken/assessments/:capabilityId", async (r
     return;
   }
 
-  const result = await db
+  await db
     .delete(organizationCapabilitiesTable)
     .where(
       and(
         eq(organizationCapabilitiesTable.organizationId, org.id),
-        eq(organizationCapabilitiesTable.capabilityId, capId)
+        eq(organizationCapabilitiesTable.capabilityId, capabilityId)
       )
     );
 

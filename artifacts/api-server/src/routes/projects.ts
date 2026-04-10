@@ -8,12 +8,19 @@ import {
   capabilitiesTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
+import { ListProjectsQueryParams, GetProjectParams, GetProjectQueryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
 router.get("/projects", async (req, res) => {
-  const category = req.query.category as string | undefined;
+  const parsed = ListProjectsQueryParams.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { category } = parsed.data;
 
   const projects = await db
     .select({
@@ -42,13 +49,20 @@ router.get("/projects", async (req, res) => {
 });
 
 router.get("/projects/:projectId", async (req, res) => {
-  const projectId = parseInt(req.params.projectId);
-  if (isNaN(projectId)) {
+  const paramsParsed = GetProjectParams.safeParse(req.params);
+  if (!paramsParsed.success) {
     res.status(400).json({ error: "Invalid project ID" });
     return;
   }
 
-  const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+  const queryParsed = GetProjectQueryParams.safeParse(req.query);
+  if (!queryParsed.success) {
+    res.status(400).json({ error: "Invalid query parameters" });
+    return;
+  }
+
+  const { projectId } = paramsParsed.data;
+  const { industryId } = queryParsed.data;
 
   const [project] = await db
     .select()
@@ -60,7 +74,7 @@ router.get("/projects/:projectId", async (req, res) => {
     return;
   }
 
-  let impactsQuery = db
+  const impacts = await db
     .select({
       id: projectCapabilityImpactsTable.id,
       capabilityId: projectCapabilityImpactsTable.capabilityId,
@@ -77,14 +91,8 @@ router.get("/projects/:projectId", async (req, res) => {
     .innerJoin(industriesTable, eq(industriesTable.id, capabilitiesTable.industryId))
     .where(eq(projectCapabilityImpactsTable.projectId, projectId));
 
-  const impacts = await impactsQuery;
-
   let filteredImpacts = impacts;
-  if (industryId) {
-    if (isNaN(industryId)) {
-      res.status(400).json({ error: "Invalid industryId" });
-      return;
-    }
+  if (industryId !== undefined) {
     const industryCaps = await db
       .select({ id: capabilitiesTable.id })
       .from(capabilitiesTable)

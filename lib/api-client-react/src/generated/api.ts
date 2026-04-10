@@ -21,24 +21,36 @@ import type {
   CSuiteRole,
   Capability,
   CapabilityDetail,
+  CapabilityInsight,
+  CapabilityThreshold,
   CreateOrganizationRequest,
   CsvUploadResponse,
   DashboardData,
   ErrorResponse,
+  GenerateInsightsRequest,
+  GenerateInsightsResponse,
   GetDashboardParams,
+  GetOntologyParams,
   GetProjectParams,
   HealthStatus,
   Industry,
   IndustryComparison,
   IndustryDetail,
+  LeaderboardEntry,
   ListCapabilitiesParams,
+  ListInsightsParams,
+  ListLeaderboardParams,
   ListProjectsParams,
+  ListThresholdsParams,
+  ListWhitePapersParams,
+  OntologyData,
   Organization,
   OrganizationDetail,
   ProjectDetail,
   TechnologyProject,
   UpdateOrganizationBody,
   UpsertAssessmentsRequest,
+  WhitePaper,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -1624,6 +1636,562 @@ export function useGetProject<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetProjectQueryOptions(projectId, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List R/Y/G capability thresholds
+ */
+export const getListThresholdsUrl = (params?: ListThresholdsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/thresholds?${stringifiedParams}`
+    : `/api/thresholds`;
+};
+
+export const listThresholds = async (
+  params?: ListThresholdsParams,
+  options?: RequestInit,
+): Promise<CapabilityThreshold[]> => {
+  return customFetch<CapabilityThreshold[]>(getListThresholdsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListThresholdsQueryKey = (params?: ListThresholdsParams) => {
+  return [`/api/thresholds`, ...(params ? [params] : [])] as const;
+};
+
+export const getListThresholdsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listThresholds>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListThresholdsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThresholds>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListThresholdsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listThresholds>>> = ({
+    signal,
+  }) => listThresholds(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listThresholds>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListThresholdsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listThresholds>>
+>;
+export type ListThresholdsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List R/Y/G capability thresholds
+ */
+
+export function useListThresholds<
+  TData = Awaited<ReturnType<typeof listThresholds>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListThresholdsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listThresholds>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListThresholdsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List capability insights
+ */
+export const getListInsightsUrl = (params?: ListInsightsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/insights?${stringifiedParams}`
+    : `/api/insights`;
+};
+
+export const listInsights = async (
+  params?: ListInsightsParams,
+  options?: RequestInit,
+): Promise<CapabilityInsight[]> => {
+  return customFetch<CapabilityInsight[]>(getListInsightsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListInsightsQueryKey = (params?: ListInsightsParams) => {
+  return [`/api/insights`, ...(params ? [params] : [])] as const;
+};
+
+export const getListInsightsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listInsights>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListInsightsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInsights>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListInsightsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listInsights>>> = ({
+    signal,
+  }) => listInsights(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listInsights>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListInsightsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listInsights>>
+>;
+export type ListInsightsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List capability insights
+ */
+
+export function useListInsights<
+  TData = Awaited<ReturnType<typeof listInsights>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListInsightsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listInsights>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListInsightsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate AI-powered insights for an industry
+ */
+export const getGenerateInsightsUrl = () => {
+  return `/api/insights/generate`;
+};
+
+export const generateInsights = async (
+  generateInsightsRequest: GenerateInsightsRequest,
+  options?: RequestInit,
+): Promise<GenerateInsightsResponse> => {
+  return customFetch<GenerateInsightsResponse>(getGenerateInsightsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateInsightsRequest),
+  });
+};
+
+export const getGenerateInsightsMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInsights>>,
+    TError,
+    { data: BodyType<GenerateInsightsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateInsights>>,
+  TError,
+  { data: BodyType<GenerateInsightsRequest> },
+  TContext
+> => {
+  const mutationKey = ["generateInsights"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateInsights>>,
+    { data: BodyType<GenerateInsightsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateInsights(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateInsightsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateInsights>>
+>;
+export type GenerateInsightsMutationBody = BodyType<GenerateInsightsRequest>;
+export type GenerateInsightsMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Generate AI-powered insights for an industry
+ */
+export const useGenerateInsights = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateInsights>>,
+    TError,
+    { data: BodyType<GenerateInsightsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateInsights>>,
+  TError,
+  { data: BodyType<GenerateInsightsRequest> },
+  TContext
+> => {
+  return useMutation(getGenerateInsightsMutationOptions(options));
+};
+
+/**
+ * @summary List industry leaderboard entries
+ */
+export const getListLeaderboardUrl = (params?: ListLeaderboardParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/leaderboard?${stringifiedParams}`
+    : `/api/leaderboard`;
+};
+
+export const listLeaderboard = async (
+  params?: ListLeaderboardParams,
+  options?: RequestInit,
+): Promise<LeaderboardEntry[]> => {
+  return customFetch<LeaderboardEntry[]>(getListLeaderboardUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListLeaderboardQueryKey = (params?: ListLeaderboardParams) => {
+  return [`/api/leaderboard`, ...(params ? [params] : [])] as const;
+};
+
+export const getListLeaderboardQueryOptions = <
+  TData = Awaited<ReturnType<typeof listLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListLeaderboardParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListLeaderboardQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listLeaderboard>>> = ({
+    signal,
+  }) => listLeaderboard(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listLeaderboard>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListLeaderboardQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listLeaderboard>>
+>;
+export type ListLeaderboardQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List industry leaderboard entries
+ */
+
+export function useListLeaderboard<
+  TData = Awaited<ReturnType<typeof listLeaderboard>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListLeaderboardParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listLeaderboard>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListLeaderboardQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List industry white papers
+ */
+export const getListWhitePapersUrl = (params?: ListWhitePapersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/white-papers?${stringifiedParams}`
+    : `/api/white-papers`;
+};
+
+export const listWhitePapers = async (
+  params?: ListWhitePapersParams,
+  options?: RequestInit,
+): Promise<WhitePaper[]> => {
+  return customFetch<WhitePaper[]>(getListWhitePapersUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListWhitePapersQueryKey = (params?: ListWhitePapersParams) => {
+  return [`/api/white-papers`, ...(params ? [params] : [])] as const;
+};
+
+export const getListWhitePapersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listWhitePapers>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWhitePapersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWhitePapers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListWhitePapersQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listWhitePapers>>> = ({
+    signal,
+  }) => listWhitePapers(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listWhitePapers>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListWhitePapersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listWhitePapers>>
+>;
+export type ListWhitePapersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List industry white papers
+ */
+
+export function useListWhitePapers<
+  TData = Awaited<ReturnType<typeof listWhitePapers>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListWhitePapersParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listWhitePapers>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListWhitePapersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get capability ontology relationships and industry adapters
+ */
+export const getGetOntologyUrl = (params?: GetOntologyParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/ontology?${stringifiedParams}`
+    : `/api/ontology`;
+};
+
+export const getOntology = async (
+  params?: GetOntologyParams,
+  options?: RequestInit,
+): Promise<OntologyData> => {
+  return customFetch<OntologyData>(getGetOntologyUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOntologyQueryKey = (params?: GetOntologyParams) => {
+  return [`/api/ontology`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetOntologyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOntology>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetOntologyParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOntology>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOntologyQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOntology>>> = ({
+    signal,
+  }) => getOntology(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOntology>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOntologyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOntology>>
+>;
+export type GetOntologyQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get capability ontology relationships and industry adapters
+ */
+
+export function useGetOntology<
+  TData = Awaited<ReturnType<typeof getOntology>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetOntologyParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOntology>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOntologyQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

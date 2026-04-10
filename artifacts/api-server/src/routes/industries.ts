@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { industriesTable, capabilitiesTable } from "@workspace/db";
 import { eq, sql, desc } from "drizzle-orm";
+import { GetIndustryParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
 
@@ -98,11 +99,13 @@ router.get("/industries", async (_req, res) => {
 });
 
 router.get("/industries/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
-  if (isNaN(id)) {
+  const parsed = GetIndustryParams.safeParse(req.params);
+  if (!parsed.success) {
     res.status(400).json({ error: "Invalid industry ID" });
     return;
   }
+
+  const { id } = parsed.data;
 
   const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, id));
   if (!industry) {

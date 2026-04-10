@@ -20,6 +20,8 @@ tags:
     description: Dashboard and analytics
   - name: projects
     description: Technology project overlays
+  - name: insights
+    description: AI-powered insights, thresholds, leaderboard, ontology, and white papers
 paths:
   /healthz:
     get:
@@ -424,6 +426,140 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+
+  /thresholds:
+    get:
+      operationId: listThresholds
+      tags: [insights]
+      summary: List R/Y/G capability thresholds
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of capability thresholds with status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CapabilityThreshold"
+
+  /insights:
+    get:
+      operationId: listInsights
+      tags: [insights]
+      summary: List capability insights
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of capability insights
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CapabilityInsight"
+
+  /insights/generate:
+    post:
+      operationId: generateInsights
+      tags: [insights]
+      summary: Generate AI-powered insights for an industry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateInsightsRequest"
+      responses:
+        "200":
+          description: Generated insights
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateInsightsResponse"
+        "400":
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /leaderboard:
+    get:
+      operationId: listLeaderboard
+      tags: [insights]
+      summary: List industry leaderboard entries
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of leaderboard entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /white-papers:
+    get:
+      operationId: listWhitePapers
+      tags: [insights]
+      summary: List industry white papers
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of white papers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WhitePaper"
+
+  /ontology:
+    get:
+      operationId: getOntology
+      tags: [insights]
+      summary: Get capability ontology relationships and industry adapters
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Ontology relationships and adapters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OntologyData"
 
 components:
   schemas:
@@ -918,3 +1054,212 @@ components:
           items:
             $ref: "#/components/schemas/ProjectRisk"
       required: [project, capabilityImpacts, executiveInsights, risks]
+
+    CapabilityThreshold:
+      type: object
+      properties:
+        id:
+          type: integer
+        capabilityId:
+          type: integer
+        capabilityName:
+          type: string
+        capabilitySlug:
+          type: string
+        industryId:
+          type: integer
+        benchmarkScore:
+          type: number
+        greenMin:
+          type: number
+        yellowMin:
+          type: number
+        redMax:
+          type: number
+        status:
+          type: string
+          enum: [green, yellow, red]
+      required: [id, capabilityId, capabilityName, capabilitySlug, industryId, benchmarkScore, greenMin, yellowMin, redMax, status]
+
+    CapabilityInsight:
+      type: object
+      properties:
+        id:
+          type: integer
+        capabilityId:
+          type: integer
+          nullable: true
+        industryId:
+          type: integer
+        insightType:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        recommendation:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        generatedAt:
+          type: string
+      required: [id, industryId, insightType, title, content, severity, generatedAt]
+
+    GenerateInsightsRequest:
+      type: object
+      properties:
+        industryId:
+          type: integer
+        capabilityId:
+          type: integer
+          nullable: true
+        context:
+          type: string
+          nullable: true
+      required: [industryId]
+
+    GenerateInsightsResponse:
+      type: object
+      properties:
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              content:
+                type: string
+              recommendation:
+                type: string
+              severity:
+                type: string
+            required: [title, content, recommendation, severity]
+        cached:
+          type: boolean
+      required: [insights, cached]
+
+    LeaderboardEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        industryId:
+          type: integer
+        industryName:
+          type: string
+        companyName:
+          type: string
+        overallMaturity:
+          type: number
+        topCapability:
+          type: string
+        topCapabilityScore:
+          type: number
+        weakestCapability:
+          type: string
+        weakestCapabilityScore:
+          type: number
+        investmentLevel:
+          type: string
+        trend:
+          type: string
+        rank:
+          type: integer
+      required: [id, industryId, industryName, companyName, overallMaturity, topCapability, topCapabilityScore, weakestCapability, weakestCapabilityScore, investmentLevel, trend, rank]
+
+    WhitePaper:
+      type: object
+      properties:
+        id:
+          type: integer
+        industryId:
+          type: integer
+        industryName:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        organization:
+          type: string
+        abstract:
+          type: string
+        category:
+          type: string
+        publishedYear:
+          type: integer
+        relevanceScore:
+          type: number
+        tags:
+          type: array
+          items:
+            type: string
+      required: [id, industryId, industryName, title, author, organization, abstract, category, publishedYear, relevanceScore, tags]
+
+    OntologyRelationship:
+      type: object
+      properties:
+        id:
+          type: integer
+        sourceCapabilityId:
+          type: integer
+        targetCapabilityId:
+          type: integer
+        relationshipType:
+          type: string
+        strength:
+          type: number
+        description:
+          type: string
+        sourceName:
+          type: string
+        sourceSlug:
+          type: string
+        sourceIndustryId:
+          type: integer
+        targetName:
+          type: string
+        targetSlug:
+          type: string
+        targetIndustryId:
+          type: integer
+      required: [id, sourceCapabilityId, targetCapabilityId, relationshipType, strength, description, sourceName, sourceSlug, targetName, targetSlug]
+
+    OntologyAdapter:
+      type: object
+      properties:
+        id:
+          type: integer
+        industryId:
+          type: integer
+        adapterName:
+          type: string
+        description:
+          type: string
+        focusAreas:
+          type: array
+          items:
+            type: string
+        maturityModel:
+          type: object
+          nullable: true
+      required: [id, industryId, adapterName, description, focusAreas]
+
+    OntologyData:
+      type: object
+      properties:
+        relationships:
+          type: array
+          items:
+            $ref: "#/components/schemas/OntologyRelationship"
+        adapters:
+          type: array
+          items:
+            $ref: "#/components/schemas/OntologyAdapter"
+      required: [relationships, adapters]

@@ -289,6 +289,130 @@ export interface ProjectDetail {
   risks: ProjectRisk[];
 }
 
+export type CapabilityThresholdStatus =
+  (typeof CapabilityThresholdStatus)[keyof typeof CapabilityThresholdStatus];
+
+export const CapabilityThresholdStatus = {
+  green: "green",
+  yellow: "yellow",
+  red: "red",
+} as const;
+
+export interface CapabilityThreshold {
+  id: number;
+  capabilityId: number;
+  capabilityName: string;
+  capabilitySlug: string;
+  industryId: number;
+  benchmarkScore: number;
+  greenMin: number;
+  yellowMin: number;
+  redMax: number;
+  status: CapabilityThresholdStatus;
+}
+
+export type CapabilityInsightSeverity =
+  (typeof CapabilityInsightSeverity)[keyof typeof CapabilityInsightSeverity];
+
+export const CapabilityInsightSeverity = {
+  critical: "critical",
+  warning: "warning",
+  info: "info",
+} as const;
+
+export type CapabilityInsightMetadata = { [key: string]: unknown } | null;
+
+export interface CapabilityInsight {
+  id: number;
+  capabilityId?: number | null;
+  industryId: number;
+  insightType: string;
+  title: string;
+  content: string;
+  severity: CapabilityInsightSeverity;
+  recommendation?: string | null;
+  metadata?: CapabilityInsightMetadata;
+  generatedAt: string;
+}
+
+export interface GenerateInsightsRequest {
+  industryId: number;
+  capabilityId?: number | null;
+  context?: string | null;
+}
+
+export type GenerateInsightsResponseInsightsItem = {
+  title: string;
+  content: string;
+  recommendation: string;
+  severity: string;
+};
+
+export interface GenerateInsightsResponse {
+  insights: GenerateInsightsResponseInsightsItem[];
+  cached: boolean;
+}
+
+export interface LeaderboardEntry {
+  id: number;
+  industryId: number;
+  industryName: string;
+  companyName: string;
+  overallMaturity: number;
+  topCapability: string;
+  topCapabilityScore: number;
+  weakestCapability: string;
+  weakestCapabilityScore: number;
+  investmentLevel: string;
+  trend: string;
+  rank: number;
+}
+
+export interface WhitePaper {
+  id: number;
+  industryId: number;
+  industryName: string;
+  title: string;
+  author: string;
+  organization: string;
+  abstract: string;
+  category: string;
+  publishedYear: number;
+  relevanceScore: number;
+  tags: string[];
+}
+
+export interface OntologyRelationship {
+  id: number;
+  sourceCapabilityId: number;
+  targetCapabilityId: number;
+  relationshipType: string;
+  strength: number;
+  description: string;
+  sourceName: string;
+  sourceSlug: string;
+  sourceIndustryId?: number;
+  targetName: string;
+  targetSlug: string;
+  targetIndustryId?: number;
+}
+
+export type OntologyAdapterMaturityModel = { [key: string]: unknown } | null;
+
+export interface OntologyAdapter {
+  id: number;
+  industryId: number;
+  adapterName: string;
+  description: string;
+  focusAreas: string[];
+  maturityModel?: OntologyAdapterMaturityModel;
+}
+
+export interface OntologyData {
+  relationships: OntologyRelationship[];
+  adapters: OntologyAdapter[];
+}
+
 export type ListCapabilitiesParams = {
   industryId?: number;
 };
@@ -317,5 +441,25 @@ export type ListProjectsParams = {
 };
 
 export type GetProjectParams = {
+  industryId?: number;
+};
+
+export type ListThresholdsParams = {
+  industryId?: number;
+};
+
+export type ListInsightsParams = {
+  industryId?: number;
+};
+
+export type ListLeaderboardParams = {
+  industryId?: number;
+};
+
+export type ListWhitePapersParams = {
+  industryId?: number;
+};
+
+export type GetOntologyParams = {
   industryId?: number;
 };

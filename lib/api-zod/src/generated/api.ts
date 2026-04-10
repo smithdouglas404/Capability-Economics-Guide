@@ -457,3 +457,147 @@ export const GetProjectResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List R/Y/G capability thresholds
+ */
+export const ListThresholdsQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const ListThresholdsResponseItem = zod.object({
+  id: zod.number(),
+  capabilityId: zod.number(),
+  capabilityName: zod.string(),
+  capabilitySlug: zod.string(),
+  industryId: zod.number(),
+  benchmarkScore: zod.number(),
+  greenMin: zod.number(),
+  yellowMin: zod.number(),
+  redMax: zod.number(),
+  status: zod.enum(["green", "yellow", "red"]),
+});
+export const ListThresholdsResponse = zod.array(ListThresholdsResponseItem);
+
+/**
+ * @summary List capability insights
+ */
+export const ListInsightsQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const ListInsightsResponseItem = zod.object({
+  id: zod.number(),
+  capabilityId: zod.number().nullish(),
+  industryId: zod.number(),
+  insightType: zod.string(),
+  title: zod.string(),
+  content: zod.string(),
+  severity: zod.enum(["critical", "warning", "info"]),
+  recommendation: zod.string().nullish(),
+  metadata: zod.object({}).passthrough().nullish(),
+  generatedAt: zod.string(),
+});
+export const ListInsightsResponse = zod.array(ListInsightsResponseItem);
+
+/**
+ * @summary Generate AI-powered insights for an industry
+ */
+export const GenerateInsightsBody = zod.object({
+  industryId: zod.number(),
+  capabilityId: zod.number().nullish(),
+  context: zod.string().nullish(),
+});
+
+export const GenerateInsightsResponse = zod.object({
+  insights: zod.array(
+    zod.object({
+      title: zod.string(),
+      content: zod.string(),
+      recommendation: zod.string(),
+      severity: zod.string(),
+    }),
+  ),
+  cached: zod.boolean(),
+});
+
+/**
+ * @summary List industry leaderboard entries
+ */
+export const ListLeaderboardQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const ListLeaderboardResponseItem = zod.object({
+  id: zod.number(),
+  industryId: zod.number(),
+  industryName: zod.string(),
+  companyName: zod.string(),
+  overallMaturity: zod.number(),
+  topCapability: zod.string(),
+  topCapabilityScore: zod.number(),
+  weakestCapability: zod.string(),
+  weakestCapabilityScore: zod.number(),
+  investmentLevel: zod.string(),
+  trend: zod.string(),
+  rank: zod.number(),
+});
+export const ListLeaderboardResponse = zod.array(ListLeaderboardResponseItem);
+
+/**
+ * @summary List industry white papers
+ */
+export const ListWhitePapersQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const ListWhitePapersResponseItem = zod.object({
+  id: zod.number(),
+  industryId: zod.number(),
+  industryName: zod.string(),
+  title: zod.string(),
+  author: zod.string(),
+  organization: zod.string(),
+  abstract: zod.string(),
+  category: zod.string(),
+  publishedYear: zod.number(),
+  relevanceScore: zod.number(),
+  tags: zod.array(zod.string()),
+});
+export const ListWhitePapersResponse = zod.array(ListWhitePapersResponseItem);
+
+/**
+ * @summary Get capability ontology relationships and industry adapters
+ */
+export const GetOntologyQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const GetOntologyResponse = zod.object({
+  relationships: zod.array(
+    zod.object({
+      id: zod.number(),
+      sourceCapabilityId: zod.number(),
+      targetCapabilityId: zod.number(),
+      relationshipType: zod.string(),
+      strength: zod.number(),
+      description: zod.string(),
+      sourceName: zod.string(),
+      sourceSlug: zod.string(),
+      sourceIndustryId: zod.number().optional(),
+      targetName: zod.string(),
+      targetSlug: zod.string(),
+      targetIndustryId: zod.number().optional(),
+    }),
+  ),
+  adapters: zod.array(
+    zod.object({
+      id: zod.number(),
+      industryId: zod.number(),
+      adapterName: zod.string(),
+      description: zod.string(),
+      focusAreas: zod.array(zod.string()),
+      maturityModel: zod.object({}).passthrough().nullish(),
+    }),
+  ),
+});
