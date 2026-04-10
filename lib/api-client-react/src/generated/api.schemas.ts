@@ -462,6 +462,37 @@ export interface ResearchResponse {
   rawAnalysis: string;
 }
 
+export interface CEIIndustryBreakdown {
+  industryName: string;
+  indexValue: number;
+  weight: number;
+  velocity: number;
+  capabilityCount: number;
+  topMover: string;
+  topMoverDelta: number;
+}
+
+export type CEIDataIndustryBreakdowns = { [key: string]: CEIIndustryBreakdown };
+
+export interface CEIData {
+  overallIndex: number;
+  industryBreakdowns: CEIDataIndustryBreakdowns;
+  marketSentiment: number;
+  volatility: number;
+  methodology: string;
+  timestamp: string;
+}
+
+export type CEIHistoryEntryIndustryBreakdowns = {
+  [key: string]: CEIIndustryBreakdown;
+};
+
+export interface CEIHistoryEntry {
+  overallIndex: number;
+  timestamp: string;
+  industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
+}
+
 export type ListCapabilitiesParams = {
   industryId?: number;
 };
@@ -511,6 +542,26 @@ export type ListWhitePapersParams = {
 
 export type GetOntologyParams = {
   industryId?: number;
+};
+
+export type GetCEIHistoryParams = {
+  limit?: number;
+};
+
+export type RefreshCEIBody = {
+  industryId?: number | null;
+};
+
+export type RefreshCEI200TriangulationsItem = { [key: string]: unknown };
+
+export type RefreshCEI200 = {
+  cei?: CEIData;
+  triangulations?: RefreshCEI200TriangulationsItem[];
+};
+
+export type GetCEIMethodology200 = {
+  methodology: string;
+  version: string;
 };
 
 export type ListDataSourcesParams = {

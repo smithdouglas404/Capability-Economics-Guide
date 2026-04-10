@@ -6,3 +6,4 @@ export * from "./projects";
 export * from "./insights";
 export * from "./ontology";
 export * from "./data-sources";
+export * from "./cei";

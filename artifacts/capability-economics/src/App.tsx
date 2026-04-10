@@ -12,6 +12,7 @@ import OrganizationSetup from "@/pages/organization";
 import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import InsightsPage from "@/pages/insights";
+import CEIDashboard from "@/pages/cei-dashboard";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/cei" component={CEIDashboard} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />

@@ -608,6 +608,98 @@ export const GetOntologyResponse = zod.object({
 });
 
 /**
+ * @summary Get current CEI index value and industry breakdowns
+ */
+export const GetCEICurrentResponse = zod.object({
+  overallIndex: zod.number(),
+  industryBreakdowns: zod.record(
+    zod.string(),
+    zod.object({
+      industryName: zod.string(),
+      indexValue: zod.number(),
+      weight: zod.number(),
+      velocity: zod.number(),
+      capabilityCount: zod.number(),
+      topMover: zod.string(),
+      topMoverDelta: zod.number(),
+    }),
+  ),
+  marketSentiment: zod.number(),
+  volatility: zod.number(),
+  methodology: zod.string(),
+  timestamp: zod.string(),
+});
+
+/**
+ * @summary Get historical CEI index values
+ */
+export const getCEIHistoryQueryLimitDefault = 30;
+
+export const GetCEIHistoryQueryParams = zod.object({
+  limit: zod.coerce.number().default(getCEIHistoryQueryLimitDefault),
+});
+
+export const GetCEIHistoryResponseItem = zod.object({
+  overallIndex: zod.number(),
+  timestamp: zod.string(),
+  industryBreakdowns: zod
+    .record(
+      zod.string(),
+      zod.object({
+        industryName: zod.string(),
+        indexValue: zod.number(),
+        weight: zod.number(),
+        velocity: zod.number(),
+        capabilityCount: zod.number(),
+        topMover: zod.string(),
+        topMoverDelta: zod.number(),
+      }),
+    )
+    .optional(),
+});
+export const GetCEIHistoryResponse = zod.array(GetCEIHistoryResponseItem);
+
+/**
+ * @summary Trigger CEI recalculation with optional triangulation
+ */
+export const RefreshCEIBody = zod.object({
+  industryId: zod.number().nullish(),
+});
+
+export const RefreshCEIResponse = zod.object({
+  cei: zod
+    .object({
+      overallIndex: zod.number(),
+      industryBreakdowns: zod.record(
+        zod.string(),
+        zod.object({
+          industryName: zod.string(),
+          indexValue: zod.number(),
+          weight: zod.number(),
+          velocity: zod.number(),
+          capabilityCount: zod.number(),
+          topMover: zod.string(),
+          topMoverDelta: zod.number(),
+        }),
+      ),
+      marketSentiment: zod.number(),
+      volatility: zod.number(),
+      methodology: zod.string(),
+      timestamp: zod.string(),
+    })
+    .optional(),
+  triangulations: zod.array(zod.object({}).passthrough()).optional(),
+});
+
+/**
+ * @summary Get CEI calculation methodology documentation
+ */
+export const GetCEIMethodologyResponse = zod.object({
+  methodology: zod.string(),
+  version: zod.string(),
+});
+
+/**
  * Queries the Perplexity API for live research data with citations. Returns structured findings with source URLs.
  * @summary Research a capability or industry topic using Perplexity
  */

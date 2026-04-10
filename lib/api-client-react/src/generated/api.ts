@@ -18,6 +18,8 @@ import type {
 
 import type {
   Assessment,
+  CEIData,
+  CEIHistoryEntry,
   CSuiteRole,
   Capability,
   CapabilityDetail,
@@ -30,6 +32,8 @@ import type {
   ErrorResponse,
   GenerateInsightsRequest,
   GenerateInsightsResponse,
+  GetCEIHistoryParams,
+  GetCEIMethodology200,
   GetDashboardParams,
   GetOntologyParams,
   GetProjectParams,
@@ -49,6 +53,8 @@ import type {
   Organization,
   OrganizationDetail,
   ProjectDetail,
+  RefreshCEI200,
+  RefreshCEIBody,
   ResearchRequest,
   ResearchResponse,
   TechnologyProject,
@@ -2196,6 +2202,336 @@ export function useGetOntology<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOntologyQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get current CEI index value and industry breakdowns
+ */
+export const getGetCEICurrentUrl = () => {
+  return `/api/cei/current`;
+};
+
+export const getCEICurrent = async (
+  options?: RequestInit,
+): Promise<CEIData> => {
+  return customFetch<CEIData>(getGetCEICurrentUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCEICurrentQueryKey = () => {
+  return [`/api/cei/current`] as const;
+};
+
+export const getGetCEICurrentQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCEICurrent>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCEICurrent>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCEICurrentQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCEICurrent>>> = ({
+    signal,
+  }) => getCEICurrent({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCEICurrent>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCEICurrentQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCEICurrent>>
+>;
+export type GetCEICurrentQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current CEI index value and industry breakdowns
+ */
+
+export function useGetCEICurrent<
+  TData = Awaited<ReturnType<typeof getCEICurrent>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCEICurrent>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCEICurrentQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get historical CEI index values
+ */
+export const getGetCEIHistoryUrl = (params?: GetCEIHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/cei/history?${stringifiedParams}`
+    : `/api/cei/history`;
+};
+
+export const getCEIHistory = async (
+  params?: GetCEIHistoryParams,
+  options?: RequestInit,
+): Promise<CEIHistoryEntry[]> => {
+  return customFetch<CEIHistoryEntry[]>(getGetCEIHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCEIHistoryQueryKey = (params?: GetCEIHistoryParams) => {
+  return [`/api/cei/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCEIHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCEIHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCEIHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCEIHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCEIHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCEIHistory>>> = ({
+    signal,
+  }) => getCEIHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCEIHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCEIHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCEIHistory>>
+>;
+export type GetCEIHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get historical CEI index values
+ */
+
+export function useGetCEIHistory<
+  TData = Awaited<ReturnType<typeof getCEIHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetCEIHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getCEIHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCEIHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Trigger CEI recalculation with optional triangulation
+ */
+export const getRefreshCEIUrl = () => {
+  return `/api/cei/refresh`;
+};
+
+export const refreshCEI = async (
+  refreshCEIBody?: RefreshCEIBody,
+  options?: RequestInit,
+): Promise<RefreshCEI200> => {
+  return customFetch<RefreshCEI200>(getRefreshCEIUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(refreshCEIBody),
+  });
+};
+
+export const getRefreshCEIMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshCEI>>,
+    TError,
+    { data: BodyType<RefreshCEIBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshCEI>>,
+  TError,
+  { data: BodyType<RefreshCEIBody> },
+  TContext
+> => {
+  const mutationKey = ["refreshCEI"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshCEI>>,
+    { data: BodyType<RefreshCEIBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return refreshCEI(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshCEIMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshCEI>>
+>;
+export type RefreshCEIMutationBody = BodyType<RefreshCEIBody>;
+export type RefreshCEIMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Trigger CEI recalculation with optional triangulation
+ */
+export const useRefreshCEI = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshCEI>>,
+    TError,
+    { data: BodyType<RefreshCEIBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshCEI>>,
+  TError,
+  { data: BodyType<RefreshCEIBody> },
+  TContext
+> => {
+  return useMutation(getRefreshCEIMutationOptions(options));
+};
+
+/**
+ * @summary Get CEI calculation methodology documentation
+ */
+export const getGetCEIMethodologyUrl = () => {
+  return `/api/cei/methodology`;
+};
+
+export const getCEIMethodology = async (
+  options?: RequestInit,
+): Promise<GetCEIMethodology200> => {
+  return customFetch<GetCEIMethodology200>(getGetCEIMethodologyUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCEIMethodologyQueryKey = () => {
+  return [`/api/cei/methodology`] as const;
+};
+
+export const getGetCEIMethodologyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCEIMethodology>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCEIMethodology>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCEIMethodologyQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getCEIMethodology>>
+  > = ({ signal }) => getCEIMethodology({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCEIMethodology>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetCEIMethodologyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCEIMethodology>>
+>;
+export type GetCEIMethodologyQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get CEI calculation methodology documentation
+ */
+
+export function useGetCEIMethodology<
+  TData = Awaited<ReturnType<typeof getCEIMethodology>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getCEIMethodology>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetCEIMethodologyQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

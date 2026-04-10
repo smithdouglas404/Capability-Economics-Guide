@@ -6,6 +6,7 @@ import organizationsRouter from "./organizations";
 import dashboardRouter from "./dashboard";
 import projectsRouter from "./projects";
 import insightsRouter from "./insights";
+import ceiRouter from "./cei";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(organizationsRouter);
 router.use(dashboardRouter);
 router.use(projectsRouter);
 router.use(insightsRouter);
+router.use(ceiRouter);
 
 export default router;

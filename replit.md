@@ -79,6 +79,18 @@ Full-stack educational platform teaching novice users about capability economics
 - Frontend shows clickable source badges (SourceBadges component) on thresholds, leaderboard, and white papers
 - POST `/api/research` provides on-demand Perplexity research with auto-citation storage
 
+### Capability Economics Index (CEI)
+- `/cei` — Live composite index page with dark hero section, sentiment gauge, industry breakdown
+- **CEI Formula**: CEI = Σ(Wi × Ci × (1 + Vi) × Ei × αi) / ΣWi × 10
+  - Wi = industry GDP weight, Ci = Bayesian consensus score, Vi = velocity (EMA), Ei = economic multiplier, αi = confidence
+- **Multi-source triangulation**: 4 Perplexity queries per capability (consulting, market data, academic, practitioner perspectives)
+- **Bayesian consensus**: Non-informative prior (μ=50, σ²=625), posterior distribution with 95% credible intervals
+- **Velocity tracking**: EMA (α=0.7) of score changes captures capability improvement/decline
+- **Economic multiplier**: Derived from ontology dependency graph (1.0–2.0× based on connectivity)
+- DB tables: `cei_snapshots`, `cei_components`, `source_triangulations`
+- API endpoints: GET `/api/cei/current`, GET `/api/cei/history`, POST `/api/cei/refresh`, GET `/api/cei/methodology`, GET `/api/cei/components`
+- Index scale: 0-1000 (Nascent → Developing → Advancing → Leading → Transformative)
+
 ### Key Dependencies
 - **wouter** for client-side routing
 - **framer-motion** for animations

@@ -561,6 +561,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/OntologyData"
 
+  /cei/current:
+    get:
+      operationId: getCEICurrent
+      tags: [cei]
+      summary: Get current CEI index value and industry breakdowns
+      responses:
+        "200":
+          description: Current CEI data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CEIData"
+
+  /cei/history:
+    get:
+      operationId: getCEIHistory
+      tags: [cei]
+      summary: Get historical CEI index values
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: CEI history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CEIHistoryEntry"
+
+  /cei/refresh:
+    post:
+      operationId: refreshCEI
+      tags: [cei]
+      summary: Trigger CEI recalculation with optional triangulation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                industryId:
+                  type: integer
+                  nullable: true
+      responses:
+        "200":
+          description: Refreshed CEI data with triangulation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cei:
+                    $ref: "#/components/schemas/CEIData"
+                  triangulations:
+                    type: array
+                    items:
+                      type: object
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /cei/methodology:
+    get:
+      operationId: getCEIMethodology
+      tags: [cei]
+      summary: Get CEI calculation methodology documentation
+      responses:
+        "200":
+          description: Methodology documentation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  methodology:
+                    type: string
+                  version:
+                    type: string
+                required: [methodology, version]
+
   /research:
     post:
       operationId: researchCapability
@@ -1413,3 +1503,54 @@ components:
           type: string
           description: Full research narrative from Perplexity
       required: [findings, citations, rawAnalysis]
+
+    CEIIndustryBreakdown:
+      type: object
+      properties:
+        industryName:
+          type: string
+        indexValue:
+          type: number
+        weight:
+          type: number
+        velocity:
+          type: number
+        capabilityCount:
+          type: integer
+        topMover:
+          type: string
+        topMoverDelta:
+          type: number
+      required: [industryName, indexValue, weight, velocity, capabilityCount, topMover, topMoverDelta]
+
+    CEIData:
+      type: object
+      properties:
+        overallIndex:
+          type: number
+        industryBreakdowns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CEIIndustryBreakdown"
+        marketSentiment:
+          type: number
+        volatility:
+          type: number
+        methodology:
+          type: string
+        timestamp:
+          type: string
+      required: [overallIndex, industryBreakdowns, marketSentiment, volatility, methodology, timestamp]
+
+    CEIHistoryEntry:
+      type: object
+      properties:
+        overallIndex:
+          type: number
+        timestamp:
+          type: string
+        industryBreakdowns:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CEIIndustryBreakdown"
+      required: [overallIndex, timestamp]
