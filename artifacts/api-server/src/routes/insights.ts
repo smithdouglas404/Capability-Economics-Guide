@@ -12,9 +12,9 @@ import {
 } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
 
-import type Anthropic from "@anthropic-ai/sdk";
-let anthropicClient: Anthropic | null = null;
-async function getAnthropic() {
+type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
+let anthropicClient: AnthropicClient | null = null;
+async function getAnthropic(): Promise<AnthropicClient | null> {
   if (!anthropicClient) {
     try {
       const mod = await import("@workspace/integrations-anthropic-ai");

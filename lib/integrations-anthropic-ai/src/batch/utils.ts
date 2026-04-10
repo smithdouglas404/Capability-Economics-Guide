@@ -1,5 +1,5 @@
 import pLimit from "p-limit";
-import pRetry from "p-retry";
+import pRetry, { AbortError } from "p-retry";
 
 export interface BatchOptions {
   concurrency?: number;
@@ -48,9 +48,9 @@ export async function batchProcess<T, R>(
             if (isRateLimitError(error)) {
               throw error;
             }
-            const abortErr = new Error(error instanceof Error ? error.message : String(error));
-            (abortErr as any).name = "AbortError";
-            throw abortErr;
+            throw new AbortError(
+              error instanceof Error ? error : new Error(String(error))
+            );
           }
         },
         { retries, minTimeout, maxTimeout, factor: 2 }
@@ -88,9 +88,9 @@ export async function batchProcessWithSSE<T, R>(
           factor: 2,
           onFailedAttempt: (error) => {
             if (!isRateLimitError(error)) {
-              const abortErr = new Error(error instanceof Error ? error.message : String(error));
-              (abortErr as any).name = "AbortError";
-              throw abortErr;
+              throw new AbortError(
+                error instanceof Error ? error : new Error(String(error))
+              );
             }
           },
         }
