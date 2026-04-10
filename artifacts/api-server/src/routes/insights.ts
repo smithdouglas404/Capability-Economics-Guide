@@ -166,15 +166,9 @@ router.get("/ontology", async (req, res) => {
     ? enriched.filter(r => r.sourceIndustryId === industryId || r.targetIndustryId === industryId)
     : enriched;
 
-  let adapters: any[] = [];
-  if (industryId) {
-    adapters = await db
-      .select()
-      .from(ontologyIndustryAdaptersTable)
-      .where(eq(ontologyIndustryAdaptersTable.industryId, industryId));
-  } else {
-    adapters = await db.select().from(ontologyIndustryAdaptersTable);
-  }
+  const adapters = industryId
+    ? await db.select().from(ontologyIndustryAdaptersTable).where(eq(ontologyIndustryAdaptersTable.industryId, industryId))
+    : await db.select().from(ontologyIndustryAdaptersTable);
 
   res.json({ relationships: filtered, adapters });
 });
