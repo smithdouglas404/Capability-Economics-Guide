@@ -31,6 +31,7 @@ Full-stack educational platform teaching novice users about capability economics
 - `/case-study` — Insurance industry case study with capability cards and 5-year ROI chart
 - `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO)
 - `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings. Cross-Industry Comparison tab with benchmark bar chart, industry cards, and shared thematic capabilities
+- `/projects` — Technology Project Impact Analysis: 6 projects across AI, App Mod, Mainframe, and Data domains. Each project has capability impact overlay (bar + radar charts), executive agenda (CFO/CEO/CIO perspectives with metrics and decision frameworks), and risk-of-inaction analysis
 - `/organization` — Organization setup wizard (2-step: create org + assess capabilities with sliders)
 - `/dashboard` — Personalized dashboard comparing org maturity vs industry benchmarks, gap analysis, role-filtered views
 
@@ -43,6 +44,7 @@ Full-stack educational platform teaching novice users about capability economics
 - Dashboard aggregation with role-specific filtering (strict roleSlug validation)
 - Cross-industry comparison endpoint with theme-based shared capabilities
 - Input validation on all routes (PUT org, CSV import enums, dashboard query)
+- Technology projects endpoints: list with category filter, detail with capability impacts/executive insights/risks
 
 ### Database Schema (`lib/db/`)
 - `industries` — 6 seeded industries (Insurance, Healthcare, Banking, Manufacturing, Technology, Retail)
@@ -53,6 +55,10 @@ Full-stack educational platform teaching novice users about capability economics
 - `capability_role_mappings` — Role relevance per capability
 - `organizations` — User orgs with session tokens
 - `organization_capabilities` — Assessment scores with unique constraint on (org_id, capability_id)
+- `technology_projects` — 6 projects across AI, App Mod, Mainframe, Data categories
+- `project_capability_impacts` — How each project impacts specific capabilities (uplift, timeline)
+- `project_executive_insights` — CFO/CEO/CIO agenda items per project
+- `project_risks` — Risks of inaction per project with severity, consequence, mitigation
 
 ### Key Dependencies
 - **wouter** for client-side routing

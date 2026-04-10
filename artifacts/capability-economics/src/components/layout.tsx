@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Briefcase, Shield, Users, Network, Building2, BarChart3 } from "lucide-react";
+import { Briefcase, Shield, Users, Network, Building2, BarChart3, Layers } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -10,6 +10,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/insurance-example", label: "Case Study", icon: Shield },
     { href: "/c-suite", label: "C-Suite", icon: Users },
     { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+    { href: "/projects", label: "Projects", icon: Layers },
     { href: "/organization", label: "My Org", icon: Building2 },
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   ];

@@ -301,7 +301,13 @@ function getDependenciesForIndustry(industrySlug: string, capMap: Record<string,
   return deps;
 }
 
-seed().catch((err) => {
+async function run() {
+  await seed();
+  const { seedProjects } = await import("./seed-projects");
+  await seedProjects();
+}
+
+run().catch((err) => {
   console.error("Seed failed:", err);
   process.exit(1);
 });

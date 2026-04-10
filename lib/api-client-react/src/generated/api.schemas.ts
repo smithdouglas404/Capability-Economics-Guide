@@ -237,6 +237,58 @@ export interface IndustryComparison {
   sharedCapabilities: IndustryComparisonSharedCapabilitiesItem[];
 }
 
+export interface TechnologyProject {
+  id: number;
+  slug: string;
+  name: string;
+  category: string;
+  description: string;
+  businessCase: string;
+  typicalTimeline: string;
+  investmentRange: string;
+  complexityLevel: string;
+  icon: string;
+  impactedCapabilityCount?: number;
+}
+
+export interface ProjectCapabilityImpact {
+  id: number;
+  capabilityId: number;
+  capabilityName: string;
+  capabilitySlug: string;
+  industryName: string;
+  currentBenchmark: number;
+  maturityUplift: number;
+  projectedScore: number;
+  timeToImpactMonths: number;
+  impactDescription: string;
+}
+
+export interface ProjectExecutiveInsight {
+  id: number;
+  role: string;
+  agendaTitle: string;
+  agendaDescription: string;
+  keyMetrics: string;
+  decisionFramework: string;
+}
+
+export interface ProjectRisk {
+  id: number;
+  riskCategory: string;
+  severity: string;
+  description: string;
+  consequence: string;
+  mitigationPath: string;
+}
+
+export interface ProjectDetail {
+  project: TechnologyProject;
+  capabilityImpacts: ProjectCapabilityImpact[];
+  executiveInsights: ProjectExecutiveInsight[];
+  risks: ProjectRisk[];
+}
+
 export type ListCapabilitiesParams = {
   industryId?: number;
 };
@@ -258,4 +310,12 @@ export type UpdateOrganizationBody = {
 
 export type GetDashboardParams = {
   roleSlug?: string;
+};
+
+export type ListProjectsParams = {
+  category?: string;
+};
+
+export type GetProjectParams = {
+  industryId?: number;
 };

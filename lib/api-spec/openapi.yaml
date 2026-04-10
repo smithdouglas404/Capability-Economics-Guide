@@ -18,6 +18,8 @@ tags:
     description: Organization management
   - name: dashboard
     description: Dashboard and analytics
+  - name: projects
+    description: Technology project overlays
 paths:
   /healthz:
     get:
@@ -367,6 +369,57 @@ paths:
                 $ref: "#/components/schemas/DashboardData"
         "404":
           description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /projects:
+    get:
+      operationId: listProjects
+      tags: [projects]
+      summary: List all technology projects
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of technology projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TechnologyProject"
+
+  /projects/{projectId}:
+    get:
+      operationId: getProject
+      tags: [projects]
+      summary: Get project details with capability impacts, executive insights, and risks
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Full project detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectDetail"
+        "404":
+          description: Project not found
           content:
             application/json:
               schema:
@@ -760,3 +813,108 @@ components:
                   required: [industryId, industryName, capabilityId, benchmarkScore]
             required: [name, industries]
       required: [industries, sharedCapabilities]
+
+    TechnologyProject:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+        businessCase:
+          type: string
+        typicalTimeline:
+          type: string
+        investmentRange:
+          type: string
+        complexityLevel:
+          type: string
+        icon:
+          type: string
+        impactedCapabilityCount:
+          type: integer
+      required: [id, slug, name, category, description, businessCase, typicalTimeline, investmentRange, complexityLevel, icon]
+
+    ProjectCapabilityImpact:
+      type: object
+      properties:
+        id:
+          type: integer
+        capabilityId:
+          type: integer
+        capabilityName:
+          type: string
+        capabilitySlug:
+          type: string
+        industryName:
+          type: string
+        currentBenchmark:
+          type: number
+        maturityUplift:
+          type: number
+        projectedScore:
+          type: number
+        timeToImpactMonths:
+          type: integer
+        impactDescription:
+          type: string
+      required: [id, capabilityId, capabilityName, capabilitySlug, industryName, currentBenchmark, maturityUplift, projectedScore, timeToImpactMonths, impactDescription]
+
+    ProjectExecutiveInsight:
+      type: object
+      properties:
+        id:
+          type: integer
+        role:
+          type: string
+        agendaTitle:
+          type: string
+        agendaDescription:
+          type: string
+        keyMetrics:
+          type: string
+        decisionFramework:
+          type: string
+      required: [id, role, agendaTitle, agendaDescription, keyMetrics, decisionFramework]
+
+    ProjectRisk:
+      type: object
+      properties:
+        id:
+          type: integer
+        riskCategory:
+          type: string
+        severity:
+          type: string
+        description:
+          type: string
+        consequence:
+          type: string
+        mitigationPath:
+          type: string
+      required: [id, riskCategory, severity, description, consequence, mitigationPath]
+
+    ProjectDetail:
+      type: object
+      properties:
+        project:
+          $ref: "#/components/schemas/TechnologyProject"
+        capabilityImpacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectCapabilityImpact"
+        executiveInsights:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectExecutiveInsight"
+        risks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProjectRisk"
+      required: [project, capabilityImpacts, executiveInsights, risks]

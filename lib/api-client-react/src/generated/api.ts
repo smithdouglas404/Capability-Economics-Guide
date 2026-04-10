@@ -26,13 +26,17 @@ import type {
   DashboardData,
   ErrorResponse,
   GetDashboardParams,
+  GetProjectParams,
   HealthStatus,
   Industry,
   IndustryComparison,
   IndustryDetail,
   ListCapabilitiesParams,
+  ListProjectsParams,
   Organization,
   OrganizationDetail,
+  ProjectDetail,
+  TechnologyProject,
   UpdateOrganizationBody,
   UpsertAssessmentsRequest,
 } from "./api.schemas";
@@ -1417,6 +1421,209 @@ export function useGetDashboard<
     params,
     options,
   );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all technology projects
+ */
+export const getListProjectsUrl = (params?: ListProjectsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/projects?${stringifiedParams}`
+    : `/api/projects`;
+};
+
+export const listProjects = async (
+  params?: ListProjectsParams,
+  options?: RequestInit,
+): Promise<TechnologyProject[]> => {
+  return customFetch<TechnologyProject[]>(getListProjectsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListProjectsQueryKey = (params?: ListProjectsParams) => {
+  return [`/api/projects`, ...(params ? [params] : [])] as const;
+};
+
+export const getListProjectsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listProjects>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProjectsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProjects>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListProjectsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listProjects>>> = ({
+    signal,
+  }) => listProjects(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listProjects>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListProjectsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listProjects>>
+>;
+export type ListProjectsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all technology projects
+ */
+
+export function useListProjects<
+  TData = Awaited<ReturnType<typeof listProjects>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListProjectsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listProjects>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListProjectsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get project details with capability impacts, executive insights, and risks
+ */
+export const getGetProjectUrl = (
+  projectId: number,
+  params?: GetProjectParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/projects/${projectId}?${stringifiedParams}`
+    : `/api/projects/${projectId}`;
+};
+
+export const getProject = async (
+  projectId: number,
+  params?: GetProjectParams,
+  options?: RequestInit,
+): Promise<ProjectDetail> => {
+  return customFetch<ProjectDetail>(getGetProjectUrl(projectId, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProjectQueryKey = (
+  projectId: number,
+  params?: GetProjectParams,
+) => {
+  return [`/api/projects/${projectId}`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetProjectQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProject>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  projectId: number,
+  params?: GetProjectParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProjectQueryKey(projectId, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProject>>> = ({
+    signal,
+  }) => getProject(projectId, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!projectId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProject>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProjectQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProject>>
+>;
+export type GetProjectQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get project details with capability impacts, executive insights, and risks
+ */
+
+export function useGetProject<
+  TData = Awaited<ReturnType<typeof getProject>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  projectId: number,
+  params?: GetProjectParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProject>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProjectQueryOptions(projectId, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

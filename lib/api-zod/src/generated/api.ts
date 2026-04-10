@@ -374,3 +374,86 @@ export const GetDashboardResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * @summary List all technology projects
+ */
+export const ListProjectsQueryParams = zod.object({
+  category: zod.coerce.string().optional(),
+});
+
+export const ListProjectsResponseItem = zod.object({
+  id: zod.number(),
+  slug: zod.string(),
+  name: zod.string(),
+  category: zod.string(),
+  description: zod.string(),
+  businessCase: zod.string(),
+  typicalTimeline: zod.string(),
+  investmentRange: zod.string(),
+  complexityLevel: zod.string(),
+  icon: zod.string(),
+  impactedCapabilityCount: zod.number().optional(),
+});
+export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
+
+/**
+ * @summary Get project details with capability impacts, executive insights, and risks
+ */
+export const GetProjectParams = zod.object({
+  projectId: zod.coerce.number(),
+});
+
+export const GetProjectQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const GetProjectResponse = zod.object({
+  project: zod.object({
+    id: zod.number(),
+    slug: zod.string(),
+    name: zod.string(),
+    category: zod.string(),
+    description: zod.string(),
+    businessCase: zod.string(),
+    typicalTimeline: zod.string(),
+    investmentRange: zod.string(),
+    complexityLevel: zod.string(),
+    icon: zod.string(),
+    impactedCapabilityCount: zod.number().optional(),
+  }),
+  capabilityImpacts: zod.array(
+    zod.object({
+      id: zod.number(),
+      capabilityId: zod.number(),
+      capabilityName: zod.string(),
+      capabilitySlug: zod.string(),
+      industryName: zod.string(),
+      currentBenchmark: zod.number(),
+      maturityUplift: zod.number(),
+      projectedScore: zod.number(),
+      timeToImpactMonths: zod.number(),
+      impactDescription: zod.string(),
+    }),
+  ),
+  executiveInsights: zod.array(
+    zod.object({
+      id: zod.number(),
+      role: zod.string(),
+      agendaTitle: zod.string(),
+      agendaDescription: zod.string(),
+      keyMetrics: zod.string(),
+      decisionFramework: zod.string(),
+    }),
+  ),
+  risks: zod.array(
+    zod.object({
+      id: zod.number(),
+      riskCategory: zod.string(),
+      severity: zod.string(),
+      description: zod.string(),
+      consequence: zod.string(),
+      mitigationPath: zod.string(),
+    }),
+  ),
+});
