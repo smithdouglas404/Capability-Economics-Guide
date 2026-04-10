@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { IndustryComparisonIndustriesItem } from "./industryComparisonIndustriesItem";
+import type { IndustryComparisonSharedCapabilitiesItem } from "./industryComparisonSharedCapabilitiesItem";
 
 export interface IndustryComparison {
   industries: IndustryComparisonIndustriesItem[];
+  sharedCapabilities: IndustryComparisonSharedCapabilitiesItem[];
 }

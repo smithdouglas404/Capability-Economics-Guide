@@ -10,6 +10,22 @@ import { eq, and, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { CreateOrganizationBody, UpsertAssessmentsBody } from "@workspace/api-zod";
 
+const validSizes = new Set(["small", "mid", "large", "enterprise"]);
+const validInvestmentLevels = new Set(["minimal", "low", "moderate", "high", "strategic"]);
+const validImportanceLevels = new Set(["low", "medium", "high", "critical"]);
+
+function validateUpdateOrganization(body: unknown): { valid: true; data: { name?: string; size?: string } } | { valid: false; error: string } {
+  if (!body || typeof body !== "object") return { valid: false, error: "Body must be an object" };
+  const b = body as Record<string, unknown>;
+  if (b.name !== undefined && (typeof b.name !== "string" || b.name.trim().length === 0)) {
+    return { valid: false, error: "name must be a non-empty string" };
+  }
+  if (b.size !== undefined && (typeof b.size !== "string" || !validSizes.has(b.size))) {
+    return { valid: false, error: `size must be one of: ${[...validSizes].join(", ")}` };
+  }
+  return { valid: true, data: { name: b.name as string | undefined, size: b.size as string | undefined } };
+}
+
 const router: IRouter = Router();
 
 router.post("/organizations", async (req, res) => {
@@ -258,8 +274,22 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
       continue;
     }
 
-    const investment = investIdx !== -1 && cols[investIdx] ? cols[investIdx] : "moderate";
-    const importance = importanceIdx !== -1 && cols[importanceIdx] ? cols[importanceIdx] : "medium";
+    const rawInvestment = investIdx !== -1 && cols[investIdx] ? cols[investIdx].toLowerCase() : "moderate";
+    const rawImportance = importanceIdx !== -1 && cols[importanceIdx] ? cols[importanceIdx].toLowerCase() : "medium";
+
+    if (!validInvestmentLevels.has(rawInvestment)) {
+      errors.push(`Row ${i + 1}: Invalid investment_level '${rawInvestment}'. Must be one of: minimal, low, moderate, high, strategic`);
+      skipped++;
+      continue;
+    }
+    if (!validImportanceLevels.has(rawImportance)) {
+      errors.push(`Row ${i + 1}: Invalid strategic_importance '${rawImportance}'. Must be one of: low, medium, high, critical`);
+      skipped++;
+      continue;
+    }
+
+    const investment = rawInvestment;
+    const importance = rawImportance;
     const notes = notesIdx !== -1 && cols[notesIdx] ? cols[notesIdx] : null;
 
     const existing = await db
@@ -297,13 +327,19 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
 router.put("/organizations/:sessionToken", async (req, res) => {
   const { sessionToken } = req.params;
 
+  const parsed = validateUpdateOrganization(req.body);
+  if (!parsed.valid) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+
   const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
   if (!org) {
     res.status(404).json({ error: "Organization not found" });
     return;
   }
 
-  const { name, size } = req.body || {};
+  const { name, size } = parsed.data;
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (name) updates.name = name;
   if (size) updates.size = size;

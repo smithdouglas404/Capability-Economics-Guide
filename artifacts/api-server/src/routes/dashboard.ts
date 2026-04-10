@@ -14,7 +14,12 @@ const router: IRouter = Router();
 
 router.get("/organizations/:sessionToken/dashboard", async (req, res) => {
   const { sessionToken } = req.params;
-  const roleSlug = req.query.roleSlug as string | undefined;
+  const rawRoleSlug = req.query.roleSlug;
+  if (rawRoleSlug !== undefined && (typeof rawRoleSlug !== "string" || rawRoleSlug.trim().length === 0)) {
+    res.status(400).json({ error: "roleSlug must be a non-empty string" });
+    return;
+  }
+  const roleSlug = rawRoleSlug as string | undefined;
 
   const [org] = await db
     .select({
@@ -40,13 +45,15 @@ router.get("/organizations/:sessionToken/dashboard", async (req, res) => {
   let filteredCapIds: number[] | null = null;
   if (roleSlug) {
     const [role] = await db.select().from(cSuiteRolesTable).where(eq(cSuiteRolesTable.slug, roleSlug));
-    if (role) {
-      const mappings = await db
-        .select({ capabilityId: capabilityRoleMappingsTable.capabilityId })
-        .from(capabilityRoleMappingsTable)
-        .where(eq(capabilityRoleMappingsTable.roleId, role.id));
-      filteredCapIds = mappings.map(m => m.capabilityId);
+    if (!role) {
+      res.status(400).json({ error: `Unknown role: ${roleSlug}` });
+      return;
     }
+    const mappings = await db
+      .select({ capabilityId: capabilityRoleMappingsTable.capabilityId })
+      .from(capabilityRoleMappingsTable)
+      .where(eq(capabilityRoleMappingsTable.roleId, role.id));
+    filteredCapIds = mappings.map(m => m.capabilityId);
   }
 
   const allCaps = await capQuery;

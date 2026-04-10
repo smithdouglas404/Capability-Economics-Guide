@@ -1,17 +1,17 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useListIndustries, useGetIndustry, useGetCapability, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
+import { useListIndustries, useGetIndustry, useGetCapability, useCompareIndustries, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
   ChevronRight, ArrowLeft, BarChart3, GitBranch, Users,
-  TrendingUp, TrendingDown, Minus, Loader2
+  TrendingUp, TrendingDown, Minus, Loader2, Layers
 } from "lucide-react";
 import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, PolarRadiusAxis
+  PolarAngleAxis, PolarRadiusAxis, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -57,8 +57,10 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
 export default function KnowledgeGraph() {
   const [selectedIndustryId, setSelectedIndustryId] = useState<number | null>(null);
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
+  const [tab, setTab] = useState<"industries" | "compare">("industries");
 
   const { data: industries, isLoading: loadingIndustries } = useListIndustries();
+  const { data: comparison, isLoading: loadingComparison } = useCompareIndustries();
   const { data: industryDetail, isLoading: loadingIndustry } = useGetIndustry(selectedIndustryId ?? 0, {
     query: { queryKey: getGetIndustryQueryKey(selectedIndustryId ?? 0), enabled: !!selectedIndustryId },
   });
@@ -291,44 +293,161 @@ export default function KnowledgeGraph() {
           <p className="text-lg text-muted-foreground max-w-2xl">
             Explore the capability landscape across six key industries. Each industry has 8-12 core capabilities with benchmarks, metrics, dependencies, and C-suite relevance mappings.
           </p>
+          <div className="flex gap-2 mt-6">
+            <Button
+              variant={tab === "industries" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTab("industries")}
+              className="rounded-sm"
+            >
+              <Layers className="w-4 h-4 mr-2" />
+              Industries
+            </Button>
+            <Button
+              variant={tab === "compare" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTab("compare")}
+              className="rounded-sm"
+            >
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Cross-Industry Comparison
+            </Button>
+          </div>
         </div>
       </section>
 
-      <section className="py-12 container mx-auto px-4 max-w-5xl">
-        {loadingIndustries ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : (
-          <motion.div variants={container} initial="hidden" animate="show" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {industries?.map((industry: Industry) => {
-              const Icon = iconMap[industry.icon] || Shield;
-              return (
-                <motion.div key={industry.id} variants={item}>
-                  <button
-                    onClick={() => setSelectedIndustryId(industry.id)}
-                    className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="text-xl font-serif text-foreground mb-1">{industry.name}</h3>
-                        <p className="text-sm text-muted-foreground line-clamp-3">{industry.description}</p>
-                        <div className="flex items-center gap-2 mt-4 text-primary text-sm font-medium">
-                          {industry.capabilityCount} capabilities
-                          <ChevronRight className="w-4 h-4" />
+      {tab === "compare" ? (
+        <section className="py-12 container mx-auto px-4 max-w-5xl">
+          {loadingComparison ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : comparison ? (
+            <div className="space-y-10">
+              <div>
+                <h2 className="text-xl font-serif mb-4 text-foreground">Average Benchmark by Industry</h2>
+                <Card className="rounded-none">
+                  <CardContent className="pt-6">
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={comparison.industries} layout="vertical" margin={{ left: 20 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground)/0.15)" />
+                          <XAxis type="number" domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                          <YAxis type="category" dataKey="name" width={120} tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }} />
+                          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4 }} />
+                          <Bar dataKey="avgBenchmark" name="Avg Benchmark" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {comparison.industries.map((ind) => (
+                  <Card key={ind.id} className="rounded-none">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="font-serif text-base">{ind.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Capabilities</span>
+                          <span className="font-semibold">{ind.capabilityCount}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Avg Benchmark</span>
+                          <span className="font-mono font-semibold">{ind.avgBenchmark}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Top Capability</span>
+                          <span className="text-xs font-medium text-primary">{ind.topCapability}</span>
                         </div>
                       </div>
-                    </div>
-                  </button>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        )}
-      </section>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {comparison.sharedCapabilities.length > 0 && (
+                <div>
+                  <h2 className="text-xl font-serif mb-4 text-foreground">Shared Capabilities Across Industries</h2>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    Capabilities that appear in two or more industries, showing how benchmark scores differ by sector.
+                  </p>
+                  <div className="space-y-4">
+                    {comparison.sharedCapabilities.map((shared) => {
+                      const uniqueIndustryCount = new Set(shared.industries.map(i => i.industryId)).size;
+                      return (
+                        <Card key={shared.name} className="rounded-none">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="font-serif text-base flex items-center gap-2">
+                              <GitBranch className="w-4 h-4 text-primary" />
+                              {shared.name}
+                              <span className="ml-auto text-xs font-sans text-muted-foreground font-normal">
+                                {uniqueIndustryCount} industries, {shared.industries.length} capabilities
+                              </span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                              {shared.industries.map((ind) => (
+                                <div
+                                  key={`${ind.industryId}-${ind.capabilityId}`}
+                                  className="flex items-center justify-between p-2 bg-muted/40 rounded-sm"
+                                >
+                                  <span className="text-sm text-foreground">{ind.industryName}</span>
+                                  <span className="font-mono text-sm font-semibold text-primary">{ind.benchmarkScore}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </section>
+      ) : (
+        <section className="py-12 container mx-auto px-4 max-w-5xl">
+          {loadingIndustries ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <motion.div variants={container} initial="hidden" animate="show" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {industries?.map((industry: Industry) => {
+                const Icon = iconMap[industry.icon] || Shield;
+                return (
+                  <motion.div key={industry.id} variants={item}>
+                    <button
+                      onClick={() => setSelectedIndustryId(industry.id)}
+                      className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          <Icon className="w-6 h-6" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-xl font-serif text-foreground mb-1">{industry.name}</h3>
+                          <p className="text-sm text-muted-foreground line-clamp-3">{industry.description}</p>
+                          <div className="flex items-center gap-2 mt-4 text-primary text-sm font-medium">
+                            {industry.capabilityCount} capabilities
+                            <ChevronRight className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

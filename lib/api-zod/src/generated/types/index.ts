@@ -25,6 +25,8 @@ export * from "./healthStatus";
 export * from "./industry";
 export * from "./industryComparison";
 export * from "./industryComparisonIndustriesItem";
+export * from "./industryComparisonSharedCapabilitiesItem";
+export * from "./industryComparisonSharedCapabilitiesItemIndustriesItem";
 export * from "./industryDetail";
 export * from "./listCapabilitiesParams";
 export * from "./organization";

@@ -737,4 +737,26 @@ components:
               topCapability:
                 type: string
             required: [id, name, slug, avgBenchmark, capabilityCount, topCapability]
-      required: [industries]
+        sharedCapabilities:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              industries:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    industryId:
+                      type: integer
+                    industryName:
+                      type: string
+                    capabilityId:
+                      type: integer
+                    benchmarkScore:
+                      type: number
+                  required: [industryId, industryName, capabilityId, benchmarkScore]
+            required: [name, industries]
+      required: [industries, sharedCapabilities]

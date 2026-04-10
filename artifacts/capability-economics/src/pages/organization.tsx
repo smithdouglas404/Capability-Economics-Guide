@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useListIndustries, useCreateOrganization, useGetIndustry, useUpsertAssessments, getGetIndustryQueryKey } from "@workspace/api-client-react";
-import type { Industry, Capability } from "@workspace/api-client-react";
+import { useListIndustries, useCreateOrganization, useGetIndustry, useUpsertAssessments, getGetIndustryQueryKey, getUploadCsvUrl, customFetch } from "@workspace/api-client-react";
+import type { Industry, Capability, CsvUploadResponse } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -120,15 +120,14 @@ export default function OrganizationSetup() {
     const file = event.target.files?.[0];
     if (!file || !sessionToken) return;
 
-    const text = await file.text();
+    const csvText = await file.text();
 
     try {
-      const response = await fetch(`${import.meta.env.BASE_URL}api/organizations/${sessionToken}/upload-csv`, {
+      const result = await customFetch<CsvUploadResponse>(getUploadCsvUrl(sessionToken), {
         method: "POST",
         headers: { "Content-Type": "text/csv" },
-        body: text,
+        body: csvText,
       });
-      const result = await response.json();
       if (result.imported > 0) {
         navigate("/dashboard");
       }

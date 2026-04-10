@@ -292,6 +292,19 @@ export const CompareIndustriesResponse = zod.object({
       topCapability: zod.string(),
     }),
   ),
+  sharedCapabilities: zod.array(
+    zod.object({
+      name: zod.string(),
+      industries: zod.array(
+        zod.object({
+          industryId: zod.number(),
+          industryName: zod.string(),
+          capabilityId: zod.number(),
+          benchmarkScore: zod.number(),
+        }),
+      ),
+    }),
+  ),
 });
 
 /**

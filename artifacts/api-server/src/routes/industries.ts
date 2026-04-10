@@ -34,7 +34,49 @@ router.get("/industries/compare", async (_req, res) => {
     });
   }
 
-  res.json({ industries: result });
+  const allCaps = await db
+    .select({
+      id: capabilitiesTable.id,
+      name: capabilitiesTable.name,
+      slug: capabilitiesTable.slug,
+      benchmarkScore: capabilitiesTable.benchmarkScore,
+      industryId: capabilitiesTable.industryId,
+      industryName: industriesTable.name,
+    })
+    .from(capabilitiesTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, capabilitiesTable.industryId));
+
+  const themeKeywords: Record<string, string[]> = {
+    "Data & Analytics": ["data", "analytics", "data-analytics", "customer-analytics", "product-analytics", "customer-data"],
+    "Supply Chain": ["supply-chain", "inventory"],
+    "Fraud & Risk Management": ["fraud", "risk-management", "aml"],
+    "Customer Experience": ["customer-retention", "customer-loyalty", "customer-success", "patient-experience", "omnichannel"],
+    "Digital Transformation": ["digital", "ecommerce", "platform-engineering", "smart-factory", "telehealth"],
+    "Regulatory & Compliance": ["regulatory", "compliance", "quality-safety", "quality-management"],
+    "Workforce & Talent": ["workforce", "agent-enablement", "developer-experience", "clinical-workforce"],
+  };
+
+  const sharedCapabilities: Array<{ name: string; industries: Array<{ industryId: number; industryName: string; capabilityId: number; benchmarkScore: number }> }> = [];
+
+  for (const [theme, keywords] of Object.entries(themeKeywords)) {
+    const matched = allCaps.filter(c => keywords.some(kw => c.slug.includes(kw)));
+    const uniqueIndustries = new Set(matched.map(c => c.industryId));
+    if (uniqueIndustries.size >= 2) {
+      sharedCapabilities.push({
+        name: theme,
+        industries: matched.map(c => ({
+          industryId: c.industryId,
+          industryName: c.industryName,
+          capabilityId: c.id,
+          benchmarkScore: c.benchmarkScore,
+        })),
+      });
+    }
+  }
+
+  sharedCapabilities.sort((a, b) => b.industries.length - a.industries.length);
+
+  res.json({ industries: result, sharedCapabilities });
 });
 
 router.get("/industries", async (_req, res) => {

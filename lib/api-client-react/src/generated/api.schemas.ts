@@ -220,8 +220,21 @@ export type IndustryComparisonIndustriesItem = {
   topCapability: string;
 };
 
+export type IndustryComparisonSharedCapabilitiesItemIndustriesItem = {
+  industryId: number;
+  industryName: string;
+  capabilityId: number;
+  benchmarkScore: number;
+};
+
+export type IndustryComparisonSharedCapabilitiesItem = {
+  name: string;
+  industries: IndustryComparisonSharedCapabilitiesItemIndustriesItem[];
+};
+
 export interface IndustryComparison {
   industries: IndustryComparisonIndustriesItem[];
+  sharedCapabilities: IndustryComparisonSharedCapabilitiesItem[];
 }
 
 export type ListCapabilitiesParams = {

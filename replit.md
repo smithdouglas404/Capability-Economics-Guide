@@ -30,7 +30,7 @@ Full-stack educational platform teaching novice users about capability economics
 - `/` — Home page with definition, real estate analogy, and navigation
 - `/case-study` — Insurance industry case study with capability cards and 5-year ROI chart
 - `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO)
-- `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings
+- `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings. Cross-Industry Comparison tab with benchmark bar chart, industry cards, and shared thematic capabilities
 - `/organization` — Organization setup wizard (2-step: create org + assess capabilities with sliders)
 - `/dashboard` — Personalized dashboard comparing org maturity vs industry benchmarks, gap analysis, role-filtered views
 
@@ -39,8 +39,10 @@ Full-stack educational platform teaching novice users about capability economics
 - REST API with routes: `/api/industries`, `/api/capabilities`, `/api/roles`, `/api/organizations`
 - Organization CRUD with session tokens
 - Capability assessment upserts with industry validation and transactions
-- CSV upload for bulk assessment import
-- Dashboard aggregation with role-specific filtering
+- CSV upload for bulk assessment import (with enum validation)
+- Dashboard aggregation with role-specific filtering (strict roleSlug validation)
+- Cross-industry comparison endpoint with theme-based shared capabilities
+- Input validation on all routes (PUT org, CSV import enums, dashboard query)
 
 ### Database Schema (`lib/db/`)
 - `industries` — 6 seeded industries (Insurance, Healthcare, Banking, Manufacturing, Technology, Retail)
@@ -71,6 +73,9 @@ Full-stack educational platform teaching novice users about capability economics
 - React Query hooks in `@workspace/api-client-react`
 - Zod validation schemas in `@workspace/api-zod`
 - IMPORTANT: Do NOT change OpenAPI `info.title` — controls generated filenames
+- IMPORTANT: `lib/api-zod/src/index.ts` must only contain `export * from "./generated/api";` (codegen re-adds duplicate — always revert)
+- CSV upload uses `customFetch(getUploadCsvUrl(...))` directly because generated `uploadCsv` wraps body in `JSON.stringify`
+- `customFetch` exported from `@workspace/api-client-react` for direct API calls when generated hooks have limitations
 
 ## Key Commands
 
