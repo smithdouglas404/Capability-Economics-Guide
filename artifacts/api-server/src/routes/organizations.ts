@@ -202,35 +202,10 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
     return;
   }
 
-  const contentType = req.headers["content-type"] || "";
-  let csvText = "";
-
-  if (contentType.includes("multipart/form-data")) {
-    const chunks: Buffer[] = [];
-    await new Promise<void>((resolve, reject) => {
-      req.on("data", (chunk: Buffer) => chunks.push(chunk));
-      req.on("end", () => resolve());
-      req.on("error", reject);
-    });
-    const body = Buffer.concat(chunks).toString("utf-8");
-    const parts = body.split(/------/);
-    for (const part of parts) {
-      if (part.includes("filename=")) {
-        const contentStart = part.indexOf("\r\n\r\n");
-        if (contentStart !== -1) {
-          csvText = part.substring(contentStart + 4).trim();
-          if (csvText.endsWith("--")) {
-            csvText = csvText.slice(0, -2).trim();
-          }
-        }
-      }
-    }
-  } else {
-    csvText = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
-  }
+  const csvText = typeof req.body === "string" ? req.body.trim() : "";
 
   if (!csvText) {
-    res.status(400).json({ error: "No CSV content found" });
+    res.status(400).json({ error: "No CSV content found. Send CSV text in the request body with Content-Type: text/csv" });
     return;
   }
 
@@ -317,6 +292,88 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
   }
 
   res.json({ imported, skipped, errors });
+});
+
+router.put("/organizations/:sessionToken", async (req, res) => {
+  const { sessionToken } = req.params;
+
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  const { name, size } = req.body || {};
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
+  if (name) updates.name = name;
+  if (size) updates.size = size;
+
+  await db.update(organizationsTable).set(updates).where(eq(organizationsTable.id, org.id));
+
+  const [updated] = await db
+    .select({
+      id: organizationsTable.id,
+      name: organizationsTable.name,
+      industryId: organizationsTable.industryId,
+      industryName: industriesTable.name,
+      size: organizationsTable.size,
+      sessionToken: organizationsTable.sessionToken,
+      createdAt: organizationsTable.createdAt,
+    })
+    .from(organizationsTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, organizationsTable.industryId))
+    .where(eq(organizationsTable.id, org.id));
+
+  const [countResult] = await db
+    .select({ count: sql<number>`cast(count(*) as int)` })
+    .from(organizationCapabilitiesTable)
+    .where(eq(organizationCapabilitiesTable.organizationId, org.id));
+
+  res.json({
+    ...updated,
+    assessmentCount: countResult.count,
+    createdAt: updated.createdAt.toISOString(),
+  });
+});
+
+router.delete("/organizations/:sessionToken", async (req, res) => {
+  const { sessionToken } = req.params;
+
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  await db.delete(organizationsTable).where(eq(organizationsTable.id, org.id));
+  res.status(204).send();
+});
+
+router.delete("/organizations/:sessionToken/assessments/:capabilityId", async (req, res) => {
+  const { sessionToken, capabilityId } = req.params;
+  const capId = parseInt(capabilityId);
+
+  if (isNaN(capId)) {
+    res.status(400).json({ error: "Invalid capability ID" });
+    return;
+  }
+
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+
+  const result = await db
+    .delete(organizationCapabilitiesTable)
+    .where(
+      and(
+        eq(organizationCapabilitiesTable.organizationId, org.id),
+        eq(organizationCapabilitiesTable.capabilityId, capId)
+      )
+    );
+
+  res.status(204).send();
 });
 
 export default router;

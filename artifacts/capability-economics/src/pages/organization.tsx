@@ -45,7 +45,7 @@ export default function OrganizationSetup() {
   const [step, setStep] = useState<"create" | "assess">("create");
   const [orgName, setOrgName] = useState("");
   const [industryId, setIndustryId] = useState<number | null>(null);
-  const [orgSize, setOrgSize] = useState<string>("mid");
+  const [orgSize, setOrgSize] = useState<"small" | "mid" | "large" | "enterprise">("mid");
   const [sessionToken, setSessionToken] = useState<string | null>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("ce_session_token");
@@ -87,7 +87,7 @@ export default function OrganizationSetup() {
 
     try {
       const result = await createOrg.mutateAsync({
-        data: { name: orgName, industryId, size: orgSize as any }
+        data: { name: orgName, industryId, size: orgSize }
       });
       setSessionToken(result.sessionToken);
       localStorage.setItem("ce_session_token", result.sessionToken);
@@ -201,7 +201,7 @@ export default function OrganizationSetup() {
 
               <div className="space-y-2">
                 <Label>Organization Size</Label>
-                <Select value={orgSize} onValueChange={setOrgSize}>
+                <Select value={orgSize} onValueChange={(val) => setOrgSize(val as "small" | "mid" | "large" | "enterprise")}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

@@ -160,6 +160,36 @@ export const GetOrganizationResponse = zod.object({
 });
 
 /**
+ * @summary Update organization name or size
+ */
+export const UpdateOrganizationParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const UpdateOrganizationBody = zod.object({
+  name: zod.string().optional(),
+  size: zod.enum(["small", "mid", "large", "enterprise"]).optional(),
+});
+
+export const UpdateOrganizationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  industryId: zod.number(),
+  industryName: zod.string(),
+  size: zod.string(),
+  sessionToken: zod.string(),
+  assessmentCount: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary Delete an organization and all its assessments
+ */
+export const DeleteOrganizationParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+/**
  * @summary List capability assessments for an organization
  */
 export const ListAssessmentsParams = zod.object({
@@ -228,14 +258,18 @@ export const UpsertAssessmentsResponse = zod.array(
 );
 
 /**
- * @summary Upload CSV file with capability assessments
+ * @summary Delete a specific capability assessment
+ */
+export const DeleteAssessmentParams = zod.object({
+  sessionToken: zod.coerce.string(),
+  capabilityId: zod.coerce.number(),
+});
+
+/**
+ * @summary Upload CSV text with capability assessments
  */
 export const UploadCsvParams = zod.object({
   sessionToken: zod.coerce.string(),
-});
-
-export const UploadCsvBody = zod.object({
-  file: zod.instanceof(File),
 });
 
 export const UploadCsvResponse = zod.object({

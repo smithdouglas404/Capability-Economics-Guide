@@ -228,8 +228,19 @@ export type ListCapabilitiesParams = {
   industryId?: number;
 };
 
-export type UploadCsvBody = {
-  file: Blob;
+export type UpdateOrganizationBodySize =
+  (typeof UpdateOrganizationBodySize)[keyof typeof UpdateOrganizationBodySize];
+
+export const UpdateOrganizationBodySize = {
+  small: "small",
+  mid: "mid",
+  large: "large",
+  enterprise: "enterprise",
+} as const;
+
+export type UpdateOrganizationBody = {
+  name?: string;
+  size?: UpdateOrganizationBodySize;
 };
 
 export type GetDashboardParams = {

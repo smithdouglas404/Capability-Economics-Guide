@@ -177,6 +177,60 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: updateOrganization
+      tags: [organizations]
+      summary: Update organization name or size
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                size:
+                  type: string
+                  enum: [small, mid, large, enterprise]
+      responses:
+        "200":
+          description: Updated organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteOrganization
+      tags: [organizations]
+      summary: Delete an organization and all its assessments
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Organization deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 
   /organizations/{sessionToken}/assessments:
     get:
@@ -224,11 +278,37 @@ paths:
                 items:
                   $ref: "#/components/schemas/Assessment"
 
+  /organizations/{sessionToken}/assessments/{capabilityId}:
+    delete:
+      operationId: deleteAssessment
+      tags: [organizations]
+      summary: Delete a specific capability assessment
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: capabilityId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Assessment deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /organizations/{sessionToken}/upload-csv:
     post:
       operationId: uploadCsv
       tags: [organizations]
-      summary: Upload CSV file with capability assessments
+      summary: Upload CSV text with capability assessments
       parameters:
         - name: sessionToken
           in: path
@@ -238,15 +318,9 @@ paths:
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          text/csv:
             schema:
-              type: object
-              properties:
-                file:
-                  type: string
-                  format: binary
-              required:
-                - file
+              type: string
       responses:
         "200":
           description: Import results

@@ -33,7 +33,7 @@ import type {
   ListCapabilitiesParams,
   Organization,
   OrganizationDetail,
-  UploadCsvBody,
+  UpdateOrganizationBody,
   UpsertAssessmentsRequest,
 } from "./api.schemas";
 
@@ -711,6 +711,180 @@ export function useGetOrganization<
 }
 
 /**
+ * @summary Update organization name or size
+ */
+export const getUpdateOrganizationUrl = (sessionToken: string) => {
+  return `/api/organizations/${sessionToken}`;
+};
+
+export const updateOrganization = async (
+  sessionToken: string,
+  updateOrganizationBody: UpdateOrganizationBody,
+  options?: RequestInit,
+): Promise<OrganizationDetail> => {
+  return customFetch<OrganizationDetail>(
+    getUpdateOrganizationUrl(sessionToken),
+    {
+      ...options,
+      method: "PUT",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(updateOrganizationBody),
+    },
+  );
+};
+
+export const getUpdateOrganizationMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrganization>>,
+    TError,
+    { sessionToken: string; data: BodyType<UpdateOrganizationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateOrganization>>,
+  TError,
+  { sessionToken: string; data: BodyType<UpdateOrganizationBody> },
+  TContext
+> => {
+  const mutationKey = ["updateOrganization"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateOrganization>>,
+    { sessionToken: string; data: BodyType<UpdateOrganizationBody> }
+  > = (props) => {
+    const { sessionToken, data } = props ?? {};
+
+    return updateOrganization(sessionToken, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateOrganizationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateOrganization>>
+>;
+export type UpdateOrganizationMutationBody = BodyType<UpdateOrganizationBody>;
+export type UpdateOrganizationMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Update organization name or size
+ */
+export const useUpdateOrganization = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateOrganization>>,
+    TError,
+    { sessionToken: string; data: BodyType<UpdateOrganizationBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateOrganization>>,
+  TError,
+  { sessionToken: string; data: BodyType<UpdateOrganizationBody> },
+  TContext
+> => {
+  return useMutation(getUpdateOrganizationMutationOptions(options));
+};
+
+/**
+ * @summary Delete an organization and all its assessments
+ */
+export const getDeleteOrganizationUrl = (sessionToken: string) => {
+  return `/api/organizations/${sessionToken}`;
+};
+
+export const deleteOrganization = async (
+  sessionToken: string,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteOrganizationUrl(sessionToken), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteOrganizationMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOrganization>>,
+    TError,
+    { sessionToken: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteOrganization>>,
+  TError,
+  { sessionToken: string },
+  TContext
+> => {
+  const mutationKey = ["deleteOrganization"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteOrganization>>,
+    { sessionToken: string }
+  > = (props) => {
+    const { sessionToken } = props ?? {};
+
+    return deleteOrganization(sessionToken, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteOrganizationMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteOrganization>>
+>;
+
+export type DeleteOrganizationMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete an organization and all its assessments
+ */
+export const useDeleteOrganization = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteOrganization>>,
+    TError,
+    { sessionToken: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteOrganization>>,
+  TError,
+  { sessionToken: string },
+  TContext
+> => {
+  return useMutation(getDeleteOrganizationMutationOptions(options));
+};
+
+/**
  * @summary List capability assessments for an organization
  */
 export const getListAssessmentsUrl = (sessionToken: string) => {
@@ -886,7 +1060,95 @@ export const useUpsertAssessments = <
 };
 
 /**
- * @summary Upload CSV file with capability assessments
+ * @summary Delete a specific capability assessment
+ */
+export const getDeleteAssessmentUrl = (
+  sessionToken: string,
+  capabilityId: number,
+) => {
+  return `/api/organizations/${sessionToken}/assessments/${capabilityId}`;
+};
+
+export const deleteAssessment = async (
+  sessionToken: string,
+  capabilityId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteAssessmentUrl(sessionToken, capabilityId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAssessmentMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAssessment>>,
+    TError,
+    { sessionToken: string; capabilityId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAssessment>>,
+  TError,
+  { sessionToken: string; capabilityId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteAssessment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAssessment>>,
+    { sessionToken: string; capabilityId: number }
+  > = (props) => {
+    const { sessionToken, capabilityId } = props ?? {};
+
+    return deleteAssessment(sessionToken, capabilityId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAssessmentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAssessment>>
+>;
+
+export type DeleteAssessmentMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Delete a specific capability assessment
+ */
+export const useDeleteAssessment = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAssessment>>,
+    TError,
+    { sessionToken: string; capabilityId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAssessment>>,
+  TError,
+  { sessionToken: string; capabilityId: number },
+  TContext
+> => {
+  return useMutation(getDeleteAssessmentMutationOptions(options));
+};
+
+/**
+ * @summary Upload CSV text with capability assessments
  */
 export const getUploadCsvUrl = (sessionToken: string) => {
   return `/api/organizations/${sessionToken}/upload-csv`;
@@ -894,16 +1156,14 @@ export const getUploadCsvUrl = (sessionToken: string) => {
 
 export const uploadCsv = async (
   sessionToken: string,
-  uploadCsvBody: UploadCsvBody,
+  uploadCsvBody: string,
   options?: RequestInit,
 ): Promise<CsvUploadResponse> => {
-  const formData = new FormData();
-  formData.append(`file`, uploadCsvBody.file);
-
   return customFetch<CsvUploadResponse>(getUploadCsvUrl(sessionToken), {
     ...options,
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "text/csv", ...options?.headers },
+    body: JSON.stringify(uploadCsvBody),
   });
 };
 
@@ -914,14 +1174,14 @@ export const getUploadCsvMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uploadCsv>>,
     TError,
-    { sessionToken: string; data: BodyType<UploadCsvBody> },
+    { sessionToken: string; data: BodyType<string> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof uploadCsv>>,
   TError,
-  { sessionToken: string; data: BodyType<UploadCsvBody> },
+  { sessionToken: string; data: BodyType<string> },
   TContext
 > => {
   const mutationKey = ["uploadCsv"];
@@ -935,7 +1195,7 @@ export const getUploadCsvMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof uploadCsv>>,
-    { sessionToken: string; data: BodyType<UploadCsvBody> }
+    { sessionToken: string; data: BodyType<string> }
   > = (props) => {
     const { sessionToken, data } = props ?? {};
 
@@ -948,11 +1208,11 @@ export const getUploadCsvMutationOptions = <
 export type UploadCsvMutationResult = NonNullable<
   Awaited<ReturnType<typeof uploadCsv>>
 >;
-export type UploadCsvMutationBody = BodyType<UploadCsvBody>;
+export type UploadCsvMutationBody = BodyType<string>;
 export type UploadCsvMutationError = ErrorType<unknown>;
 
 /**
- * @summary Upload CSV file with capability assessments
+ * @summary Upload CSV text with capability assessments
  */
 export const useUploadCsv = <
   TError = ErrorType<unknown>,
@@ -961,14 +1221,14 @@ export const useUploadCsv = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof uploadCsv>>,
     TError,
-    { sessionToken: string; data: BodyType<UploadCsvBody> },
+    { sessionToken: string; data: BodyType<string> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof uploadCsv>>,
   TError,
-  { sessionToken: string; data: BodyType<UploadCsvBody> },
+  { sessionToken: string; data: BodyType<string> },
   TContext
 > => {
   return useMutation(getUploadCsvMutationOptions(options));
