@@ -14,6 +14,7 @@ export interface Assessment {
   capabilitySlug: string;
   maturityScore: number;
   investmentLevel: string;
+  strategicImportance: string;
   notes?: string | null;
   benchmarkScore: number;
   assessedAt: string;

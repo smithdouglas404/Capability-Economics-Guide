@@ -97,6 +97,7 @@ router.get("/organizations/:sessionToken/assessments", async (req, res) => {
       capabilitySlug: capabilitiesTable.slug,
       maturityScore: organizationCapabilitiesTable.maturityScore,
       investmentLevel: organizationCapabilitiesTable.investmentLevel,
+      strategicImportance: organizationCapabilitiesTable.strategicImportance,
       notes: organizationCapabilitiesTable.notes,
       benchmarkScore: capabilitiesTable.benchmarkScore,
       assessedAt: organizationCapabilitiesTable.assessedAt,
@@ -153,6 +154,7 @@ router.put("/organizations/:sessionToken/assessments", async (req, res) => {
           .set({
             maturityScore: assessment.maturityScore,
             investmentLevel: assessment.investmentLevel || "moderate",
+            strategicImportance: assessment.strategicImportance || "medium",
             notes: assessment.notes || null,
             assessedAt: new Date(),
           })
@@ -163,6 +165,7 @@ router.put("/organizations/:sessionToken/assessments", async (req, res) => {
           capabilityId: assessment.capabilityId,
           maturityScore: assessment.maturityScore,
           investmentLevel: assessment.investmentLevel || "moderate",
+          strategicImportance: assessment.strategicImportance || "medium",
           notes: assessment.notes || null,
         });
       }
@@ -178,6 +181,7 @@ router.put("/organizations/:sessionToken/assessments", async (req, res) => {
       capabilitySlug: capabilitiesTable.slug,
       maturityScore: organizationCapabilitiesTable.maturityScore,
       investmentLevel: organizationCapabilitiesTable.investmentLevel,
+      strategicImportance: organizationCapabilitiesTable.strategicImportance,
       notes: organizationCapabilitiesTable.notes,
       benchmarkScore: capabilitiesTable.benchmarkScore,
       assessedAt: organizationCapabilitiesTable.assessedAt,
@@ -240,6 +244,7 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
   const slugIdx = headers.indexOf("capability_slug");
   const scoreIdx = headers.indexOf("maturity_score");
   const investIdx = headers.indexOf("investment_level");
+  const importanceIdx = headers.indexOf("strategic_importance");
   const notesIdx = headers.indexOf("notes");
 
   if (slugIdx === -1 || scoreIdx === -1) {
@@ -279,6 +284,7 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
     }
 
     const investment = investIdx !== -1 && cols[investIdx] ? cols[investIdx] : "moderate";
+    const importance = importanceIdx !== -1 && cols[importanceIdx] ? cols[importanceIdx] : "medium";
     const notes = notesIdx !== -1 && cols[notesIdx] ? cols[notesIdx] : null;
 
     const existing = await db
@@ -294,7 +300,7 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
     if (existing.length > 0) {
       await db
         .update(organizationCapabilitiesTable)
-        .set({ maturityScore: score, investmentLevel: investment, notes, assessedAt: new Date() })
+        .set({ maturityScore: score, investmentLevel: investment, strategicImportance: importance, notes, assessedAt: new Date() })
         .where(eq(organizationCapabilitiesTable.id, existing[0].id));
     } else {
       await db.insert(organizationCapabilitiesTable).values({
@@ -302,6 +308,7 @@ router.post("/organizations/:sessionToken/upload-csv", async (req, res) => {
         capabilityId: cap.id,
         maturityScore: score,
         investmentLevel: investment,
+        strategicImportance: importance,
         notes,
       });
     }

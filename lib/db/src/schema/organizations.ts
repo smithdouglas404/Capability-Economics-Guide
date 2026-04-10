@@ -20,6 +20,7 @@ export const organizationCapabilitiesTable = pgTable("organization_capabilities"
   capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
   maturityScore: real("maturity_score").notNull(),
   investmentLevel: text("investment_level").notNull().default("moderate"),
+  strategicImportance: text("strategic_importance").notNull().default("medium"),
   notes: text("notes"),
   assessedAt: timestamp("assessed_at").defaultNow().notNull(),
 }, (table) => [

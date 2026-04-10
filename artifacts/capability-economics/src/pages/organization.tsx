@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useListIndustries, useCreateOrganization, useGetIndustry, useUpsertAssessments } from "@workspace/api-client-react";
+import { useListIndustries, useCreateOrganization, useGetIndustry, useUpsertAssessments, getGetIndustryQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,13 @@ const investmentLevels = [
   { value: "strategic", label: "Strategic" },
 ];
 
+const importanceLevels = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "critical", label: "Critical" },
+];
+
 export default function OrganizationSetup() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState<"create" | "assess">("create");
@@ -45,7 +52,7 @@ export default function OrganizationSetup() {
     }
     return null;
   });
-  const [scores, setScores] = useState<Record<number, { score: number; investment: string }>>({});
+  const [scores, setScores] = useState<Record<number, { score: number; investment: string; strategicImportance: string }>>({});
 
   const { data: industries } = useListIndustries();
   const createOrg = useCreateOrganization();
@@ -53,8 +60,8 @@ export default function OrganizationSetup() {
   const selectedIndustryId = sessionToken ? null : industryId;
   const storedIndustryId = sessionToken ? parseInt(localStorage.getItem("ce_industry_id") || "0") : (industryId || 0);
 
-  const { data: industryDetail } = useGetIndustry(storedIndustryId, {
-    query: { enabled: !!storedIndustryId } as any,
+  const { data: industryDetail } = useGetIndustry(storedIndustryId || 0, {
+    query: { queryKey: getGetIndustryQueryKey(storedIndustryId || 0), enabled: !!storedIndustryId },
   });
 
   const upsertAssessments = useUpsertAssessments();
@@ -67,9 +74,9 @@ export default function OrganizationSetup() {
 
   useEffect(() => {
     if (industryDetail && Object.keys(scores).length === 0) {
-      const defaults: Record<number, { score: number; investment: string }> = {};
+      const defaults: Record<number, { score: number; investment: string; strategicImportance: string }> = {};
       industryDetail.capabilities.forEach((cap: Capability) => {
-        defaults[cap.id] = { score: cap.benchmarkScore, investment: "moderate" };
+        defaults[cap.id] = { score: cap.benchmarkScore, investment: "moderate", strategicImportance: "medium" };
       });
       setScores(defaults);
     }
@@ -97,7 +104,8 @@ export default function OrganizationSetup() {
     const assessments = Object.entries(scores).map(([capId, data]) => ({
       capabilityId: parseInt(capId),
       maturityScore: data.score,
-      investmentLevel: data.investment as any,
+      investmentLevel: data.investment as "minimal" | "low" | "moderate" | "high" | "strategic",
+      strategicImportance: data.strategicImportance as "low" | "medium" | "high" | "critical",
     }));
 
     try {
@@ -257,49 +265,74 @@ export default function OrganizationSetup() {
             className="space-y-4"
           >
             {industryDetail.capabilities.map((cap: Capability) => {
-              const current = scores[cap.id] || { score: cap.benchmarkScore, investment: "moderate" };
+              const current = scores[cap.id] || { score: cap.benchmarkScore, investment: "moderate", strategicImportance: "medium" };
               return (
                 <Card key={cap.id} className="rounded-none">
                   <CardContent className="pt-6">
-                    <div className="grid md:grid-cols-12 gap-6 items-center">
-                      <div className="md:col-span-5">
-                        <h3 className="font-semibold text-foreground">{cap.name}</h3>
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{cap.description}</p>
-                        <div className="text-xs text-primary/70 mt-1">Benchmark: {cap.benchmarkScore}</div>
-                      </div>
-                      <div className="md:col-span-4">
-                        <div className="flex items-center gap-4">
-                          <Sliders className="w-4 h-4 text-muted-foreground shrink-0" />
-                          <Slider
-                            value={[current.score]}
-                            min={0}
-                            max={100}
-                            step={5}
-                            onValueChange={([val]) => setScores(prev => ({
-                              ...prev,
-                              [cap.id]: { ...current, score: val }
-                            }))}
-                          />
-                          <span className="font-mono text-sm w-8 text-right">{current.score}</span>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-foreground">{cap.name}</h3>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{cap.description}</p>
+                          <div className="text-xs text-primary/70 mt-1">Benchmark: {cap.benchmarkScore}</div>
                         </div>
                       </div>
-                      <div className="md:col-span-3">
-                        <Select
-                          value={current.investment}
-                          onValueChange={(val) => setScores(prev => ({
-                            ...prev,
-                            [cap.id]: { ...current, investment: val }
-                          }))}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {investmentLevels.map((lvl) => (
-                              <SelectItem key={lvl.value} value={lvl.value}>{lvl.label}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="grid md:grid-cols-12 gap-4 items-center">
+                        <div className="md:col-span-5">
+                          <Label className="text-xs text-muted-foreground mb-1 block">Maturity Score</Label>
+                          <div className="flex items-center gap-3">
+                            <Sliders className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <Slider
+                              value={[current.score]}
+                              min={0}
+                              max={100}
+                              step={5}
+                              onValueChange={([val]) => setScores(prev => ({
+                                ...prev,
+                                [cap.id]: { ...current, score: val }
+                              }))}
+                            />
+                            <span className="font-mono text-sm w-8 text-right">{current.score}</span>
+                          </div>
+                        </div>
+                        <div className="md:col-span-4">
+                          <Label className="text-xs text-muted-foreground mb-1 block">Investment Level</Label>
+                          <Select
+                            value={current.investment}
+                            onValueChange={(val) => setScores(prev => ({
+                              ...prev,
+                              [cap.id]: { ...current, investment: val }
+                            }))}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {investmentLevels.map((lvl) => (
+                                <SelectItem key={lvl.value} value={lvl.value}>{lvl.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="md:col-span-3">
+                          <Label className="text-xs text-muted-foreground mb-1 block">Strategic Importance</Label>
+                          <Select
+                            value={current.strategicImportance}
+                            onValueChange={(val) => setScores(prev => ({
+                              ...prev,
+                              [cap.id]: { ...current, strategicImportance: val }
+                            }))}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {importanceLevels.map((lvl) => (
+                                <SelectItem key={lvl.value} value={lvl.value}>{lvl.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   </CardContent>

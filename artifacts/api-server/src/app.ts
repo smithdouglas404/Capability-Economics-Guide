@@ -28,6 +28,7 @@ app.use(
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.text({ type: "text/csv" }));
 
 app.use("/api", router);
 

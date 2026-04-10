@@ -255,6 +255,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/CsvUploadResponse"
 
+  /industries/compare:
+    get:
+      operationId: compareIndustries
+      tags: [industries]
+      summary: Compare capability benchmarks across industries
+      responses:
+        "200":
+          description: Cross-industry comparison data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndustryComparison"
+
   /organizations/{sessionToken}/dashboard:
     get:
       operationId: getDashboard
@@ -523,6 +536,8 @@ components:
           type: number
         investmentLevel:
           type: string
+        strategicImportance:
+          type: string
         notes:
           type: string
           nullable: true
@@ -530,7 +545,7 @@ components:
           type: number
         assessedAt:
           type: string
-      required: [id, organizationId, capabilityId, capabilityName, capabilitySlug, maturityScore, investmentLevel, benchmarkScore, assessedAt]
+      required: [id, organizationId, capabilityId, capabilityName, capabilitySlug, maturityScore, investmentLevel, strategicImportance, benchmarkScore, assessedAt]
 
     UpsertAssessmentsRequest:
       type: object
@@ -549,6 +564,9 @@ components:
               investmentLevel:
                 type: string
                 enum: [minimal, low, moderate, high, strategic]
+              strategicImportance:
+                type: string
+                enum: [low, medium, high, critical]
               notes:
                 type: string
                 nullable: true
@@ -623,3 +641,26 @@ components:
         gap:
           type: number
       required: [capabilityName, maturityScore, benchmarkScore, gap]
+
+    IndustryComparison:
+      type: object
+      properties:
+        industries:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              slug:
+                type: string
+              avgBenchmark:
+                type: number
+              capabilityCount:
+                type: integer
+              topCapability:
+                type: string
+            required: [id, name, slug, avgBenchmark, capabilityCount, topCapability]
+      required: [industries]

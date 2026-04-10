@@ -63,6 +63,7 @@ router.get("/organizations/:sessionToken/dashboard", async (req, res) => {
       capabilitySlug: capabilitiesTable.slug,
       maturityScore: organizationCapabilitiesTable.maturityScore,
       investmentLevel: organizationCapabilitiesTable.investmentLevel,
+      strategicImportance: organizationCapabilitiesTable.strategicImportance,
       notes: organizationCapabilitiesTable.notes,
       benchmarkScore: capabilitiesTable.benchmarkScore,
       assessedAt: organizationCapabilitiesTable.assessedAt,

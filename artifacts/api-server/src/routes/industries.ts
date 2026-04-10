@@ -1,9 +1,41 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { industriesTable, capabilitiesTable } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 
 const router: IRouter = Router();
+
+router.get("/industries/compare", async (_req, res) => {
+  const rows = await db
+    .select({
+      id: industriesTable.id,
+      name: industriesTable.name,
+      slug: industriesTable.slug,
+      avgBenchmark: sql<number>`cast(round(avg(${capabilitiesTable.benchmarkScore})::numeric, 1) as float)`,
+      capabilityCount: sql<number>`cast(count(${capabilitiesTable.id}) as int)`,
+    })
+    .from(industriesTable)
+    .leftJoin(capabilitiesTable, eq(capabilitiesTable.industryId, industriesTable.id))
+    .groupBy(industriesTable.id)
+    .orderBy(desc(sql`avg(${capabilitiesTable.benchmarkScore})`));
+
+  const result = [];
+  for (const row of rows) {
+    const [topCap] = await db
+      .select({ name: capabilitiesTable.name })
+      .from(capabilitiesTable)
+      .where(eq(capabilitiesTable.industryId, row.id))
+      .orderBy(desc(capabilitiesTable.benchmarkScore))
+      .limit(1);
+
+    result.push({
+      ...row,
+      topCapability: topCap?.name || "N/A",
+    });
+  }
+
+  res.json({ industries: result });
+});
 
 router.get("/industries", async (_req, res) => {
   const industries = await db

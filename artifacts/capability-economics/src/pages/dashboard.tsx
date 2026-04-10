@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { useGetDashboard, useListRoles } from "@workspace/api-client-react";
+import { useGetDashboard, useListRoles, getGetDashboardQueryKey } from "@workspace/api-client-react";
 import type { GapAnalysis, Assessment, DashboardDataRadarDataItem } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,11 +31,12 @@ export default function Dashboard() {
     : null;
 
   const { data: roles } = useListRoles();
+  const dashboardParams = roleFilter !== "all" ? { roleSlug: roleFilter } : undefined;
   const { data: dashboard, isLoading, error } = useGetDashboard(
     sessionToken || "",
-    roleFilter !== "all" ? { roleSlug: roleFilter } : undefined,
+    dashboardParams,
     {
-      query: { enabled: !!sessionToken } as any,
+      query: { queryKey: getGetDashboardQueryKey(sessionToken || "", dashboardParams), enabled: !!sessionToken },
     }
   );
 
@@ -286,6 +287,7 @@ export default function Dashboard() {
                     <th className="pb-3 font-semibold text-muted-foreground text-center">Benchmark</th>
                     <th className="pb-3 font-semibold text-muted-foreground text-center">Gap</th>
                     <th className="pb-3 font-semibold text-muted-foreground text-center">Investment</th>
+                    <th className="pb-3 font-semibold text-muted-foreground text-center">Importance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -302,6 +304,15 @@ export default function Dashboard() {
                         <td className="py-3 text-center">
                           <span className="inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold bg-muted text-muted-foreground capitalize">
                             {a.investmentLevel}
+                          </span>
+                        </td>
+                        <td className="py-3 text-center">
+                          <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold capitalize ${
+                            a.strategicImportance === "critical" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                            a.strategicImportance === "high" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                            "bg-muted text-muted-foreground"
+                          }`}>
+                            {a.strategicImportance}
                           </span>
                         </td>
                       </tr>

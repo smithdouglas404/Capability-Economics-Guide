@@ -133,6 +133,7 @@ export interface Assessment {
   capabilitySlug: string;
   maturityScore: number;
   investmentLevel: string;
+  strategicImportance: string;
   notes?: string | null;
   benchmarkScore: number;
   assessedAt: string;
@@ -149,6 +150,16 @@ export const UpsertAssessmentsRequestAssessmentsItemInvestmentLevel = {
   strategic: "strategic",
 } as const;
 
+export type UpsertAssessmentsRequestAssessmentsItemStrategicImportance =
+  (typeof UpsertAssessmentsRequestAssessmentsItemStrategicImportance)[keyof typeof UpsertAssessmentsRequestAssessmentsItemStrategicImportance];
+
+export const UpsertAssessmentsRequestAssessmentsItemStrategicImportance = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  critical: "critical",
+} as const;
+
 export type UpsertAssessmentsRequestAssessmentsItem = {
   capabilityId: number;
   /**
@@ -157,6 +168,7 @@ export type UpsertAssessmentsRequestAssessmentsItem = {
    */
   maturityScore: number;
   investmentLevel?: UpsertAssessmentsRequestAssessmentsItemInvestmentLevel;
+  strategicImportance?: UpsertAssessmentsRequestAssessmentsItemStrategicImportance;
   notes?: string | null;
 };
 
@@ -197,6 +209,19 @@ export interface DashboardData {
   summary: DashboardDataSummary;
   radarData: DashboardDataRadarDataItem[];
   assessments: Assessment[];
+}
+
+export type IndustryComparisonIndustriesItem = {
+  id: number;
+  name: string;
+  slug: string;
+  avgBenchmark: number;
+  capabilityCount: number;
+  topCapability: string;
+};
+
+export interface IndustryComparison {
+  industries: IndustryComparisonIndustriesItem[];
 }
 
 export type ListCapabilitiesParams = {

@@ -28,6 +28,7 @@ import type {
   GetDashboardParams,
   HealthStatus,
   Industry,
+  IndustryComparison,
   IndustryDetail,
   ListCapabilitiesParams,
   Organization,
@@ -972,6 +973,81 @@ export const useUploadCsv = <
 > => {
   return useMutation(getUploadCsvMutationOptions(options));
 };
+
+/**
+ * @summary Compare capability benchmarks across industries
+ */
+export const getCompareIndustriesUrl = () => {
+  return `/api/industries/compare`;
+};
+
+export const compareIndustries = async (
+  options?: RequestInit,
+): Promise<IndustryComparison> => {
+  return customFetch<IndustryComparison>(getCompareIndustriesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getCompareIndustriesQueryKey = () => {
+  return [`/api/industries/compare`] as const;
+};
+
+export const getCompareIndustriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof compareIndustries>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof compareIndustries>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getCompareIndustriesQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof compareIndustries>>
+  > = ({ signal }) => compareIndustries({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof compareIndustries>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type CompareIndustriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof compareIndustries>>
+>;
+export type CompareIndustriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Compare capability benchmarks across industries
+ */
+
+export function useCompareIndustries<
+  TData = Awaited<ReturnType<typeof compareIndustries>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof compareIndustries>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getCompareIndustriesQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get dashboard data with maturity vs benchmarks

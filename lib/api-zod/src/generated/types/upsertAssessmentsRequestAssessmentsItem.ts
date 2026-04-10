@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { UpsertAssessmentsRequestAssessmentsItemInvestmentLevel } from "./upsertAssessmentsRequestAssessmentsItemInvestmentLevel";
+import type { UpsertAssessmentsRequestAssessmentsItemStrategicImportance } from "./upsertAssessmentsRequestAssessmentsItemStrategicImportance";
 
 export type UpsertAssessmentsRequestAssessmentsItem = {
   capabilityId: number;
@@ -15,5 +16,6 @@ export type UpsertAssessmentsRequestAssessmentsItem = {
    */
   maturityScore: number;
   investmentLevel?: UpsertAssessmentsRequestAssessmentsItemInvestmentLevel;
+  strategicImportance?: UpsertAssessmentsRequestAssessmentsItemStrategicImportance;
   notes?: string | null;
 };

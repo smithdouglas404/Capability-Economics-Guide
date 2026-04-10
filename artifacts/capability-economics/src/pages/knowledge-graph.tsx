@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useListIndustries, useGetIndustry, useGetCapability } from "@workspace/api-client-react";
+import { useListIndustries, useGetIndustry, useGetCapability, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,11 +59,11 @@ export default function KnowledgeGraph() {
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
 
   const { data: industries, isLoading: loadingIndustries } = useListIndustries();
-  const { data: industryDetail, isLoading: loadingIndustry } = useGetIndustry(selectedIndustryId!, {
-    query: { enabled: !!selectedIndustryId } as any,
+  const { data: industryDetail, isLoading: loadingIndustry } = useGetIndustry(selectedIndustryId ?? 0, {
+    query: { queryKey: getGetIndustryQueryKey(selectedIndustryId ?? 0), enabled: !!selectedIndustryId },
   });
-  const { data: capabilityDetail, isLoading: loadingCapability } = useGetCapability(selectedCapabilityId!, {
-    query: { enabled: !!selectedCapabilityId } as any,
+  const { data: capabilityDetail, isLoading: loadingCapability } = useGetCapability(selectedCapabilityId ?? 0, {
+    query: { queryKey: getGetCapabilityQueryKey(selectedCapabilityId ?? 0), enabled: !!selectedCapabilityId },
   });
 
   if (selectedCapabilityId && capabilityDetail) {

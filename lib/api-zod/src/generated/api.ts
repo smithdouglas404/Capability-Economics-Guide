@@ -174,6 +174,7 @@ export const ListAssessmentsResponseItem = zod.object({
   capabilitySlug: zod.string(),
   maturityScore: zod.number(),
   investmentLevel: zod.string(),
+  strategicImportance: zod.string(),
   notes: zod.string().nullish(),
   benchmarkScore: zod.number(),
   assessedAt: zod.string(),
@@ -201,6 +202,9 @@ export const UpsertAssessmentsBody = zod.object({
       investmentLevel: zod
         .enum(["minimal", "low", "moderate", "high", "strategic"])
         .optional(),
+      strategicImportance: zod
+        .enum(["low", "medium", "high", "critical"])
+        .optional(),
       notes: zod.string().nullish(),
     }),
   ),
@@ -214,6 +218,7 @@ export const UpsertAssessmentsResponseItem = zod.object({
   capabilitySlug: zod.string(),
   maturityScore: zod.number(),
   investmentLevel: zod.string(),
+  strategicImportance: zod.string(),
   notes: zod.string().nullish(),
   benchmarkScore: zod.number(),
   assessedAt: zod.string(),
@@ -237,6 +242,22 @@ export const UploadCsvResponse = zod.object({
   imported: zod.number(),
   skipped: zod.number(),
   errors: zod.array(zod.string()),
+});
+
+/**
+ * @summary Compare capability benchmarks across industries
+ */
+export const CompareIndustriesResponse = zod.object({
+  industries: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      slug: zod.string(),
+      avgBenchmark: zod.number(),
+      capabilityCount: zod.number(),
+      topCapability: zod.string(),
+    }),
+  ),
 });
 
 /**
@@ -299,6 +320,7 @@ export const GetDashboardResponse = zod.object({
       capabilitySlug: zod.string(),
       maturityScore: zod.number(),
       investmentLevel: zod.string(),
+      strategicImportance: zod.string(),
       notes: zod.string().nullish(),
       benchmarkScore: zod.number(),
       assessedAt: zod.string(),
