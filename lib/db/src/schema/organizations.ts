@@ -1,0 +1,35 @@
+import { pgTable, text, serial, integer, timestamp, real, uniqueIndex } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
+import { z } from "zod/v4";
+import { industriesTable } from "./industries";
+import { capabilitiesTable } from "./capabilities";
+
+export const organizationsTable = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
+  size: text("size").notNull().default("mid"),
+  sessionToken: text("session_token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const organizationCapabilitiesTable = pgTable("organization_capabilities", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizationsTable.id, { onDelete: "cascade" }),
+  capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
+  maturityScore: real("maturity_score").notNull(),
+  investmentLevel: text("investment_level").notNull().default("moderate"),
+  notes: text("notes"),
+  assessedAt: timestamp("assessed_at").defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("org_cap_unique_idx").on(table.organizationId, table.capabilityId),
+]);
+
+export const insertOrganizationSchema = createInsertSchema(organizationsTable).omit({ id: true, createdAt: true, updatedAt: true, sessionToken: true });
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+export type Organization = typeof organizationsTable.$inferSelect;
+
+export const insertOrganizationCapabilitySchema = createInsertSchema(organizationCapabilitiesTable).omit({ id: true, assessedAt: true });
+export type InsertOrganizationCapability = z.infer<typeof insertOrganizationCapabilitySchema>;
+export type OrganizationCapability = typeof organizationCapabilitiesTable.$inferSelect;

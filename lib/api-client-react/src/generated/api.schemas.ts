@@ -8,3 +8,205 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ErrorResponse {
+  error: string;
+}
+
+export interface Industry {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  capabilityCount: number;
+}
+
+export interface Capability {
+  id: number;
+  industryId: number;
+  slug: string;
+  name: string;
+  description: string;
+  traditionalView: string;
+  economicView: string;
+  benchmarkScore: number;
+}
+
+export interface IndustryDetail {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  icon: string;
+  capabilities: Capability[];
+}
+
+export interface CapabilityMetric {
+  id: number;
+  name: string;
+  description: string;
+  unit: string;
+  benchmarkValue?: number | null;
+}
+
+export interface CapabilityDependency {
+  id: number;
+  dependsOnId: number;
+  dependsOnName: string;
+  strength: string;
+}
+
+export interface RoleMapping {
+  roleId: number;
+  roleTitle: string;
+  roleName: string;
+  relevance: string;
+  perspective: string;
+}
+
+export interface CapabilityDetail {
+  id: number;
+  industryId: number;
+  slug: string;
+  name: string;
+  description: string;
+  traditionalView: string;
+  economicView: string;
+  benchmarkScore: number;
+  metrics: CapabilityMetric[];
+  dependencies: CapabilityDependency[];
+  roleMappings: RoleMapping[];
+}
+
+export interface CSuiteRole {
+  id: number;
+  slug: string;
+  title: string;
+  name: string;
+  focus: string;
+  icon: string;
+  color: string;
+}
+
+export type CreateOrganizationRequestSize =
+  (typeof CreateOrganizationRequestSize)[keyof typeof CreateOrganizationRequestSize];
+
+export const CreateOrganizationRequestSize = {
+  small: "small",
+  mid: "mid",
+  large: "large",
+  enterprise: "enterprise",
+} as const;
+
+export interface CreateOrganizationRequest {
+  name: string;
+  industryId: number;
+  size?: CreateOrganizationRequestSize;
+}
+
+export interface Organization {
+  id: number;
+  name: string;
+  industryId: number;
+  size: string;
+  sessionToken: string;
+  createdAt: string;
+}
+
+export interface OrganizationDetail {
+  id: number;
+  name: string;
+  industryId: number;
+  industryName: string;
+  size: string;
+  sessionToken: string;
+  assessmentCount: number;
+  createdAt: string;
+}
+
+export interface Assessment {
+  id: number;
+  organizationId: number;
+  capabilityId: number;
+  capabilityName: string;
+  capabilitySlug: string;
+  maturityScore: number;
+  investmentLevel: string;
+  notes?: string | null;
+  benchmarkScore: number;
+  assessedAt: string;
+}
+
+export type UpsertAssessmentsRequestAssessmentsItemInvestmentLevel =
+  (typeof UpsertAssessmentsRequestAssessmentsItemInvestmentLevel)[keyof typeof UpsertAssessmentsRequestAssessmentsItemInvestmentLevel];
+
+export const UpsertAssessmentsRequestAssessmentsItemInvestmentLevel = {
+  minimal: "minimal",
+  low: "low",
+  moderate: "moderate",
+  high: "high",
+  strategic: "strategic",
+} as const;
+
+export type UpsertAssessmentsRequestAssessmentsItem = {
+  capabilityId: number;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  maturityScore: number;
+  investmentLevel?: UpsertAssessmentsRequestAssessmentsItemInvestmentLevel;
+  notes?: string | null;
+};
+
+export interface UpsertAssessmentsRequest {
+  assessments: UpsertAssessmentsRequestAssessmentsItem[];
+}
+
+export interface CsvUploadResponse {
+  imported: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface GapAnalysis {
+  capabilityName: string;
+  maturityScore: number;
+  benchmarkScore: number;
+  gap: number;
+}
+
+export type DashboardDataSummary = {
+  totalCapabilities: number;
+  assessedCapabilities: number;
+  averageMaturity: number;
+  averageBenchmark: number;
+  topGaps: GapAnalysis[];
+  topStrengths: GapAnalysis[];
+};
+
+export type DashboardDataRadarDataItem = {
+  capability: string;
+  maturity: number;
+  benchmark: number;
+};
+
+export interface DashboardData {
+  organization: OrganizationDetail;
+  summary: DashboardDataSummary;
+  radarData: DashboardDataRadarDataItem[];
+  assessments: Assessment[];
+}
+
+export type ListCapabilitiesParams = {
+  industryId?: number;
+};
+
+export type UploadCsvBody = {
+  file: Blob;
+};
+
+export type GetDashboardParams = {
+  roleSlug?: string;
+};

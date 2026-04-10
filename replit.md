@@ -18,12 +18,39 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Capability Economics App
 
-Frontend-only React + Vite web application (`artifacts/capability-economics/`) that teaches novice users about capability economics. No backend needed — all content is built into the frontend.
+Full-stack educational platform teaching novice users about capability economics with an executive-grade design aesthetic.
 
-### Pages
+### Design
+- Indigo primary (#244 47% 50%), amber accent
+- Outfit sans-serif, Playfair Display serif
+- Slate background, space-separated HSL values (no `hsl()` wrapper)
+- Google Fonts `@import` must be first line in index.css
+
+### Frontend Pages (`artifacts/capability-economics/`)
 - `/` — Home page with definition, real estate analogy, and navigation
-- `/insurance-example` — Insurance industry case study with capability cards and 5-year ROI chart
-- `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO) with radar charts
+- `/case-study` — Insurance industry case study with capability cards and 5-year ROI chart
+- `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO)
+- `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings
+- `/organization` — Organization setup wizard (2-step: create org + assess capabilities with sliders)
+- `/dashboard` — Personalized dashboard comparing org maturity vs industry benchmarks, gap analysis, role-filtered views
+
+### Backend (`artifacts/api-server/`)
+- Port 8080
+- REST API with routes: `/api/industries`, `/api/capabilities`, `/api/roles`, `/api/organizations`
+- Organization CRUD with session tokens
+- Capability assessment upserts with industry validation and transactions
+- CSV upload for bulk assessment import
+- Dashboard aggregation with role-specific filtering
+
+### Database Schema (`lib/db/`)
+- `industries` — 6 seeded industries (Insurance, Healthcare, Banking, Manufacturing, Technology, Retail)
+- `capabilities` — 8-12 per industry with benchmark scores
+- `capability_metrics` — KPIs for each capability
+- `capability_dependencies` — Inter-capability relationships
+- `c_suite_roles` — Executive roles with descriptions
+- `capability_role_mappings` — Role relevance per capability
+- `organizations` — User orgs with session tokens
+- `organization_capabilities` — Assessment scores with unique constraint on (org_id, capability_id)
 
 ### Key Dependencies
 - **wouter** for client-side routing
@@ -31,18 +58,26 @@ Frontend-only React + Vite web application (`artifacts/capability-economics/`) t
 - **recharts** for data visualizations (radar charts, bar charts)
 - **lucide-react** for icons
 - **shadcn/ui** components (cards, tabs, scroll-area, etc.)
+- **@tanstack/react-query** for data fetching via generated hooks
 
-### Structure
-- `src/pages/` — Page components (home.tsx, insurance-example.tsx, c-suite.tsx)
-- `src/components/layout.tsx` — Shared layout with navigation header and footer
-- `src/App.tsx` — Router setup
+### Session Management
+- Session token stored in `localStorage` as `ce_session_token`
+- Industry ID stored as `ce_industry_id`
+- `useUpsertAssessments()` takes no args; mutation receives `{ sessionToken, data }`
+- `useGetDashboard(sessionToken, params?, options?)` signature
+
+### Generated Code (`lib/api-client-react/`, `lib/api-zod/`)
+- Generated via Orval from `lib/api-spec/openapi.yaml`
+- React Query hooks in `@workspace/api-client-react`
+- Zod validation schemas in `@workspace/api-zod`
+- IMPORTANT: Do NOT change OpenAPI `info.title` — controls generated filenames
 
 ## Key Commands
 
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
+- `cd lib/db && npx drizzle-kit push --force` — push DB schema changes (dev only)
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.

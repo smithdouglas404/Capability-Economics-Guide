@@ -7,6 +7,9 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import InsuranceExample from "@/pages/insurance-example";
 import CSuite from "@/pages/c-suite";
+import KnowledgeGraph from "@/pages/knowledge-graph";
+import OrganizationSetup from "@/pages/organization";
+import Dashboard from "@/pages/dashboard";
 
 const queryClient = new QueryClient();
 
@@ -16,6 +19,9 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
+      <Route path="/knowledge-graph" component={KnowledgeGraph} />
+      <Route path="/organization" component={OrganizationSetup} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route component={NotFound} />
     </Switch>
   );

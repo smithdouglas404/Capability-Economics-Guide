@@ -1,26 +1,31 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Briefcase, Shield, Users } from "lucide-react";
+import { Briefcase, Shield, Users, Network, Building2, BarChart3 } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
 
   const navItems = [
-    { href: "/", label: "Executive Summary", icon: Briefcase },
-    { href: "/insurance-example", label: "Industry Case: Insurance", icon: Shield },
-    { href: "/c-suite", label: "C-Suite Perspectives", icon: Users },
+    { href: "/", label: "Home", icon: Briefcase },
+    { href: "/insurance-example", label: "Case Study", icon: Shield },
+    { href: "/c-suite", label: "C-Suite", icon: Users },
+    { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+    { href: "/organization", label: "My Org", icon: Building2 },
+    { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <header className="sticky top-0 z-50 w-full border-b bg-background/80 backdrop-blur-md">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-serif font-bold text-lg">
-              CE
+          <Link href="/">
+            <div className="flex items-center gap-2 cursor-pointer">
+              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-serif font-bold text-lg">
+                CE
+              </div>
+              <span className="font-serif font-semibold text-lg tracking-tight hidden sm:inline">Capability Economics</span>
             </div>
-            <span className="font-serif font-semibold text-lg tracking-tight">Capability Economics</span>
-          </div>
+          </Link>
           <nav className="hidden md:flex items-center gap-1">
             {navItems.map((item) => {
               const isActive = location === item.href;
@@ -29,7 +34,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 <Link key={item.href} href={item.href}>
                   <div
                     data-testid={`nav-link-${item.label.replace(/\s+/g, '-').toLowerCase()}`}
-                    className={`relative px-4 py-2 rounded-md text-sm font-medium transition-colors hover:text-primary cursor-pointer flex items-center gap-2 ${
+                    className={`relative px-3 py-2 rounded-md text-sm font-medium transition-colors hover:text-primary cursor-pointer flex items-center gap-1.5 ${
                       isActive ? "text-primary" : "text-muted-foreground"
                     }`}
                   >

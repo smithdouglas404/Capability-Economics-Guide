@@ -6,4 +6,29 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./assessment";
+export * from "./capability";
+export * from "./capabilityDependency";
+export * from "./capabilityDetail";
+export * from "./capabilityMetric";
+export * from "./createOrganizationRequest";
+export * from "./createOrganizationRequestSize";
+export * from "./cSuiteRole";
+export * from "./csvUploadResponse";
+export * from "./dashboardData";
+export * from "./dashboardDataRadarDataItem";
+export * from "./dashboardDataSummary";
+export * from "./errorResponse";
+export * from "./gapAnalysis";
+export * from "./getDashboardParams";
 export * from "./healthStatus";
+export * from "./industry";
+export * from "./industryDetail";
+export * from "./listCapabilitiesParams";
+export * from "./organization";
+export * from "./organizationDetail";
+export * from "./roleMapping";
+export * from "./uploadCsvBody";
+export * from "./upsertAssessmentsRequest";
+export * from "./upsertAssessmentsRequestAssessmentsItem";
+export * from "./upsertAssessmentsRequestAssessmentsItemInvestmentLevel";

@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: industries
+    description: Industry knowledge graph
+  - name: capabilities
+    description: Capability management
+  - name: organizations
+    description: Organization management
+  - name: dashboard
+    description: Dashboard and analytics
 paths:
   /healthz:
     get:
@@ -24,6 +32,259 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /industries:
+    get:
+      operationId: listIndustries
+      tags: [industries]
+      summary: List all industries
+      responses:
+        "200":
+          description: List of industries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Industry"
+
+  /industries/{id}:
+    get:
+      operationId: getIndustry
+      tags: [industries]
+      summary: Get industry by ID with its capabilities
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Industry with capabilities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndustryDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /capabilities:
+    get:
+      operationId: listCapabilities
+      tags: [capabilities]
+      summary: List capabilities with optional industry filter
+      parameters:
+        - name: industryId
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Capability"
+
+  /capabilities/{id}:
+    get:
+      operationId: getCapability
+      tags: [capabilities]
+      summary: Get capability detail with metrics, dependencies, and role mappings
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Capability with full details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CapabilityDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /roles:
+    get:
+      operationId: listRoles
+      tags: [capabilities]
+      summary: List all C-suite roles
+      responses:
+        "200":
+          description: List of roles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CSuiteRole"
+
+  /organizations:
+    post:
+      operationId: createOrganization
+      tags: [organizations]
+      summary: Create a new organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Created organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+
+  /organizations/{sessionToken}:
+    get:
+      operationId: getOrganization
+      tags: [organizations]
+      summary: Get organization by session token
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /organizations/{sessionToken}/assessments:
+    get:
+      operationId: listAssessments
+      tags: [organizations]
+      summary: List capability assessments for an organization
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of assessments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Assessment"
+    put:
+      operationId: upsertAssessments
+      tags: [organizations]
+      summary: Create or update capability assessments in bulk
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpsertAssessmentsRequest"
+      responses:
+        "200":
+          description: Updated assessments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Assessment"
+
+  /organizations/{sessionToken}/upload-csv:
+    post:
+      operationId: uploadCsv
+      tags: [organizations]
+      summary: Upload CSV file with capability assessments
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+                - file
+      responses:
+        "200":
+          description: Import results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsvUploadResponse"
+
+  /organizations/{sessionToken}/dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      summary: Get dashboard data with maturity vs benchmarks
+      parameters:
+        - name: sessionToken
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: roleSlug
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardData"
+        "404":
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +295,331 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    Industry:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        capabilityCount:
+          type: integer
+      required: [id, slug, name, description, icon, capabilityCount]
+
+    IndustryDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Capability"
+      required: [id, slug, name, description, icon, capabilities]
+
+    Capability:
+      type: object
+      properties:
+        id:
+          type: integer
+        industryId:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        traditionalView:
+          type: string
+        economicView:
+          type: string
+        benchmarkScore:
+          type: number
+      required: [id, industryId, slug, name, description, traditionalView, economicView, benchmarkScore]
+
+    CapabilityDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        industryId:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        traditionalView:
+          type: string
+        economicView:
+          type: string
+        benchmarkScore:
+          type: number
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityMetric"
+        dependencies:
+          type: array
+          items:
+            $ref: "#/components/schemas/CapabilityDependency"
+        roleMappings:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleMapping"
+      required: [id, industryId, slug, name, description, traditionalView, economicView, benchmarkScore, metrics, dependencies, roleMappings]
+
+    CapabilityMetric:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        unit:
+          type: string
+        benchmarkValue:
+          type: number
+          nullable: true
+      required: [id, name, description, unit]
+
+    CapabilityDependency:
+      type: object
+      properties:
+        id:
+          type: integer
+        dependsOnId:
+          type: integer
+        dependsOnName:
+          type: string
+        strength:
+          type: string
+      required: [id, dependsOnId, dependsOnName, strength]
+
+    RoleMapping:
+      type: object
+      properties:
+        roleId:
+          type: integer
+        roleTitle:
+          type: string
+        roleName:
+          type: string
+        relevance:
+          type: string
+        perspective:
+          type: string
+      required: [roleId, roleTitle, roleName, relevance, perspective]
+
+    CSuiteRole:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        title:
+          type: string
+        name:
+          type: string
+        focus:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+      required: [id, slug, title, name, focus, icon, color]
+
+    CreateOrganizationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        industryId:
+          type: integer
+        size:
+          type: string
+          enum: [small, mid, large, enterprise]
+      required: [name, industryId]
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        industryId:
+          type: integer
+        size:
+          type: string
+        sessionToken:
+          type: string
+        createdAt:
+          type: string
+      required: [id, name, industryId, size, sessionToken, createdAt]
+
+    OrganizationDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        industryId:
+          type: integer
+        industryName:
+          type: string
+        size:
+          type: string
+        sessionToken:
+          type: string
+        assessmentCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, name, industryId, industryName, size, sessionToken, assessmentCount, createdAt]
+
+    Assessment:
+      type: object
+      properties:
+        id:
+          type: integer
+        organizationId:
+          type: integer
+        capabilityId:
+          type: integer
+        capabilityName:
+          type: string
+        capabilitySlug:
+          type: string
+        maturityScore:
+          type: number
+        investmentLevel:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        benchmarkScore:
+          type: number
+        assessedAt:
+          type: string
+      required: [id, organizationId, capabilityId, capabilityName, capabilitySlug, maturityScore, investmentLevel, benchmarkScore, assessedAt]
+
+    UpsertAssessmentsRequest:
+      type: object
+      properties:
+        assessments:
+          type: array
+          items:
+            type: object
+            properties:
+              capabilityId:
+                type: integer
+              maturityScore:
+                type: number
+                minimum: 0
+                maximum: 100
+              investmentLevel:
+                type: string
+                enum: [minimal, low, moderate, high, strategic]
+              notes:
+                type: string
+                nullable: true
+            required: [capabilityId, maturityScore]
+      required: [assessments]
+
+    CsvUploadResponse:
+      type: object
+      properties:
+        imported:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+      required: [imported, skipped, errors]
+
+    DashboardData:
+      type: object
+      properties:
+        organization:
+          $ref: "#/components/schemas/OrganizationDetail"
+        summary:
+          type: object
+          properties:
+            totalCapabilities:
+              type: integer
+            assessedCapabilities:
+              type: integer
+            averageMaturity:
+              type: number
+            averageBenchmark:
+              type: number
+            topGaps:
+              type: array
+              items:
+                $ref: "#/components/schemas/GapAnalysis"
+            topStrengths:
+              type: array
+              items:
+                $ref: "#/components/schemas/GapAnalysis"
+          required: [totalCapabilities, assessedCapabilities, averageMaturity, averageBenchmark, topGaps, topStrengths]
+        radarData:
+          type: array
+          items:
+            type: object
+            properties:
+              capability:
+                type: string
+              maturity:
+                type: number
+              benchmark:
+                type: number
+            required: [capability, maturity, benchmark]
+        assessments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Assessment"
+      required: [organization, summary, radarData, assessments]
+
+    GapAnalysis:
+      type: object
+      properties:
+        capabilityName:
+          type: string
+        maturityScore:
+          type: number
+        benchmarkScore:
+          type: number
+        gap:
+          type: number
+      required: [capabilityName, maturityScore, benchmarkScore, gap]

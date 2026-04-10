@@ -14,3 +14,294 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary List all industries
+ */
+export const ListIndustriesResponseItem = zod.object({
+  id: zod.number(),
+  slug: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  icon: zod.string(),
+  capabilityCount: zod.number(),
+});
+export const ListIndustriesResponse = zod.array(ListIndustriesResponseItem);
+
+/**
+ * @summary Get industry by ID with its capabilities
+ */
+export const GetIndustryParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetIndustryResponse = zod.object({
+  id: zod.number(),
+  slug: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  icon: zod.string(),
+  capabilities: zod.array(
+    zod.object({
+      id: zod.number(),
+      industryId: zod.number(),
+      slug: zod.string(),
+      name: zod.string(),
+      description: zod.string(),
+      traditionalView: zod.string(),
+      economicView: zod.string(),
+      benchmarkScore: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary List capabilities with optional industry filter
+ */
+export const ListCapabilitiesQueryParams = zod.object({
+  industryId: zod.coerce.number().optional(),
+});
+
+export const ListCapabilitiesResponseItem = zod.object({
+  id: zod.number(),
+  industryId: zod.number(),
+  slug: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  traditionalView: zod.string(),
+  economicView: zod.string(),
+  benchmarkScore: zod.number(),
+});
+export const ListCapabilitiesResponse = zod.array(ListCapabilitiesResponseItem);
+
+/**
+ * @summary Get capability detail with metrics, dependencies, and role mappings
+ */
+export const GetCapabilityParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetCapabilityResponse = zod.object({
+  id: zod.number(),
+  industryId: zod.number(),
+  slug: zod.string(),
+  name: zod.string(),
+  description: zod.string(),
+  traditionalView: zod.string(),
+  economicView: zod.string(),
+  benchmarkScore: zod.number(),
+  metrics: zod.array(
+    zod.object({
+      id: zod.number(),
+      name: zod.string(),
+      description: zod.string(),
+      unit: zod.string(),
+      benchmarkValue: zod.number().nullish(),
+    }),
+  ),
+  dependencies: zod.array(
+    zod.object({
+      id: zod.number(),
+      dependsOnId: zod.number(),
+      dependsOnName: zod.string(),
+      strength: zod.string(),
+    }),
+  ),
+  roleMappings: zod.array(
+    zod.object({
+      roleId: zod.number(),
+      roleTitle: zod.string(),
+      roleName: zod.string(),
+      relevance: zod.string(),
+      perspective: zod.string(),
+    }),
+  ),
+});
+
+/**
+ * @summary List all C-suite roles
+ */
+export const ListRolesResponseItem = zod.object({
+  id: zod.number(),
+  slug: zod.string(),
+  title: zod.string(),
+  name: zod.string(),
+  focus: zod.string(),
+  icon: zod.string(),
+  color: zod.string(),
+});
+export const ListRolesResponse = zod.array(ListRolesResponseItem);
+
+/**
+ * @summary Create a new organization
+ */
+export const CreateOrganizationBody = zod.object({
+  name: zod.string(),
+  industryId: zod.number(),
+  size: zod.enum(["small", "mid", "large", "enterprise"]).optional(),
+});
+
+/**
+ * @summary Get organization by session token
+ */
+export const GetOrganizationParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const GetOrganizationResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  industryId: zod.number(),
+  industryName: zod.string(),
+  size: zod.string(),
+  sessionToken: zod.string(),
+  assessmentCount: zod.number(),
+  createdAt: zod.string(),
+});
+
+/**
+ * @summary List capability assessments for an organization
+ */
+export const ListAssessmentsParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const ListAssessmentsResponseItem = zod.object({
+  id: zod.number(),
+  organizationId: zod.number(),
+  capabilityId: zod.number(),
+  capabilityName: zod.string(),
+  capabilitySlug: zod.string(),
+  maturityScore: zod.number(),
+  investmentLevel: zod.string(),
+  notes: zod.string().nullish(),
+  benchmarkScore: zod.number(),
+  assessedAt: zod.string(),
+});
+export const ListAssessmentsResponse = zod.array(ListAssessmentsResponseItem);
+
+/**
+ * @summary Create or update capability assessments in bulk
+ */
+export const UpsertAssessmentsParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const upsertAssessmentsBodyAssessmentsItemMaturityScoreMin = 0;
+export const upsertAssessmentsBodyAssessmentsItemMaturityScoreMax = 100;
+
+export const UpsertAssessmentsBody = zod.object({
+  assessments: zod.array(
+    zod.object({
+      capabilityId: zod.number(),
+      maturityScore: zod
+        .number()
+        .min(upsertAssessmentsBodyAssessmentsItemMaturityScoreMin)
+        .max(upsertAssessmentsBodyAssessmentsItemMaturityScoreMax),
+      investmentLevel: zod
+        .enum(["minimal", "low", "moderate", "high", "strategic"])
+        .optional(),
+      notes: zod.string().nullish(),
+    }),
+  ),
+});
+
+export const UpsertAssessmentsResponseItem = zod.object({
+  id: zod.number(),
+  organizationId: zod.number(),
+  capabilityId: zod.number(),
+  capabilityName: zod.string(),
+  capabilitySlug: zod.string(),
+  maturityScore: zod.number(),
+  investmentLevel: zod.string(),
+  notes: zod.string().nullish(),
+  benchmarkScore: zod.number(),
+  assessedAt: zod.string(),
+});
+export const UpsertAssessmentsResponse = zod.array(
+  UpsertAssessmentsResponseItem,
+);
+
+/**
+ * @summary Upload CSV file with capability assessments
+ */
+export const UploadCsvParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const UploadCsvBody = zod.object({
+  file: zod.instanceof(File),
+});
+
+export const UploadCsvResponse = zod.object({
+  imported: zod.number(),
+  skipped: zod.number(),
+  errors: zod.array(zod.string()),
+});
+
+/**
+ * @summary Get dashboard data with maturity vs benchmarks
+ */
+export const GetDashboardParams = zod.object({
+  sessionToken: zod.coerce.string(),
+});
+
+export const GetDashboardQueryParams = zod.object({
+  roleSlug: zod.coerce.string().optional(),
+});
+
+export const GetDashboardResponse = zod.object({
+  organization: zod.object({
+    id: zod.number(),
+    name: zod.string(),
+    industryId: zod.number(),
+    industryName: zod.string(),
+    size: zod.string(),
+    sessionToken: zod.string(),
+    assessmentCount: zod.number(),
+    createdAt: zod.string(),
+  }),
+  summary: zod.object({
+    totalCapabilities: zod.number(),
+    assessedCapabilities: zod.number(),
+    averageMaturity: zod.number(),
+    averageBenchmark: zod.number(),
+    topGaps: zod.array(
+      zod.object({
+        capabilityName: zod.string(),
+        maturityScore: zod.number(),
+        benchmarkScore: zod.number(),
+        gap: zod.number(),
+      }),
+    ),
+    topStrengths: zod.array(
+      zod.object({
+        capabilityName: zod.string(),
+        maturityScore: zod.number(),
+        benchmarkScore: zod.number(),
+        gap: zod.number(),
+      }),
+    ),
+  }),
+  radarData: zod.array(
+    zod.object({
+      capability: zod.string(),
+      maturity: zod.number(),
+      benchmark: zod.number(),
+    }),
+  ),
+  assessments: zod.array(
+    zod.object({
+      id: zod.number(),
+      organizationId: zod.number(),
+      capabilityId: zod.number(),
+      capabilityName: zod.string(),
+      capabilitySlug: zod.string(),
+      maturityScore: zod.number(),
+      investmentLevel: zod.string(),
+      notes: zod.string().nullish(),
+      benchmarkScore: zod.number(),
+      assessedAt: zod.string(),
+    }),
+  ),
+});
