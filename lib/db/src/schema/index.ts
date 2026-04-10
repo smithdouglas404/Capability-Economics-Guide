@@ -5,3 +5,4 @@ export * from "./organizations";
 export * from "./projects";
 export * from "./insights";
 export * from "./ontology";
+export * from "./data-sources";

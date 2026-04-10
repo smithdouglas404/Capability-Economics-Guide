@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { industriesTable } from "./industries";
@@ -12,6 +12,7 @@ export const capabilitiesTable = pgTable("capabilities", {
   traditionalView: text("traditional_view").notNull(),
   economicView: text("economic_view").notNull(),
   benchmarkScore: real("benchmark_score").notNull().default(50),
+  sourceIds: jsonb("source_ids").$type<number[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

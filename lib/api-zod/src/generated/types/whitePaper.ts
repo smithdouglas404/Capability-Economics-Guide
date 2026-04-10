@@ -15,7 +15,9 @@ export interface WhitePaper {
   organization: string;
   abstract: string;
   category: string;
+  url?: string | null;
   publishedYear: number;
   relevanceScore: number;
   tags: string[];
+  sourceIds?: number[] | null;
 }

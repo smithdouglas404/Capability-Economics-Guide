@@ -17,5 +17,7 @@ export interface CapabilityThreshold {
   greenMin: number;
   yellowMin: number;
   redMax: number;
+  description?: string | null;
+  sourceIds?: number[] | null;
   status: CapabilityThresholdStatus;
 }

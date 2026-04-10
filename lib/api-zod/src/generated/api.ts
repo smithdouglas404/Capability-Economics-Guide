@@ -475,6 +475,8 @@ export const ListThresholdsResponseItem = zod.object({
   greenMin: zod.number(),
   yellowMin: zod.number(),
   redMax: zod.number(),
+  description: zod.string().nullish(),
+  sourceIds: zod.array(zod.number()).nullish(),
   status: zod.enum(["green", "yellow", "red"]),
 });
 export const ListThresholdsResponse = zod.array(ListThresholdsResponseItem);
@@ -541,6 +543,7 @@ export const ListLeaderboardResponseItem = zod.object({
   investmentLevel: zod.string(),
   trend: zod.string(),
   rank: zod.number(),
+  sourceIds: zod.array(zod.number()).nullish(),
 });
 export const ListLeaderboardResponse = zod.array(ListLeaderboardResponseItem);
 
@@ -560,9 +563,11 @@ export const ListWhitePapersResponseItem = zod.object({
   organization: zod.string(),
   abstract: zod.string(),
   category: zod.string(),
+  url: zod.string().nullish(),
   publishedYear: zod.number(),
   relevanceScore: zod.number(),
   tags: zod.array(zod.string()),
+  sourceIds: zod.array(zod.number()).nullish(),
 });
 export const ListWhitePapersResponse = zod.array(ListWhitePapersResponseItem);
 
@@ -601,3 +606,55 @@ export const GetOntologyResponse = zod.object({
     }),
   ),
 });
+
+/**
+ * Queries the Perplexity API for live research data with citations. Returns structured findings with source URLs.
+ * @summary Research a capability or industry topic using Perplexity
+ */
+export const ResearchCapabilityBody = zod.object({
+  query: zod.string().describe("The research question or topic to investigate"),
+  industryId: zod
+    .number()
+    .nullish()
+    .describe("Optional industry context for the research"),
+  capabilityId: zod
+    .number()
+    .nullish()
+    .describe("Optional capability context for the research"),
+});
+
+export const ResearchCapabilityResponse = zod.object({
+  findings: zod.array(
+    zod.object({
+      title: zod.string(),
+      summary: zod.string(),
+      relevance: zod.enum(["high", "medium", "low"]),
+      sourceUrl: zod.string().nullish(),
+    }),
+  ),
+  citations: zod.array(zod.string()).describe("Source URLs from the research"),
+  rawAnalysis: zod.string().describe("Full research narrative from Perplexity"),
+});
+
+/**
+ * Returns data source citations. Optionally filter by comma-separated IDs.
+ * @summary List data source citations
+ */
+export const ListDataSourcesQueryParams = zod.object({
+  ids: zod.coerce
+    .string()
+    .optional()
+    .describe("Comma-separated list of source IDs to retrieve"),
+});
+
+export const ListDataSourcesResponseItem = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  url: zod.string().nullish(),
+  publisher: zod.string().nullish(),
+  publishedDate: zod.string().nullish(),
+  accessedDate: zod.string().nullish(),
+  sourceType: zod.string(),
+  description: zod.string().nullish(),
+});
+export const ListDataSourcesResponse = zod.array(ListDataSourcesResponseItem);

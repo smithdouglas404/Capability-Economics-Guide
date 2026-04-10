@@ -9,8 +9,9 @@ import {
   ontologyIndustryAdaptersTable,
   capabilitiesTable,
   industriesTable,
+  dataSourcesTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import {
   ListThresholdsQueryParams,
   ListInsightsQueryParams,
@@ -18,6 +19,7 @@ import {
   ListWhitePapersQueryParams,
   GetOntologyQueryParams,
   GenerateInsightsBody,
+  ResearchCapabilityBody,
 } from "@workspace/api-zod";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
@@ -78,6 +80,8 @@ router.get("/thresholds", async (req, res) => {
       greenMin: capabilityThresholdsTable.greenMin,
       yellowMin: capabilityThresholdsTable.yellowMin,
       redMax: capabilityThresholdsTable.redMax,
+      description: capabilityThresholdsTable.description,
+      sourceIds: capabilityThresholdsTable.sourceIds,
     })
     .from(capabilityThresholdsTable)
     .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId));
@@ -117,6 +121,7 @@ router.get("/leaderboard", async (req, res) => {
       investmentLevel: industryLeaderboardTable.investmentLevel,
       trend: industryLeaderboardTable.trend,
       rank: industryLeaderboardTable.rank,
+      sourceIds: industryLeaderboardTable.sourceIds,
     })
     .from(industryLeaderboardTable)
     .innerJoin(industriesTable, eq(industriesTable.id, industryLeaderboardTable.industryId))
@@ -148,9 +153,11 @@ router.get("/white-papers", async (req, res) => {
       organization: industryWhitePapersTable.organization,
       abstract: industryWhitePapersTable.abstract,
       category: industryWhitePapersTable.category,
+      url: industryWhitePapersTable.url,
       publishedYear: industryWhitePapersTable.publishedYear,
       relevanceScore: industryWhitePapersTable.relevanceScore,
       tags: industryWhitePapersTable.tags,
+      sourceIds: industryWhitePapersTable.sourceIds,
     })
     .from(industryWhitePapersTable)
     .innerJoin(industriesTable, eq(industriesTable.id, industryWhitePapersTable.industryId))
@@ -309,6 +316,133 @@ Only output the JSON array, no other text.`;
     const message = err instanceof Error ? err.message : "Unknown error";
     res.status(500).json({ error: "Failed to generate insights", details: message });
   }
+});
+
+const researchRateLimit = new Map<string, { count: number; resetAt: number }>();
+const RESEARCH_RATE_LIMIT = 10;
+const RESEARCH_RATE_WINDOW_MS = 60 * 60 * 1000;
+
+router.post("/research", async (req, res) => {
+  const clientIp = req.ip || "unknown";
+  const now = Date.now();
+  const entry = researchRateLimit.get(clientIp);
+  if (entry && entry.resetAt > now) {
+    if (entry.count >= RESEARCH_RATE_LIMIT) {
+      res.status(429).json({ error: "Rate limit exceeded. Try again later." });
+      return;
+    }
+    entry.count++;
+  } else {
+    researchRateLimit.set(clientIp, { count: 1, resetAt: now + RESEARCH_RATE_WINDOW_MS });
+  }
+  const parsed = ResearchCapabilityBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const { query, industryId, capabilityId } = parsed.data;
+
+  let contextParts: string[] = [];
+  if (industryId) {
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, industryId));
+    if (industry) contextParts.push(`Industry: ${industry.name}`);
+  }
+  if (capabilityId) {
+    const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capabilityId));
+    if (cap) contextParts.push(`Capability: ${cap.name} (benchmark: ${cap.benchmarkScore})`);
+  }
+
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "Research service not configured" });
+    return;
+  }
+
+  try {
+    const contextLine = contextParts.length > 0 ? `\nContext: ${contextParts.join(", ")}` : "";
+    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar-pro",
+        messages: [
+          {
+            role: "system",
+            content: `You are a capability economics research analyst. Answer the user's question with real data from industry reports. Return ONLY valid JSON with no markdown, no code fences:
+{
+  "findings": [
+    { "title": "<finding title>", "summary": "<2-3 sentence summary with specific data points>", "relevance": "high"|"medium"|"low", "sourceUrl": "<url or null>" }
+  ]
+}
+Base answers on real reports from Gartner, McKinsey, Forrester, Deloitte, Accenture, BCG, or other major analysts. Include specific numbers, percentages, and benchmarks where available.`,
+          },
+          {
+            role: "user",
+            content: `${query}${contextLine}`,
+          },
+        ],
+      }),
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Perplexity API error: ${resp.status}`);
+    }
+
+    const data = (await resp.json()) as { choices: Array<{ message: { content: string } }>; citations: string[] };
+    const rawAnalysis = data.choices[0]?.message?.content ?? "";
+    const citations = data.citations ?? [];
+
+    let findings: Array<{ title: string; summary: string; relevance: string; sourceUrl: string | null }> = [];
+    try {
+      const cleaned = rawAnalysis.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const jsonStart = cleaned.indexOf("{");
+      const jsonEnd = cleaned.lastIndexOf("}");
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        const parsed = JSON.parse(cleaned.substring(jsonStart, jsonEnd + 1));
+        findings = parsed.findings || [];
+      }
+    } catch {
+      findings = [{ title: "Research Results", summary: rawAnalysis.substring(0, 500), relevance: "high", sourceUrl: null }];
+    }
+
+    for (const citation of citations) {
+      const domain = (() => { try { return new URL(citation).hostname; } catch { return null; } })();
+      await db.insert(dataSourcesTable).values({
+        title: `Research: ${query.substring(0, 80)}`,
+        url: citation,
+        publisher: domain,
+        accessedDate: new Date(),
+        sourceType: "article",
+      }).onConflictDoNothing({ target: dataSourcesTable.url });
+    }
+
+    res.json({ findings, citations, rawAnalysis });
+  } catch (err: unknown) {
+    console.error("Research query failed:", err);
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: "Research query failed", details: message });
+  }
+});
+
+router.get("/data-sources", async (req, res) => {
+  const idsParam = req.query.ids;
+  if (idsParam && typeof idsParam === "string") {
+    const ids = idsParam.split(",").map(Number).filter(n => !isNaN(n)).slice(0, 50);
+    if (ids.length === 0) {
+      res.json([]);
+      return;
+    }
+    const sources = await db.select().from(dataSourcesTable).where(inArray(dataSourcesTable.id, ids));
+    res.json(sources);
+    return;
+  }
+
+  const sources = await db.select().from(dataSourcesTable);
+  res.json(sources);
 });
 
 export default router;

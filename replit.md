@@ -46,8 +46,10 @@ Full-stack educational platform teaching novice users about capability economics
 - Cross-industry comparison endpoint with theme-based shared capabilities
 - Standardized Zod validation on ALL routes using generated schemas from OpenAPI spec (params, query, body)
 - Technology projects endpoints: list with category filter, detail with capability impacts/executive insights/risks
-- Insights endpoints: thresholds (R/Y/G), insights, leaderboard, white papers, ontology, AI insight generation (POST)
+- Insights endpoints: thresholds (R/Y/G), insights, leaderboard, white papers, ontology, AI insight generation (POST), data-sources
+- POST `/api/research` — Perplexity-powered live research endpoint returning structured findings with citations
 - Anthropic AI integration via Replit AI Integrations proxy (`@workspace/integrations-anthropic-ai`)
+- Perplexity API integration for live industry research (PERPLEXITY_API_KEY secret)
 
 ### Database Schema (`lib/db/`)
 - `industries` — 6 seeded industries (Insurance, Healthcare, Banking, Manufacturing, Technology, Retail)
@@ -62,12 +64,20 @@ Full-stack educational platform teaching novice users about capability economics
 - `project_capability_impacts` — How each project impacts specific capabilities (uplift, timeline)
 - `project_executive_insights` — CFO/CEO/CIO agenda items per project
 - `project_risks` — Risks of inaction per project with severity, consequence, mitigation
-- `capability_thresholds` — R/Y/G threshold definitions per capability
+- `capability_thresholds` — R/Y/G threshold definitions per capability (with `sourceIds` jsonb)
 - `capability_insights` — AI-generated and seeded strategic insights
-- `industry_leaderboard` — Company benchmark rankings per industry
-- `industry_white_papers` — Curated research papers by industry
+- `industry_leaderboard` — Company benchmark rankings per industry (with `sourceIds` jsonb)
+- `industry_white_papers` — Curated research papers by industry (with `sourceIds` jsonb, `url`)
+- `data_sources` — Citation tracking: title, url, publisher, publishedDate, accessedDate, sourceType
 - `ontology_relationships` — Capability-to-capability relationships (enables, competes_with, etc.)
 - `ontology_industry_adapters` — Industry-specific ontology customizations with maturity models
+
+### Data Pipeline (Phase 5)
+- All benchmark data is researched via Perplexity API (sonar-pro model) — no fabricated data
+- 102+ real citation sources from McKinsey, Forrester, Deloitte, Accenture, BCG, Gartner, etc.
+- Seed scripts in `scripts/src/`: `seed-insights.ts` (full), `perplexity-client.ts` (API client)
+- Frontend shows clickable source badges (SourceBadges component) on thresholds, leaderboard, and white papers
+- POST `/api/research` provides on-demand Perplexity research with auto-citation storage
 
 ### Key Dependencies
 - **wouter** for client-side routing

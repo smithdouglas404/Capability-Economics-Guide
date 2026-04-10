@@ -561,6 +561,61 @@ paths:
               schema:
                 $ref: "#/components/schemas/OntologyData"
 
+  /research:
+    post:
+      operationId: researchCapability
+      tags: [insights]
+      summary: Research a capability or industry topic using Perplexity
+      description: Queries the Perplexity API for live research data with citations. Returns structured findings with source URLs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResearchRequest"
+      responses:
+        "200":
+          description: Research results with citations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResearchResponse"
+        "400":
+          description: Missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Research service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /data-sources:
+    get:
+      operationId: listDataSources
+      tags: [insights]
+      summary: List data source citations
+      description: Returns data source citations. Optionally filter by comma-separated IDs.
+      parameters:
+        - name: ids
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Comma-separated list of source IDs to retrieve
+      responses:
+        "200":
+          description: List of data source citations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DataSource"
+
 components:
   schemas:
     HealthStatus:
@@ -1076,6 +1131,14 @@ components:
           type: number
         redMax:
           type: number
+        description:
+          type: string
+          nullable: true
+        sourceIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
         status:
           type: string
           enum: [green, yellow, red]
@@ -1171,6 +1234,11 @@ components:
           type: string
         rank:
           type: integer
+        sourceIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
       required: [id, industryId, industryName, companyName, overallMaturity, topCapability, topCapabilityScore, weakestCapability, weakestCapabilityScore, investmentLevel, trend, rank]
 
     WhitePaper:
@@ -1192,6 +1260,9 @@ components:
           type: string
         category:
           type: string
+        url:
+          type: string
+          nullable: true
         publishedYear:
           type: integer
         relevanceScore:
@@ -1200,7 +1271,38 @@ components:
           type: array
           items:
             type: string
+        sourceIds:
+          type: array
+          items:
+            type: integer
+          nullable: true
       required: [id, industryId, industryName, title, author, organization, abstract, category, publishedYear, relevanceScore, tags]
+
+    DataSource:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        url:
+          type: string
+          nullable: true
+        publisher:
+          type: string
+          nullable: true
+        publishedDate:
+          type: string
+          nullable: true
+        accessedDate:
+          type: string
+          nullable: true
+        sourceType:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [id, title, sourceType]
 
     OntologyRelationship:
       type: object
@@ -1263,3 +1365,51 @@ components:
           items:
             $ref: "#/components/schemas/OntologyAdapter"
       required: [relationships, adapters]
+
+    ResearchRequest:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The research question or topic to investigate
+        industryId:
+          type: integer
+          nullable: true
+          description: Optional industry context for the research
+        capabilityId:
+          type: integer
+          nullable: true
+          description: Optional capability context for the research
+      required: [query]
+
+    ResearchFinding:
+      type: object
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        relevance:
+          type: string
+          enum: [high, medium, low]
+        sourceUrl:
+          type: string
+          nullable: true
+      required: [title, summary, relevance]
+
+    ResearchResponse:
+      type: object
+      properties:
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResearchFinding"
+        citations:
+          type: array
+          items:
+            type: string
+          description: Source URLs from the research
+        rawAnalysis:
+          type: string
+          description: Full research narrative from Perplexity
+      required: [findings, citations, rawAnalysis]

@@ -9,6 +9,7 @@ export const capabilityThresholdsTable = pgTable("capability_thresholds", {
   yellowMin: integer("yellow_min").notNull().default(40),
   redMax: integer("red_max").notNull().default(39),
   description: text("description"),
+  sourceIds: jsonb("source_ids").$type<number[]>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -22,6 +23,7 @@ export const capabilityInsightsTable = pgTable("capability_insights", {
   severity: varchar("severity", { length: 20 }).notNull().default("info"),
   recommendation: text("recommendation"),
   metadata: jsonb("metadata"),
+  sourceIds: jsonb("source_ids").$type<number[]>(),
   generatedAt: timestamp("generated_at").defaultNow(),
   expiresAt: timestamp("expires_at"),
 });
@@ -38,6 +40,7 @@ export const industryWhitePapersTable = pgTable("industry_white_papers", {
   publishedYear: integer("published_year").notNull(),
   relevanceScore: integer("relevance_score").notNull().default(80),
   tags: text("tags"),
+  sourceIds: jsonb("source_ids").$type<number[]>(),
 });
 
 export const industryLeaderboardTable = pgTable("industry_leaderboard", {
@@ -52,4 +55,5 @@ export const industryLeaderboardTable = pgTable("industry_leaderboard", {
   investmentLevel: varchar("investment_level", { length: 20 }).notNull(),
   trend: varchar("trend", { length: 20 }).notNull().default("stable"),
   rank: integer("rank").notNull(),
+  sourceIds: jsonb("source_ids").$type<number[]>(),
 });

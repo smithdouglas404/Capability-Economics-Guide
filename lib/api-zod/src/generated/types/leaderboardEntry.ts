@@ -19,4 +19,5 @@ export interface LeaderboardEntry {
   investmentLevel: string;
   trend: string;
   rank: number;
+  sourceIds?: number[] | null;
 }

@@ -26,6 +26,7 @@ import type {
   CreateOrganizationRequest,
   CsvUploadResponse,
   DashboardData,
+  DataSource,
   ErrorResponse,
   GenerateInsightsRequest,
   GenerateInsightsResponse,
@@ -38,6 +39,7 @@ import type {
   IndustryDetail,
   LeaderboardEntry,
   ListCapabilitiesParams,
+  ListDataSourcesParams,
   ListInsightsParams,
   ListLeaderboardParams,
   ListProjectsParams,
@@ -47,6 +49,8 @@ import type {
   Organization,
   OrganizationDetail,
   ProjectDetail,
+  ResearchRequest,
+  ResearchResponse,
   TechnologyProject,
   UpdateOrganizationBody,
   UpsertAssessmentsRequest,
@@ -2192,6 +2196,188 @@ export function useGetOntology<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOntologyQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Queries the Perplexity API for live research data with citations. Returns structured findings with source URLs.
+ * @summary Research a capability or industry topic using Perplexity
+ */
+export const getResearchCapabilityUrl = () => {
+  return `/api/research`;
+};
+
+export const researchCapability = async (
+  researchRequest: ResearchRequest,
+  options?: RequestInit,
+): Promise<ResearchResponse> => {
+  return customFetch<ResearchResponse>(getResearchCapabilityUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(researchRequest),
+  });
+};
+
+export const getResearchCapabilityMutationOptions = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof researchCapability>>,
+    TError,
+    { data: BodyType<ResearchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof researchCapability>>,
+  TError,
+  { data: BodyType<ResearchRequest> },
+  TContext
+> => {
+  const mutationKey = ["researchCapability"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof researchCapability>>,
+    { data: BodyType<ResearchRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return researchCapability(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ResearchCapabilityMutationResult = NonNullable<
+  Awaited<ReturnType<typeof researchCapability>>
+>;
+export type ResearchCapabilityMutationBody = BodyType<ResearchRequest>;
+export type ResearchCapabilityMutationError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Research a capability or industry topic using Perplexity
+ */
+export const useResearchCapability = <
+  TError = ErrorType<ErrorResponse>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof researchCapability>>,
+    TError,
+    { data: BodyType<ResearchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof researchCapability>>,
+  TError,
+  { data: BodyType<ResearchRequest> },
+  TContext
+> => {
+  return useMutation(getResearchCapabilityMutationOptions(options));
+};
+
+/**
+ * Returns data source citations. Optionally filter by comma-separated IDs.
+ * @summary List data source citations
+ */
+export const getListDataSourcesUrl = (params?: ListDataSourcesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/data-sources?${stringifiedParams}`
+    : `/api/data-sources`;
+};
+
+export const listDataSources = async (
+  params?: ListDataSourcesParams,
+  options?: RequestInit,
+): Promise<DataSource[]> => {
+  return customFetch<DataSource[]>(getListDataSourcesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListDataSourcesQueryKey = (params?: ListDataSourcesParams) => {
+  return [`/api/data-sources`, ...(params ? [params] : [])] as const;
+};
+
+export const getListDataSourcesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listDataSources>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDataSourcesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDataSources>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListDataSourcesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listDataSources>>> = ({
+    signal,
+  }) => listDataSources(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listDataSources>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListDataSourcesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listDataSources>>
+>;
+export type ListDataSourcesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List data source citations
+ */
+
+export function useListDataSources<
+  TData = Awaited<ReturnType<typeof listDataSources>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListDataSourcesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listDataSources>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListDataSourcesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

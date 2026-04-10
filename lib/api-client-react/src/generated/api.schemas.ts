@@ -308,6 +308,8 @@ export interface CapabilityThreshold {
   greenMin: number;
   yellowMin: number;
   redMax: number;
+  description?: string | null;
+  sourceIds?: number[] | null;
   status: CapabilityThresholdStatus;
 }
 
@@ -366,6 +368,7 @@ export interface LeaderboardEntry {
   investmentLevel: string;
   trend: string;
   rank: number;
+  sourceIds?: number[] | null;
 }
 
 export interface WhitePaper {
@@ -377,9 +380,22 @@ export interface WhitePaper {
   organization: string;
   abstract: string;
   category: string;
+  url?: string | null;
   publishedYear: number;
   relevanceScore: number;
   tags: string[];
+  sourceIds?: number[] | null;
+}
+
+export interface DataSource {
+  id: number;
+  title: string;
+  url?: string | null;
+  publisher?: string | null;
+  publishedDate?: string | null;
+  accessedDate?: string | null;
+  sourceType: string;
+  description?: string | null;
 }
 
 export interface OntologyRelationship {
@@ -411,6 +427,39 @@ export interface OntologyAdapter {
 export interface OntologyData {
   relationships: OntologyRelationship[];
   adapters: OntologyAdapter[];
+}
+
+export interface ResearchRequest {
+  /** The research question or topic to investigate */
+  query: string;
+  /** Optional industry context for the research */
+  industryId?: number | null;
+  /** Optional capability context for the research */
+  capabilityId?: number | null;
+}
+
+export type ResearchFindingRelevance =
+  (typeof ResearchFindingRelevance)[keyof typeof ResearchFindingRelevance];
+
+export const ResearchFindingRelevance = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export interface ResearchFinding {
+  title: string;
+  summary: string;
+  relevance: ResearchFindingRelevance;
+  sourceUrl?: string | null;
+}
+
+export interface ResearchResponse {
+  findings: ResearchFinding[];
+  /** Source URLs from the research */
+  citations: string[];
+  /** Full research narrative from Perplexity */
+  rawAnalysis: string;
 }
 
 export type ListCapabilitiesParams = {
@@ -462,4 +511,11 @@ export type ListWhitePapersParams = {
 
 export type GetOntologyParams = {
   industryId?: number;
+};
+
+export type ListDataSourcesParams = {
+  /**
+   * Comma-separated list of source IDs to retrieve
+   */
+  ids?: string;
 };

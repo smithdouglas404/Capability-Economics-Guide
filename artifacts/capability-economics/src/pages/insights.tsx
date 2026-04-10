@@ -36,6 +36,14 @@ function useApi<T>(url: string) {
   return { data, loading, refetch: fetch_ };
 }
 
+type DataSource = {
+  id: number;
+  title: string;
+  url: string | null;
+  publisher: string | null;
+  sourceType: string;
+};
+
 type ThresholdItem = {
   id: number;
   capabilityId: number;
@@ -46,6 +54,8 @@ type ThresholdItem = {
   greenMin: number;
   yellowMin: number;
   redMax: number;
+  description: string | null;
+  sourceIds: number[] | null;
   status: "green" | "yellow" | "red";
 };
 
@@ -74,6 +84,7 @@ type LeaderboardEntry = {
   investmentLevel: string;
   trend: string;
   rank: number;
+  sourceIds: number[] | null;
 };
 
 type WhitePaper = {
@@ -85,9 +96,11 @@ type WhitePaper = {
   organization: string;
   abstract: string;
   category: string;
+  url: string | null;
   publishedYear: number;
   relevanceScore: number;
   tags: string;
+  sourceIds: number[] | null;
 };
 
 type OntologyRel = {
@@ -113,6 +126,82 @@ type Industry = {
   slug: string;
   name: string;
 };
+
+const sourceCache = new Map<number, DataSource>();
+let pendingIds = new Set<number>();
+let batchTimer: ReturnType<typeof setTimeout> | null = null;
+let batchListeners: Array<() => void> = [];
+
+function scheduleBatch() {
+  if (batchTimer) return;
+  batchTimer = setTimeout(async () => {
+    batchTimer = null;
+    const ids = [...pendingIds];
+    pendingIds = new Set();
+    if (ids.length === 0) return;
+
+    const missing = ids.filter(id => !sourceCache.has(id));
+    if (missing.length > 0) {
+      try {
+        const resp = await fetch(`${API_BASE}/data-sources?ids=${missing.join(",")}`);
+        const data: DataSource[] = await resp.json();
+        for (const s of data) sourceCache.set(s.id, s);
+      } catch {}
+    }
+    const cbs = batchListeners;
+    batchListeners = [];
+    cbs.forEach(cb => cb());
+  }, 50);
+}
+
+function useDataSources(sourceIds: number[] | null | undefined): DataSource[] {
+  const [sources, setSources] = useState<DataSource[]>([]);
+  const key = sourceIds?.join(",") ?? "";
+
+  useEffect(() => {
+    if (!sourceIds || sourceIds.length === 0) return;
+    const ids = [...new Set(sourceIds)].slice(0, 5);
+
+    const allCached = ids.every(id => sourceCache.has(id));
+    if (allCached) {
+      setSources(ids.map(id => sourceCache.get(id)!));
+      return;
+    }
+
+    for (const id of ids) pendingIds.add(id);
+    const listener = () => {
+      setSources(ids.map(id => sourceCache.get(id)!).filter(Boolean));
+    };
+    batchListeners.push(listener);
+    scheduleBatch();
+  }, [key]);
+
+  return sources;
+}
+
+function SourceBadges({ sourceIds }: { sourceIds: number[] | null | undefined }) {
+  const sources = useDataSources(sourceIds);
+  if (!sources.length) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {sources.slice(0, 3).map(s => (
+        <a
+          key={s.id}
+          href={s.url || "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-sm bg-indigo-50 text-indigo-600 text-[10px] font-medium hover:bg-indigo-100 transition-colors border border-indigo-100"
+        >
+          <ExternalLink className="w-2.5 h-2.5" />
+          {s.publisher || s.title}
+        </a>
+      ))}
+      {sources.length > 3 && (
+        <span className="text-[10px] text-muted-foreground px-1">+{sources.length - 3} more</span>
+      )}
+    </div>
+  );
+}
 
 const statusColors = {
   green: { bg: "bg-emerald-100", text: "text-emerald-700", border: "border-emerald-300", dot: "bg-emerald-500" },
@@ -474,15 +563,23 @@ export default function Insights() {
                     {thresholds.map(t => {
                       const colors = statusColors[t.status];
                       return (
-                        <div key={t.id} className={`flex items-center gap-3 p-3 rounded-sm border ${colors.border}`}>
-                          <div className={`w-3 h-3 rounded-full ${colors.dot}`} />
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-foreground truncate block">{t.capabilityName}</span>
-                            <span className="text-xs text-muted-foreground">Score: {t.benchmarkScore} | Threshold: {t.greenMin}</span>
+                        <div key={t.id} className={`p-3 rounded-sm border ${colors.border}`}>
+                          <div className="flex items-center gap-3">
+                            <div className={`w-3 h-3 rounded-full ${colors.dot} shrink-0`} />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-foreground truncate block">{t.capabilityName}</span>
+                              <span className="text-xs text-muted-foreground">Score: {t.benchmarkScore} | Threshold: {t.greenMin}</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-sm text-xs font-bold uppercase ${colors.bg} ${colors.text}`}>
+                              {t.status}
+                            </span>
                           </div>
-                          <span className={`px-2 py-0.5 rounded-sm text-xs font-bold uppercase ${colors.bg} ${colors.text}`}>
-                            {t.status}
-                          </span>
+                          {t.description && (
+                            <p className="text-[11px] text-muted-foreground mt-1.5 ml-6 italic">{t.description}</p>
+                          )}
+                          <div className="ml-6">
+                            <SourceBadges sourceIds={t.sourceIds} />
+                          </div>
                         </div>
                       );
                     })}
@@ -562,6 +659,11 @@ export default function Insights() {
                                 </div>
                               </div>
                             ))}
+                            {entries[0]?.sourceIds && (
+                              <div className="pt-2 border-t">
+                                <SourceBadges sourceIds={entries[0].sourceIds} />
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -718,7 +820,14 @@ export default function Insights() {
                                     <span className="text-xs font-mono font-bold text-amber-600">{paper.relevanceScore}</span>
                                   </div>
                                 </div>
-                                <h4 className="text-sm font-semibold text-foreground mb-1 leading-snug">{paper.title}</h4>
+                                <h4 className="text-sm font-semibold text-foreground mb-1 leading-snug">
+                                  {paper.url ? (
+                                    <a href={paper.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors inline-flex items-center gap-1">
+                                      {paper.title}
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                  ) : paper.title}
+                                </h4>
                                 <p className="text-xs text-muted-foreground mb-2">{paper.author} — {paper.organization} ({paper.publishedYear})</p>
                                 <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{paper.abstract}</p>
                                 {paper.tags && (
@@ -728,6 +837,7 @@ export default function Insights() {
                                     ))}
                                   </div>
                                 )}
+                                <SourceBadges sourceIds={paper.sourceIds} />
                               </CardContent>
                             </Card>
                           </motion.div>
