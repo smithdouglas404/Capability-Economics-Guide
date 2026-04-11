@@ -7,3 +7,4 @@ export * from "./insights";
 export * from "./ontology";
 export * from "./data-sources";
 export * from "./cei";
+export * from "./agent";

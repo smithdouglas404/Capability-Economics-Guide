@@ -700,6 +700,111 @@ export const GetCEIMethodologyResponse = zod.object({
 });
 
 /**
+ * @summary Get current agent status, scheduler state, and memory stats
+ */
+export const GetAgentStatusResponse = zod.object({
+  scheduler: zod.object({
+    active: zod.boolean(),
+    isRunning: zod.boolean(),
+    intervalMinutes: zod.number(),
+    lastRunAt: zod.string().nullish(),
+  }),
+  latestRun: zod
+    .object({
+      id: zod.number().optional(),
+      runId: zod.number().optional(),
+      status: zod.string().optional(),
+      trigger: zod.string().optional(),
+      industriesEvaluated: zod.number().optional(),
+      capabilitiesResearched: zod.number().optional(),
+      capabilitiesSkipped: zod.number().optional(),
+      perplexityCalls: zod.number().optional(),
+      memoriesRecalled: zod.number().optional(),
+      memoriesStored: zod.number().optional(),
+      ceiBeforeIndex: zod.number().nullish(),
+      ceiAfterIndex: zod.number().nullish(),
+      startedAt: zod.string().optional(),
+      completedAt: zod.string().nullish(),
+      errorMessage: zod.string().nullish(),
+    })
+    .optional(),
+  memory: zod.object({
+    totalMemories: zod.number(),
+    byType: zod.record(zod.string(), zod.number()),
+  }),
+  connectedClients: zod.number(),
+});
+
+/**
+ * @summary Manually trigger an autonomous agent run
+ */
+export const TriggerAgentRunResponse = zod.object({
+  id: zod.number().optional(),
+  runId: zod.number().optional(),
+  status: zod.string().optional(),
+  trigger: zod.string().optional(),
+  industriesEvaluated: zod.number().optional(),
+  capabilitiesResearched: zod.number().optional(),
+  capabilitiesSkipped: zod.number().optional(),
+  perplexityCalls: zod.number().optional(),
+  memoriesRecalled: zod.number().optional(),
+  memoriesStored: zod.number().optional(),
+  ceiBeforeIndex: zod.number().nullish(),
+  ceiAfterIndex: zod.number().nullish(),
+  startedAt: zod.string().optional(),
+  completedAt: zod.string().nullish(),
+  errorMessage: zod.string().nullish(),
+});
+
+/**
+ * @summary Get history of agent runs
+ */
+export const getAgentHistoryQueryLimitDefault = 20;
+
+export const GetAgentHistoryQueryParams = zod.object({
+  limit: zod.coerce.number().default(getAgentHistoryQueryLimitDefault),
+});
+
+export const GetAgentHistoryResponseItem = zod.object({
+  id: zod.number().optional(),
+  runId: zod.number().optional(),
+  status: zod.string().optional(),
+  trigger: zod.string().optional(),
+  industriesEvaluated: zod.number().optional(),
+  capabilitiesResearched: zod.number().optional(),
+  capabilitiesSkipped: zod.number().optional(),
+  perplexityCalls: zod.number().optional(),
+  memoriesRecalled: zod.number().optional(),
+  memoriesStored: zod.number().optional(),
+  ceiBeforeIndex: zod.number().nullish(),
+  ceiAfterIndex: zod.number().nullish(),
+  startedAt: zod.string().optional(),
+  completedAt: zod.string().nullish(),
+  errorMessage: zod.string().nullish(),
+});
+export const GetAgentHistoryResponse = zod.array(GetAgentHistoryResponseItem);
+
+/**
+ * @summary Get agent memories
+ */
+export const getAgentMemoriesQueryLimitDefault = 20;
+
+export const GetAgentMemoriesQueryParams = zod.object({
+  limit: zod.coerce.number().default(getAgentMemoriesQueryLimitDefault),
+});
+
+export const GetAgentMemoriesResponseItem = zod.object({
+  id: zod.number(),
+  type: zod.string(),
+  content: zod.string(),
+  metadata: zod.object({}).passthrough().optional(),
+  relevanceScore: zod.number().optional(),
+  accessCount: zod.number().optional(),
+  createdAt: zod.string(),
+});
+export const GetAgentMemoriesResponse = zod.array(GetAgentMemoriesResponseItem);
+
+/**
  * Queries the Perplexity API for live research data with citations. Returns structured findings with source URLs.
  * @summary Research a capability or industry topic using Perplexity
  */

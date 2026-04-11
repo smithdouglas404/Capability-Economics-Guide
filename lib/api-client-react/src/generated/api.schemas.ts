@@ -493,6 +493,57 @@ export interface CEIHistoryEntry {
   industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
 }
 
+export interface AgentSchedulerStatus {
+  active: boolean;
+  isRunning: boolean;
+  intervalMinutes: number;
+  lastRunAt?: string | null;
+}
+
+export interface AgentRunResult {
+  id?: number;
+  runId?: number;
+  status?: string;
+  trigger?: string;
+  industriesEvaluated?: number;
+  capabilitiesResearched?: number;
+  capabilitiesSkipped?: number;
+  perplexityCalls?: number;
+  memoriesRecalled?: number;
+  memoriesStored?: number;
+  ceiBeforeIndex?: number | null;
+  ceiAfterIndex?: number | null;
+  startedAt?: string;
+  completedAt?: string | null;
+  errorMessage?: string | null;
+}
+
+export type AgentMemoryStatsByType = { [key: string]: number };
+
+export interface AgentMemoryStats {
+  totalMemories: number;
+  byType: AgentMemoryStatsByType;
+}
+
+export interface AgentStatusResponse {
+  scheduler: AgentSchedulerStatus;
+  latestRun?: AgentRunResult;
+  memory: AgentMemoryStats;
+  connectedClients: number;
+}
+
+export type AgentMemoryMetadata = { [key: string]: unknown };
+
+export interface AgentMemory {
+  id: number;
+  type: string;
+  content: string;
+  metadata?: AgentMemoryMetadata;
+  relevanceScore?: number;
+  accessCount?: number;
+  createdAt: string;
+}
+
 export type ListCapabilitiesParams = {
   industryId?: number;
 };
@@ -562,6 +613,14 @@ export type RefreshCEI200 = {
 export type GetCEIMethodology200 = {
   methodology: string;
   version: string;
+};
+
+export type GetAgentHistoryParams = {
+  limit?: number;
+};
+
+export type GetAgentMemoriesParams = {
+  limit?: number;
 };
 
 export type ListDataSourcesParams = {

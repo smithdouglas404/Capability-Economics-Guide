@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./agentMemory";
+export * from "./agentMemoryMetadata";
+export * from "./agentMemoryStats";
+export * from "./agentMemoryStatsByType";
+export * from "./agentRunResult";
+export * from "./agentSchedulerStatus";
+export * from "./agentStatusResponse";
 export * from "./assessment";
 export * from "./capability";
 export * from "./capabilityDependency";
@@ -34,6 +41,8 @@ export * from "./gapAnalysis";
 export * from "./generateInsightsRequest";
 export * from "./generateInsightsResponse";
 export * from "./generateInsightsResponseInsightsItem";
+export * from "./getAgentHistoryParams";
+export * from "./getAgentMemoriesParams";
 export * from "./getCEIHistoryParams";
 export * from "./getCEIMethodology200";
 export * from "./getDashboardParams";

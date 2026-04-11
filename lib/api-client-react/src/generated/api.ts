@@ -17,6 +17,9 @@ import type {
 } from "@tanstack/react-query";
 
 import type {
+  AgentMemory,
+  AgentRunResult,
+  AgentStatusResponse,
   Assessment,
   CEIData,
   CEIHistoryEntry,
@@ -32,6 +35,8 @@ import type {
   ErrorResponse,
   GenerateInsightsRequest,
   GenerateInsightsResponse,
+  GetAgentHistoryParams,
+  GetAgentMemoriesParams,
   GetCEIHistoryParams,
   GetCEIMethodology200,
   GetDashboardParams,
@@ -2532,6 +2537,426 @@ export function useGetCEIMethodology<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetCEIMethodologyQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get current agent status, scheduler state, and memory stats
+ */
+export const getGetAgentStatusUrl = () => {
+  return `/api/agent/status`;
+};
+
+export const getAgentStatus = async (
+  options?: RequestInit,
+): Promise<AgentStatusResponse> => {
+  return customFetch<AgentStatusResponse>(getGetAgentStatusUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentStatusQueryKey = () => {
+  return [`/api/agent/status`] as const;
+};
+
+export const getGetAgentStatusQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgentStatusQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentStatus>>> = ({
+    signal,
+  }) => getAgentStatus({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentStatus>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentStatusQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentStatus>>
+>;
+export type GetAgentStatusQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get current agent status, scheduler state, and memory stats
+ */
+
+export function useGetAgentStatus<
+  TData = Awaited<ReturnType<typeof getAgentStatus>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentStatus>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentStatusQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Manually trigger an autonomous agent run
+ */
+export const getTriggerAgentRunUrl = () => {
+  return `/api/agent/trigger`;
+};
+
+export const triggerAgentRun = async (
+  options?: RequestInit,
+): Promise<AgentRunResult> => {
+  return customFetch<AgentRunResult>(getTriggerAgentRunUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTriggerAgentRunMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof triggerAgentRun>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof triggerAgentRun>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = ["triggerAgentRun"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof triggerAgentRun>>,
+    void
+  > = () => {
+    return triggerAgentRun(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TriggerAgentRunMutationResult = NonNullable<
+  Awaited<ReturnType<typeof triggerAgentRun>>
+>;
+
+export type TriggerAgentRunMutationError = ErrorType<void>;
+
+/**
+ * @summary Manually trigger an autonomous agent run
+ */
+export const useTriggerAgentRun = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof triggerAgentRun>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof triggerAgentRun>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getTriggerAgentRunMutationOptions(options));
+};
+
+/**
+ * @summary Get history of agent runs
+ */
+export const getGetAgentHistoryUrl = (params?: GetAgentHistoryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agent/history?${stringifiedParams}`
+    : `/api/agent/history`;
+};
+
+export const getAgentHistory = async (
+  params?: GetAgentHistoryParams,
+  options?: RequestInit,
+): Promise<AgentRunResult[]> => {
+  return customFetch<AgentRunResult[]>(getGetAgentHistoryUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentHistoryQueryKey = (params?: GetAgentHistoryParams) => {
+  return [`/api/agent/history`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAgentHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgentHistoryQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentHistory>>> = ({
+    signal,
+  }) => getAgentHistory(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentHistory>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentHistory>>
+>;
+export type GetAgentHistoryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get history of agent runs
+ */
+
+export function useGetAgentHistory<
+  TData = Awaited<ReturnType<typeof getAgentHistory>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentHistoryParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentHistory>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentHistoryQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary SSE stream of real-time agent activity events
+ */
+export const getGetAgentEventsUrl = () => {
+  return `/api/agent/events`;
+};
+
+export const getAgentEvents = async (options?: RequestInit): Promise<void> => {
+  return customFetch<void>(getGetAgentEventsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentEventsQueryKey = () => {
+  return [`/api/agent/events`] as const;
+};
+
+export const getGetAgentEventsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentEvents>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentEvents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAgentEventsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAgentEvents>>> = ({
+    signal,
+  }) => getAgentEvents({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentEvents>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentEventsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentEvents>>
+>;
+export type GetAgentEventsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary SSE stream of real-time agent activity events
+ */
+
+export function useGetAgentEvents<
+  TData = Awaited<ReturnType<typeof getAgentEvents>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentEvents>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentEventsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get agent memories
+ */
+export const getGetAgentMemoriesUrl = (params?: GetAgentMemoriesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/agent/memories?${stringifiedParams}`
+    : `/api/agent/memories`;
+};
+
+export const getAgentMemories = async (
+  params?: GetAgentMemoriesParams,
+  options?: RequestInit,
+): Promise<AgentMemory[]> => {
+  return customFetch<AgentMemory[]>(getGetAgentMemoriesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentMemoriesQueryKey = (
+  params?: GetAgentMemoriesParams,
+) => {
+  return [`/api/agent/memories`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAgentMemoriesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentMemories>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentMemoriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentMemories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgentMemoriesQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgentMemories>>
+  > = ({ signal }) => getAgentMemories(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentMemories>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentMemoriesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentMemories>>
+>;
+export type GetAgentMemoriesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get agent memories
+ */
+
+export function useGetAgentMemories<
+  TData = Awaited<ReturnType<typeof getAgentMemories>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentMemoriesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentMemories>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentMemoriesQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

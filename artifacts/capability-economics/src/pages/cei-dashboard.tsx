@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
-  Globe, BookOpen
+  Globe, BookOpen, Bot, Brain, Eye, SkipForward, Search, Database, Clock
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -36,6 +36,77 @@ interface CEIData {
 interface CEIHistory {
   overallIndex: number;
   timestamp: string;
+}
+
+interface AgentStatus {
+  scheduler: {
+    active: boolean;
+    isRunning: boolean;
+    intervalMinutes: number;
+    lastRunAt: string | null;
+  };
+  latestRun: {
+    id: number;
+    status: string;
+    trigger: string;
+    industriesEvaluated: number;
+    capabilitiesResearched: number;
+    capabilitiesSkipped: number;
+    perplexityCalls: number;
+    memoriesRecalled: number;
+    memoriesStored: number;
+    ceiBeforeIndex: number | null;
+    ceiAfterIndex: number | null;
+    startedAt: string;
+    completedAt: string | null;
+    errorMessage: string | null;
+  } | null;
+  memory: {
+    totalMemories: number;
+    byType: Record<string, number>;
+  };
+  connectedClients: number;
+}
+
+interface AgentSSEEvent {
+  type: string;
+  timestamp: string;
+  phase?: string;
+  message?: string;
+  capability?: string;
+  industry?: string;
+  runId?: number;
+  overallIndex?: number;
+  researched?: number;
+  skipped?: number;
+}
+
+function useAgentEvents() {
+  const [events, setEvents] = useState<AgentSSEEvent[]>([]);
+  const [connected, setConnected] = useState(false);
+  const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    const es = new EventSource(`${API_BASE}/agent/events`);
+    esRef.current = es;
+
+    es.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data) as AgentSSEEvent;
+        if (event.type === "connected") {
+          setConnected(true);
+          return;
+        }
+        setEvents(prev => [event, ...prev].slice(0, 50));
+      } catch {}
+    };
+
+    es.onerror = () => setConnected(false);
+
+    return () => es.close();
+  }, []);
+
+  return { events, connected };
 }
 
 function useApi<T>(url: string) {
@@ -138,20 +209,51 @@ function MiniSparkline({ data, height = 40 }: { data: number[]; height?: number 
   );
 }
 
+function AgentEventIcon({ type }: { type: string }) {
+  switch (type) {
+    case "phase": return <Eye className="w-3.5 h-3.5 text-indigo-400" />;
+    case "research": return <Search className="w-3.5 h-3.5 text-amber-400" />;
+    case "cei_updated": return <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />;
+    case "cycle_complete": return <Activity className="w-3.5 h-3.5 text-green-400" />;
+    case "error": return <Info className="w-3.5 h-3.5 text-red-400" />;
+    default: return <Bot className="w-3.5 h-3.5 text-slate-400" />;
+  }
+}
+
+function formatEventMessage(event: AgentSSEEvent): string {
+  if (event.message) return event.message;
+  if (event.type === "research") return `Researching ${event.capability} in ${event.industry}`;
+  if (event.type === "cei_updated") return `CEI updated to ${event.overallIndex}`;
+  if (event.type === "cycle_complete") return `Cycle complete: ${event.researched} researched, ${event.skipped} skipped`;
+  if (event.type === "run_started") return `Agent run #${event.runId} started`;
+  return event.type;
+}
+
 export default function CEIDashboard() {
   const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cei/current`);
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
+  const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
+  const { events: agentEvents, connected: sseConnected } = useAgentEvents();
   const [refreshing, setRefreshing] = useState(false);
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const [showAgentActivity, setShowAgentActivity] = useState(true);
+
+  useEffect(() => {
+    const cycleEvent = agentEvents.find(e => e.type === "cei_updated" || e.type === "cycle_complete");
+    if (cycleEvent) {
+      refetchCei();
+      refetchAgent();
+    }
+  }, [agentEvents, refetchCei, refetchAgent]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetch(`${API_BASE}/cei/refresh`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
-      await refetchCei();
+      await fetch(`${API_BASE}/agent/trigger`, { method: "POST" });
+      setTimeout(() => refetchAgent(), 1000);
     } catch (e) {
-      console.error("Refresh failed:", e);
+      console.error("Agent trigger failed:", e);
     } finally {
       setRefreshing(false);
     }
@@ -221,8 +323,8 @@ export default function CEIDashboard() {
                 disabled={refreshing}
                 className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
               >
-                {refreshing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <RefreshCw className="w-4 h-4 mr-1" />}
-                Recalculate
+                {refreshing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Bot className="w-4 h-4 mr-1" />}
+                Run Agent
               </Button>
             </div>
 
@@ -399,6 +501,179 @@ export default function CEIDashboard() {
             </motion.div>
           ))}
         </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="mt-6"
+        >
+          <Card className="rounded-none border-2 border-indigo-200 dark:border-indigo-900/50">
+            <CardHeader
+              className="cursor-pointer pb-2"
+              onClick={() => setShowAgentActivity(!showAgentActivity)}
+            >
+              <CardTitle className="font-serif text-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-indigo-500" />
+                  Autonomous Agent
+                  <span className={`w-2 h-2 rounded-full ${
+                    agentStatus?.scheduler.isRunning ? "bg-amber-400 animate-pulse" :
+                    sseConnected ? "bg-emerald-400" : "bg-slate-400"
+                  }`} />
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    {agentStatus?.scheduler.isRunning ? "Running" : sseConnected ? "Connected" : "Offline"}
+                  </span>
+                </div>
+                {showAgentActivity ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+              </CardTitle>
+              <CardDescription>
+                LangGraph-powered agent with Mem0 memory — autonomously monitors, researches, and updates the CEI
+              </CardDescription>
+            </CardHeader>
+            <AnimatePresence>
+              {showAgentActivity && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="overflow-hidden"
+                >
+                  <CardContent>
+                    <div className="grid md:grid-cols-4 gap-3 mb-4">
+                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-sm p-3 border border-indigo-100 dark:border-indigo-900">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Schedule</span>
+                        </div>
+                        <div className="text-sm font-mono font-bold">
+                          {agentStatus?.scheduler.active ? `${agentStatus.scheduler.intervalMinutes}min` : "Off"}
+                        </div>
+                      </div>
+                      <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-sm p-3 border border-emerald-100 dark:border-emerald-900">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Search className="w-3.5 h-3.5 text-emerald-500" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Researched</span>
+                        </div>
+                        <div className="text-sm font-mono font-bold">
+                          {agentStatus?.latestRun?.capabilitiesResearched ?? 0} caps
+                        </div>
+                      </div>
+                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-sm p-3 border border-amber-100 dark:border-amber-900">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <SkipForward className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
+                        </div>
+                        <div className="text-sm font-mono font-bold">
+                          {agentStatus?.latestRun?.capabilitiesSkipped ?? 0} caps
+                        </div>
+                      </div>
+                      <div className="bg-purple-50 dark:bg-purple-950/30 rounded-sm p-3 border border-purple-100 dark:border-purple-900">
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <Brain className="w-3.5 h-3.5 text-purple-500" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Memories</span>
+                        </div>
+                        <div className="text-sm font-mono font-bold">
+                          {agentStatus?.memory.totalMemories ?? 0}
+                        </div>
+                      </div>
+                    </div>
+
+                    {agentStatus?.latestRun && (
+                      <div className="bg-muted/30 rounded-sm p-3 border mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Database className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-xs font-bold uppercase tracking-wider">Last Run</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                              agentStatus.latestRun.status === "completed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
+                              agentStatus.latestRun.status === "running" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" :
+                              "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                            }`}>
+                              {agentStatus.latestRun.status}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(agentStatus.latestRun.startedAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center">
+                          <div>
+                            <div className="text-lg font-mono font-bold text-foreground">{agentStatus.latestRun.industriesEvaluated}</div>
+                            <div className="text-[10px] text-muted-foreground">Industries</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-mono font-bold text-emerald-600">{agentStatus.latestRun.capabilitiesResearched}</div>
+                            <div className="text-[10px] text-muted-foreground">Researched</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-mono font-bold text-amber-600">{agentStatus.latestRun.capabilitiesSkipped}</div>
+                            <div className="text-[10px] text-muted-foreground">Skipped</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-mono font-bold text-indigo-600">{agentStatus.latestRun.perplexityCalls}</div>
+                            <div className="text-[10px] text-muted-foreground">API Calls</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-mono font-bold text-purple-600">{agentStatus.latestRun.memoriesRecalled}</div>
+                            <div className="text-[10px] text-muted-foreground">Recalled</div>
+                          </div>
+                          <div>
+                            <div className="text-lg font-mono font-bold text-purple-600">{agentStatus.latestRun.memoriesStored}</div>
+                            <div className="text-[10px] text-muted-foreground">Stored</div>
+                          </div>
+                        </div>
+                        {agentStatus.latestRun.ceiBeforeIndex != null && agentStatus.latestRun.ceiAfterIndex != null && (
+                          <div className="mt-2 text-xs text-center text-muted-foreground">
+                            CEI: {agentStatus.latestRun.ceiBeforeIndex} → {agentStatus.latestRun.ceiAfterIndex}
+                            {" "}
+                            <span className={
+                              agentStatus.latestRun.ceiAfterIndex > agentStatus.latestRun.ceiBeforeIndex ? "text-emerald-600" :
+                              agentStatus.latestRun.ceiAfterIndex < agentStatus.latestRun.ceiBeforeIndex ? "text-red-600" : ""
+                            }>
+                              ({agentStatus.latestRun.ceiAfterIndex >= agentStatus.latestRun.ceiBeforeIndex ? "+" : ""}
+                              {(agentStatus.latestRun.ceiAfterIndex - agentStatus.latestRun.ceiBeforeIndex).toFixed(1)})
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {agentEvents.length > 0 && (
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Live Activity Feed</div>
+                        <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                          {agentEvents.slice(0, 15).map((event, i) => (
+                            <motion.div
+                              key={`${event.timestamp}-${i}`}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="flex items-start gap-2 text-xs py-1.5 px-2 rounded-sm bg-muted/20 hover:bg-muted/40 transition-colors"
+                            >
+                              <AgentEventIcon type={event.type} />
+                              <span className="text-foreground flex-1">{formatEventMessage(event)}</span>
+                              <span className="text-muted-foreground shrink-0">
+                                {new Date(event.timestamp).toLocaleTimeString()}
+                              </span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {agentEvents.length === 0 && !agentStatus?.latestRun && (
+                      <div className="text-center py-6 text-muted-foreground">
+                        <Bot className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Agent is idle. Click <strong>Run Agent</strong> to trigger an autonomous research cycle.</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
+        </motion.div>
 
         {historyData.length > 1 && (
           <motion.div

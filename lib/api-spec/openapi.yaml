@@ -651,6 +651,85 @@ paths:
                     type: string
                 required: [methodology, version]
 
+  /agent/status:
+    get:
+      operationId: getAgentStatus
+      tags: [agent]
+      summary: Get current agent status, scheduler state, and memory stats
+      responses:
+        "200":
+          description: Agent status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentStatusResponse"
+
+  /agent/trigger:
+    post:
+      operationId: triggerAgentRun
+      tags: [agent]
+      summary: Manually trigger an autonomous agent run
+      responses:
+        "200":
+          description: Agent run result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentRunResult"
+        "409":
+          description: Agent is already running
+
+  /agent/history:
+    get:
+      operationId: getAgentHistory
+      tags: [agent]
+      summary: Get history of agent runs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of agent runs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentRunResult"
+
+  /agent/events:
+    get:
+      operationId: getAgentEvents
+      tags: [agent]
+      summary: SSE stream of real-time agent activity events
+      responses:
+        "200":
+          description: Server-Sent Events stream
+
+  /agent/memories:
+    get:
+      operationId: getAgentMemories
+      tags: [agent]
+      summary: Get agent memories
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: List of agent memories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentMemory"
+
   /research:
     post:
       operationId: researchCapability
@@ -1554,3 +1633,98 @@ components:
           additionalProperties:
             $ref: "#/components/schemas/CEIIndustryBreakdown"
       required: [overallIndex, timestamp]
+
+    AgentSchedulerStatus:
+      type: object
+      properties:
+        active:
+          type: boolean
+        isRunning:
+          type: boolean
+        intervalMinutes:
+          type: number
+        lastRunAt:
+          type: string
+          nullable: true
+      required: [active, isRunning, intervalMinutes]
+
+    AgentRunResult:
+      type: object
+      properties:
+        id:
+          type: integer
+        runId:
+          type: integer
+        status:
+          type: string
+        trigger:
+          type: string
+        industriesEvaluated:
+          type: integer
+        capabilitiesResearched:
+          type: integer
+        capabilitiesSkipped:
+          type: integer
+        perplexityCalls:
+          type: integer
+        memoriesRecalled:
+          type: integer
+        memoriesStored:
+          type: integer
+        ceiBeforeIndex:
+          type: number
+          nullable: true
+        ceiAfterIndex:
+          type: number
+          nullable: true
+        startedAt:
+          type: string
+        completedAt:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+
+    AgentMemoryStats:
+      type: object
+      properties:
+        totalMemories:
+          type: integer
+        byType:
+          type: object
+          additionalProperties:
+            type: integer
+      required: [totalMemories, byType]
+
+    AgentStatusResponse:
+      type: object
+      properties:
+        scheduler:
+          $ref: "#/components/schemas/AgentSchedulerStatus"
+        latestRun:
+          $ref: "#/components/schemas/AgentRunResult"
+        memory:
+          $ref: "#/components/schemas/AgentMemoryStats"
+        connectedClients:
+          type: integer
+      required: [scheduler, memory, connectedClients]
+
+    AgentMemory:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+        content:
+          type: string
+        metadata:
+          type: object
+        relevanceScore:
+          type: number
+        accessCount:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, type, content, createdAt]

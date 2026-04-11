@@ -7,6 +7,7 @@ import dashboardRouter from "./dashboard";
 import projectsRouter from "./projects";
 import insightsRouter from "./insights";
 import ceiRouter from "./cei";
+import agentRouter from "./agent";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(dashboardRouter);
 router.use(projectsRouter);
 router.use(insightsRouter);
 router.use(ceiRouter);
+router.use(agentRouter);
 
 export default router;
