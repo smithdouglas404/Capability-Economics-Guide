@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Brain, Eye, Lightbulb, GitBranch, Clock, ChevronRight,
-  Zap, Activity, Database, Wifi, WifiOff, RefreshCw, AlertTriangle, Sparkles,
+  Zap, Activity, Database, Wifi, WifiOff, RefreshCw, AlertTriangle, Sparkles, HelpCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
@@ -64,6 +64,21 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+const HISTORY_KEY = "agent_stat_history_v1";
+const MAX_HISTORY = 10;
+
+function loadHistory(): Record<string, number[]> {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "{}"); } catch { return {}; }
+}
+function saveHistory(h: Record<string, number[]>) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* ignore */ }
+}
+function pushHistory(h: Record<string, number[]>, key: string, val: number): number[] {
+  const arr = [...(h[key] ?? []), val].slice(-MAX_HISTORY);
+  h[key] = arr;
+  return arr;
+}
+
 export default function AgentMemoryShowcase() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [agentStatus, setAgentStatus] = useState<AgentStatusData | null>(null);
@@ -72,6 +87,8 @@ export default function AgentMemoryShowcase() {
   const [expandedId, setExpandedId] = useState<string | number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [statHistory, setStatHistory] = useState<Record<string, number[]>>(loadHistory);
+  const lastRunIdRef = useRef<number | null>(null);
   const prefersReducedMotion = useReducedMotion();
 
   const fetchData = useCallback(async () => {
@@ -96,6 +113,24 @@ export default function AgentMemoryShowcase() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    if (!agentStatus) return;
+    const run = agentStatus.latestRun;
+    if (!run) return;
+    if (lastRunIdRef.current === run.id) return;
+    lastRunIdRef.current = run.id;
+    setStatHistory(prev => {
+      const h = { ...prev };
+      pushHistory(h, "totalMemories", agentStatus.memory.totalMemories);
+      pushHistory(h, "recalled", run.memoriesRecalled);
+      pushHistory(h, "stored", run.memoriesStored);
+      pushHistory(h, "perplexity", run.perplexityCalls);
+      if (run.ceiAfterIndex != null) pushHistory(h, "ceiAfter", run.ceiAfterIndex);
+      saveHistory(h);
+      return h;
+    });
+  }, [agentStatus]);
 
   const filtered = selectedType ? memories.filter(m => m.type === selectedType) : memories;
   const typeCounts = memories.reduce<Record<string, number>>((acc, m) => {
@@ -160,10 +195,38 @@ export default function AgentMemoryShowcase() {
           {/* Stat cards — only when agent has run */}
           {!loading && !error && agentStatus?.latestRun && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-              <StatCard label="Total Memories" value={agentStatus.memory.totalMemories} icon={Database} colorClass="text-primary" />
-              <StatCard label="Recalled Last Run" value={agentStatus.latestRun.memoriesRecalled} icon={Brain} colorClass="text-muted-foreground" />
-              <StatCard label="Stored Last Run" value={agentStatus.latestRun.memoriesStored} icon={Sparkles} colorClass="text-primary" />
-              <StatCard label="Perplexity Calls" value={agentStatus.latestRun.perplexityCalls} icon={Activity} colorClass="text-foreground" />
+              <StatCard
+                label="Total Memories"
+                value={agentStatus.memory.totalMemories}
+                icon={Database}
+                colorClass="text-primary"
+                history={statHistory.totalMemories}
+                tooltip="All knowledge retained by the agent across every research cycle. Grows over time as the agent learns new patterns and records observations."
+              />
+              <StatCard
+                label="Context Retrieved"
+                value={agentStatus.latestRun.memoriesRecalled}
+                icon={Brain}
+                colorClass="text-muted-foreground"
+                history={statHistory.recalled}
+                tooltip="Relevant memories the agent pulled from its knowledge store at the start of this run. Higher recall means the agent had richer context to guide its research."
+              />
+              <StatCard
+                label="Stored Last Run"
+                value={agentStatus.latestRun.memoriesStored}
+                icon={Sparkles}
+                colorClass="text-primary"
+                history={statHistory.stored}
+                tooltip="New learnings written to memory after this run — patterns detected, observations recorded, and decision context saved for future research cycles."
+              />
+              <StatCard
+                label="Perplexity Calls"
+                value={agentStatus.latestRun.perplexityCalls}
+                icon={Activity}
+                colorClass="text-foreground"
+                history={statHistory.perplexity}
+                tooltip="Real-time web research queries made during this run. Each call grounds the agent's analysis in live market data and current industry benchmarks."
+              />
               <StatCard
                 label="CEI Impact"
                 value={
@@ -173,6 +236,8 @@ export default function AgentMemoryShowcase() {
                 }
                 icon={Zap}
                 colorClass="text-primary"
+                history={statHistory.ceiAfter}
+                tooltip="Capability Economics Index before and after this run. Shows how the agent's research shifted the overall assessment — a rising number means improving competitive positioning."
               />
             </div>
           )}
@@ -305,22 +370,100 @@ function IntegrationPill({ label, connected }: { label: string; connected: boole
   );
 }
 
-function StatCard({ label, value, icon: Icon, colorClass }: {
+function Sparkline({ data, trend }: { data: number[]; trend: "up" | "down" | "flat" }) {
+  if (data.length < 2) return null;
+  const W = 64, H = 20;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const pts = data.map((v, i) =>
+    `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * (H - 2) - 1}`
+  ).join(" ");
+  const strokeColor = trend === "up" ? "hsl(var(--primary))" : trend === "down" ? "hsl(0 72% 51%)" : "hsl(var(--muted-foreground))";
+  const fillId = `sf-${trend}`;
+  const lastX = (data.length - 1) / (data.length - 1) * W;
+  const lastY = H - ((data[data.length - 1] - min) / range) * (H - 2) - 1;
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden="true">
+      <defs>
+        <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={strokeColor} stopOpacity="0.18" />
+          <stop offset="100%" stopColor={strokeColor} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polyline
+        points={`${pts} ${lastX},${H} 0,${H}`}
+        fill={`url(#${fillId})`}
+        stroke="none"
+      />
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <circle cx={lastX} cy={lastY} r="2" fill={strokeColor} />
+    </svg>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, colorClass, history, tooltip }: {
   label: string;
   value: string | number;
   icon: typeof Brain;
   colorClass: string;
+  history?: number[];
+  tooltip?: string;
 }) {
+  const [showTip, setShowTip] = useState(false);
+  const data = history ?? [];
+  const trend: "up" | "down" | "flat" =
+    data.length >= 2
+      ? data[data.length - 1] > data[0] ? "up"
+      : data[data.length - 1] < data[0] ? "down"
+      : "flat"
+    : "flat";
+
   return (
-    <Card className="rounded-none">
-      <CardContent className="p-4">
-        <div className="flex items-center gap-1.5 mb-1.5">
-          <Icon className={`w-3.5 h-3.5 ${colorClass}`} aria-hidden="true" />
-          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+    <div
+      className="relative"
+      onMouseEnter={() => setShowTip(true)}
+      onMouseLeave={() => setShowTip(false)}
+      onFocus={() => setShowTip(true)}
+      onBlur={() => setShowTip(false)}
+    >
+      <Card className="rounded-none">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Icon className={`w-3.5 h-3.5 ${colorClass}`} aria-hidden="true" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
+            </div>
+            {tooltip && (
+              <HelpCircle className="w-3 h-3 text-muted-foreground/50 shrink-0" aria-hidden="true" />
+            )}
+          </div>
+          <div className="text-2xl font-mono font-bold text-foreground">{value}</div>
+          {data.length >= 2 && (
+            <div className="mt-2">
+              <Sparkline data={data} trend={trend} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      {showTip && tooltip && (
+        <div
+          role="tooltip"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 rounded-sm border border-border bg-popover px-3 py-2 shadow-md text-[11px] text-popover-foreground leading-relaxed pointer-events-none"
+        >
+          <div className="font-semibold text-foreground mb-0.5">{label}</div>
+          {tooltip}
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-border" />
         </div>
-        <div className="text-2xl font-mono font-bold text-foreground">{value}</div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
 
