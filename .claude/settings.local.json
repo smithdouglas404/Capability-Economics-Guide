@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm --filter @workspace/api-server run build)",
+      "Bash(pnpm --filter @workspace/api-server run typecheck)",
+      "Bash(pnpm --filter @workspace/capability-economics run typecheck)",
+      "Bash(pnpm run:*)",
+      "Bash(DATABASE_URL=\"postgres://invalid:invalid@localhost:1/none\" PORT=18081 timeout 3 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)"
+    ]
+  }
+}

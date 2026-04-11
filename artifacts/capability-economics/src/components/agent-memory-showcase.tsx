@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useId } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
   Brain, Eye, Lightbulb, GitBranch, Clock, ChevronRight,
@@ -371,6 +371,10 @@ function IntegrationPill({ label, connected }: { label: string; connected: boole
 }
 
 function Sparkline({ data, trend }: { data: number[]; trend: "up" | "down" | "flat" }) {
+  // Unique gradient ID per Sparkline instance — multiple SVGs on the same page
+  // sharing a `defs` id cause browsers to reference the first match, which
+  // breaks rendering when colors diverge.
+  const gradientId = useId();
   if (data.length < 2) return null;
   const W = 64, H = 20;
   const min = Math.min(...data);
@@ -380,9 +384,9 @@ function Sparkline({ data, trend }: { data: number[]; trend: "up" | "down" | "fl
     `${(i / (data.length - 1)) * W},${H - ((v - min) / range) * (H - 2) - 1}`
   ).join(" ");
   const strokeColor = trend === "up" ? "hsl(var(--primary))" : trend === "down" ? "hsl(0 72% 51%)" : "hsl(var(--muted-foreground))";
-  const fillId = `sf-${trend}`;
-  const lastX = (data.length - 1) / (data.length - 1) * W;
-  const lastY = H - ((data[data.length - 1] - min) / range) * (H - 2) - 1;
+  const fillId = `sf-${gradientId}`;
+  const lastX = W;
+  const lastY = H - ((data[data.length - 1]! - min) / range) * (H - 2) - 1;
   return (
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden="true">
       <defs>

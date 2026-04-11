@@ -1,0 +1,19 @@
+# Nixpacks config for Railway — overrides auto-detected pnpm workspace handling.
+# Single-service deploy: api-server hosts /api routes AND serves the built
+# capability-economics SPA from artifacts/capability-economics/dist/public.
+
+[phases.setup]
+nixPkgs = ["nodejs_24"]
+
+[phases.install]
+cmds = [
+  "corepack enable",
+  "corepack prepare pnpm@10.26.1 --activate",
+  "pnpm install --frozen-lockfile"
+]
+
+[phases.build]
+cmds = ["pnpm run build:deploy"]
+
+[start]
+cmd = "pnpm run start"
