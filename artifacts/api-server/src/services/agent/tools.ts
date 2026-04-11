@@ -34,6 +34,35 @@ function isContentStale(generatedAt: Date): boolean {
   return Date.now() - generatedAt.getTime() > CONTENT_STALE_HOURS * 60 * 60 * 1000;
 }
 
+async function perplexityContextSearch(query: string): Promise<string> {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) return "";
+  try {
+    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar",
+        messages: [
+          {
+            role: "system",
+            content: "You are a management consulting research analyst. Provide concise, factual research context with specific numbers, benchmarks, and real examples from 2023-2026 data. Focus on practical, measurable outcomes.",
+          },
+          { role: "user", content: query },
+        ],
+      }),
+    });
+    if (!resp.ok) return "";
+    const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
+    return data.choices[0]?.message?.content ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export const perplexityResearchTool = tool(
   async ({ industryName, capabilityName, industryId, capabilityId }) => {
     try {
@@ -251,14 +280,24 @@ export const generateCsuitePerspectivesTool = tool(
       }
 
       try {
-        const prompt = `You are a Capability Economics expert. Generate a vivid, specific executive perspective for the ${role.title} (${role.name}) role. Focus area: ${role.focus}
+        const researchContext = await perplexityContextSearch(
+          `What are the most important capability economics metrics, decision frameworks, and real-world outcomes relevant to a ${role.title} (${role.name}) in 2024-2026? Include specific benchmarks, percentages, and named KPIs that ${role.title}s track when evaluating capability investments. Focus on: ${role.focus}`
+        );
+
+        const contextSection = researchContext
+          ? `\n\nPERPLEXITY RESEARCH CONTEXT (use this to ground your response in real data):\n${researchContext}\n`
+          : "";
+
+        const prompt = `You are a Capability Economics expert. Generate a vivid, specific executive perspective for the ${role.title} (${role.name}) role. Focus area: ${role.focus}${contextSection}
+
+Use the research context above to include real benchmarks, specific numbers, and credible industry data in your response.
 
 Return ONLY valid JSON:
 {
-  "scenario": "A 3-4 sentence specific real-world scenario where this executive applies Capability Economics to make a concrete business decision — include actual numbers and outcomes.",
+  "scenario": "A 3-4 sentence specific real-world scenario where this executive applies Capability Economics to make a concrete business decision — include actual numbers and outcomes drawn from real industry benchmarks.",
   "questions": ["Sharp provocative question 1 a ${role.title} would ask about capability economics", "Question 2", "Question 3"],
   "capabilities": ["Real functional capability this role owns 1", "Capability 2", "Capability 3"],
-  "metrics": ["Specific named KPI with measured improvement, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2"],
+  "metrics": ["Specific named KPI with measured improvement grounded in real data, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2"],
   "chartData": [
     {"subject": "Relevant Dimension 1", "A": 85, "fullMark": 100},
     {"subject": "Relevant Dimension 2", "A": 72, "fullMark": 100},
@@ -307,7 +346,7 @@ chartData subjects must be the 5 most relevant capability dimensions for a ${rol
   },
   {
     name: "generate_csuite_perspectives",
-    description: "Generate AI-powered C-suite executive perspectives for all roles using Claude. Stores results in the database for the frontend to display. Skips roles with fresh content (< 48h old). Call once per research cycle.",
+    description: "Generate AI-powered C-suite executive perspectives for all roles using Perplexity (real-world research context) + Claude (structured output). Stores results in the database for the frontend to display. Skips roles with fresh content (< 48h old). Call once per research cycle.",
     schema: z.object({}),
   },
 );
@@ -346,10 +385,20 @@ export const generateCaseStudyContentTool = tool(
       `- ${c.name} (slug: ${c.slug}): Traditional view: "${c.traditionalView}" | Economic view: "${c.economicView}" | Benchmark: ${c.benchmarkScore}/100`
     ).join("\n");
 
-    const prompt = `You are a Capability Economics consultant specialising in the ${industry.name} industry. Generate a detailed, credible case study.
+    const researchContext = await perplexityContextSearch(
+      `Provide real-world benchmarks, ROI data, and case study evidence for capability economics in the ${industry.name} industry (2023-2026). Specifically cover: (1) ${allCaps[0]?.name} — measurable outcomes, KPIs, cost reductions, revenue impacts; (2) ${allCaps[1]?.name} — measurable outcomes, KPIs, NPS impacts, efficiency gains. Include specific percentages, dollar amounts, and named metrics from real insurers or comparable companies.`
+    );
+
+    const contextSection = researchContext
+      ? `\nPERPLEXITY RESEARCH CONTEXT (real benchmarks to ground your response):\n${researchContext}\n`
+      : "";
+
+    const prompt = `You are a Capability Economics consultant specialising in the ${industry.name} industry. Generate a detailed, credible case study grounded in real data.
 
 Top capabilities from our database:
 ${capSummaries}
+${contextSection}
+Use the research context above to ensure metrics and ROI data reflect real ${industry.name} industry benchmarks.
 
 Return ONLY valid JSON:
 {
@@ -437,7 +486,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
   },
   {
     name: "generate_case_study",
-    description: "Generate AI-powered case study content (capability descriptions, metrics, 5-year ROI data) for an industry. Stores results in the database for the frontend to display. Call once per research cycle for each featured industry.",
+    description: "Generate AI-powered case study content (capability descriptions, metrics, 5-year ROI data) for an industry using Perplexity (real industry benchmarks) + Claude (structured output). Stores results in the database for the frontend to display. Call once per research cycle for each featured industry.",
     schema: z.object({
       industrySlug: z.string().describe("Slug of the industry to generate case study content for (e.g. 'insurance')"),
     }),
