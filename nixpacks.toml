@@ -7,8 +7,10 @@ nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
-  "corepack enable",
-  "corepack prepare pnpm@10.26.1 --activate",
+  # Corepack in Node 22.11 has stale signing keys and fails to verify recent
+  # pnpm releases. Install pnpm directly via npm instead — the packageManager
+  # field in package.json still pins the exact version.
+  "npm install -g pnpm@10.26.1",
   "pnpm install --frozen-lockfile"
 ]
 
