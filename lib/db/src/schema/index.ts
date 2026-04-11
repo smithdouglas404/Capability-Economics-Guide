@@ -8,3 +8,4 @@ export * from "./ontology";
 export * from "./data-sources";
 export * from "./cei";
 export * from "./agent";
+export * from "./csuite-perspectives";

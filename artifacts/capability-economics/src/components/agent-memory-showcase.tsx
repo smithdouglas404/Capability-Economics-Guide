@@ -44,10 +44,10 @@ interface ToolsData {
 }
 
 const typeConfig: Record<string, { icon: typeof Brain; colorClass: string; bgClass: string; borderClass: string; label: string }> = {
-  pattern:          { icon: GitBranch, colorClass: "text-primary",      bgClass: "bg-primary/5",      borderClass: "border-primary/20",      label: "Pattern" },
-  observation:      { icon: Eye,       colorClass: "text-emerald-600",  bgClass: "bg-emerald-50",     borderClass: "border-emerald-200",     label: "Observation" },
-  insight:          { icon: Lightbulb, colorClass: "text-amber-600",    bgClass: "bg-amber-50",       borderClass: "border-amber-200",       label: "Insight" },
-  decision_context: { icon: Zap,       colorClass: "text-purple-600",   bgClass: "bg-purple-50",      borderClass: "border-purple-200",      label: "Decision" },
+  pattern:          { icon: GitBranch, colorClass: "text-primary",            bgClass: "bg-primary/5",        borderClass: "border-primary/20",        label: "Pattern" },
+  observation:      { icon: Eye,       colorClass: "text-foreground",         bgClass: "bg-muted/50",         borderClass: "border-border",            label: "Observation" },
+  insight:          { icon: Lightbulb, colorClass: "text-accent-foreground",  bgClass: "bg-accent/20",        borderClass: "border-accent/30",         label: "Insight" },
+  decision_context: { icon: Zap,       colorClass: "text-muted-foreground",   bgClass: "bg-muted/30",         borderClass: "border-border",            label: "Decision" },
 };
 
 function getTypeConfig(type: string) {
@@ -145,7 +145,7 @@ export default function AgentMemoryShowcase() {
           {/* Error state */}
           {error && memories.length === 0 && (
             <div className="flex flex-col items-center py-12 text-center">
-              <AlertTriangle className="w-8 h-8 text-amber-500 mb-3" aria-hidden="true" />
+              <AlertTriangle className="w-8 h-8 text-muted-foreground mb-3" aria-hidden="true" />
               <p className="text-sm text-muted-foreground mb-4">Unable to load agent memory data.</p>
               <button
                 onClick={fetchData}
@@ -161,9 +161,9 @@ export default function AgentMemoryShowcase() {
           {!loading && !error && agentStatus?.latestRun && (
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
               <StatCard label="Total Memories" value={agentStatus.memory.totalMemories} icon={Database} colorClass="text-primary" />
-              <StatCard label="Recalled Last Run" value={agentStatus.latestRun.memoriesRecalled} icon={Brain} colorClass="text-purple-600" />
-              <StatCard label="Stored Last Run" value={agentStatus.latestRun.memoriesStored} icon={Sparkles} colorClass="text-emerald-600" />
-              <StatCard label="Perplexity Calls" value={agentStatus.latestRun.perplexityCalls} icon={Activity} colorClass="text-amber-600" />
+              <StatCard label="Recalled Last Run" value={agentStatus.latestRun.memoriesRecalled} icon={Brain} colorClass="text-muted-foreground" />
+              <StatCard label="Stored Last Run" value={agentStatus.latestRun.memoriesStored} icon={Sparkles} colorClass="text-primary" />
+              <StatCard label="Perplexity Calls" value={agentStatus.latestRun.perplexityCalls} icon={Activity} colorClass="text-foreground" />
               <StatCard
                 label="CEI Impact"
                 value={
@@ -294,7 +294,7 @@ function IntegrationPill({ label, connected }: { label: string; connected: boole
   return (
     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-[10px] font-semibold uppercase tracking-wider border ${
       connected
-        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        ? "border-primary/30 bg-primary/10 text-primary"
         : "border-border bg-background text-muted-foreground"
     }`}>
       {connected

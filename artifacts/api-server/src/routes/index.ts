@@ -8,6 +8,7 @@ import projectsRouter from "./projects";
 import insightsRouter from "./insights";
 import ceiRouter from "./cei";
 import agentRouter from "./agent";
+import contentRouter from "./content";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(projectsRouter);
 router.use(insightsRouter);
 router.use(ceiRouter);
 router.use(agentRouter);
+router.use(contentRouter);
 
 export default router;

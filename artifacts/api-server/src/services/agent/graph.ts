@@ -16,6 +16,8 @@ import {
   computeCEITool,
   recallMemoriesTool,
   storeMemoryTool,
+  generateCsuitePerspectivesTool,
+  generateCaseStudyContentTool,
 } from "./tools";
 
 interface CapabilityTarget {
@@ -418,6 +420,45 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
   return { memoriesStored: stored };
 }
 
+async function generateContentNode(_state: AgentStateType): Promise<Partial<AgentStateType>> {
+  emitAgentEvent({ type: "phase", phase: "generating_content", message: "Generating C-suite perspectives and case study content..." });
+
+  try {
+    emitAgentEvent({ type: "tool_call", tool: "generate_csuite_perspectives", message: "Generating executive perspectives for all roles..." });
+    const csuiteResult = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as {
+      success: boolean;
+      generated?: string[];
+      skipped?: string[];
+      error?: string;
+    };
+    emitAgentEvent({
+      type: "tool_result",
+      tool: "generate_csuite_perspectives",
+      generated: csuiteResult.generated?.length ?? 0,
+      skipped: csuiteResult.skipped?.length ?? 0,
+    });
+
+    emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance", message: "Generating insurance case study content..." });
+    const caseStudyResult = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as {
+      success: boolean;
+      skipped?: boolean;
+      error?: string;
+    };
+    emitAgentEvent({
+      type: "tool_result",
+      tool: "generate_case_study",
+      industry: "insurance",
+      success: caseStudyResult.success,
+      skipped: caseStudyResult.skipped ?? false,
+    });
+  } catch (err) {
+    console.error("[generateContentNode] Error:", err);
+    emitAgentEvent({ type: "tool_error", tool: "generate_content", error: err instanceof Error ? err.message : "unknown" });
+  }
+
+  return {};
+}
+
 async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   const researchDecisions = state.decisions.filter(d => d.action === "research").length;
   const skipDecisions = state.decisions.filter(d => d.action === "skip").length;
@@ -471,6 +512,7 @@ const workflow = new StateGraph(AgentState)
   .addNode("research", researchNode)
   .addNode("compute", computeNode)
   .addNode("memorize", memorizeNode)
+  .addNode("generateContent", generateContentNode)
   .addNode("finalize", finalizeNode)
   .addEdge(START, "evaluate")
   .addEdge("evaluate", "decide")
@@ -480,7 +522,8 @@ const workflow = new StateGraph(AgentState)
   })
   .addEdge("research", "compute")
   .addEdge("compute", "memorize")
-  .addEdge("memorize", "finalize")
+  .addEdge("memorize", "generateContent")
+  .addEdge("generateContent", "finalize")
   .addEdge("finalize", END);
 
 export const agentGraph = workflow.compile();
