@@ -1,4 +1,5 @@
 import MemoryClient from "mem0ai";
+import type { Memory as Mem0Memory } from "mem0ai";
 import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
 import { desc, sql, and } from "drizzle-orm";
@@ -54,7 +55,7 @@ export async function storeMemory(
 
       const memoryId = Array.isArray(result) && result[0]?.id
         ? result[0].id
-        : (result as any)?.id || `mem0-${Date.now()}`;
+        : `mem0-${Date.now()}`;
 
       console.log(`[Mem0] Stored ${type} memory: ${memoryId}`);
 
@@ -121,16 +122,12 @@ export async function recallMemories(
         limit,
       });
 
-      const mem0Memories = Array.isArray(mem0Results)
-        ? mem0Results
-        : (mem0Results as any)?.results || [];
-
-      for (const m of mem0Memories) {
+      for (const m of mem0Results) {
         results.push({
           id: m.id || `mem0-${Date.now()}`,
-          memoryType: m.metadata?.memoryType || type || "observation",
+          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || type || "observation",
           content: m.memory || m.data?.memory || "",
-          metadata: m.metadata || {},
+          metadata: (m.metadata as Record<string, unknown>) || {},
           relevanceScore: m.score ?? 0.8,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
@@ -221,16 +218,12 @@ export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]
         page_size: limit,
       });
 
-      const memories = Array.isArray(mem0All)
-        ? mem0All
-        : (mem0All as any)?.results || [];
-
-      for (const m of memories) {
+      for (const m of mem0All) {
         results.push({
           id: m.id || `mem0-${Date.now()}`,
-          memoryType: m.metadata?.memoryType || "observation",
+          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || "observation",
           content: m.memory || m.data?.memory || "",
-          metadata: m.metadata || {},
+          metadata: (m.metadata as Record<string, unknown>) || {},
           relevanceScore: m.score ?? 1.0,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
@@ -249,8 +242,9 @@ export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]
     .limit(limit);
 
   for (const m of localMemories) {
+    const localMeta = (m.metadata as Record<string, unknown>) || {};
     const isMem0Synced = results.some(r =>
-      typeof r.id === "string" && (m.metadata as any)?.mem0Id === r.id
+      typeof r.id === "string" && localMeta.mem0Id === r.id
     );
     if (!isMem0Synced) {
       results.push({
@@ -283,12 +277,9 @@ export async function getMemoryStats(): Promise<{
       const mem0All = await client.getAll({
         agent_id: MEM0_AGENT_ID,
         app_id: MEM0_APP_ID,
-        page_size: 1,
+        page_size: 200,
       });
-      const memories = Array.isArray(mem0All)
-        ? mem0All
-        : (mem0All as any)?.results || [];
-      mem0Count = memories.length;
+      mem0Count = mem0All.length;
     } catch {
       // ignore
     }

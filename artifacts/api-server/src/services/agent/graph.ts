@@ -149,7 +149,12 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
     const memoryCount = Array.isArray(memories) ? memories.length : 0;
     memoriesRecalled += memoryCount;
 
-    const hasRecentPattern = Array.isArray(memories) && memories.some((m: any) => {
+    interface RecalledMemory {
+      createdAt?: string;
+      relevance?: number;
+      relevanceScore?: number;
+    }
+    const hasRecentPattern = Array.isArray(memories) && memories.some((m: RecalledMemory) => {
       const age = m.createdAt
         ? (Date.now() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60 * 24)
         : 999;

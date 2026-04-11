@@ -1,3 +1,6 @@
+import type { Letta as LettaClient } from "@letta-ai/letta-client";
+import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents";
+import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
 
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || "http://localhost:8283";
@@ -5,11 +8,27 @@ const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
 const RETRY_COOLDOWN_MS = 60_000;
 
-let lettaClient: any = null;
+let lettaClient: LettaClient | null = null;
 let lettaAgentId: string | null = null;
 let lettaConnected = false;
 let lastAttemptAt = 0;
 let initPromise: Promise<boolean> | null = null;
+
+function extractAssistantText(messages: Message[]): string {
+  return messages
+    .filter((m): m is AssistantMessage => m.message_type === "assistant_message")
+    .map((m) => {
+      if (typeof m.content === "string") return m.content;
+      if (Array.isArray(m.content)) {
+        return m.content
+          .filter((part): part is { type: "text"; text: string } => "type" in part && part.type === "text")
+          .map((part) => part.text)
+          .join("");
+      }
+      return "";
+    })
+    .join("\n");
+}
 
 async function doInit(): Promise<boolean> {
   try {
@@ -21,26 +40,18 @@ async function doInit(): Promise<boolean> {
 
     const health = await Promise.race([
       lettaClient.health(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
     ]);
 
     if (!health) throw new Error("Health check failed");
 
+    const agentsList: AgentState[] = [];
     const agentsPage = await lettaClient.agents.list();
-    const agentsList: any[] = [];
-    if (agentsPage && typeof agentsPage[Symbol.asyncIterator] === "function") {
-      for await (const agent of agentsPage) {
-        agentsList.push(agent);
-      }
-    } else if (Array.isArray(agentsPage)) {
-      agentsList.push(...agentsPage);
-    } else if (agentsPage?.items) {
-      agentsList.push(...agentsPage.items);
-    } else if (agentsPage?.data) {
-      agentsList.push(...agentsPage.data);
+    for await (const agent of agentsPage) {
+      agentsList.push(agent);
     }
 
-    const existing = agentsList.find((a: any) => a.name === LETTA_AGENT_NAME);
+    const existing = agentsList.find((a) => a.name === LETTA_AGENT_NAME);
 
     if (existing) {
       lettaAgentId = existing.id;
@@ -86,27 +97,22 @@ export async function lettaSendMessage(content: string): Promise<string | null> 
   if (!lettaClient || !lettaAgentId) return null;
 
   try {
-    const response = await Promise.race([
+    const response: LettaResponse = await Promise.race([
       lettaClient.agents.messages.create(lettaAgentId, {
         messages: [{ role: "user", content }],
-      }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
-    ]) as any;
+      }) as Promise<LettaResponse>,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
+    ]);
 
-    const assistantMessages = Array.isArray(response)
-      ? response
-          .filter((m: any) => m.message_type === "assistant_message" || m.role === "assistant")
-          .map((m: any) => m.content || m.message || "")
-          .join("\n")
-      : "";
+    const text = extractAssistantText(response.messages);
 
     emitAgentEvent({
       type: "letta_response",
       agentId: lettaAgentId,
-      responseLength: assistantMessages.length,
+      responseLength: text.length,
     });
 
-    return assistantMessages || null;
+    return text || null;
   } catch (err) {
     console.error("[Letta] Message failed:", err instanceof Error ? err.message : err);
     lettaConnected = false;
