@@ -27,7 +27,7 @@ Full-stack educational platform teaching novice users about capability economics
 - Google Fonts `@import` must be first line in index.css
 
 ### Frontend Pages (`artifacts/capability-economics/`)
-- `/` — Home page with definition, real estate analogy, and navigation
+- `/` — Home page with definition, real estate analogy, Mem0 institutional memory showcase, and navigation
 - `/case-study` — Insurance industry case study with capability cards and 5-year ROI chart
 - `/c-suite` — Interactive C-Suite perspectives hub (CEO, COO, CFO, CTO, CIO, CMO, CHRO, CPO)
 - `/knowledge-graph` — Industry Capability Explorer: browse 6 industries, view capability maps with radar charts, drill into metrics/dependencies/C-suite mappings. Cross-Industry Comparison tab with benchmark bar chart, industry cards, and shared thematic capabilities

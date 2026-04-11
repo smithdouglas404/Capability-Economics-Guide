@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { ArrowRight, Target, LineChart, Zap, Building2, Shield, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 
 const container = {
   hidden: { opacity: 0 },
@@ -144,6 +145,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Autonomous Agent Memory Showcase */}
+      <AgentMemoryShowcase />
 
       {/* Navigation Cards */}
       <section className="py-24 bg-foreground text-background">
