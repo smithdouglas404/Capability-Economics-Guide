@@ -3,7 +3,7 @@
 # capability-economics SPA from artifacts/capability-economics/dist/public.
 
 [phases.setup]
-nixPkgs = ["nodejs_24"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
