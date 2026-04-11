@@ -3,7 +3,6 @@ import { db } from "@workspace/db";
 import { agentRunsTable, agentMemoriesTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 import {
-  triggerManualRun,
   getSchedulerStatus,
   startScheduler,
   stopScheduler,
@@ -52,21 +51,9 @@ router.get("/agent/status", async (_req, res) => {
   }
 });
 
-router.post("/agent/trigger", async (_req, res) => {
-  try {
-    const result = await triggerManualRun();
-    res.json(result);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(409).json({ error: message });
-  }
-});
-
-router.post("/agent/scheduler/start", async (req, res) => {
-  const raw = Number(req.body?.intervalMinutes) || 30;
-  const intervalMinutes = Math.max(5, Math.min(1440, raw));
-  startScheduler(intervalMinutes * 60 * 1000);
-  res.json({ status: "started", intervalMinutes });
+router.post("/agent/scheduler/start", async (_req, res) => {
+  startScheduler();
+  res.json({ status: "started" });
 });
 
 router.post("/agent/scheduler/stop", async (_req, res) => {

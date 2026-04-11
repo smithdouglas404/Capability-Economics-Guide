@@ -234,7 +234,6 @@ export default function CEIDashboard() {
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
   const { events: agentEvents, connected: sseConnected } = useAgentEvents();
-  const [refreshing, setRefreshing] = useState(false);
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [showAgentActivity, setShowAgentActivity] = useState(true);
@@ -246,18 +245,6 @@ export default function CEIDashboard() {
       refetchAgent();
     }
   }, [agentEvents, refetchCei, refetchAgent]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await fetch(`${API_BASE}/agent/trigger`, { method: "POST" });
-      setTimeout(() => refetchAgent(), 1000);
-    } catch (e) {
-      console.error("Agent trigger failed:", e);
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   if (loadingCei) {
     return (
@@ -316,16 +303,10 @@ export default function CEIDashboard() {
                   The world's first composite index measuring organizational capability maturity across industries — powered by multi-source Bayesian triangulation.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white"
-              >
-                {refreshing ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Bot className="w-4 h-4 mr-1" />}
-                Run Agent
-              </Button>
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-slate-600 text-slate-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Autonomous
+              </div>
             </div>
 
             <div className="grid md:grid-cols-3 gap-8 items-center">
@@ -542,36 +523,36 @@ export default function CEIDashboard() {
                 >
                   <CardContent>
                     <div className="grid md:grid-cols-4 gap-3 mb-4">
-                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-sm p-3 border border-indigo-100 dark:border-indigo-900">
+                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Clock className="w-3.5 h-3.5 text-indigo-500" />
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Schedule</span>
+                          <Clock className="w-3.5 h-3.5 text-primary" />
+                          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Mode</span>
                         </div>
                         <div className="text-sm font-mono font-bold">
-                          {agentStatus?.scheduler.active ? `${agentStatus.scheduler.intervalMinutes}min` : "Off"}
+                          {agentStatus?.scheduler.active ? "Autonomous" : "Off"}
                         </div>
                       </div>
-                      <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-sm p-3 border border-emerald-100 dark:border-emerald-900">
+                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Search className="w-3.5 h-3.5 text-emerald-500" />
+                          <Search className="w-3.5 h-3.5 text-primary" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Researched</span>
                         </div>
                         <div className="text-sm font-mono font-bold">
                           {agentStatus?.latestRun?.capabilitiesResearched ?? 0} caps
                         </div>
                       </div>
-                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-sm p-3 border border-amber-100 dark:border-amber-900">
+                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <SkipForward className="w-3.5 h-3.5 text-amber-500" />
+                          <SkipForward className="w-3.5 h-3.5 text-muted-foreground" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
                         </div>
                         <div className="text-sm font-mono font-bold">
                           {agentStatus?.latestRun?.capabilitiesSkipped ?? 0} caps
                         </div>
                       </div>
-                      <div className="bg-purple-50 dark:bg-purple-950/30 rounded-sm p-3 border border-purple-100 dark:border-purple-900">
+                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
-                          <Brain className="w-3.5 h-3.5 text-purple-500" />
+                          <Brain className="w-3.5 h-3.5 text-primary" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Memories</span>
                         </div>
                         <div className="text-sm font-mono font-bold">
@@ -586,10 +567,10 @@ export default function CEIDashboard() {
                           <div className="flex items-center gap-2">
                             <Database className="w-4 h-4 text-muted-foreground" />
                             <span className="text-xs font-bold uppercase tracking-wider">Last Run</span>
-                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                              agentStatus.latestRun.status === "completed" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" :
-                              agentStatus.latestRun.status === "running" ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400" :
-                              "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium border ${
+                              agentStatus.latestRun.status === "completed" ? "bg-primary/10 text-primary border-primary/20" :
+                              agentStatus.latestRun.status === "running" ? "bg-muted text-foreground border-border" :
+                              "bg-muted text-muted-foreground border-border"
                             }`}>
                               {agentStatus.latestRun.status}
                             </span>
@@ -604,23 +585,23 @@ export default function CEIDashboard() {
                             <div className="text-[10px] text-muted-foreground">Industries</div>
                           </div>
                           <div>
-                            <div className="text-lg font-mono font-bold text-emerald-600">{agentStatus.latestRun.capabilitiesResearched}</div>
+                            <div className="text-lg font-mono font-bold text-primary">{agentStatus.latestRun.capabilitiesResearched}</div>
                             <div className="text-[10px] text-muted-foreground">Researched</div>
                           </div>
                           <div>
-                            <div className="text-lg font-mono font-bold text-amber-600">{agentStatus.latestRun.capabilitiesSkipped}</div>
+                            <div className="text-lg font-mono font-bold text-foreground">{agentStatus.latestRun.capabilitiesSkipped}</div>
                             <div className="text-[10px] text-muted-foreground">Skipped</div>
                           </div>
                           <div>
-                            <div className="text-lg font-mono font-bold text-indigo-600">{agentStatus.latestRun.perplexityCalls}</div>
+                            <div className="text-lg font-mono font-bold text-foreground">{agentStatus.latestRun.perplexityCalls}</div>
                             <div className="text-[10px] text-muted-foreground">API Calls</div>
                           </div>
                           <div>
-                            <div className="text-lg font-mono font-bold text-purple-600">{agentStatus.latestRun.memoriesRecalled}</div>
+                            <div className="text-lg font-mono font-bold text-foreground">{agentStatus.latestRun.memoriesRecalled}</div>
                             <div className="text-[10px] text-muted-foreground">Recalled</div>
                           </div>
                           <div>
-                            <div className="text-lg font-mono font-bold text-purple-600">{agentStatus.latestRun.memoriesStored}</div>
+                            <div className="text-lg font-mono font-bold text-foreground">{agentStatus.latestRun.memoriesStored}</div>
                             <div className="text-[10px] text-muted-foreground">Stored</div>
                           </div>
                         </div>
@@ -629,8 +610,8 @@ export default function CEIDashboard() {
                             CEI: {agentStatus.latestRun.ceiBeforeIndex} → {agentStatus.latestRun.ceiAfterIndex}
                             {" "}
                             <span className={
-                              agentStatus.latestRun.ceiAfterIndex > agentStatus.latestRun.ceiBeforeIndex ? "text-emerald-600" :
-                              agentStatus.latestRun.ceiAfterIndex < agentStatus.latestRun.ceiBeforeIndex ? "text-red-600" : ""
+                              agentStatus.latestRun.ceiAfterIndex > agentStatus.latestRun.ceiBeforeIndex ? "text-primary" :
+                              agentStatus.latestRun.ceiAfterIndex < agentStatus.latestRun.ceiBeforeIndex ? "text-muted-foreground" : ""
                             }>
                               ({agentStatus.latestRun.ceiAfterIndex >= agentStatus.latestRun.ceiBeforeIndex ? "+" : ""}
                               {(agentStatus.latestRun.ceiAfterIndex - agentStatus.latestRun.ceiBeforeIndex).toFixed(1)})
@@ -665,7 +646,7 @@ export default function CEIDashboard() {
                     {agentEvents.length === 0 && !agentStatus?.latestRun && (
                       <div className="text-center py-6 text-muted-foreground">
                         <Bot className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                        <p className="text-sm">Agent is idle. Click <strong>Run Agent</strong> to trigger an autonomous research cycle.</p>
+                        <p className="text-sm">Agent is monitoring. The first research cycle will begin automatically.</p>
                       </div>
                     )}
                   </CardContent>
