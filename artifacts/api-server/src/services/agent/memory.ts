@@ -289,14 +289,17 @@ export async function getMemoryStats(): Promise<{
 
   const byType: Record<string, number> = {};
   let totalRelevance = 0;
+  let localOnlyCount = 0;
 
   for (const m of all) {
     byType[m.memoryType] = (byType[m.memoryType] || 0) + 1;
     totalRelevance += m.relevanceScore ?? 1.0;
+    const meta = (m.metadata as Record<string, unknown>) || {};
+    if (!meta.mem0Id) localOnlyCount++;
   }
 
   return {
-    totalMemories: all.length + mem0Count,
+    totalMemories: mem0Count + localOnlyCount,
     byType,
     avgRelevance: all.length > 0 ? totalRelevance / all.length : 0,
     mem0Connected: client !== null,
