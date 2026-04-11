@@ -8,7 +8,9 @@
       "Bash(DATABASE_URL=\"postgres://invalid:invalid@localhost:1/none\" PORT=18081 timeout 3 node --enable-source-maps /home/runner/workspace/artifacts/api-server/dist/index.mjs)",
       "Bash(railway --version)",
       "Bash(pnpm --version)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)"
     ]
   }
 }
