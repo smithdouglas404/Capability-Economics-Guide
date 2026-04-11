@@ -172,6 +172,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.8
         version: 1.2.8(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(zod@3.25.76)
+      '@letta-ai/letta-client':
+        specifier: ^1.10.2
+        version: 1.10.2
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -881,6 +884,9 @@ packages:
     peerDependenciesMeta:
       zod-to-json-schema:
         optional: true
+
+  '@letta-ai/letta-client@1.10.2':
+    resolution: {integrity: sha512-BYAPkIl6wHYORJ+zHmlWaPSrlsMbN5YkoSnHnEUvaIJBOpa5kLwldNjzHIALcSAV19Qc0ktRoIQy0i0Vqb21yQ==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -3764,6 +3770,8 @@ snapshots:
       - react-dom
       - svelte
       - vue
+
+  '@letta-ai/letta-client@1.10.2': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

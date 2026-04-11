@@ -10,6 +10,9 @@ import {
   addSSEClient,
   getConnectedClients,
   getMemoryStats,
+  getAllMemories,
+  allTools,
+  getLettaStatus,
 } from "../services/agent";
 
 const router: IRouter = Router();
@@ -108,9 +111,7 @@ router.get("/agent/events", (req, res) => {
 router.get("/agent/memories", async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
-    const memories = await db.select().from(agentMemoriesTable)
-      .orderBy(desc(agentMemoriesTable.createdAt))
-      .limit(limit);
+    const memories = await getAllMemories(limit);
 
     res.json(memories.map(m => ({
       id: m.id,
@@ -120,11 +121,28 @@ router.get("/agent/memories", async (req, res) => {
       relevanceScore: m.relevanceScore,
       accessCount: m.accessCount,
       createdAt: m.createdAt.toISOString(),
+      source: m.source,
     })));
   } catch (err) {
     console.error("Agent memories failed:", err);
     res.status(500).json({ error: "Failed to get agent memories" });
   }
+});
+
+router.get("/agent/tools", (_req, res) => {
+  res.json({
+    tools: allTools.map(t => ({
+      name: t.name,
+      description: t.description,
+    })),
+    integrations: {
+      mem0: { connected: !!process.env.MEM0_API_KEY, provider: "mem0-cloud" },
+      langchain: { version: "core", tools: allTools.length },
+      langgraph: { nodes: ["evaluate", "decide", "research", "compute", "memorize", "finalize"] },
+      perplexity: { connected: !!process.env.PERPLEXITY_API_KEY },
+      letta: getLettaStatus(),
+    },
+  });
 });
 
 export default router;

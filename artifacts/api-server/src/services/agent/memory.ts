@@ -1,15 +1,34 @@
+import MemoryClient from "mem0ai";
 import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
-import { desc, sql, and, gte } from "drizzle-orm";
+import { desc, sql, and } from "drizzle-orm";
+
+const MEM0_AGENT_ID = "cei-autonomous-agent";
+const MEM0_APP_ID = "capability-economics";
+
+let mem0Client: InstanceType<typeof MemoryClient> | null = null;
+
+function getMem0Client(): InstanceType<typeof MemoryClient> | null {
+  if (mem0Client) return mem0Client;
+  const apiKey = process.env.MEM0_API_KEY;
+  if (!apiKey) {
+    console.warn("[Mem0] MEM0_API_KEY not set — Mem0 Cloud disabled, using local DB fallback");
+    return null;
+  }
+  mem0Client = new MemoryClient({ apiKey });
+  console.log("[Mem0] Cloud client initialized");
+  return mem0Client;
+}
 
 export interface AgentMemory {
-  id: number;
+  id: string | number;
   memoryType: string;
   content: string;
   metadata: Record<string, unknown>;
   relevanceScore: number;
   accessCount: number;
   createdAt: Date;
+  source: "mem0" | "local";
 }
 
 type MemoryType = "pattern" | "observation" | "insight" | "decision_context";
@@ -20,13 +39,55 @@ export async function storeMemory(
   metadata: Record<string, unknown> = {},
   ttlDays: number = 90,
 ): Promise<AgentMemory> {
+  const client = getMem0Client();
+
+  if (client) {
+    try {
+      const messages = [
+        { role: "user" as const, content: `[${type}] ${content}` },
+      ];
+      const result = await client.add(messages, {
+        agent_id: MEM0_AGENT_ID,
+        app_id: MEM0_APP_ID,
+        metadata: { ...metadata, memoryType: type, ttlDays },
+      });
+
+      const memoryId = Array.isArray(result) && result[0]?.id
+        ? result[0].id
+        : (result as any)?.id || `mem0-${Date.now()}`;
+
+      console.log(`[Mem0] Stored ${type} memory: ${memoryId}`);
+
+      const [localRow] = await db.insert(agentMemoriesTable).values({
+        memoryType: type,
+        content,
+        metadata: { ...metadata, mem0Id: memoryId, source: "mem0" },
+        relevanceScore: 1.0,
+        expiresAt: new Date(Date.now() + ttlDays * 86400000),
+      }).returning();
+
+      return {
+        id: memoryId,
+        memoryType: type,
+        content,
+        metadata: { ...metadata, mem0Id: memoryId },
+        relevanceScore: 1.0,
+        accessCount: 0,
+        createdAt: localRow.createdAt,
+        source: "mem0",
+      };
+    } catch (err) {
+      console.error("[Mem0] Store failed, falling back to local DB:", err);
+    }
+  }
+
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + ttlDays);
 
   const [row] = await db.insert(agentMemoriesTable).values({
     memoryType: type,
     content,
-    metadata,
+    metadata: { ...metadata, source: "local" },
     relevanceScore: 1.0,
     expiresAt,
   }).returning();
@@ -39,6 +100,7 @@ export async function storeMemory(
     relevanceScore: row.relevanceScore ?? 1.0,
     accessCount: row.accessCount,
     createdAt: row.createdAt,
+    source: "local",
   };
 }
 
@@ -47,7 +109,42 @@ export async function recallMemories(
   type?: MemoryType,
   limit: number = 10,
 ): Promise<AgentMemory[]> {
-  const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const client = getMem0Client();
+  const results: AgentMemory[] = [];
+
+  if (client) {
+    try {
+      const searchQuery = type ? `[${type}] ${query}` : query;
+      const mem0Results = await client.search(searchQuery, {
+        agent_id: MEM0_AGENT_ID,
+        app_id: MEM0_APP_ID,
+        limit,
+      });
+
+      const mem0Memories = Array.isArray(mem0Results)
+        ? mem0Results
+        : (mem0Results as any)?.results || [];
+
+      for (const m of mem0Memories) {
+        results.push({
+          id: m.id || `mem0-${Date.now()}`,
+          memoryType: m.metadata?.memoryType || type || "observation",
+          content: m.memory || m.data?.memory || "",
+          metadata: m.metadata || {},
+          relevanceScore: m.score ?? 0.8,
+          accessCount: 0,
+          createdAt: m.created_at ? new Date(m.created_at) : new Date(),
+          source: "mem0",
+        });
+      }
+
+      console.log(`[Mem0] Recalled ${results.length} memories for query: "${query.slice(0, 50)}..."`);
+
+      if (results.length >= limit) return results.slice(0, limit);
+    } catch (err) {
+      console.error("[Mem0] Search failed, falling back to local DB:", err);
+    }
+  }
 
   const now = new Date();
   const conditions = [
@@ -64,6 +161,8 @@ export async function recallMemories(
     .where(and(...conditions))
     .orderBy(desc(agentMemoriesTable.createdAt))
     .limit(200);
+
+  const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
 
   const scored = allMemories.map(m => {
     const text = m.content.toLowerCase();
@@ -86,8 +185,18 @@ export async function recallMemories(
 
   scored.sort((a, b) => b.score - a.score);
 
-  const topResults = scored.slice(0, limit);
-  const ids = topResults.map(r => r.memory.id);
+  const localResults = scored.slice(0, limit - results.length).map(r => ({
+    id: r.memory.id,
+    memoryType: r.memory.memoryType,
+    content: r.memory.content,
+    metadata: (r.memory.metadata as Record<string, unknown>) || {},
+    relevanceScore: r.score,
+    accessCount: r.memory.accessCount,
+    createdAt: r.memory.createdAt,
+    source: "local" as const,
+  }));
+
+  const ids = localResults.map(r => r.id).filter((id): id is number => typeof id === "number");
   if (ids.length > 0) {
     await db.update(agentMemoriesTable)
       .set({
@@ -97,22 +206,94 @@ export async function recallMemories(
       .where(sql`${agentMemoriesTable.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`);
   }
 
-  return topResults.map(r => ({
-    id: r.memory.id,
-    memoryType: r.memory.memoryType,
-    content: r.memory.content,
-    metadata: (r.memory.metadata as Record<string, unknown>) || {},
-    relevanceScore: r.score,
-    accessCount: r.memory.accessCount,
-    createdAt: r.memory.createdAt,
-  }));
+  return [...results, ...localResults].slice(0, limit);
+}
+
+export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]> {
+  const client = getMem0Client();
+  const results: AgentMemory[] = [];
+
+  if (client) {
+    try {
+      const mem0All = await client.getAll({
+        agent_id: MEM0_AGENT_ID,
+        app_id: MEM0_APP_ID,
+        page_size: limit,
+      });
+
+      const memories = Array.isArray(mem0All)
+        ? mem0All
+        : (mem0All as any)?.results || [];
+
+      for (const m of memories) {
+        results.push({
+          id: m.id || `mem0-${Date.now()}`,
+          memoryType: m.metadata?.memoryType || "observation",
+          content: m.memory || m.data?.memory || "",
+          metadata: m.metadata || {},
+          relevanceScore: m.score ?? 1.0,
+          accessCount: 0,
+          createdAt: m.created_at ? new Date(m.created_at) : new Date(),
+          source: "mem0",
+        });
+      }
+    } catch (err) {
+      console.error("[Mem0] getAll failed:", err);
+    }
+  }
+
+  const localMemories = await db
+    .select()
+    .from(agentMemoriesTable)
+    .orderBy(desc(agentMemoriesTable.createdAt))
+    .limit(limit);
+
+  for (const m of localMemories) {
+    const isMem0Synced = results.some(r =>
+      typeof r.id === "string" && (m.metadata as any)?.mem0Id === r.id
+    );
+    if (!isMem0Synced) {
+      results.push({
+        id: m.id,
+        memoryType: m.memoryType,
+        content: m.content,
+        metadata: (m.metadata as Record<string, unknown>) || {},
+        relevanceScore: m.relevanceScore ?? 1.0,
+        accessCount: m.accessCount,
+        createdAt: m.createdAt,
+        source: "local",
+      });
+    }
+  }
+
+  return results.slice(0, limit);
 }
 
 export async function getMemoryStats(): Promise<{
   totalMemories: number;
   byType: Record<string, number>;
   avgRelevance: number;
+  mem0Connected: boolean;
 }> {
+  const client = getMem0Client();
+  let mem0Count = 0;
+
+  if (client) {
+    try {
+      const mem0All = await client.getAll({
+        agent_id: MEM0_AGENT_ID,
+        app_id: MEM0_APP_ID,
+        page_size: 1,
+      });
+      const memories = Array.isArray(mem0All)
+        ? mem0All
+        : (mem0All as any)?.results || [];
+      mem0Count = memories.length;
+    } catch {
+      // ignore
+    }
+  }
+
   const all = await db.select().from(agentMemoriesTable);
 
   const byType: Record<string, number> = {};
@@ -124,8 +305,9 @@ export async function getMemoryStats(): Promise<{
   }
 
   return {
-    totalMemories: all.length,
+    totalMemories: all.length + mem0Count,
     byType,
     avgRelevance: all.length > 0 ? totalRelevance / all.length : 0,
+    mem0Connected: client !== null,
   };
 }

@@ -94,14 +94,16 @@ Full-stack educational platform teaching novice users about capability economics
 ### Autonomous Agent (Phase 7)
 - LangChain + LangGraph state machine for autonomous CEI research orchestration
 - **LangGraph nodes**: evaluate → decide → research → compute → memorize → finalize
-- **Mem0 memory layer**: stores observations, patterns, insights, and decision context in `agent_memories` table
+- **Mem0 Cloud memory**: real `mem0ai` MemoryClient stores/recalls observations, patterns, insights, and decision context (MEM0_API_KEY in secrets)
+- **Letta integration**: optional stateful agent layer via `@letta-ai/letta-client` — auto-connects to local Letta server, gracefully degrades when unavailable. Records cycle summaries for institutional memory blocks
 - **Decision engine**: evaluates staleness (7d threshold), volatility, confidence, and memory patterns before deciding to research or skip
+- **LangChain tools**: 5 tools (perplexity_research, query_database, compute_cei, recall_memories, store_memory) invoked via `.invoke()` in graph nodes
 - **Background scheduler**: runs agent every 30min (configurable), prevents overlapping runs
 - **SSE real-time events**: `/api/agent/events` streams live agent activity to the dashboard
 - **Agent activity UI**: "Autonomous Agent" section on CEI dashboard shows status, stats, last run details, and live activity feed
-- DB tables: `agent_runs` (run history with decisions), `agent_memories` (persistent learning)
-- API endpoints: GET `/api/agent/status`, POST `/api/agent/trigger`, GET `/api/agent/history`, GET `/api/agent/events` (SSE), GET `/api/agent/memories`
-- Agent files: `artifacts/api-server/src/services/agent/` — graph.ts (LangGraph), tools.ts (LangChain tools), memory.ts, events.ts (SSE), scheduler.ts
+- DB tables: `agent_runs` (run history with decisions), `agent_memories` (persistent learning synced with Mem0 Cloud)
+- API endpoints: GET `/api/agent/status`, POST `/api/agent/trigger`, GET `/api/agent/history`, GET `/api/agent/events` (SSE), GET `/api/agent/memories`, GET `/api/agent/tools`
+- Agent files: `artifacts/api-server/src/services/agent/` — graph.ts (LangGraph), tools.ts (LangChain tools), memory.ts (Mem0), letta.ts (Letta client), events.ts (SSE), scheduler.ts
 - Max 6 Perplexity research calls per agent run to control API costs
 
 ### Key Dependencies
@@ -112,7 +114,8 @@ Full-stack educational platform teaching novice users about capability economics
 - **shadcn/ui** components (cards, tabs, scroll-area, etc.)
 - **@tanstack/react-query** for data fetching via generated hooks
 - **@langchain/core**, **@langchain/langgraph**, **langchain** for autonomous agent orchestration
-- **mem0ai** for persistent agent memory
+- **mem0ai** for persistent agent memory (Mem0 Cloud)
+- **@letta-ai/letta-client** for optional Letta stateful agent integration
 
 ### Session Management
 - Session token stored in `localStorage` as `ce_session_token`

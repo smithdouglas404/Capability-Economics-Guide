@@ -8,10 +8,15 @@ import {
   agentRunsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { triangulateCapability } from "../triangulation";
-import { computeCEI } from "../cei-engine";
 import { recallMemories, storeMemory } from "./memory";
 import { emitAgentEvent } from "./events";
+import { lettaRecordCycle } from "./letta";
+import {
+  perplexityResearchTool,
+  computeCEITool,
+  recallMemoriesTool,
+  storeMemoryTool,
+} from "./tools";
 
 interface CapabilityTarget {
   capabilityId: number;
@@ -102,6 +107,12 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
 
   targets.sort((a, b) => b.priority - a.priority);
 
+  emitAgentEvent({
+    type: "evaluate_complete",
+    totalTargets: targets.length,
+    industriesCount: industries.length,
+  });
+
   return {
     targets,
     ceiBeforeIndex: latestSnapshot?.overallIndex || null,
@@ -129,16 +140,20 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
       continue;
     }
 
-    const memories = await recallMemories(
-      `${target.industryName} ${target.capabilityName} trend pattern`,
-      "pattern",
-      3,
-    );
-    memoriesRecalled += memories.length;
+    const recallResultStr = await recallMemoriesTool.invoke({
+      query: `${target.industryName} ${target.capabilityName} trend pattern`,
+      memoryType: "pattern",
+      limit: 3,
+    });
+    const memories = JSON.parse(recallResultStr);
+    const memoryCount = Array.isArray(memories) ? memories.length : 0;
+    memoriesRecalled += memoryCount;
 
-    const hasRecentPattern = memories.some(m => {
-      const age = (Date.now() - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-      return age < 14 && m.relevanceScore > 0.5;
+    const hasRecentPattern = Array.isArray(memories) && memories.some((m: any) => {
+      const age = m.createdAt
+        ? (Date.now() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+        : 999;
+      return age < 14 && (m.relevance ?? m.relevanceScore ?? 0) > 0.5;
     });
 
     if (target.priority < 1 && target.confidence > 0.7 && !hasHighVolatility(target)) {
@@ -161,7 +176,7 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
         industryName: target.industryName,
         capabilityName: target.capabilityName,
         action: "use_memory",
-        reason: `Recent memory pattern found (${memories.length} relevant), data only ${target.staleDays}d old`,
+        reason: `Recent Mem0 pattern found (${memoryCount} relevant), data only ${target.staleDays}d old`,
         timestamp: new Date().toISOString(),
       });
       continue;
@@ -178,6 +193,17 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
     });
     researchCount++;
   }
+
+  const researchDecisions = decisions.filter(d => d.action === "research").length;
+  const skipDecisions = decisions.filter(d => d.action === "skip").length;
+  const memoryDecisions = decisions.filter(d => d.action === "use_memory").length;
+  emitAgentEvent({
+    type: "decide_complete",
+    toResearch: researchDecisions,
+    toSkip: skipDecisions,
+    toUseMemory: memoryDecisions,
+    memoriesRecalled,
+  });
 
   return { decisions, memoriesRecalled };
 }
@@ -200,7 +226,7 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
   emitAgentEvent({
     type: "phase",
     phase: "researching",
-    message: `Researching ${toResearch.length} capabilities via Perplexity...`,
+    message: `Researching ${toResearch.length} capabilities via Perplexity (LangChain tools)...`,
   });
 
   const results: Array<{ capabilityName: string; newScore: number; confidence: number }> = [];
@@ -209,29 +235,50 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
   for (const decision of toResearch) {
     try {
       emitAgentEvent({
-        type: "research",
+        type: "tool_call",
+        tool: "perplexity_research",
         capability: decision.capabilityName,
         industry: decision.industryName,
       });
 
-      const result = await triangulateCapability(
-        decision.industryName,
-        decision.capabilityName,
-        decision.industryId,
-        decision.capabilityId,
-      );
-
-      results.push({
-        capabilityName: result.capabilityName,
-        newScore: result.consensusScore,
-        confidence: result.confidence,
+      const resultStr = await perplexityResearchTool.invoke({
+        industryName: decision.industryName,
+        capabilityName: decision.capabilityName,
+        industryId: decision.industryId,
+        capabilityId: decision.capabilityId,
       });
+
+      const result = JSON.parse(resultStr);
+      if (result.success) {
+        results.push({
+          capabilityName: result.capabilityName,
+          newScore: result.consensusScore,
+          confidence: result.confidence,
+        });
+        emitAgentEvent({
+          type: "tool_result",
+          tool: "perplexity_research",
+          capability: result.capabilityName,
+          score: result.consensusScore,
+          confidence: result.confidence,
+          sources: result.sourcesCount,
+        });
+      } else {
+        emitAgentEvent({
+          type: "tool_error",
+          tool: "perplexity_research",
+          capability: decision.capabilityName,
+          error: result.error,
+        });
+      }
       calls++;
     } catch (err) {
       console.error(`Research failed for ${decision.capabilityName}:`, err);
       emitAgentEvent({
-        type: "error",
-        message: `Research failed for ${decision.capabilityName}: ${err instanceof Error ? err.message : "unknown"}`,
+        type: "tool_error",
+        tool: "perplexity_research",
+        capability: decision.capabilityName,
+        error: err instanceof Error ? err.message : "unknown",
       });
     }
   }
@@ -246,16 +293,28 @@ async function computeNode(state: AgentStateType): Promise<Partial<AgentStateTyp
     return { ceiAfterIndex: state.ceiBeforeIndex };
   }
 
-  emitAgentEvent({ type: "phase", phase: "computing", message: "Recomputing CEI index..." });
+  emitAgentEvent({
+    type: "tool_call",
+    tool: "compute_cei",
+    message: "Recomputing CEI index...",
+  });
 
   try {
-    const result = await computeCEI();
-    emitAgentEvent({
-      type: "cei_updated",
-      overallIndex: result.overallIndex,
-      previousIndex: state.ceiBeforeIndex,
-    });
-    return { ceiAfterIndex: result.overallIndex };
+    const resultStr = await computeCEITool.invoke({});
+    const result = JSON.parse(resultStr);
+
+    if (result.success) {
+      emitAgentEvent({
+        type: "tool_result",
+        tool: "compute_cei",
+        overallIndex: result.overallIndex,
+        previousIndex: state.ceiBeforeIndex,
+        delta: state.ceiBeforeIndex ? result.overallIndex - state.ceiBeforeIndex : null,
+      });
+      return { ceiAfterIndex: result.overallIndex };
+    } else {
+      return { error: result.error };
+    }
   } catch (err) {
     console.error("CEI computation failed:", err);
     return { error: err instanceof Error ? err.message : "Computation failed" };
@@ -263,38 +322,62 @@ async function computeNode(state: AgentStateType): Promise<Partial<AgentStateTyp
 }
 
 async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
-  emitAgentEvent({ type: "phase", phase: "memorizing", message: "Storing learned patterns..." });
+  emitAgentEvent({
+    type: "tool_call",
+    tool: "store_memory",
+    message: "Storing learned patterns to Mem0...",
+  });
 
   let stored = 0;
 
   if (state.researchResults.length > 0) {
     const avgScore = state.researchResults.reduce((s, r) => s + r.newScore, 0) / state.researchResults.length;
     const avgConfidence = state.researchResults.reduce((s, r) => s + r.confidence, 0) / state.researchResults.length;
-
     const industries = [...new Set(state.decisions.filter(d => d.action === "research").map(d => d.industryName))];
 
-    await storeMemory("observation", 
-      `Research cycle completed: ${state.researchResults.length} capabilities updated. ` +
+    const obsContent = `Research cycle completed: ${state.researchResults.length} capabilities updated. ` +
       `Average score: ${avgScore.toFixed(1)}, average confidence: ${avgConfidence.toFixed(2)}. ` +
       `Industries: ${industries.join(", ")}. ` +
-      `CEI moved from ${state.ceiBeforeIndex} to ${state.ceiAfterIndex}.`,
-      {
+      `CEI moved from ${state.ceiBeforeIndex} to ${state.ceiAfterIndex}.`;
+
+    const obsResult = await storeMemoryTool.invoke({
+      type: "observation",
+      content: obsContent,
+      metadata: {
         researchCount: state.researchResults.length,
         avgScore,
         avgConfidence,
         ceiDelta: (state.ceiAfterIndex || 0) - (state.ceiBeforeIndex || 0),
         industries,
       },
-    );
-    stored++;
+    });
+    const obsData = JSON.parse(obsResult);
+    if (obsData.success) stored++;
+
+    emitAgentEvent({
+      type: "tool_result",
+      tool: "store_memory",
+      memoryType: "observation",
+      stored: obsData.success,
+    });
 
     for (const result of state.researchResults) {
       if (result.confidence > 0.8) {
-        await storeMemory("pattern",
-          `${result.capabilityName} scored ${result.newScore.toFixed(1)} with high confidence (${result.confidence.toFixed(2)})`,
-          { capabilityName: result.capabilityName, score: result.newScore, confidence: result.confidence },
-        );
-        stored++;
+        const patResult = await storeMemoryTool.invoke({
+          type: "pattern",
+          content: `${result.capabilityName} scored ${result.newScore.toFixed(1)} with high confidence (${result.confidence.toFixed(2)})`,
+          metadata: { capabilityName: result.capabilityName, score: result.newScore, confidence: result.confidence },
+        });
+        const patData = JSON.parse(patResult);
+        if (patData.success) stored++;
+
+        emitAgentEvent({
+          type: "tool_result",
+          tool: "store_memory",
+          memoryType: "pattern",
+          capability: result.capabilityName,
+          stored: patData.success,
+        });
       }
     }
   }
@@ -302,14 +385,30 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
   const skipCount = state.decisions.filter(d => d.action === "skip").length;
   const memoryCount = state.decisions.filter(d => d.action === "use_memory").length;
   if (skipCount > 0 || memoryCount > 0) {
-    await storeMemory("decision_context",
-      `Decision summary: ${state.decisions.filter(d => d.action === "research").length} researched, ` +
-      `${skipCount} skipped, ${memoryCount} used memory. ` +
-      `Trigger: ${state.trigger}.`,
-      { trigger: state.trigger, skipCount, memoryCount },
-    );
-    stored++;
+    const decResult = await storeMemoryTool.invoke({
+      type: "decision_context",
+      content: `Decision summary: ${state.decisions.filter(d => d.action === "research").length} researched, ` +
+        `${skipCount} skipped, ${memoryCount} used memory. Trigger: ${state.trigger}.`,
+      metadata: { trigger: state.trigger, skipCount, memoryCount },
+    });
+    const decData = JSON.parse(decResult);
+    if (decData.success) stored++;
   }
+
+  try {
+    const cycleSummary = `Researched ${state.researchResults.length} capabilities, ` +
+      `recalled ${state.memoriesRecalled} memories, stored ${stored} new memories. ` +
+      `CEI: ${state.ceiBeforeIndex} → ${state.ceiAfterIndex}. Trigger: ${state.trigger}.`;
+    await lettaRecordCycle(cycleSummary);
+  } catch (err) {
+    console.log("[Letta] Cycle record skipped:", err instanceof Error ? err.message : err);
+  }
+
+  emitAgentEvent({
+    type: "memorize_complete",
+    memoriesStored: stored,
+    mem0Connected: !!process.env.MEM0_API_KEY,
+  });
 
   return { memoriesStored: stored };
 }
@@ -347,7 +446,10 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     researched: researchDecisions,
     skipped: skipDecisions,
     perplexityCalls: state.perplexityCalls,
+    memoriesRecalled: state.memoriesRecalled,
+    memoriesStored: state.memoriesStored,
     ceiIndex: state.ceiAfterIndex,
+    mem0Connected: !!process.env.MEM0_API_KEY,
   });
 
   return {};
