@@ -22,13 +22,21 @@ interface SecCompanyResult {
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
 
-const INDUSTRIES = [
-  "Insurance", "Banking & Financial Services", "Healthcare & Life Sciences",
-  "Retail & Consumer Goods", "Technology & Software", "Manufacturing",
-  "Energy & Utilities", "Telecommunications", "Real Estate",
-  "Transportation & Logistics", "Professional Services", "Media & Entertainment",
-  "Government & Public Sector", "Education", "Other",
-];
+interface IndustryOption {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  capabilityCount: number;
+}
+
+interface ResearchSource {
+  id: number;
+  title: string | null;
+  url: string | null;
+  publisher: string | null;
+  publishedDate: string | null;
+}
 
 type Step = "input" | "questions" | "analyzing" | "results";
 
@@ -113,6 +121,9 @@ export default function Assess() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [industryOptions, setIndustryOptions] = useState<IndustryOption[]>([]);
+  const [researchSources, setResearchSources] = useState<ResearchSource[]>([]);
+
   const [companySearchResults, setCompanySearchResults] = useState<SecCompanyResult[]>([]);
   const [companySearchLoading, setCompanySearchLoading] = useState(false);
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -120,6 +131,13 @@ export default function Assess() {
   const [selectedCompanyConfirmed, setSelectedCompanyConfirmed] = useState(false);
   const companySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const companyInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetch(`${API}/industries`)
+      .then(r => r.json())
+      .then((data: IndustryOption[]) => { if (Array.isArray(data)) setIndustryOptions(data); })
+      .catch(() => {});
+  }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
@@ -292,6 +310,10 @@ export default function Assess() {
       const data = await resp.json() as { analysis: AnalysisResult };
       setAnalysis(data.analysis);
       setStep("results");
+      fetch(`${API}/data-sources`)
+        .then(r => r.json())
+        .then((sources: ResearchSource[]) => { if (Array.isArray(sources)) setResearchSources(sources.slice(0, 8)); })
+        .catch(() => {});
     } catch {
       setError("Analysis failed. Please try again.");
       setStep("questions");
@@ -482,7 +504,12 @@ export default function Assess() {
                     className="w-full h-10 px-3 border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   >
                     <option value="">Select industry…</option>
-                    {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                    {industryOptions.length > 0
+                      ? industryOptions.map(i => (
+                          <option key={i.id} value={i.name}>{i.name}{i.capabilityCount > 0 ? ` (${i.capabilityCount} capabilities tracked)` : ""}</option>
+                        ))
+                      : <option disabled>Loading industries…</option>
+                    }
                   </select>
                 </div>
               </div>
@@ -654,6 +681,66 @@ export default function Assess() {
           {/* ── STEP 4: RESULTS ── */}
           {step === "results" && analysis && (
             <motion.div key="results" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-10">
+
+              {/* Data Provenance Banner */}
+              <div className="border border-border bg-muted/30 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="shrink-0 mt-0.5">
+                    <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                      <BookOpen className="w-3 h-3 text-primary" />
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-bold uppercase tracking-wider text-foreground mb-2">Analysis Grounding & Sources</div>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2 mb-3">
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">AI Engine:</span>{" "}
+                        <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                          Claude (Anthropic) <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">Framework:</span>{" "}
+                        <a href="https://www.weforum.org/publications/the-global-competitiveness-report-2019/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                          WEF GCI 4.0 <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                        {" "}·{" "}
+                        <a href="https://www.weforum.org/publications/the-future-of-jobs-report-2025/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                          Future of Jobs 2025 <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
+                      {analysis.confidenceFactors.secDataAvailable && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">Filing Data:</span>{" "}
+                          <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">
+                            SEC EDGAR 10-K <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      )}
+                      {industryOptions.find(i => i.name === industry) && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">Benchmarks:</span>{" "}
+                          {industryOptions.find(i => i.name === industry)?.capabilityCount ?? 0} industry capabilities tracked in database
+                        </div>
+                      )}
+                    </div>
+                    {researchSources.length > 0 && (
+                      <div>
+                        <div className="text-xs font-medium text-muted-foreground mb-1.5">Research citations powering industry benchmarks:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {researchSources.map(s => s.url ? (
+                            <a key={s.id} href={s.url} target="_blank" rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs border border-border bg-background px-2 py-0.5 text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors">
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                              {s.publisher || (() => { try { return new URL(s.url!).hostname.replace("www.", ""); } catch { return s.url!; } })()}
+                            </a>
+                          ) : null)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
 
               {/* Executive Summary + Confidence */}
               <div className="grid md:grid-cols-3 gap-6">
