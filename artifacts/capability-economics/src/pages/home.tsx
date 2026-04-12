@@ -3,6 +3,7 @@ import { Link } from "wouter";
 import { ArrowRight, Target, LineChart, Zap, Building2, Shield, Users } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
+import WhatIsCEModal from "@/components/what-is-ce-modal";
 
 const container = {
   hidden: { opacity: 0 },
@@ -39,9 +40,12 @@ export default function Home() {
               Master the Value of <br />
               <span className="text-primary italic">What You Can Do.</span>
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-10 max-w-2xl leading-relaxed">
+            <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-2xl leading-relaxed">
               Capability Economics is the discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
             </p>
+            <div className="mb-8">
+              <WhatIsCEModal />
+            </div>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/c-suite" className="inline-flex h-12 items-center justify-center whitespace-nowrap px-8 text-base font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" data-testid="hero-cta-csuite">
                 Explore C-Suite Perspectives
