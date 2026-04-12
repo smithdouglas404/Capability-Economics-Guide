@@ -21,37 +21,42 @@ async function getAnthropic(): Promise<AnthropicClient | null> {
 
 const router: IRouter = Router();
 
-async function lookupSecEdgar(sessionId: string, companyName: string) {
+async function lookupSecEdgar(sessionId: string, companyName: string, knownCik?: string) {
   if (!companyName?.trim()) return;
   try {
-    const query = encodeURIComponent(`"${companyName}"`);
-    const searchUrl = `https://efts.sec.gov/LATEST/search-index?q=${query}&forms=10-K&dateRange=custom&startdt=2023-01-01`;
-    const resp = await fetch(searchUrl, {
-      headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!resp.ok) {
-      await db.update(capabilityAssessmentsTable)
-        .set({ secData: { status: "not_found" } })
-        .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
-      return;
-    }
-    const data = await resp.json() as { hits?: { hits?: Array<{ _id: string; _source: Record<string, unknown> }> } };
-    const hits = data?.hits?.hits;
-    if (!hits?.length) {
-      await db.update(capabilityAssessmentsTable)
-        .set({ secData: { status: "not_found" } })
-        .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
-      return;
-    }
+    let cik = knownCik?.trim() || "";
+    let entityName = companyName;
+    let fileDate = "";
+    let period = "";
 
-    const hit = hits[0];
-    const src = hit._source;
-    const entityName = src.entity_name as string;
-    const fileDate = src.file_date as string;
-    const period = src.period_of_report as string;
-    const ciks = src.ciks as string[] | undefined;
-    const cik = ciks?.[0];
+    if (!cik) {
+      const query = encodeURIComponent(`"${companyName}"`);
+      const searchUrl = `https://efts.sec.gov/LATEST/search-index?q=${query}&forms=10-K&dateRange=custom&startdt=2023-01-01`;
+      const resp = await fetch(searchUrl, {
+        headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!resp.ok) {
+        await db.update(capabilityAssessmentsTable)
+          .set({ secData: { status: "not_found" } })
+          .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
+        return;
+      }
+      const data = await resp.json() as { hits?: { hits?: Array<{ _id: string; _source: Record<string, unknown> }> } };
+      const hits = data?.hits?.hits;
+      if (!hits?.length) {
+        await db.update(capabilityAssessmentsTable)
+          .set({ secData: { status: "not_found" } })
+          .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
+        return;
+      }
+      const hit = hits[0];
+      const src = hit._source;
+      entityName = (src.entity_name as string) || companyName;
+      fileDate = src.file_date as string;
+      period = src.period_of_report as string;
+      cik = (src.ciks as string[] | undefined)?.[0] ?? "";
+    }
 
     let financialSummary: string | null = null;
     let riskFactors: string | null = null;
@@ -69,10 +74,11 @@ async function lookupSecEdgar(sessionId: string, companyName: string) {
           const recentFilings = sub.filings as Record<string, unknown>;
           const recent = recentFilings?.recent as Record<string, unknown>;
           const forms = recent?.form as string[];
-          const dates = recent?.filingDate as string[];
+          const filingDates = recent?.filingDate as string[];
           const accessions = recent?.accessionNumber as string[];
           if (forms && accessions) {
             const idx = forms.findIndex((f) => f === "10-K");
+            if (idx !== -1 && !fileDate) fileDate = filingDates?.[idx] ?? "";
             if (idx !== -1) {
               const accession = accessions[idx].replace(/-/g, "");
               const cleanCik = cik.replace(/^0+/, "");
@@ -131,7 +137,7 @@ async function lookupSecEdgar(sessionId: string, companyName: string) {
 }
 
 router.post("/assess/start", async (req, res) => {
-  const { companyName, industry, opportunity, voiceTranscript, documentText, sessionId: existingId } = req.body;
+  const { companyName, companyCik, industry, opportunity, voiceTranscript, documentText, sessionId: existingId } = req.body;
   const sessionId: string = existingId || randomUUID();
 
   await db.insert(capabilityAssessmentsTable)
@@ -157,7 +163,7 @@ router.post("/assess/start", async (req, res) => {
     });
 
   if (companyName?.trim()) {
-    lookupSecEdgar(sessionId, companyName).catch(console.error);
+    lookupSecEdgar(sessionId, companyName, companyCik || undefined).catch(console.error);
   }
 
   const anthropic = await getAnthropic();

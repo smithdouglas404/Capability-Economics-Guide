@@ -10,6 +10,7 @@ import ceiRouter from "./cei";
 import agentRouter from "./agent";
 import contentRouter from "./content";
 import assessRouter from "./assess";
+import secRouter from "./sec";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(ceiRouter);
 router.use(agentRouter);
 router.use(contentRouter);
 router.use(assessRouter);
+router.use(secRouter);
 
 export default router;

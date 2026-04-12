@@ -3,12 +3,21 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, Upload, X, FileText, ArrowRight, ChevronRight,
   Building2, Loader2, CheckCircle2, AlertTriangle, TrendingUp,
-  ShieldAlert, Lightbulb, ExternalLink, BarChart3, BookOpen
+  ShieldAlert, Lightbulb, ExternalLink, BarChart3, BookOpen, Search
 } from "lucide-react";
+
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, Legend, ResponsiveContainer, Tooltip
 } from "recharts";
+
+interface SecCompanyResult {
+  entityName: string;
+  cik: string;
+  fileDate: string;
+  period: string;
+  location: string;
+}
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const API = `${BASE}/api`;
@@ -104,6 +113,14 @@ export default function Assess() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [companySearchResults, setCompanySearchResults] = useState<SecCompanyResult[]>([]);
+  const [companySearchLoading, setCompanySearchLoading] = useState(false);
+  const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
+  const [selectedCompanyCik, setSelectedCompanyCik] = useState("");
+  const [selectedCompanyConfirmed, setSelectedCompanyConfirmed] = useState(false);
+  const companySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const companyInputRef = useRef<HTMLInputElement>(null);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const interimRef = useRef<string>("");
@@ -171,6 +188,51 @@ export default function Assess() {
     if (file) handleFileUpload(file);
   };
 
+  const handleCompanyInput = (value: string) => {
+    setCompanyName(value);
+    setSelectedCompanyCik("");
+    setSelectedCompanyConfirmed(false);
+    setCompanyDropdownOpen(false);
+    setCompanySearchResults([]);
+    if (companySearchTimer.current) clearTimeout(companySearchTimer.current);
+    if (value.trim().length < 2) return;
+    companySearchTimer.current = setTimeout(async () => {
+      setCompanySearchLoading(true);
+      try {
+        const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`);
+        const data = await resp.json() as { results: SecCompanyResult[] };
+        if (data.results?.length) {
+          setCompanySearchResults(data.results);
+          setCompanyDropdownOpen(true);
+        } else {
+          setCompanySearchResults([]);
+          setCompanyDropdownOpen(false);
+        }
+      } catch {
+        setCompanySearchResults([]);
+      } finally {
+        setCompanySearchLoading(false);
+      }
+    }, 450);
+  };
+
+  const selectCompany = (result: SecCompanyResult) => {
+    setCompanyName(result.entityName);
+    setSelectedCompanyCik(result.cik);
+    setSelectedCompanyConfirmed(true);
+    setCompanyDropdownOpen(false);
+    setCompanySearchResults([]);
+  };
+
+  const clearCompany = () => {
+    setCompanyName("");
+    setSelectedCompanyCik("");
+    setSelectedCompanyConfirmed(false);
+    setCompanyDropdownOpen(false);
+    setCompanySearchResults([]);
+    companyInputRef.current?.focus();
+  };
+
   const submitInput = async () => {
     if (!opportunity.trim()) {
       setError("Please describe the business opportunity or challenge.");
@@ -184,7 +246,7 @@ export default function Assess() {
       const resp = await fetch(`${API}/assess/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, companyName, industry, opportunity, voiceTranscript, documentText }),
+        body: JSON.stringify({ sessionId, companyName, companyCik: selectedCompanyCik, industry, opportunity, voiceTranscript, documentText }),
       });
       const data = await resp.json() as { questions: string[]; sessionId: string };
       setQuestions(data.questions || []);
@@ -287,14 +349,83 @@ export default function Assess() {
             <motion.div key="input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-8">
 
               <div className="grid md:grid-cols-2 gap-6">
+                {/* Company name search with SEC picklist */}
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">Company Name <span className="text-muted-foreground font-normal">(optional — enables SEC lookup)</span></label>
-                  <input
-                    value={companyName}
-                    onChange={e => setCompanyName(e.target.value)}
-                    placeholder="e.g. Acme Corporation"
-                    className="w-full h-10 px-3 border border-input bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
+                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                    Company Name <span className="text-muted-foreground font-normal">(optional — enables SEC 10-K lookup)</span>
+                  </label>
+                  <div className="relative">
+                    <div className={`flex items-center border bg-background ${selectedCompanyConfirmed ? "border-primary/40" : "border-input"}`}>
+                      <Search className="w-4 h-4 text-muted-foreground ml-3 shrink-0" />
+                      <input
+                        ref={companyInputRef}
+                        value={companyName}
+                        onChange={e => handleCompanyInput(e.target.value)}
+                        onFocus={() => { if (companySearchResults.length) setCompanyDropdownOpen(true); }}
+                        onBlur={() => setTimeout(() => setCompanyDropdownOpen(false), 150)}
+                        placeholder="Search public company name…"
+                        className="w-full h-10 px-2 bg-transparent text-foreground text-sm focus:outline-none"
+                      />
+                      {companySearchLoading && <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin mr-2 shrink-0" />}
+                      {selectedCompanyConfirmed && !companySearchLoading && (
+                        <CheckCircle2 className="w-4 h-4 text-primary mr-2 shrink-0" />
+                      )}
+                      {companyName && (
+                        <button onClick={clearCompany} className="mr-2 text-muted-foreground hover:text-foreground shrink-0">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Dropdown picklist */}
+                    <AnimatePresence>
+                      {companyDropdownOpen && companySearchResults.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.12 }}
+                          className="absolute z-50 top-full left-0 right-0 mt-1 border border-border bg-background shadow-lg overflow-hidden"
+                        >
+                          <div className="px-3 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground font-medium">
+                            SEC EDGAR matches — select the correct company
+                          </div>
+                          {companySearchResults.map((result, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onMouseDown={() => selectCompany(result)}
+                              className="w-full text-left px-3 py-2.5 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <div className="text-sm font-medium text-foreground">{result.entityName}</div>
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {result.location && <span>{result.location} · </span>}
+                                    <span>10-K filed {result.fileDate ? new Date(result.fileDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "—"}</span>
+                                    {result.period && <span> · Period ending {new Date(result.period).toLocaleDateString("en-US", { year: "numeric", month: "short" })}</span>}
+                                  </div>
+                                </div>
+                                <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                              </div>
+                            </button>
+                          ))}
+                          <div className="px-3 py-1.5 bg-muted/20 text-xs text-muted-foreground">
+                            Not listed? Type their name — private companies are still assessed using provided context.
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {selectedCompanyConfirmed && (
+                      <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" /> Confirmed — will pull most recent 10-K filing
+                      </p>
+                    )}
+                    {companyName && !selectedCompanyConfirmed && !companySearchLoading && !companyDropdownOpen && (
+                      <p className="text-xs text-muted-foreground mt-1">Not matched to SEC — assessment will use provided context only.</p>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-1.5">Industry</label>
