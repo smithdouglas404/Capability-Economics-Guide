@@ -315,49 +315,49 @@ Return ONLY valid JSON with this exact structure:
   ],
   "radarData": [
     {
-      "axis": "Technology & AI",
+      "axis": "ICT Adoption",
       "invest": 80,
       "hold": 45,
       "divest": 15,
       "emerging": 60
     },
     {
-      "axis": "Human Capital",
+      "axis": "Talent & Skills",
       "invest": 70,
       "hold": 50,
       "divest": 20,
       "emerging": 40
     },
     {
-      "axis": "Operations",
+      "axis": "Business Dynamism",
       "invest": 55,
       "hold": 65,
       "divest": 30,
       "emerging": 35
     },
     {
-      "axis": "Innovation",
+      "axis": "Innovation Capability",
       "invest": 75,
       "hold": 40,
       "divest": 10,
       "emerging": 80
     },
     {
-      "axis": "Customer",
+      "axis": "Market Agility",
       "invest": 65,
       "hold": 55,
       "divest": 25,
       "emerging": 50
     },
     {
-      "axis": "Financial",
+      "axis": "Financial System",
       "invest": 60,
       "hold": 70,
       "divest": 35,
       "emerging": 30
     },
     {
-      "axis": "Risk & Resilience",
+      "axis": "Institutional Resilience",
       "invest": 50,
       "hold": 60,
       "divest": 20,
@@ -390,7 +390,7 @@ Rules:
 - Include 6-10 capabilities in capabilityMap
 - Include 3-5 gaps (only real ones — don't fabricate if there are fewer)
 - Include 3-5 top recommendations
-- radarData MUST have exactly 7 entries with the axis names shown above
+- radarData MUST have exactly 7 entries with these exact axis names: "ICT Adoption", "Talent & Skills", "Business Dynamism", "Innovation Capability", "Market Agility", "Financial System", "Institutional Resilience" — these map to WEF GCI 4.0 Pillars 3, 6, 11, 12, 7-8, 9, 1 respectively
 - Confidence score 40-60 for minimal input, 65-80 for good Q&A, 80-95 for SEC data + detailed context
 - Be specific to this company/industry — not generic platitudes`;
 

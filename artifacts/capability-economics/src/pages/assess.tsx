@@ -640,16 +640,22 @@ export default function Assess() {
               {/* Radar Chart */}
               {analysis.radarData?.length > 0 && (
                 <div className="border border-border p-6">
-                  <div className="flex items-center gap-2 mb-6">
-                    <BarChart3 className="w-4 h-4 text-primary" />
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Capability Investment Radar</h3>
+                  <div className="flex items-start justify-between gap-4 mb-6">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-primary" />
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Capability Investment Radar</h3>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xs font-semibold text-primary">WEF GCI 4.0 Aligned</div>
+                      <div className="text-xs text-muted-foreground">Global Competitiveness Index 4.0 · Future of Jobs 2025</div>
+                    </div>
                   </div>
-                  <div className="grid md:grid-cols-3 gap-6 items-center">
+                  <div className="grid md:grid-cols-3 gap-6 items-start">
                     <div className="md:col-span-2">
                       <ResponsiveContainer width="100%" height={340}>
                         <RadarChart data={analysis.radarData}>
                           <PolarGrid stroke="hsl(var(--border))" />
-                          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                          <PolarAngleAxis dataKey="axis" tick={{ fontSize: 11, fill: "hsl(var(--foreground))", fontWeight: 500 }} />
                           <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                           <Radar name="Invest" dataKey="invest" stroke={radarColors.invest} fill={radarColors.invest} fillOpacity={0.25} strokeWidth={2} />
                           <Radar name="Hold" dataKey="hold" stroke={radarColors.hold} fill={radarColors.hold} fillOpacity={0.1} strokeWidth={1.5} strokeDasharray="4 2" />
@@ -660,21 +666,48 @@ export default function Assess() {
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
-                    <div className="space-y-3">
-                      {[
-                        { label: "Invest", color: "bg-primary", desc: "Increase resources & attention now" },
-                        { label: "Hold", color: "bg-muted-foreground", desc: "Maintain current investment" },
-                        { label: "Divest", color: "bg-destructive", desc: "Reduce or exit this capability" },
-                        { label: "Emerging (3yr+)", color: "bg-accent", desc: "Watch & prepare for the future" },
-                      ].map(({ label, color, desc }) => (
-                        <div key={label} className="flex items-start gap-2">
-                          <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${color} opacity-80`} />
-                          <div>
-                            <div className="text-xs font-semibold text-foreground">{label}</div>
-                            <div className="text-xs text-muted-foreground">{desc}</div>
+
+                    <div className="space-y-5">
+                      {/* Investment signal legend */}
+                      <div className="space-y-2.5">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Signal</div>
+                        {[
+                          { label: "Invest", color: "bg-primary", desc: "Increase resources now" },
+                          { label: "Hold", color: "bg-muted-foreground", desc: "Maintain current level" },
+                          { label: "Divest", color: "bg-destructive", desc: "Reduce or exit" },
+                          { label: "Emerging (3yr+)", color: "bg-accent", desc: "Watch & prepare" },
+                        ].map(({ label, color, desc }) => (
+                          <div key={label} className="flex items-start gap-2">
+                            <span className={`mt-1 w-2.5 h-2.5 rounded-full shrink-0 ${color} opacity-80`} />
+                            <div>
+                              <div className="text-xs font-semibold text-foreground">{label}</div>
+                              <div className="text-xs text-muted-foreground">{desc}</div>
+                            </div>
                           </div>
+                        ))}
+                      </div>
+
+                      {/* WEF axis source mapping */}
+                      <div className="border-t border-border pt-4 space-y-1.5">
+                        <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Axis Framework Source</div>
+                        {[
+                          { axis: "ICT Adoption", ref: "GCI 4.0 Pillar 3" },
+                          { axis: "Talent & Skills", ref: "GCI 4.0 Pillar 6 · HCI" },
+                          { axis: "Business Dynamism", ref: "GCI 4.0 Pillar 11" },
+                          { axis: "Innovation Capability", ref: "GCI 4.0 Pillar 12" },
+                          { axis: "Market Agility", ref: "GCI 4.0 Pillars 7-8" },
+                          { axis: "Financial System", ref: "GCI 4.0 Pillar 9" },
+                          { axis: "Institutional Resilience", ref: "GCI 4.0 Pillar 1" },
+                        ].map(({ axis, ref }) => (
+                          <div key={axis} className="flex items-baseline justify-between gap-1 text-xs">
+                            <span className="text-foreground font-medium shrink-0">{axis}</span>
+                            <span className="text-muted-foreground text-right italic">{ref}</span>
+                          </div>
+                        ))}
+                        <div className="pt-2 text-xs text-muted-foreground border-t border-border/50 mt-2">
+                          World Economic Forum Global Competitiveness Index 4.0 · Human Capital Index · Future of Jobs Report 2025
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
                 </div>
