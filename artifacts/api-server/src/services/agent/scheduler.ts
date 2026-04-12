@@ -4,7 +4,7 @@ import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
-const ROUTINE_INTERVAL_MS = 30 * 60 * 1000;
+const ROUTINE_INTERVAL_MS = 8 * 60 * 60 * 1000;
 const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
