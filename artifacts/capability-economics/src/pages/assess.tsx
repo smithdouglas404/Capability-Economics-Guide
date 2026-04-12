@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Mic, MicOff, Upload, X, FileText, ArrowRight, ChevronRight,
   Building2, Loader2, CheckCircle2, AlertTriangle, TrendingUp,
-  ShieldAlert, Lightbulb, ExternalLink, BarChart3, BookOpen, Search
+  ShieldAlert, Lightbulb, ExternalLink, BarChart3, BookOpen, Search, Download
 } from "lucide-react";
 
 import {
@@ -308,6 +308,53 @@ export default function Assess() {
     hold: "hsl(var(--muted-foreground))",
     divest: "hsl(var(--destructive))",
     emerging: "hsl(var(--accent))",
+  };
+
+  const wefAxisSources: Record<string, string> = {
+    "ICT Adoption": "WEF GCI 4.0 Pillar 3",
+    "Talent & Skills": "WEF GCI 4.0 Pillar 6 · Human Capital Index",
+    "Business Dynamism": "WEF GCI 4.0 Pillar 11",
+    "Innovation Capability": "WEF GCI 4.0 Pillar 12",
+    "Market Agility": "WEF GCI 4.0 Pillars 7-8",
+    "Financial System": "WEF GCI 4.0 Pillar 9",
+    "Institutional Resilience": "WEF GCI 4.0 Pillar 1",
+  };
+
+  const downloadAssessment = () => {
+    if (!analysis) return;
+    const payload = {
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        company: companyName || "Undisclosed",
+        industry: industry || "General",
+        confidenceScore: analysis.confidenceScore,
+        framework: "WEF Global Competitiveness Index 4.0 / Future of Jobs Report 2025",
+      },
+      sources: {
+        "WEF GCI 4.0 Report": "https://www.weforum.org/publications/the-global-competitiveness-report-2019/",
+        "WEF Future of Jobs 2025": "https://www.weforum.org/publications/the-future-of-jobs-report-2025/",
+        "WEF Human Capital Index": "https://www.weforum.org/reports/global-human-capital-report-2017/",
+      },
+      executiveSummary: analysis.executiveSummary,
+      radarData: (analysis.radarData ?? []).map((d: Record<string, unknown>) => ({
+        ...d,
+        frameworkSource: wefAxisSources[d.axis as string] ?? "",
+      })),
+      capabilityMap: analysis.capabilityMap,
+      gaps: analysis.gaps,
+      topRecommendations: analysis.topRecommendations,
+      ...(analysis.secInsights ? { secInsights: analysis.secInsights } : {}),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const slug = (companyName || "assessment").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    a.download = `capability-assessment-${slug}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -704,8 +751,17 @@ export default function Assess() {
                             <span className="text-muted-foreground text-right italic">{ref}</span>
                           </div>
                         ))}
-                        <div className="pt-2 text-xs text-muted-foreground border-t border-border/50 mt-2">
-                          World Economic Forum Global Competitiveness Index 4.0 · Human Capital Index · Future of Jobs Report 2025
+                        <div className="pt-2 border-t border-border/50 mt-2 space-y-1">
+                          {[
+                            { label: "GCI 4.0 Report", url: "https://www.weforum.org/publications/the-global-competitiveness-report-2019/" },
+                            { label: "Future of Jobs 2025", url: "https://www.weforum.org/publications/the-future-of-jobs-report-2025/" },
+                            { label: "Human Capital Index", url: "https://www.weforum.org/reports/global-human-capital-report-2017/" },
+                          ].map(({ label, url }) => (
+                            <a key={label} href={url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 text-xs text-primary hover:underline underline-offset-2">
+                              <ExternalLink className="w-2.5 h-2.5 shrink-0" /> {label}
+                            </a>
+                          ))}
                         </div>
                       </div>
                     </div>
@@ -856,7 +912,14 @@ export default function Assess() {
               )}
 
               {/* Restart */}
-              <div className="border-t border-border pt-8">
+              <div className="border-t border-border pt-8 flex flex-wrap items-center gap-3">
+                <button
+                  onClick={downloadAssessment}
+                  className="inline-flex items-center gap-2 h-10 px-6 bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Download Assessment
+                </button>
                 <button
                   onClick={() => {
                     setStep("input");
