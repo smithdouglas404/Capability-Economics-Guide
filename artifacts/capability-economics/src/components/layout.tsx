@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Briefcase, Shield, Users, Network, Building2, BarChart3, Layers, Lightbulb, Activity } from "lucide-react";
+import { Briefcase, Shield, Users, Network, Building2, BarChart3, Layers, Lightbulb, Activity, ScanSearch } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -8,6 +8,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Home", icon: Briefcase },
     { href: "/cei", label: "CEI Index", icon: Activity },
+    { href: "/assess", label: "Assess", icon: ScanSearch },
     { href: "/insurance-example", label: "Case Study", icon: Shield },
     { href: "/c-suite", label: "C-Suite", icon: Users },
     { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
