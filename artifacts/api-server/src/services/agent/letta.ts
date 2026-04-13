@@ -6,7 +6,7 @@ import { emitAgentEvent } from "./events";
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
-const LETTA_MODEL = process.env.LETTA_MODEL || "anthropic/claude-3-5-sonnet-20241022";
+const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-3-5-sonnet-20241022";
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 
