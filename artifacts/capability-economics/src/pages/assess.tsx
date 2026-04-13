@@ -5,8 +5,13 @@ import {
   Building2, Loader2, CheckCircle2, AlertTriangle, TrendingUp,
   Lightbulb, ExternalLink, BarChart3, BookOpen, Search, Download,
   Share2, Copy, Check, Zap, Users, Map, Clock, ChevronDown, ChevronUp,
-  Plus, Trash2, History, ArrowUpRight, Target
+  Plus, Trash2, History, ArrowUpRight, Target, HelpCircle
 } from "lucide-react";
+import {
+  Tooltip as RadixTooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -280,6 +285,11 @@ export default function Assess() {
   const qVoiceFinalRef = useRef<string>("");
   const qVoiceIdxRef = useRef<number>(-1);
 
+  const [isRecordingOppty, setIsRecordingOppty] = useState(false);
+  const [opptyInterim, setOpptyInterim] = useState("");
+  const opptyRecRef = useRef<unknown>(null);
+  const opptyFinalRef = useRef<string>("");
+
   const startRecording = useCallback(() => {
     const w = window as Record<string, unknown>;
     const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
@@ -365,6 +375,51 @@ export default function Assess() {
     (qVoiceRecRef.current as { stop?: () => void } | null)?.stop?.();
     setActiveQVoice(null);
     setQVoiceInterim("");
+  }, []);
+
+  const startOpptyRecording = useCallback(() => {
+    const w = window as Record<string, unknown>;
+    const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
+    if (!SRClass) { alert("Voice input requires Chrome or Edge."); return; }
+    (opptyRecRef.current as { stop?: () => void } | null)?.stop?.();
+    const rec = new SRClass() as {
+      continuous: boolean; interimResults: boolean; lang: string;
+      onresult: (e: unknown) => void; onerror: () => void; onend: () => void;
+      start: () => void;
+    };
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    opptyFinalRef.current = opportunity ? opportunity.trimEnd() + " " : "";
+    setOpptyInterim("");
+    rec.onresult = (e: unknown) => {
+      const event = e as { resultIndex: number; results: Array<{ isFinal: boolean; 0: { transcript: string } }> };
+      let interim = "";
+      let finalParts = opptyFinalRef.current;
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) finalParts += result[0].transcript + " ";
+        else interim += result[0].transcript;
+      }
+      opptyFinalRef.current = finalParts;
+      setOpptyInterim(interim);
+      setOpportunity(finalParts + interim);
+    };
+    rec.onerror = () => { setIsRecordingOppty(false); setOpptyInterim(""); };
+    rec.onend = () => {
+      setOpportunity(opptyFinalRef.current.trim());
+      setIsRecordingOppty(false);
+      setOpptyInterim("");
+    };
+    opptyRecRef.current = rec;
+    rec.start();
+    setIsRecordingOppty(true);
+  }, [opportunity]);
+
+  const stopOpptyRecording = useCallback(() => {
+    (opptyRecRef.current as { stop?: () => void } | null)?.stop?.();
+    setIsRecordingOppty(false);
+    setOpptyInterim("");
   }, []);
 
   const handleFileUpload = (file: File) => {
@@ -834,12 +889,52 @@ export default function Assess() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1.5">
                     Business Opportunity or Transformation <span className="text-destructive">*</span>
+                    <RadixTooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
+                          <HelpCircle className="w-3.5 h-3.5" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                        <p className="font-semibold mb-1">What goes here</p>
+                        <p>The core of your assessment. Describe the initiative, transformation, or challenge in as much detail as you can:</p>
+                        <ul className="mt-1.5 space-y-0.5 list-disc list-inside">
+                          <li>What you're trying to achieve</li>
+                          <li>Key constraints or blockers</li>
+                          <li>What success looks like</li>
+                          <li>What's at stake if you fail</li>
+                        </ul>
+                        <p className="mt-1.5 text-muted-foreground">Claude uses this as the foundation to generate targeted questions and map your capability landscape.</p>
+                      </TooltipContent>
+                    </RadixTooltip>
                   </label>
-                  <textarea value={opportunity} onChange={e => setOpportunity(e.target.value)} rows={5}
-                    placeholder="Describe the initiative, opportunity, or challenge you're facing. Be specific: What are you trying to achieve? What constraints exist? What's at stake?"
-                    className="w-full px-3 py-2.5 border border-input bg-background text-foreground text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring" />
+                  <div className="relative">
+                    <textarea
+                      value={opportunity}
+                      onChange={e => setOpportunity(e.target.value)}
+                      rows={5}
+                      placeholder={isRecordingOppty ? "Listening — speak your opportunity…" : "Describe the initiative, opportunity, or challenge you're facing. Be specific: What are you trying to achieve? What constraints exist? What's at stake?"}
+                      className={`w-full px-3 py-2.5 pr-12 border bg-background text-foreground text-sm resize-none focus:outline-none focus:ring-1 focus:ring-ring transition-colors ${isRecordingOppty ? "border-primary/40" : "border-input"}`}
+                    />
+                    <button
+                      type="button"
+                      onClick={isRecordingOppty ? stopOpptyRecording : startOpptyRecording}
+                      title={isRecordingOppty ? "Stop recording" : "Dictate your opportunity"}
+                      className={`absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors ${isRecordingOppty ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground"}`}
+                    >
+                      {isRecordingOppty ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {isRecordingOppty && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="w-2 h-2 rounded-full bg-destructive animate-pulse shrink-0" />
+                      <span className="text-xs text-muted-foreground">
+                        {opptyInterim ? <span className="italic text-foreground/70">{opptyInterim}</span> : "Listening… describe the opportunity or challenge"}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Competitor section */}
@@ -913,8 +1008,23 @@ export default function Assess() {
                 <div className="border border-border p-6">
                   <div className="flex items-center justify-between mb-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">Voice Briefing</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">Speak freely — more context means better accuracy.</p>
+                      <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                        Voice Briefing
+                        <RadixTooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-help text-muted-foreground hover:text-foreground transition-colors">
+                              <HelpCircle className="w-3.5 h-3.5" />
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="max-w-xs text-xs leading-relaxed">
+                            <p className="font-semibold mb-1">What is this for?</p>
+                            <p>A private spoken layer <em>on top of</em> your typed opportunity — say what you can't easily write.</p>
+                            <p className="mt-1.5">Useful for: tone, urgency, political context, off-the-record dynamics, or anything hard to articulate in writing.</p>
+                            <p className="mt-1.5">Think of it like a verbal briefing to a consultant before a formal meeting. It's transcribed separately and gives Claude richer context — improving the confidence score and the quality of the analysis.</p>
+                          </TooltipContent>
+                        </RadixTooltip>
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">Add off-the-record context — tone, urgency, politics — that's hard to type.</p>
                     </div>
                     <button type="button" onClick={isRecording ? stopRecording : startRecording}
                       className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${isRecording ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-primary text-primary-foreground hover:bg-primary/90"}`}>
