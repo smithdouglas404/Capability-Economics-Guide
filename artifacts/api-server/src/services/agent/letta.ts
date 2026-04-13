@@ -3,8 +3,8 @@ import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents"
 import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
 
-const LETTA_BASE_URL = process.env.LETTA_BASE_URL || "http://localhost:8283";
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
+const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
 const RETRY_COOLDOWN_MS = 60_000;
 
