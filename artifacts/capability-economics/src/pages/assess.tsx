@@ -239,6 +239,25 @@ export default function Assess() {
   const [competitorSearchLoading, setCompetitorSearchLoading] = useState<Record<number, boolean>>({});
   const [competitorDropdownOpen, setCompetitorDropdownOpen] = useState<Record<number, boolean>>({});
   const competitorSearchTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const companyAbortCtrl = useRef<AbortController | null>(null);
+  const competitorAbortCtrls = useRef<Record<number, AbortController>>({});
+  const companyContainerRef = useRef<HTMLDivElement>(null);
+  const competitorContainerRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (companyContainerRef.current && !companyContainerRef.current.contains(e.target as Node)) {
+        setCompanyDropdownOpen(false);
+      }
+      Object.entries(competitorContainerRefs.current).forEach(([idx, el]) => {
+        if (el && !el.contains(e.target as Node)) {
+          setCompetitorDropdownOpen(prev => ({ ...prev, [Number(idx)]: false }));
+        }
+      });
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     fetch(`${API}/industries`)
@@ -314,19 +333,25 @@ export default function Assess() {
     setCompanyName(value);
     setSelectedCompanyCik("");
     setSelectedCompanyConfirmed(false);
-    setCompanyDropdownOpen(false);
-    setCompanySearchResults([]);
     if (companySearchTimer.current) clearTimeout(companySearchTimer.current);
-    if (value.trim().length < 2) return;
+    if (value.trim().length < 2) {
+      setCompanySearchResults([]);
+      setCompanyDropdownOpen(false);
+      return;
+    }
     companySearchTimer.current = setTimeout(async () => {
+      if (companyAbortCtrl.current) companyAbortCtrl.current.abort();
+      companyAbortCtrl.current = new AbortController();
       setCompanySearchLoading(true);
       try {
-        const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`);
+        const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`, { signal: companyAbortCtrl.current.signal });
         const data = await resp.json() as { results: SecCompanyResult[] };
         if (data.results?.length) { setCompanySearchResults(data.results); setCompanyDropdownOpen(true); }
         else { setCompanySearchResults([]); setCompanyDropdownOpen(false); }
-      } catch { setCompanySearchResults([]); } finally { setCompanySearchLoading(false); }
-    }, 450);
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") setCompanySearchResults([]);
+      } finally { setCompanySearchLoading(false); }
+    }, 300);
   };
 
   const selectCompany = (result: SecCompanyResult) => {
@@ -347,21 +372,30 @@ export default function Assess() {
     const next = [...competitors];
     next[idx] = { name: value, cik: "", confirmed: false };
     setCompetitors(next);
-    setCompetitorDropdownOpen(prev => ({ ...prev, [idx]: false }));
-    setCompetitorSearchResults(prev => ({ ...prev, [idx]: [] }));
     if (competitorSearchTimers.current[idx]) clearTimeout(competitorSearchTimers.current[idx]);
-    if (value.trim().length < 2) return;
+    if (value.trim().length < 2) {
+      setCompetitorSearchResults(prev => ({ ...prev, [idx]: [] }));
+      setCompetitorDropdownOpen(prev => ({ ...prev, [idx]: false }));
+      return;
+    }
     competitorSearchTimers.current[idx] = setTimeout(async () => {
+      if (competitorAbortCtrls.current[idx]) competitorAbortCtrls.current[idx].abort();
+      competitorAbortCtrls.current[idx] = new AbortController();
       setCompetitorSearchLoading(prev => ({ ...prev, [idx]: true }));
       try {
-        const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`);
+        const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`, { signal: competitorAbortCtrls.current[idx].signal });
         const data = await resp.json() as { results: SecCompanyResult[] };
         if (data.results?.length) {
           setCompetitorSearchResults(prev => ({ ...prev, [idx]: data.results }));
           setCompetitorDropdownOpen(prev => ({ ...prev, [idx]: true }));
+        } else {
+          setCompetitorSearchResults(prev => ({ ...prev, [idx]: [] }));
+          setCompetitorDropdownOpen(prev => ({ ...prev, [idx]: false }));
         }
-      } catch {} finally { setCompetitorSearchLoading(prev => ({ ...prev, [idx]: false })); }
-    }, 450);
+      } catch (err) {
+        if ((err as Error).name !== "AbortError") setCompetitorSearchResults(prev => ({ ...prev, [idx]: [] }));
+      } finally { setCompetitorSearchLoading(prev => ({ ...prev, [idx]: false })); }
+    }, 300);
   };
 
   const selectCompetitor = (idx: number, result: SecCompanyResult) => {
@@ -686,7 +720,7 @@ export default function Assess() {
 
                 <div className="grid md:grid-cols-2 gap-6">
                   {/* Primary company search */}
-                  <div>
+                  <div ref={companyContainerRef}>
                     <label className="block text-sm font-semibold text-foreground mb-1.5">
                       Company Name <span className="text-muted-foreground font-normal">(optional — enables SEC 10-K lookup)</span>
                     </label>
@@ -698,7 +732,6 @@ export default function Assess() {
                           value={companyName}
                           onChange={e => handleCompanyInput(e.target.value)}
                           onFocus={() => { if (companySearchResults.length) setCompanyDropdownOpen(true); }}
-                          onBlur={() => setTimeout(() => setCompanyDropdownOpen(false), 150)}
                           placeholder="Search public company name…"
                           className="w-full h-10 px-2 bg-transparent text-foreground text-sm focus:outline-none"
                         />
@@ -773,16 +806,15 @@ export default function Assess() {
 
                   <AnimatePresence>
                     {showCompetitors && (
-                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden border-t border-border">
+                      <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-border" style={{ overflow: "visible" }}>
                         <div className="px-5 py-4 space-y-3">
                           {competitors.map((comp, idx) => (
-                            <div key={idx} className="relative">
+                            <div key={idx} className="relative" ref={el => { competitorContainerRefs.current[idx] = el; }}>
                               <div className={`flex items-center border bg-background ${comp.confirmed ? "border-primary/40" : "border-input"}`}>
                                 <Search className="w-4 h-4 text-muted-foreground ml-3 shrink-0" />
                                 <input
                                   value={comp.name}
                                   onChange={e => handleCompetitorInput(idx, e.target.value)}
-                                  onBlur={() => setTimeout(() => setCompetitorDropdownOpen(prev => ({ ...prev, [idx]: false })), 150)}
                                   placeholder={`Competitor ${idx + 1} name…`}
                                   className="w-full h-9 px-2 bg-transparent text-foreground text-sm focus:outline-none"
                                 />
