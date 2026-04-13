@@ -141,3 +141,37 @@ Full-stack educational platform teaching novice users about capability economics
 - `pnpm --filter @workspace/api-server run dev` — run API server locally
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+
+## /assess — Capability Assessment (Enhanced)
+Full-stack capability assessment with all 6 enhancement areas complete:
+
+**Input signals**:
+- Competitor benchmarking: up to 3 competitors, SEC 10-K fetched for each, overlaid on radar
+- Job posting analysis: paste a job description, Claude extracts capability/gap signals
+- Quick Assess toggle: bypasses clarifying questions for sub-15s assessments
+
+**Analysis output**:
+- Roadmap tab: 3-phase 12-month action plan (Phase 1: Foundation 0-3m, Scale 3-6m, Lead 6-12m) with effort/impact tags, owner roles, WEF links
+- Industry peer average overlay on radar (peerAverage per axis)
+- WEF sub-indicators per capability (2-3 specific sub-indicators)
+- Competitor advantage field on each gap
+- Job posting insights block (strategicIntent, capabilitySignals, gapIndicators)
+- Enhanced SEC insights: rdSpendSignal + riskCapabilityLinks
+
+**Persistence & continuity**:
+- All complete assessments saved to DB and listed in history panel on /assess
+- Letta memory write after each analysis (writes to cei-autonomous-agent on letta.innume.com)
+- GET /api/assess returns list of 20 most recent complete assessments
+
+**Sharing & export**:
+- POST /api/assess/share → generates shareToken (16-char UUID slug)
+- GET /api/assess/share/:token → returns full assessment (public shareable URL)
+- Download JSON: full assessment with metadata + WEF source annotations
+- Print/PDF: window.print() with print-safe CSS (hides nav/step indicators)
+- Share button: copies URL to clipboard with visual confirmation
+
+**UX**:
+- Animated progress steps during analysis (10-step sequence, 1.8s intervals)
+- Results tabs: Overview | 12-Month Roadmap | Competitors (if competitors provided)
+- Collapsible competitor and job posting sections
+- Recent assessments history panel in header
