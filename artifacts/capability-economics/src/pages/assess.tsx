@@ -15,6 +15,7 @@ import {
 
 interface SecCompanyResult {
   entityName: string;
+  ticker: string;
   cik: string;
   fileDate: string;
   period: string;
@@ -715,7 +716,10 @@ export default function Assess() {
                                 className="w-full text-left px-3 py-2.5 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors">
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <div className="text-sm font-medium text-foreground">{result.entityName}</div>
+                                    <div className="text-sm font-medium text-foreground flex items-center gap-2">
+                                      {result.entityName}
+                                      {result.ticker && <span className="text-xs font-bold text-primary border border-primary/20 bg-primary/5 px-1.5 py-0.5 rounded-sm">{result.ticker}</span>}
+                                    </div>
                                     <div className="text-xs text-muted-foreground mt-0.5">
                                       {result.location && <span>{result.location} · </span>}
                                       10-K filed {result.fileDate ? new Date(result.fileDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "—"}
@@ -797,7 +801,10 @@ export default function Assess() {
                                     {(competitorSearchResults[idx] || []).map((result, i) => (
                                       <button key={i} type="button" onMouseDown={() => selectCompetitor(idx, result)}
                                         className="w-full text-left px-3 py-2 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors">
-                                        <div className="text-sm font-medium text-foreground">{result.entityName}</div>
+                                        <div className="text-sm font-medium text-foreground flex items-center gap-2">
+                                          {result.entityName}
+                                          {result.ticker && <span className="text-xs font-bold text-primary border border-primary/20 bg-primary/5 px-1.5 py-0.5 rounded-sm">{result.ticker}</span>}
+                                        </div>
                                         <div className="text-xs text-muted-foreground">{result.location && <>{result.location} · </>}10-K filed {result.fileDate ? new Date(result.fileDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "—"}</div>
                                       </button>
                                     ))}
