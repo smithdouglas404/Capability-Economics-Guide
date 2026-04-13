@@ -38,12 +38,16 @@ async function doInit(): Promise<boolean> {
       ...(LETTA_API_KEY ? { apiKey: LETTA_API_KEY } : {}),
     });
 
-    const health = await Promise.race([
-      lettaClient.health(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 3000)),
-    ]);
-
-    if (!health) throw new Error("Health check failed");
+    // Health check is optional — some Letta versions / Docker images don't expose it.
+    // If it fails we still attempt to reach the agents API as the real connectivity test.
+    try {
+      await Promise.race([
+        lettaClient.health(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
+      ]);
+    } catch {
+      // Non-fatal — continue and let the agents.list() call be the real gate.
+    }
 
     const agentsList: AgentState[] = [];
     const agentsPage = await lettaClient.agents.list();
