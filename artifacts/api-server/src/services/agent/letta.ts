@@ -6,6 +6,8 @@ import { emitAgentEvent } from "./events";
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
+const LETTA_MODEL = process.env.LETTA_MODEL || "anthropic/claude-3-5-sonnet-20241022";
+const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 
 let lettaClient: LettaClient | null = null;
@@ -65,6 +67,8 @@ async function doInit(): Promise<boolean> {
         name: LETTA_AGENT_NAME,
         description: "CEI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions across industries.",
         include_base_tools: true,
+        model: LETTA_MODEL,
+        embedding: LETTA_EMBEDDING,
       });
       lettaAgentId = newAgent.id;
       console.log(`[Letta] Connected — created agent "${LETTA_AGENT_NAME}" (${lettaAgentId})`);
