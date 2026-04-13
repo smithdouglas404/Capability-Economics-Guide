@@ -274,6 +274,12 @@ export default function Assess() {
   const interimRef = useRef<string>("");
   const finalRef = useRef<string>("");
 
+  const [activeQVoice, setActiveQVoice] = useState<number | null>(null);
+  const [qVoiceInterim, setQVoiceInterim] = useState("");
+  const qVoiceRecRef = useRef<unknown>(null);
+  const qVoiceFinalRef = useRef<string>("");
+  const qVoiceIdxRef = useRef<number>(-1);
+
   const startRecording = useCallback(() => {
     const w = window as Record<string, unknown>;
     const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
@@ -313,6 +319,52 @@ export default function Assess() {
   const stopRecording = useCallback(() => {
     (recognitionRef.current as { stop?: () => void } | null)?.stop?.();
     setIsRecording(false);
+  }, []);
+
+  const startQVoice = useCallback((idx: number) => {
+    const w = window as Record<string, unknown>;
+    const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
+    if (!SRClass) { alert("Voice input requires Chrome or Edge."); return; }
+    (qVoiceRecRef.current as { stop?: () => void } | null)?.stop?.();
+    const rec = new SRClass() as {
+      continuous: boolean; interimResults: boolean; lang: string;
+      onresult: (e: unknown) => void; onerror: () => void; onend: () => void;
+      start: () => void;
+    };
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = "en-US";
+    qVoiceIdxRef.current = idx;
+    qVoiceFinalRef.current = answers[idx] ? answers[idx].trimEnd() + " " : "";
+    setQVoiceInterim("");
+    rec.onresult = (e: unknown) => {
+      const event = e as { resultIndex: number; results: Array<{ isFinal: boolean; 0: { transcript: string } }> };
+      let interim = "";
+      let finalParts = qVoiceFinalRef.current;
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) finalParts += result[0].transcript + " ";
+        else interim += result[0].transcript;
+      }
+      qVoiceFinalRef.current = finalParts;
+      setQVoiceInterim(interim);
+      setAnswers(prev => { const next = [...prev]; next[qVoiceIdxRef.current] = finalParts + interim; return next; });
+    };
+    rec.onerror = () => { setActiveQVoice(null); setQVoiceInterim(""); };
+    rec.onend = () => {
+      setAnswers(prev => { const next = [...prev]; next[qVoiceIdxRef.current] = qVoiceFinalRef.current.trim(); return next; });
+      setActiveQVoice(null);
+      setQVoiceInterim("");
+    };
+    qVoiceRecRef.current = rec;
+    rec.start();
+    setActiveQVoice(idx);
+  }, [answers]);
+
+  const stopQVoice = useCallback(() => {
+    (qVoiceRecRef.current as { stop?: () => void } | null)?.stop?.();
+    setActiveQVoice(null);
+    setQVoiceInterim("");
   }, []);
 
   const handleFileUpload = (file: File) => {
@@ -955,20 +1007,41 @@ export default function Assess() {
                 </div>
 
                 <div className="space-y-6">
-                  {questions.map((q, i) => (
-                    <div key={i} className="border border-border p-5">
-                      <label className="block text-sm font-semibold text-foreground mb-3">
-                        <span className="text-primary mr-2">Q{i + 1}.</span>{q}
-                      </label>
-                      <textarea
-                        value={answers[i] || ""}
-                        onChange={e => { const next = [...answers]; next[i] = e.target.value; setAnswers(next); }}
-                        rows={3}
-                        placeholder="Your answer…"
-                        className="w-full px-3 py-2 border border-input bg-background text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                  ))}
+                  {questions.map((q, i) => {
+                    const recording = activeQVoice === i;
+                    return (
+                      <div key={i} className={`border p-5 transition-colors ${recording ? "border-primary/40 bg-primary/5" : "border-border"}`}>
+                        <label className="block text-sm font-semibold text-foreground mb-3">
+                          <span className="text-primary mr-2">Q{i + 1}.</span>{q}
+                        </label>
+                        <div className="relative">
+                          <textarea
+                            value={answers[i] || ""}
+                            onChange={e => { const next = [...answers]; next[i] = e.target.value; setAnswers(next); }}
+                            rows={3}
+                            placeholder={recording ? "Listening…" : "Type your answer or click the mic to speak…"}
+                            className={`w-full px-3 py-2 pr-12 border border-input bg-background text-sm text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-ring ${recording ? "border-primary/30" : ""}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => recording ? stopQVoice() : startQVoice(i)}
+                            title={recording ? "Stop recording" : "Speak your answer"}
+                            className={`absolute top-2 right-2 w-8 h-8 flex items-center justify-center rounded-full transition-colors ${recording ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : "bg-muted text-muted-foreground hover:bg-primary hover:text-primary-foreground"}`}
+                          >
+                            {recording ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        {recording && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="w-2 h-2 rounded-full bg-destructive animate-pulse shrink-0" />
+                            <span className="text-xs text-muted-foreground">
+                              {qVoiceInterim ? <span className="italic text-foreground/70">{qVoiceInterim}</span> : "Listening… speak your answer"}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 {error && <p className="text-sm text-destructive border border-destructive/20 bg-destructive/5 px-4 py-2">{error}</p>}
@@ -1082,13 +1155,13 @@ export default function Assess() {
                               {" "}·{" "}
                               <a href="https://www.weforum.org/publications/the-future-of-jobs-report-2025/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">Future of Jobs 2025 <ExternalLink className="w-2.5 h-2.5" /></a>
                             </div>
-                            {analysis.confidenceFactors.secDataAvailable && (
+                            {analysis.confidenceFactors?.secDataAvailable && (
                               <div className="text-xs text-muted-foreground">
                                 <span className="font-medium text-foreground">Filing Data:</span>{" "}
                                 <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-0.5">SEC EDGAR 10-K <ExternalLink className="w-2.5 h-2.5" /></a>
                               </div>
                             )}
-                            {analysis.confidenceFactors.competitorDataAvailable && (
+                            {analysis.confidenceFactors?.competitorDataAvailable && (
                               <div className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Competitor 10-Ks:</span> Included</div>
                             )}
                           </div>
@@ -1118,9 +1191,9 @@ export default function Assess() {
                         <div className="flex flex-wrap gap-2 mt-4">
                           {companyName && <span className="text-xs border border-border px-2 py-0.5 text-muted-foreground">{companyName}</span>}
                           {industry && <span className="text-xs border border-border px-2 py-0.5 text-muted-foreground">{industry}</span>}
-                          {analysis.confidenceFactors.secDataAvailable && <span className="text-xs border border-primary/20 bg-primary/5 text-primary px-2 py-0.5">SEC 10-K</span>}
-                          {analysis.confidenceFactors.voiceProvided && <span className="text-xs border border-border px-2 py-0.5 text-muted-foreground">Voice Briefing</span>}
-                          {analysis.confidenceFactors.jobPostingProvided && <span className="text-xs border border-primary/20 bg-primary/5 text-primary px-2 py-0.5">Job Posting</span>}
+                          {analysis.confidenceFactors?.secDataAvailable && <span className="text-xs border border-primary/20 bg-primary/5 text-primary px-2 py-0.5">SEC 10-K</span>}
+                          {analysis.confidenceFactors?.voiceProvided && <span className="text-xs border border-border px-2 py-0.5 text-muted-foreground">Voice Briefing</span>}
+                          {analysis.confidenceFactors?.jobPostingProvided && <span className="text-xs border border-primary/20 bg-primary/5 text-primary px-2 py-0.5">Job Posting</span>}
                         </div>
                       </div>
                       <div className="border border-border p-6 flex flex-col items-center justify-center text-center">
@@ -1131,11 +1204,11 @@ export default function Assess() {
                           <div className="h-full bg-primary transition-all" style={{ width: `${analysis.confidenceScore}%` }} />
                         </div>
                         <div className="mt-3 text-xs text-muted-foreground space-y-1 text-left w-full">
-                          {analysis.confidenceFactors.secDataAvailable && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> SEC 10-K data</div>}
-                          {analysis.confidenceFactors.voiceProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Voice briefing</div>}
-                          {analysis.confidenceFactors.documentProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Supporting doc</div>}
-                          {analysis.confidenceFactors.competitorDataAvailable && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Competitor data</div>}
-                          {analysis.confidenceFactors.jobPostingProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Job posting</div>}
+                          {analysis.confidenceFactors?.secDataAvailable && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> SEC 10-K data</div>}
+                          {analysis.confidenceFactors?.voiceProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Voice briefing</div>}
+                          {analysis.confidenceFactors?.documentProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Supporting doc</div>}
+                          {analysis.confidenceFactors?.competitorDataAvailable && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Competitor data</div>}
+                          {analysis.confidenceFactors?.jobPostingProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Job posting</div>}
                         </div>
                       </div>
                     </div>
