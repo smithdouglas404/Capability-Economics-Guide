@@ -10,6 +10,12 @@ import {
 import { sql } from "drizzle-orm";
 
 async function seed() {
+  const existing = await db.select().from(industriesTable).limit(1);
+  if (existing.length > 0) {
+    console.log("Seed data already exists — skipping knowledge graph seed.");
+    return;
+  }
+
   console.log("Seeding knowledge graph...");
 
   await db.execute(sql`TRUNCATE capability_role_mappings, capability_dependencies, capability_metrics, capabilities, c_suite_roles, industries RESTART IDENTITY CASCADE`);

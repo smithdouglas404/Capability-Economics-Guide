@@ -10,6 +10,12 @@ import {
 import { sql, eq } from "drizzle-orm";
 
 async function seedProjects() {
+  const existing = await db.select().from(technologyProjectsTable).limit(1);
+  if (existing.length > 0) {
+    console.log("Technology projects already exist — skipping projects seed.");
+    return;
+  }
+
   console.log("Seeding technology projects...");
 
   await db.execute(sql`TRUNCATE project_risks, project_executive_insights, project_capability_impacts, technology_projects RESTART IDENTITY CASCADE`);

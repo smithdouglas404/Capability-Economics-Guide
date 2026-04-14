@@ -17,5 +17,5 @@ RUN pnpm run build:deploy
 ENV PORT=8080
 EXPOSE 8080
 
-# Push database schema then start the API server
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push && pnpm run start"]
+# Push schema, seed core data (idempotent), seed projects (idempotent), start server
+CMD ["sh", "-c", "pnpm --filter @workspace/db run push && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed-projects && pnpm run start"]
