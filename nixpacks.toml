@@ -1,14 +1,19 @@
 # Nixpacks config for Railway — overrides auto-detected pnpm workspace handling.
 # Single-service deploy: api-server hosts /api routes AND serves the built
 # capability-economics SPA from artifacts/capability-economics/dist/public.
+#
+# PATH fix: npm -g under nix installs to a non-standard prefix that isn't on
+# $PATH. Setting prefix=/usr/local puts pnpm at /usr/local/bin which IS on
+# $PATH, so subsequent commands can find it without any PATH manipulation.
 
 [phases.setup]
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = [
-  # Chain into one RUN instruction so pnpm is on PATH immediately after install.
-  "npm install -g pnpm@10.26.1 && pnpm install --frozen-lockfile"
+  "npm config set prefix /usr/local",
+  "npm install -g pnpm@10.26.1",
+  "pnpm install --frozen-lockfile"
 ]
 
 [phases.build]
