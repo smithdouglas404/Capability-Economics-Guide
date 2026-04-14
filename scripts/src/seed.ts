@@ -310,8 +310,9 @@ async function run() {
   await seed();
   const { seedProjects } = await import("./seed-projects");
   await seedProjects();
-  const { seedInsights } = await import("./seed-insights");
-  await seedInsights();
+  // seedInsights is intentionally excluded — it makes Perplexity API calls
+  // that take 5-10 minutes. The autonomous agent handles insight generation
+  // on its first research cycle after boot.
 }
 
 run().then(() => {

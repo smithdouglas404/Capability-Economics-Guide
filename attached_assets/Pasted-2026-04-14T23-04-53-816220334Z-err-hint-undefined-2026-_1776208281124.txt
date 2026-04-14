@@ -1,0 +1,1001 @@
+2026-04-14T23:04:53.816220334Z [err]      hint: undefined,
+2026-04-14T23:04:53.816226107Z [err]  }
+2026-04-14T23:04:53.816230546Z [err]      position: '13',
+2026-04-14T23:04:53.816238523Z [err]      internalPosition: undefined,
+2026-04-14T23:04:53.816238679Z [inf]  [Letta] Connected — found agent "cei-autonomous-agent" (agent-9835f350-f904-4f04-b5ae-da315a0a1d5e)
+2026-04-14T23:04:53.816245115Z [err]      internalQuery: undefined,
+2026-04-14T23:04:53.816253692Z [err]      where: undefined,
+2026-04-14T23:04:53.816261049Z [err]      schema: undefined,
+2026-04-14T23:04:53.816268254Z [err]      table: undefined,
+2026-04-14T23:04:53.816275203Z [err]      column: undefined,
+2026-04-14T23:04:53.816284622Z [err]      dataType: undefined,
+2026-04-14T23:04:53.816287726Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:04:53.816294296Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:04:53.816298446Z [err]      constraint: undefined,
+2026-04-14T23:04:53.816302361Z [err]        at async runAgent (/app/artifacts/api-server/src/services/agent/graph.ts:542:17)
+2026-04-14T23:04:53.816312590Z [err]      file: 'parse_relation.c',
+2026-04-14T23:04:53.816316819Z [err]        at async executeRun (/app/artifacts/api-server/src/services/agent/scheduler.ts:59:20) {
+2026-04-14T23:04:53.816321484Z [err]      line: '1466',
+2026-04-14T23:04:53.816324710Z [err]      length: 109,
+2026-04-14T23:04:53.816329369Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:04:53.816332576Z [err]      severity: 'ERROR',
+2026-04-14T23:04:53.816337056Z [err]    }
+2026-04-14T23:04:53.816340350Z [err]      code: '42P01',
+2026-04-14T23:04:53.816345999Z [err]      detail: undefined,
+2026-04-14T23:04:59.557802326Z [inf]  [Mem0] Cloud client initialized
+2026-04-14T23:04:59.557809266Z [err]  Agent status failed: _DrizzleQueryError: Failed query: select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1
+2026-04-14T23:04:59.557815071Z [err]  params: 1
+2026-04-14T23:04:59.557821776Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:04:59.557828136Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:04:59.557834130Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:04:59.557840175Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:04:59.557847923Z [err]    query: 'select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1',
+2026-04-14T23:04:59.557853834Z [err]    params: [ 1 ],
+2026-04-14T23:04:59.557860302Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T23:04:59.557866444Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:04:59.557872360Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:04:59.557878513Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:03.460019648Z [err]      dataType: undefined,
+2026-04-14T23:05:03.460040473Z [err]      constraint: undefined,
+2026-04-14T23:05:03.460050281Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:03.460070051Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:03.460083917Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:03.460090913Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:05:03.460097542Z [err]      length: 110,
+2026-04-14T23:05:03.460104897Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:03.460107565Z [err]      severity: 'ERROR',
+2026-04-14T23:05:03.460115037Z [err]      code: '42P01',
+2026-04-14T23:05:03.460122309Z [err]      detail: undefined,
+2026-04-14T23:05:03.460123341Z [err]    }
+2026-04-14T23:05:03.460130657Z [err]      hint: undefined,
+2026-04-14T23:05:03.460136053Z [err]      line: '1466',
+2026-04-14T23:05:03.460139887Z [err]      position: '273',
+2026-04-14T23:05:03.460143546Z [err]  }
+2026-04-14T23:05:03.460148087Z [err]      internalPosition: undefined,
+2026-04-14T23:05:03.460154235Z [err]      internalQuery: undefined,
+2026-04-14T23:05:03.460161700Z [err]  [Mem0] getAll failed: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:05:03.460161810Z [err]      where: undefined,
+2026-04-14T23:05:03.460181929Z [err]      schema: undefined,
+2026-04-14T23:05:03.460189041Z [err]      table: undefined,
+2026-04-14T23:05:03.460195196Z [err]      column: undefined,
+2026-04-14T23:05:05.144297777Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:05:05.144307283Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:05:05.145558243Z [inf]  [23:04:58.974] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:05.145606425Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:05.145615669Z [err]      at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:215:23)
+2026-04-14T23:05:05.145620966Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:05:05.145627626Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:05:05.145631886Z [err]    details: {},
+2026-04-14T23:05:05.145637904Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:05:05.145642338Z [err]    debugInfo: {}
+2026-04-14T23:05:05.145646494Z [err]  }
+2026-04-14T23:05:05.145651848Z [inf]  [23:04:58.921] [32mINFO[39m (27): [36mrequest completed[39m
+2026-04-14T23:05:05.145656164Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:05.145660474Z [inf]        "id": 2,
+2026-04-14T23:05:05.145665127Z [inf]        "method": "GET",
+2026-04-14T23:05:05.145670022Z [inf]        "url": "/api/agent/tools"
+2026-04-14T23:05:05.145673941Z [inf]      }
+2026-04-14T23:05:05.145678669Z [inf]      [35mres[39m: {
+2026-04-14T23:05:05.145682849Z [inf]        "statusCode": 304
+2026-04-14T23:05:05.145686688Z [inf]      }
+2026-04-14T23:05:05.145691511Z [inf]      [35mresponseTime[39m: 8
+2026-04-14T23:05:06.684618525Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:06.684624755Z [inf]        "id": 1,
+2026-04-14T23:05:06.684631524Z [inf]        "method": "GET",
+2026-04-14T23:05:06.684638220Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:05:06.684647336Z [inf]      }
+2026-04-14T23:05:06.684653172Z [inf]      [35mres[39m: {
+2026-04-14T23:05:06.684659318Z [inf]        "statusCode": 500
+2026-04-14T23:05:06.684665565Z [inf]      }
+2026-04-14T23:05:06.684671935Z [inf]      [35mresponseTime[39m: 71
+2026-04-14T23:05:06.684677382Z [inf]      err: {
+2026-04-14T23:05:06.684683706Z [inf]        "type": "Error",
+2026-04-14T23:05:06.684690202Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:06.684695918Z [inf]        "stack":
+2026-04-14T23:05:06.684701507Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:06.684707195Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:06.684712384Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:06.684718513Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:06.684724593Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:06.684732125Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:06.684738986Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:06.684745046Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:06.684751434Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:06.684759339Z [inf]      }
+2026-04-14T23:05:06.684766175Z [err]  Agent memories failed: _DrizzleQueryError: Failed query: select "id", "memory_type", "content", "metadata", "relevance_score", "access_count", "last_accessed_at", "expires_at", "created_at" from "agent_memories" order by "agent_memories"."created_at" desc limit $1
+2026-04-14T23:05:08.907487153Z [err]  params: 50
+2026-04-14T23:05:08.907495601Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:08.907501624Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:08.907507360Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:08.907513053Z [err]      at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:238:25)
+2026-04-14T23:05:08.907519472Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:05:08.907525764Z [err]    query: 'select "id", "memory_type", "content", "metadata", "relevance_score", "access_count", "last_accessed_at", "expires_at", "created_at" from "agent_memories" order by "agent_memories"."created_at" desc limit $1',
+2026-04-14T23:05:08.907533337Z [err]    params: [ 50 ],
+2026-04-14T23:05:08.907664492Z [err]    cause: error: relation "agent_memories" does not exist
+2026-04-14T23:05:08.907676285Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:08.907682481Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:08.907687080Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:08.907691956Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:08.907698094Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:10.506810067Z [err]      schema: undefined,
+2026-04-14T23:05:10.506818530Z [err]      table: undefined,
+2026-04-14T23:05:10.506819886Z [err]        at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:238:25)
+2026-04-14T23:05:10.506820391Z [inf]        "id": 3,
+2026-04-14T23:05:10.506821705Z [err]      line: '1466',
+2026-04-14T23:05:10.506826862Z [err]      column: undefined,
+2026-04-14T23:05:10.506831003Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:10.506831639Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:05:10.506831913Z [inf]        "method": "GET",
+2026-04-14T23:05:10.506853488Z [err]    }
+2026-04-14T23:05:10.506860790Z [err]  }
+2026-04-14T23:05:10.506863871Z [err]      length: 114,
+2026-04-14T23:05:10.506868396Z [inf]        "url": "/api/agent/memories"
+2026-04-14T23:05:10.506869344Z [inf]  [23:04:59.281] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:10.506871043Z [err]      dataType: undefined,
+2026-04-14T23:05:10.506873117Z [err]      severity: 'ERROR',
+2026-04-14T23:05:10.506877282Z [inf]      }
+2026-04-14T23:05:10.506878672Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:10.506880287Z [err]      constraint: undefined,
+2026-04-14T23:05:10.506882497Z [err]      code: '42P01',
+2026-04-14T23:05:10.506886074Z [inf]      [35mres[39m: {
+2026-04-14T23:05:10.506886989Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:10.506890973Z [err]      detail: undefined,
+2026-04-14T23:05:10.506893292Z [inf]        "statusCode": 500
+2026-04-14T23:05:10.506897345Z [err]      hint: undefined,
+2026-04-14T23:05:10.506903127Z [err]      position: '139',
+2026-04-14T23:05:10.506908857Z [err]      internalPosition: undefined,
+2026-04-14T23:05:10.506915054Z [err]      internalQuery: undefined,
+2026-04-14T23:05:10.506920631Z [err]      where: undefined,
+2026-04-14T23:05:11.992965032Z [inf]      }
+2026-04-14T23:05:11.992971744Z [inf]      [35mresponseTime[39m: 358
+2026-04-14T23:05:11.992977277Z [inf]      err: {
+2026-04-14T23:05:11.992983420Z [inf]        "type": "Error",
+2026-04-14T23:05:11.992989293Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:11.992994193Z [inf]        "stack":
+2026-04-14T23:05:11.992999994Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:11.993007556Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:11.993014136Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:11.993019920Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:11.993027793Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:11.993033428Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:11.993038361Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:11.993044600Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:11.993050177Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:11.993055835Z [inf]      }
+2026-04-14T23:05:11.993062195Z [err]  Agent status failed: _DrizzleQueryError: Failed query: select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1
+2026-04-14T23:05:11.993067622Z [err]  params: 1
+2026-04-14T23:05:11.993072919Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:14.213557168Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:14.213563916Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:14.213570962Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:05:14.213715447Z [err]    query: 'select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1',
+2026-04-14T23:05:14.213726077Z [err]    params: [ 1 ],
+2026-04-14T23:05:14.213733590Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T23:05:14.213835024Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:14.213844119Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:14.213850934Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:14.213857282Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:14.213864101Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:14.213870684Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:05:14.213876441Z [err]      length: 110,
+2026-04-14T23:05:15.927801661Z [err]      severity: 'ERROR',
+2026-04-14T23:05:15.927812417Z [err]      code: '42P01',
+2026-04-14T23:05:15.927981642Z [err]      detail: undefined,
+2026-04-14T23:05:15.927992480Z [err]      hint: undefined,
+2026-04-14T23:05:15.928000433Z [err]      position: '273',
+2026-04-14T23:05:15.928006764Z [err]      internalPosition: undefined,
+2026-04-14T23:05:15.928013722Z [err]      internalQuery: undefined,
+2026-04-14T23:05:15.928020562Z [err]      where: undefined,
+2026-04-14T23:05:15.928026658Z [err]      schema: undefined,
+2026-04-14T23:05:15.928032588Z [err]      table: undefined,
+2026-04-14T23:05:15.928037968Z [err]      column: undefined,
+2026-04-14T23:05:15.928049133Z [err]      dataType: undefined,
+2026-04-14T23:05:15.928055496Z [err]      constraint: undefined,
+2026-04-14T23:05:15.928062275Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:15.928068093Z [err]      line: '1466',
+2026-04-14T23:05:15.928074202Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:15.928081811Z [err]    }
+2026-04-14T23:05:15.928087374Z [err]  }
+2026-04-14T23:05:15.928093154Z [err]  CEI history failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:05:15.928098671Z [err]  params: 30
+2026-04-14T23:05:15.928103281Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:15.928109667Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:15.928115758Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:17.293899823Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:17.293910411Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:17.293917333Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:17.293923822Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:17.294343969Z [err]      at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:05:17.294351069Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:05:17.294357493Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:05:17.294364461Z [err]    params: [ 30 ],
+2026-04-14T23:05:17.294370804Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:05:17.294378606Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:17.294482812Z [err]        at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:05:17.294487162Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:05:17.294491790Z [err]      length: 113,
+2026-04-14T23:05:17.294495711Z [err]      severity: 'ERROR',
+2026-04-14T23:05:17.294499664Z [err]      code: '42P01',
+2026-04-14T23:05:17.294503767Z [err]      detail: undefined,
+2026-04-14T23:05:18.987576797Z [err]      hint: undefined,
+2026-04-14T23:05:18.987582047Z [err]      position: '130',
+2026-04-14T23:05:18.987588396Z [err]      internalPosition: undefined,
+2026-04-14T23:05:18.987593722Z [err]      internalQuery: undefined,
+2026-04-14T23:05:18.987598811Z [err]      where: undefined,
+2026-04-14T23:05:18.987604291Z [err]      schema: undefined,
+2026-04-14T23:05:18.987611004Z [err]      table: undefined,
+2026-04-14T23:05:18.987618738Z [err]      column: undefined,
+2026-04-14T23:05:18.987624772Z [err]      dataType: undefined,
+2026-04-14T23:05:18.987631069Z [err]      constraint: undefined,
+2026-04-14T23:05:18.987635812Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:18.987641237Z [err]      line: '1466',
+2026-04-14T23:05:18.987646772Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:18.987652812Z [err]    }
+2026-04-14T23:05:18.987658211Z [err]  }
+2026-04-14T23:05:18.987663490Z [err]  CEI current failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:05:18.987669616Z [err]  params: 1
+2026-04-14T23:05:18.987675313Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:18.987680399Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:18.987685747Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:18.987691360Z [err]      at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:05:18.987698324Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:05:21.070666553Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:05:21.070677239Z [err]    params: [ 1 ],
+2026-04-14T23:05:21.070685335Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:05:21.070692781Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:21.070706136Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:21.070715618Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:21.070722889Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:21.070730629Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:21.070737434Z [err]        at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:05:21.070742645Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:05:21.070748259Z [err]      length: 113,
+2026-04-14T23:05:21.070754022Z [err]      severity: 'ERROR',
+2026-04-14T23:05:21.070760013Z [err]      code: '42P01',
+2026-04-14T23:05:21.070765273Z [err]      detail: undefined,
+2026-04-14T23:05:21.070770502Z [err]      hint: undefined,
+2026-04-14T23:05:21.070775431Z [err]      position: '130',
+2026-04-14T23:05:21.070780140Z [err]      internalPosition: undefined,
+2026-04-14T23:05:21.070785421Z [err]      internalQuery: undefined,
+2026-04-14T23:05:23.120835390Z [inf]      [35mres[39m: {
+2026-04-14T23:05:23.120847203Z [inf]        "statusCode": 500
+2026-04-14T23:05:23.120939698Z [err]      where: undefined,
+2026-04-14T23:05:23.120947210Z [err]      schema: undefined,
+2026-04-14T23:05:23.120953418Z [err]      table: undefined,
+2026-04-14T23:05:23.120960554Z [err]      column: undefined,
+2026-04-14T23:05:23.120966536Z [err]      dataType: undefined,
+2026-04-14T23:05:23.120971483Z [err]      constraint: undefined,
+2026-04-14T23:05:23.120977100Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:23.120984560Z [err]      line: '1466',
+2026-04-14T23:05:23.120991087Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:23.120997967Z [err]    }
+2026-04-14T23:05:23.121006348Z [err]  }
+2026-04-14T23:05:23.121013173Z [inf]  [23:05:00.610] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:23.121019297Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:23.121025720Z [inf]        "id": 6,
+2026-04-14T23:05:23.121031403Z [inf]        "method": "GET",
+2026-04-14T23:05:23.121037695Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:05:23.121043816Z [inf]      }
+2026-04-14T23:05:23.121058200Z [inf]      }
+2026-04-14T23:05:23.121065582Z [inf]      [35mresponseTime[39m: 34
+2026-04-14T23:05:23.121071384Z [inf]      err: {
+2026-04-14T23:05:23.121077657Z [inf]        "type": "Error",
+2026-04-14T23:05:23.121084313Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:23.121090155Z [inf]        "stack":
+2026-04-14T23:05:23.121098141Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:23.121104587Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:23.121110694Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:25.610082811Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:25.610091038Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:25.610105100Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:25.610128080Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:25.610134877Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:25.610142387Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:25.610147120Z [inf]      }
+2026-04-14T23:05:25.610153253Z [inf]  [23:05:00.612] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:25.610157909Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:25.610164203Z [inf]        "id": 5,
+2026-04-14T23:05:25.610168642Z [inf]        "method": "GET",
+2026-04-14T23:05:25.610172812Z [inf]        "url": "/api/cei/history"
+2026-04-14T23:05:25.610178794Z [inf]      }
+2026-04-14T23:05:25.610183234Z [inf]      [35mres[39m: {
+2026-04-14T23:05:25.610192950Z [inf]        "statusCode": 500
+2026-04-14T23:05:25.610197178Z [inf]      }
+2026-04-14T23:05:25.610206116Z [inf]      [35mresponseTime[39m: 40
+2026-04-14T23:05:25.610210202Z [inf]      err: {
+2026-04-14T23:05:25.610240169Z [inf]        "stack":
+2026-04-14T23:05:25.610253041Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:25.610254779Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:25.610264292Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:25.610266556Z [inf]        "type": "Error",
+2026-04-14T23:05:25.610272558Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:27.587525217Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:27.587530984Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:27.587536859Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:27.587541849Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:27.587547134Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:27.587552718Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:27.587557153Z [inf]      }
+2026-04-14T23:05:27.587562639Z [inf]  [23:05:00.614] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:27.587567729Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:27.587573023Z [inf]        "id": 7,
+2026-04-14T23:05:27.587578090Z [inf]        "method": "GET",
+2026-04-14T23:05:27.587583233Z [inf]        "url": "/api/cei/current"
+2026-04-14T23:05:27.587588150Z [inf]      }
+2026-04-14T23:05:27.587593404Z [inf]      [35mres[39m: {
+2026-04-14T23:05:27.587600828Z [inf]        "statusCode": 500
+2026-04-14T23:05:27.587607915Z [inf]      }
+2026-04-14T23:05:27.587613945Z [inf]      [35mresponseTime[39m: 35
+2026-04-14T23:05:27.587620862Z [inf]      err: {
+2026-04-14T23:05:27.587635495Z [inf]        "type": "Error",
+2026-04-14T23:05:27.587643037Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:27.587649931Z [inf]        "stack":
+2026-04-14T23:05:27.587655814Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:27.587660480Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:27.587665199Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:30.225572339Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:30.225579039Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:30.225584881Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:30.225591088Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:30.225597183Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:30.225604066Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:30.225609249Z [inf]      }
+2026-04-14T23:05:30.225614804Z [inf]  [23:05:00.737] [32mINFO[39m (27): [36mrequest aborted[39m
+2026-04-14T23:05:30.225620262Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:30.225627245Z [inf]        "id": 4,
+2026-04-14T23:05:30.225633959Z [inf]        "method": "GET",
+2026-04-14T23:05:30.225639875Z [inf]        "url": "/api/agent/events"
+2026-04-14T23:05:30.225666939Z [inf]      }
+2026-04-14T23:05:30.225673770Z [inf]      [35mres[39m: {
+2026-04-14T23:05:30.225682026Z [inf]        "statusCode": 200
+2026-04-14T23:05:30.225688510Z [inf]      }
+2026-04-14T23:05:30.225693468Z [inf]      [35mresponseTime[39m: 234
+2026-04-14T23:05:30.225697392Z [inf]  [23:05:05.102] [32mINFO[39m (27): [36mrequest completed[39m
+2026-04-14T23:05:30.225701957Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:30.225706002Z [inf]        "id": 8,
+2026-04-14T23:05:30.225710439Z [inf]        "method": "GET",
+2026-04-14T23:05:30.225715279Z [inf]        "url": "/cei"
+2026-04-14T23:05:30.225720035Z [inf]      }
+2026-04-14T23:05:30.225724230Z [inf]      [35mres[39m: {
+2026-04-14T23:05:30.225728012Z [inf]        "statusCode": 200
+2026-04-14T23:05:30.225732131Z [inf]      }
+2026-04-14T23:05:30.225736543Z [inf]      [35mresponseTime[39m: 7
+2026-04-14T23:05:32.357630940Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:32.357637739Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:32.357642988Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:32.357650709Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:05:32.357655187Z [err]    query: 'select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1',
+2026-04-14T23:05:32.357659499Z [err]    params: [ 1 ],
+2026-04-14T23:05:32.357664164Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T23:05:32.357668536Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:32.357672525Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:32.357682579Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:32.357704733Z [err]  Agent status failed: _DrizzleQueryError: Failed query: select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1
+2026-04-14T23:05:32.357709028Z [err]  params: 1
+2026-04-14T23:05:34.183013174Z [err]  }
+2026-04-14T23:05:34.183024521Z [inf]  [23:05:05.454] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:34.183031140Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:34.183037594Z [inf]        "id": 9,
+2026-04-14T23:05:34.183045788Z [inf]        "method": "GET",
+2026-04-14T23:05:34.183060953Z [err]      hint: undefined,
+2026-04-14T23:05:34.183067938Z [err]      position: '273',
+2026-04-14T23:05:34.183075447Z [err]      internalPosition: undefined,
+2026-04-14T23:05:34.183082586Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:34.183083990Z [err]      internalQuery: undefined,
+2026-04-14T23:05:34.183092520Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:34.183093573Z [err]      where: undefined,
+2026-04-14T23:05:34.183103527Z [err]      schema: undefined,
+2026-04-14T23:05:34.183104700Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:05:34.183111846Z [err]      table: undefined,
+2026-04-14T23:05:34.183114247Z [err]      length: 110,
+2026-04-14T23:05:34.183120760Z [err]      column: undefined,
+2026-04-14T23:05:34.183123309Z [err]      severity: 'ERROR',
+2026-04-14T23:05:34.183129748Z [err]      dataType: undefined,
+2026-04-14T23:05:34.183131978Z [err]      code: '42P01',
+2026-04-14T23:05:34.183139242Z [err]      constraint: undefined,
+2026-04-14T23:05:34.183140165Z [err]      detail: undefined,
+2026-04-14T23:05:34.183146652Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:34.183153131Z [err]      line: '1466',
+2026-04-14T23:05:34.183164523Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:34.183170853Z [err]    }
+2026-04-14T23:05:36.525969103Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:05:36.525974287Z [inf]      }
+2026-04-14T23:05:36.525979821Z [inf]      [35mres[39m: {
+2026-04-14T23:05:36.525985146Z [inf]        "statusCode": 500
+2026-04-14T23:05:36.525992711Z [inf]      }
+2026-04-14T23:05:36.525998852Z [inf]      [35mresponseTime[39m: 54
+2026-04-14T23:05:36.526005039Z [inf]      err: {
+2026-04-14T23:05:36.526012807Z [inf]        "type": "Error",
+2026-04-14T23:05:36.526017975Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:36.526023173Z [inf]        "stack":
+2026-04-14T23:05:36.526029522Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:36.526036192Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:36.526042153Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:36.526048371Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:36.526054405Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:36.526060812Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:36.526067295Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:36.526073186Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:36.526081737Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:36.526087351Z [inf]      }
+2026-04-14T23:05:36.526093208Z [err]  CEI current failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:05:39.162457689Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:39.162465378Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:39.162477115Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:05:39.162483662Z [err]    params: [ 1 ],
+2026-04-14T23:05:39.162491175Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:05:39.162498525Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:39.162504323Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:39.162510259Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:39.162557774Z [err]  params: 1
+2026-04-14T23:05:39.162562300Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:39.162566993Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:39.162571804Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:39.162576401Z [err]      at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:05:39.162580752Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:05:40.822603133Z [err]        at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:05:40.822609522Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:05:40.822614722Z [err]      length: 113,
+2026-04-14T23:05:40.822621798Z [err]      severity: 'ERROR',
+2026-04-14T23:05:40.822627575Z [err]      code: '42P01',
+2026-04-14T23:05:40.822633096Z [err]      detail: undefined,
+2026-04-14T23:05:40.822639149Z [err]      hint: undefined,
+2026-04-14T23:05:40.822646352Z [err]      position: '130',
+2026-04-14T23:05:40.822653745Z [err]      internalPosition: undefined,
+2026-04-14T23:05:40.822659274Z [err]      internalQuery: undefined,
+2026-04-14T23:05:40.822664499Z [err]      where: undefined,
+2026-04-14T23:05:40.822670197Z [err]      schema: undefined,
+2026-04-14T23:05:40.822675873Z [err]      table: undefined,
+2026-04-14T23:05:40.822681965Z [err]      column: undefined,
+2026-04-14T23:05:40.822688962Z [err]      dataType: undefined,
+2026-04-14T23:05:40.822695486Z [err]      constraint: undefined,
+2026-04-14T23:05:40.822701405Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:40.822707584Z [err]      line: '1466',
+2026-04-14T23:05:40.822714768Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:40.822724115Z [err]    }
+2026-04-14T23:05:40.822732456Z [err]  }
+2026-04-14T23:05:40.822739375Z [err]  CEI history failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:05:40.822747774Z [err]  params: 30
+2026-04-14T23:05:40.822753772Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:05:42.879933155Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:05:42.879942361Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:05:42.879943780Z [err]      at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:05:42.879949995Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:42.879953766Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:05:42.879957077Z [err]        at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:05:42.879998070Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:05:42.880008056Z [err]    params: [ 30 ],
+2026-04-14T23:05:42.880075074Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:42.880081935Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:05:42.880151419Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:05:42.880161813Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:05:42.880171808Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:05:42.880180360Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:05:45.381960855Z [err]      length: 113,
+2026-04-14T23:05:45.381967316Z [err]      severity: 'ERROR',
+2026-04-14T23:05:45.381974298Z [err]      code: '42P01',
+2026-04-14T23:05:45.381981847Z [err]      detail: undefined,
+2026-04-14T23:05:45.381982890Z [err]      position: '130',
+2026-04-14T23:05:45.381990031Z [err]      hint: undefined,
+2026-04-14T23:05:45.381993246Z [err]      internalPosition: undefined,
+2026-04-14T23:05:45.382001335Z [err]      internalQuery: undefined,
+2026-04-14T23:05:45.382009133Z [err]      where: undefined,
+2026-04-14T23:05:45.382015949Z [err]      schema: undefined,
+2026-04-14T23:05:45.382023257Z [err]      table: undefined,
+2026-04-14T23:05:45.382557332Z [inf]        "id": 10,
+2026-04-14T23:05:45.382558257Z [inf]      [35mresponseTime[39m: 26
+2026-04-14T23:05:45.382566096Z [inf]      err: {
+2026-04-14T23:05:45.382567029Z [inf]        "method": "GET",
+2026-04-14T23:05:45.382570699Z [err]      column: undefined,
+2026-04-14T23:05:45.382574046Z [inf]        "type": "Error",
+2026-04-14T23:05:45.382577035Z [inf]        "url": "/api/cei/current"
+2026-04-14T23:05:45.382582581Z [err]      dataType: undefined,
+2026-04-14T23:05:45.382585235Z [inf]      }
+2026-04-14T23:05:45.382591026Z [err]      constraint: undefined,
+2026-04-14T23:05:45.382592315Z [inf]      [35mres[39m: {
+2026-04-14T23:05:45.382596901Z [err]      file: 'parse_relation.c',
+2026-04-14T23:05:45.382601618Z [err]      line: '1466',
+2026-04-14T23:05:45.382607950Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:05:45.382612475Z [err]    }
+2026-04-14T23:05:45.382620753Z [err]  }
+2026-04-14T23:05:45.382625898Z [inf]  [23:05:05.493] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:45.382631299Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:45.382649131Z [inf]        "statusCode": 500
+2026-04-14T23:05:45.382655227Z [inf]      }
+2026-04-14T23:05:47.068044082Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:47.068049718Z [inf]        "stack":
+2026-04-14T23:05:47.068056708Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:47.068067185Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:47.068073517Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:47.068080236Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:05:47.068087437Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:47.068096367Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:47.068102656Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:47.068109027Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:47.068115823Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:47.068122634Z [inf]      }
+2026-04-14T23:05:47.068129275Z [inf]  [23:05:05.499] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:05:47.068136140Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:47.068143730Z [inf]        "id": 11,
+2026-04-14T23:05:47.068150686Z [inf]        "method": "GET",
+2026-04-14T23:05:47.068160572Z [inf]        "url": "/api/cei/history"
+2026-04-14T23:05:47.068167172Z [inf]      }
+2026-04-14T23:05:47.068173247Z [inf]      [35mres[39m: {
+2026-04-14T23:05:47.068179391Z [inf]        "statusCode": 500
+2026-04-14T23:05:47.068185485Z [inf]      }
+2026-04-14T23:05:47.068192140Z [inf]      [35mresponseTime[39m: 29
+2026-04-14T23:05:47.068198237Z [inf]      err: {
+2026-04-14T23:05:47.068204262Z [inf]        "type": "Error",
+2026-04-14T23:05:48.435316053Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:05:48.435318823Z [inf]      [35mresponseTime[39m: 121
+2026-04-14T23:05:48.435326990Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:05:48.435337041Z [inf]      }
+2026-04-14T23:05:48.435345493Z [inf]      [35mres[39m: {
+2026-04-14T23:05:48.435346790Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:05:48.435354260Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:05:48.435354531Z [inf]        "statusCode": 200
+2026-04-14T23:05:48.435361326Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:05:48.435363608Z [inf]      }
+2026-04-14T23:05:48.435368305Z [inf]      }
+2026-04-14T23:05:48.435373785Z [inf]  [23:05:05.607] [32mINFO[39m (27): [36mrequest aborted[39m
+2026-04-14T23:05:48.435379386Z [inf]      [35mreq[39m: {
+2026-04-14T23:05:48.435384808Z [inf]        "id": 12,
+2026-04-14T23:05:48.435390476Z [inf]        "method": "GET",
+2026-04-14T23:05:48.435395698Z [inf]        "url": "/api/agent/events"
+2026-04-14T23:05:48.435631405Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:05:48.435636669Z [inf]        "stack":
+2026-04-14T23:05:48.435642108Z [inf]            Error: failed with status code 500
+2026-04-14T23:05:48.435647712Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:05:48.435653297Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:05:48.435661977Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:25.757310203Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:07:25.757317674Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:25.757324344Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:07:25.757334398Z [err]  Agent status failed: _DrizzleQueryError: Failed query: select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1
+2026-04-14T23:07:25.757337174Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:25.757342317Z [err]  params: 1
+2026-04-14T23:07:25.757344770Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:25.757351483Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:07:25.757353489Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:25.757387907Z [err]    query: 'select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1',
+2026-04-14T23:07:25.757399827Z [err]    params: [ 1 ],
+2026-04-14T23:07:25.757407829Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T23:07:27.114993147Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:27.115003381Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:07:27.115010583Z [err]      length: 110,
+2026-04-14T23:07:27.115134298Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:07:27.116163980Z [err]      severity: 'ERROR',
+2026-04-14T23:07:27.116171019Z [err]      code: '42P01',
+2026-04-14T23:07:27.116176355Z [err]      detail: undefined,
+2026-04-14T23:07:27.116180443Z [err]      hint: undefined,
+2026-04-14T23:07:27.116184717Z [err]      position: '273',
+2026-04-14T23:07:27.116189951Z [err]      internalPosition: undefined,
+2026-04-14T23:07:27.116193970Z [err]      internalQuery: undefined,
+2026-04-14T23:07:27.116197601Z [err]      where: undefined,
+2026-04-14T23:07:27.116201665Z [err]      schema: undefined,
+2026-04-14T23:07:27.116205853Z [err]      table: undefined,
+2026-04-14T23:07:27.116209829Z [err]      column: undefined,
+2026-04-14T23:07:27.116213447Z [err]      dataType: undefined,
+2026-04-14T23:07:27.116216964Z [err]      constraint: undefined,
+2026-04-14T23:07:27.116220556Z [err]      file: 'parse_relation.c',
+2026-04-14T23:07:27.116224279Z [err]      line: '1466',
+2026-04-14T23:07:27.116228216Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:07:27.116237191Z [err]    }
+2026-04-14T23:07:27.116241025Z [err]  }
+2026-04-14T23:07:27.116244419Z [err]  [Mem0] getAll failed: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:07:28.856717643Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:07:28.856723519Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:07:28.856729345Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:28.856735395Z [err]      at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:215:23)
+2026-04-14T23:07:28.856741343Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:07:28.856746956Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:07:28.856752974Z [err]    details: {},
+2026-04-14T23:07:28.856759824Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:07:28.856766054Z [err]    debugInfo: {}
+2026-04-14T23:07:28.856772047Z [err]  }
+2026-04-14T23:07:28.856778029Z [err]  Agent memories failed: _DrizzleQueryError: Failed query: select "id", "memory_type", "content", "metadata", "relevance_score", "access_count", "last_accessed_at", "expires_at", "created_at" from "agent_memories" order by "agent_memories"."created_at" desc limit $1
+2026-04-14T23:07:28.856783655Z [err]  params: 50
+2026-04-14T23:07:28.856789605Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:28.856795878Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:28.856801825Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:31.059836717Z [err]      severity: 'ERROR',
+2026-04-14T23:07:31.059840529Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:07:31.059843607Z [err]      code: '42P01',
+2026-04-14T23:07:31.059850797Z [err]      detail: undefined,
+2026-04-14T23:07:31.059860696Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:31.059865201Z [err]      at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:238:25)
+2026-04-14T23:07:31.059868035Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:07:31.059874695Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:07:31.059877859Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:07:31.059881821Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:31.059887620Z [err]        at async getAllMemories (/app/artifacts/api-server/src/services/agent/memory.ts:238:25)
+2026-04-14T23:07:31.059889417Z [err]    query: 'select "id", "memory_type", "content", "metadata", "relevance_score", "access_count", "last_accessed_at", "expires_at", "created_at" from "agent_memories" order by "agent_memories"."created_at" desc limit $1',
+2026-04-14T23:07:31.059893925Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:101:22) {
+2026-04-14T23:07:31.059899340Z [err]    params: [ 50 ],
+2026-04-14T23:07:31.059915591Z [err]    cause: error: relation "agent_memories" does not exist
+2026-04-14T23:07:31.060094275Z [err]      length: 114,
+2026-04-14T23:07:32.469559459Z [err]      hint: undefined,
+2026-04-14T23:07:32.469566103Z [err]      position: '139',
+2026-04-14T23:07:32.469573423Z [err]      internalPosition: undefined,
+2026-04-14T23:07:32.469580194Z [err]      internalQuery: undefined,
+2026-04-14T23:07:32.469590611Z [err]      where: undefined,
+2026-04-14T23:07:32.469597068Z [err]      schema: undefined,
+2026-04-14T23:07:32.469603120Z [err]      table: undefined,
+2026-04-14T23:07:32.469609763Z [err]      column: undefined,
+2026-04-14T23:07:32.469615830Z [err]      dataType: undefined,
+2026-04-14T23:07:32.469623571Z [err]      constraint: undefined,
+2026-04-14T23:07:32.469630052Z [err]      file: 'parse_relation.c',
+2026-04-14T23:07:32.469636148Z [err]      line: '1466',
+2026-04-14T23:07:32.469642531Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:07:32.469648984Z [err]    }
+2026-04-14T23:07:32.469655350Z [err]  }
+2026-04-14T23:07:32.469661692Z [inf]  [23:07:15.043] [32mINFO[39m (27): [36mrequest completed[39m
+2026-04-14T23:07:32.469667684Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:32.469673605Z [inf]        "id": 13,
+2026-04-14T23:07:32.469679888Z [inf]        "method": "GET",
+2026-04-14T23:07:32.469686401Z [inf]        "url": "/"
+2026-04-14T23:07:32.469692840Z [inf]      }
+2026-04-14T23:07:32.469698626Z [inf]      [35mres[39m: {
+2026-04-14T23:07:32.469704447Z [inf]        "statusCode": 200
+2026-04-14T23:07:32.469710832Z [inf]      }
+2026-04-14T23:07:32.469717145Z [inf]      [35mresponseTime[39m: 7
+2026-04-14T23:07:32.469724885Z [inf]  [23:07:15.221] [32mINFO[39m (27): [36mrequest completed[39m
+2026-04-14T23:07:32.469731257Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:32.469737993Z [inf]        "id": 14,
+2026-04-14T23:07:32.469744429Z [inf]        "method": "GET",
+2026-04-14T23:07:32.469750645Z [inf]        "url": "/api/agent/tools"
+2026-04-14T23:07:32.469756843Z [inf]      }
+2026-04-14T23:07:33.707042524Z [inf]        "stack":
+2026-04-14T23:07:33.707042587Z [inf]        "statusCode": 304
+2026-04-14T23:07:33.707054137Z [inf]      }
+2026-04-14T23:07:33.707057314Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:33.707062736Z [inf]      [35mresponseTime[39m: 1
+2026-04-14T23:07:33.707070479Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:33.707070663Z [inf]  [23:07:15.368] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:33.707078337Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:33.707080500Z [inf]      [35mres[39m: {
+2026-04-14T23:07:33.707086983Z [inf]        "id": 16,
+2026-04-14T23:07:33.707087661Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:33.707093714Z [inf]        "method": "GET",
+2026-04-14T23:07:33.707099715Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:07:33.707102990Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:33.707106648Z [inf]      }
+2026-04-14T23:07:33.707112996Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:33.707114060Z [inf]      [35mres[39m: {
+2026-04-14T23:07:33.707121271Z [inf]        "statusCode": 500
+2026-04-14T23:07:33.707122931Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:33.707128613Z [inf]      }
+2026-04-14T23:07:33.707131730Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:33.707138096Z [inf]      [35mresponseTime[39m: 74
+2026-04-14T23:07:33.707143822Z [inf]      err: {
+2026-04-14T23:07:33.707150268Z [inf]        "type": "Error",
+2026-04-14T23:07:33.707156096Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:35.265050599Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:35.265056427Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:35.265062379Z [inf]      }
+2026-04-14T23:07:35.265068533Z [inf]  [23:07:15.542] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:35.265076425Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:35.265082090Z [inf]        "id": 15,
+2026-04-14T23:07:35.265087854Z [inf]        "method": "GET",
+2026-04-14T23:07:35.265093552Z [inf]        "url": "/api/agent/memories"
+2026-04-14T23:07:35.265099270Z [inf]      }
+2026-04-14T23:07:35.265105467Z [inf]      [35mres[39m: {
+2026-04-14T23:07:35.265111216Z [inf]        "statusCode": 500
+2026-04-14T23:07:35.265117904Z [inf]      }
+2026-04-14T23:07:35.265124330Z [inf]      [35mresponseTime[39m: 254
+2026-04-14T23:07:35.265130673Z [inf]      err: {
+2026-04-14T23:07:35.265137295Z [inf]        "type": "Error",
+2026-04-14T23:07:35.265143122Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:35.265148700Z [inf]        "stack":
+2026-04-14T23:07:35.265154783Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:35.265161054Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:35.265167185Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:35.265174070Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:35.265181121Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:35.265186882Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:35.265192785Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:36.891420269Z [inf]        "url": "/api/csuite"
+2026-04-14T23:07:36.891421588Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:36.891430311Z [inf]      }
+2026-04-14T23:07:36.891431408Z [inf]      }
+2026-04-14T23:07:36.891431986Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:36.891440383Z [inf]  [23:07:17.993] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:36.891441867Z [inf]      [35mres[39m: {
+2026-04-14T23:07:36.891448661Z [inf]        "statusCode": 500
+2026-04-14T23:07:36.891456688Z [inf]      }
+2026-04-14T23:07:36.891457161Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:36.891465563Z [inf]      [35mresponseTime[39m: 55
+2026-04-14T23:07:36.891468207Z [inf]        "id": 17,
+2026-04-14T23:07:36.891473808Z [inf]      err: {
+2026-04-14T23:07:36.891476682Z [inf]        "method": "GET",
+2026-04-14T23:07:36.891481411Z [inf]        "type": "Error",
+2026-04-14T23:07:36.891487557Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:36.891494130Z [inf]        "stack":
+2026-04-14T23:07:36.891500184Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:36.891506194Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:36.891512472Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:36.891518032Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:36.891523748Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:36.891530834Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:36.891536963Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:38.619954498Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:38.619961299Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:38.619967415Z [inf]      }
+2026-04-14T23:07:38.619974422Z [err]  Error: Failed query: select "technology_projects"."id", "technology_projects"."slug", "technology_projects"."name", "technology_projects"."category", "technology_projects"."description", "technology_projects"."business_case", "technology_projects"."typical_timeline", "technology_projects"."investment_range", "technology_projects"."complexity_level", "technology_projects"."icon", cast(count("project_capability_impacts"."id") as int) from "technology_projects" left join "project_capability_impacts" on "project_capability_impacts"."project_id" = "technology_projects"."id" group by "technology_projects"."id" order by "technology_projects"."category", "technology_projects"."name"
+2026-04-14T23:07:38.619979902Z [err]  params: 
+2026-04-14T23:07:38.619986996Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:38.620006793Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:38.620013889Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:38.620020292Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/projects.ts:25:20)
+2026-04-14T23:07:38.620026099Z [inf]  [23:07:30.935] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:38.620033293Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:38.620040733Z [inf]        "id": 18,
+2026-04-14T23:07:38.620046869Z [inf]        "method": "GET",
+2026-04-14T23:07:38.620057333Z [inf]        "url": "/api/projects"
+2026-04-14T23:07:39.836476041Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:39.836485030Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:39.836494278Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:39.836502723Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:39.836511034Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:39.836518909Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:39.836526055Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:39.836534250Z [inf]      }
+2026-04-14T23:07:39.836547811Z [err]  Error: Failed query: select "technology_projects"."id", "technology_projects"."slug", "technology_projects"."name", "technology_projects"."category", "technology_projects"."description", "technology_projects"."business_case", "technology_projects"."typical_timeline", "technology_projects"."investment_range", "technology_projects"."complexity_level", "technology_projects"."icon", cast(count("project_capability_impacts"."id") as int) from "technology_projects" left join "project_capability_impacts" on "project_capability_impacts"."project_id" = "technology_projects"."id" group by "technology_projects"."id" order by "technology_projects"."category", "technology_projects"."name"
+2026-04-14T23:07:39.836883328Z [inf]      }
+2026-04-14T23:07:39.836888364Z [inf]      [35mres[39m: {
+2026-04-14T23:07:39.836893899Z [inf]        "statusCode": 500
+2026-04-14T23:07:39.836899056Z [inf]      }
+2026-04-14T23:07:39.836905025Z [inf]      [35mresponseTime[39m: 53
+2026-04-14T23:07:39.836910423Z [inf]      err: {
+2026-04-14T23:07:39.836915472Z [inf]        "type": "Error",
+2026-04-14T23:07:39.836922248Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:39.836928284Z [inf]        "stack":
+2026-04-14T23:07:39.836933904Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:39.836939262Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:41.349228004Z [err]  params: 
+2026-04-14T23:07:41.349279027Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:41.350008612Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:41.350016372Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:41.350022855Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/projects.ts:25:20)
+2026-04-14T23:07:41.350029370Z [inf]  [23:07:32.280] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:41.350035384Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:41.350041260Z [inf]        "id": 19,
+2026-04-14T23:07:41.350047063Z [inf]        "method": "GET",
+2026-04-14T23:07:41.350053562Z [inf]        "url": "/api/projects"
+2026-04-14T23:07:41.350060021Z [inf]      }
+2026-04-14T23:07:41.350066394Z [inf]      [35mres[39m: {
+2026-04-14T23:07:41.350072526Z [inf]        "statusCode": 500
+2026-04-14T23:07:41.350078775Z [inf]      }
+2026-04-14T23:07:41.350090012Z [inf]      [35mresponseTime[39m: 28
+2026-04-14T23:07:41.350097662Z [inf]      err: {
+2026-04-14T23:07:41.350105737Z [inf]        "type": "Error",
+2026-04-14T23:07:41.350113118Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:41.350121058Z [inf]        "stack":
+2026-04-14T23:07:41.350128315Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:41.350136820Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:41.350144620Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:43.603317501Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:43.603324652Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:43.603329712Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:43.603334224Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:43.603338723Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:43.603343146Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:43.603347564Z [inf]      }
+2026-04-14T23:07:43.603352193Z [err]  Error: Failed query: select "technology_projects"."id", "technology_projects"."slug", "technology_projects"."name", "technology_projects"."category", "technology_projects"."description", "technology_projects"."business_case", "technology_projects"."typical_timeline", "technology_projects"."investment_range", "technology_projects"."complexity_level", "technology_projects"."icon", cast(count("project_capability_impacts"."id") as int) from "technology_projects" left join "project_capability_impacts" on "project_capability_impacts"."project_id" = "technology_projects"."id" group by "technology_projects"."id" order by "technology_projects"."category", "technology_projects"."name"
+2026-04-14T23:07:43.603356715Z [err]  params: 
+2026-04-14T23:07:43.603361205Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:43.603365570Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:43.603369770Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:43.603377948Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/projects.ts:25:20)
+2026-04-14T23:07:46.279270403Z [inf]        "url": "/api/projects"
+2026-04-14T23:07:46.279287291Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:46.279288115Z [inf]      }
+2026-04-14T23:07:46.279291342Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:46.279299928Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:46.279309288Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:46.279310935Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:46.279319603Z [inf]        "id": 20,
+2026-04-14T23:07:46.279330369Z [inf]        "method": "GET",
+2026-04-14T23:07:46.279330432Z [inf]  [23:07:34.516] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:46.279334659Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:46.279343719Z [inf]      [35mres[39m: {
+2026-04-14T23:07:46.279345331Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:46.279354146Z [inf]        "statusCode": 500
+2026-04-14T23:07:46.279357300Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:46.279363643Z [inf]      }
+2026-04-14T23:07:46.279367805Z [inf]        "stack":
+2026-04-14T23:07:46.279372884Z [inf]      [35mresponseTime[39m: 48
+2026-04-14T23:07:46.279377841Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:46.279382261Z [inf]      err: {
+2026-04-14T23:07:46.279388961Z [inf]        "type": "Error",
+2026-04-14T23:07:46.279502823Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:46.279520591Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:48.218011679Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:48.218019585Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:07:48.218027494Z [err]    query: 'select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1',
+2026-04-14T23:07:48.218065458Z [err]  params: 1
+2026-04-14T23:07:48.218073801Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:48.218080605Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:48.218092920Z [inf]      }
+2026-04-14T23:07:48.218100288Z [err]  Agent status failed: _DrizzleQueryError: Failed query: select "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at" from "agent_runs" order by "agent_runs"."started_at" desc limit $1
+2026-04-14T23:07:48.218103295Z [err]    params: [ 1 ],
+2026-04-14T23:07:48.218110108Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T23:07:48.218115882Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:07:48.218121185Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:48.218125946Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:07:49.676827266Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:07:49.676833442Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:49.676839278Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/agent.ts:22:25) {
+2026-04-14T23:07:49.676844931Z [err]      length: 110,
+2026-04-14T23:07:49.676850575Z [err]      severity: 'ERROR',
+2026-04-14T23:07:49.676856990Z [err]      code: '42P01',
+2026-04-14T23:07:49.676862260Z [err]      detail: undefined,
+2026-04-14T23:07:49.676867506Z [err]      hint: undefined,
+2026-04-14T23:07:49.676872853Z [err]      position: '273',
+2026-04-14T23:07:49.676877731Z [err]      internalPosition: undefined,
+2026-04-14T23:07:49.684110883Z [err]      internalQuery: undefined,
+2026-04-14T23:07:49.684126468Z [err]      where: undefined,
+2026-04-14T23:07:49.684143234Z [err]      schema: undefined,
+2026-04-14T23:07:49.684158325Z [err]      table: undefined,
+2026-04-14T23:07:49.684165536Z [err]      column: undefined,
+2026-04-14T23:07:49.684172200Z [err]      dataType: undefined,
+2026-04-14T23:07:49.684178475Z [err]      constraint: undefined,
+2026-04-14T23:07:49.684184841Z [err]      file: 'parse_relation.c',
+2026-04-14T23:07:49.684191748Z [err]      line: '1466',
+2026-04-14T23:07:49.684198564Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:07:49.684204639Z [err]    }
+2026-04-14T23:07:49.684210960Z [err]  }
+2026-04-14T23:07:49.684218011Z [err]  CEI history failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:07:51.087171923Z [err]  params: 30
+2026-04-14T23:07:51.087178476Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:51.087185303Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:51.087189981Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:51.087194014Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:51.087201361Z [err]      at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:07:51.087204631Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:07:51.087209292Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:07:51.087216920Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:07:51.087218586Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:07:51.087225561Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:51.087227768Z [err]    params: [ 30 ],
+2026-04-14T23:07:51.087234312Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:07:51.087240462Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:07:52.703954002Z [err]        at async getCEIHistory (/app/artifacts/api-server/src/services/cei-engine.ts:263:21)
+2026-04-14T23:07:52.703958875Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:31:21) {
+2026-04-14T23:07:52.703963762Z [err]      length: 113,
+2026-04-14T23:07:52.703967896Z [err]      severity: 'ERROR',
+2026-04-14T23:07:52.703972435Z [err]      code: '42P01',
+2026-04-14T23:07:52.703993570Z [err]      detail: undefined,
+2026-04-14T23:07:52.703998843Z [err]      hint: undefined,
+2026-04-14T23:07:52.704004576Z [err]      position: '130',
+2026-04-14T23:07:52.704010364Z [err]      internalPosition: undefined,
+2026-04-14T23:07:52.704018078Z [err]      internalQuery: undefined,
+2026-04-14T23:07:52.704070246Z [err]      where: undefined,
+2026-04-14T23:07:52.704074960Z [err]      schema: undefined,
+2026-04-14T23:07:52.704079483Z [err]      table: undefined,
+2026-04-14T23:07:52.704083608Z [err]      column: undefined,
+2026-04-14T23:07:52.704087941Z [err]      dataType: undefined,
+2026-04-14T23:07:52.704092627Z [err]      constraint: undefined,
+2026-04-14T23:07:52.704098206Z [err]      file: 'parse_relation.c',
+2026-04-14T23:07:52.704104247Z [err]      line: '1466',
+2026-04-14T23:07:52.704109616Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:07:52.704115720Z [err]    }
+2026-04-14T23:07:52.704122683Z [err]  }
+2026-04-14T23:07:52.704128329Z [err]  CEI current failed: _DrizzleQueryError: Failed query: select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1
+2026-04-14T23:07:52.704133954Z [err]  params: 1
+2026-04-14T23:07:52.704139221Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T23:07:53.997407382Z [err]        at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:07:53.997418434Z [err]        at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:07:53.997464235Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:53.997469759Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:53.997476024Z [err]      at async getCEICurrent (/app/artifacts/api-server/src/services/cei-engine.ts:240:20)
+2026-04-14T23:07:53.997484307Z [err]      at async <anonymous> (/app/artifacts/api-server/src/routes/cei.ts:15:18) {
+2026-04-14T23:07:53.997490835Z [err]    query: 'select "id", "overall_index", "industry_breakdowns", "market_sentiment", "volatility", "methodology_version", "snapshot_at" from "cei_snapshots" order by "cei_snapshots"."snapshot_at" desc limit $1',
+2026-04-14T23:07:53.997498424Z [err]    params: [ 1 ],
+2026-04-14T23:07:53.997508651Z [err]    cause: error: relation "cei_snapshots" does not exist
+2026-04-14T23:07:53.997515603Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T23:07:53.997522105Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:07:53.997541225Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T23:07:53.997550525Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T23:07:53.997556438Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T23:07:55.668210742Z [err]      length: 113,
+2026-04-14T23:07:55.668215103Z [err]      severity: 'ERROR',
+2026-04-14T23:07:55.668219308Z [err]      code: '42P01',
+2026-04-14T23:07:55.668223310Z [err]      detail: undefined,
+2026-04-14T23:07:55.668227210Z [err]      hint: undefined,
+2026-04-14T23:07:55.668231414Z [err]      position: '130',
+2026-04-14T23:07:55.668235574Z [err]      internalPosition: undefined,
+2026-04-14T23:07:55.668239412Z [err]      internalQuery: undefined,
+2026-04-14T23:07:55.668243523Z [err]      where: undefined,
+2026-04-14T23:07:55.668247328Z [err]      schema: undefined,
+2026-04-14T23:07:55.668251475Z [err]      table: undefined,
+2026-04-14T23:07:55.668258042Z [err]      column: undefined,
+2026-04-14T23:07:55.668262603Z [err]      dataType: undefined,
+2026-04-14T23:07:55.668267963Z [err]      constraint: undefined,
+2026-04-14T23:07:55.668271790Z [err]      file: 'parse_relation.c',
+2026-04-14T23:07:55.668276883Z [err]      line: '1466',
+2026-04-14T23:07:55.668280843Z [err]      routine: 'parserOpenTable'
+2026-04-14T23:07:55.668284737Z [err]    }
+2026-04-14T23:07:55.668288659Z [err]  }
+2026-04-14T23:07:55.668292598Z [inf]  [23:07:35.872] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:55.668298157Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:55.668302037Z [inf]        "id": 21,
+2026-04-14T23:07:55.668306081Z [inf]        "method": "GET",
+2026-04-14T23:07:55.668328499Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:07:55.668332621Z [inf]      }
+2026-04-14T23:07:55.668337788Z [inf]      [35mres[39m: {
+2026-04-14T23:07:55.668341798Z [inf]        "statusCode": 500
+2026-04-14T23:07:55.668345909Z [inf]      }
+2026-04-14T23:07:55.668350257Z [inf]      [35mresponseTime[39m: 21
+2026-04-14T23:07:55.668354062Z [inf]      err: {
+2026-04-14T23:07:55.668357863Z [inf]        "type": "Error",
+2026-04-14T23:07:57.313741180Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:57.313745190Z [inf]        "stack":
+2026-04-14T23:07:57.313749852Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:57.313753668Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:57.313761646Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:57.313765929Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:57.313769762Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:57.313774102Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:57.313777748Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:57.313783248Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:57.313890728Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:57.313895438Z [inf]      }
+2026-04-14T23:07:57.313899900Z [inf]  [23:07:35.876] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:57.313904279Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:57.313908239Z [inf]        "id": 22,
+2026-04-14T23:07:57.313912388Z [inf]        "method": "GET",
+2026-04-14T23:07:57.313916554Z [inf]        "url": "/api/cei/history"
+2026-04-14T23:07:57.313921961Z [inf]      }
+2026-04-14T23:07:57.313926432Z [inf]      [35mres[39m: {
+2026-04-14T23:07:57.313930878Z [inf]        "statusCode": 500
+2026-04-14T23:07:57.313934797Z [inf]      }
+2026-04-14T23:07:57.313938921Z [inf]      [35mresponseTime[39m: 24
+2026-04-14T23:07:57.313943380Z [inf]      err: {
+2026-04-14T23:07:57.313948024Z [inf]        "type": "Error",
+2026-04-14T23:07:59.417226558Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:07:59.417233110Z [inf]        "stack":
+2026-04-14T23:07:59.417239732Z [inf]            Error: failed with status code 500
+2026-04-14T23:07:59.417246748Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:07:59.417252571Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:07:59.417259371Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:07:59.417264714Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:07:59.417270769Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:07:59.417275966Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:07:59.417451875Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:07:59.417475906Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:07:59.417482974Z [inf]      }
+2026-04-14T23:07:59.417489948Z [inf]  [23:07:35.950] [32mINFO[39m (27): [36mrequest errored[39m
+2026-04-14T23:07:59.417496158Z [inf]      [35mreq[39m: {
+2026-04-14T23:07:59.417502416Z [inf]        "id": 23,
+2026-04-14T23:07:59.417509399Z [inf]        "method": "GET",
+2026-04-14T23:07:59.417516034Z [inf]        "url": "/api/cei/current"
+2026-04-14T23:07:59.417522618Z [inf]      }
+2026-04-14T23:07:59.417529991Z [inf]      [35mres[39m: {
+2026-04-14T23:07:59.417550396Z [inf]        "statusCode": 500
+2026-04-14T23:07:59.417558095Z [inf]      }
+2026-04-14T23:07:59.417564777Z [inf]      [35mresponseTime[39m: 27
+2026-04-14T23:07:59.417572148Z [inf]      err: {
+2026-04-14T23:07:59.417578550Z [inf]        "type": "Error",
+2026-04-14T23:08:01.604733258Z [inf]        "message": "failed with status code 500",
+2026-04-14T23:08:01.604746126Z [inf]        "stack":
+2026-04-14T23:08:01.604755383Z [inf]            Error: failed with status code 500
+2026-04-14T23:08:01.604762397Z [inf]                at onResFinished (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+2026-04-14T23:08:01.604768700Z [inf]                at ServerResponse.onResponseComplete (/app/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+2026-04-14T23:08:01.604800012Z [inf]      [35mreq[39m: {
+2026-04-14T23:08:01.604805702Z [inf]                at ServerResponse.emit (node:events:531:35)
+2026-04-14T23:08:01.604808277Z [inf]        "id": 24,
+2026-04-14T23:08:01.604815400Z [inf]        "method": "GET",
+2026-04-14T23:08:01.604822707Z [inf]        "url": "/api/agent/events"
+2026-04-14T23:08:01.604824219Z [inf]                at onFinish (node:_http_outgoing:1084:10)
+2026-04-14T23:08:01.604828403Z [inf]      }
+2026-04-14T23:08:01.604833564Z [inf]      [35mresponseTime[39m: 139
+2026-04-14T23:08:01.604834944Z [inf]                at callback (node:internal/streams/writable:766:21)
+2026-04-14T23:08:01.604836913Z [inf]      [35mres[39m: {
+2026-04-14T23:08:01.604843599Z [inf]                at afterWrite (node:internal/streams/writable:710:5)
+2026-04-14T23:08:01.604843900Z [inf]        "statusCode": 200
+2026-04-14T23:08:01.604849833Z [inf]      }
+2026-04-14T23:08:01.604851608Z [inf]                at afterWriteTick (node:internal/streams/writable:696:10)
+2026-04-14T23:08:01.604861067Z [inf]                at process.processTicksAndRejections (node:internal/process/task_queues:88:21)
+2026-04-14T23:08:01.604867727Z [inf]      }
+2026-04-14T23:08:01.604873877Z [inf]  [23:07:36.065] [32mINFO[39m (27): [36mrequest aborted[39m
