@@ -8,6 +8,7 @@ import {
   ontologyRelationshipsTable,
   ontologyIndustryAdaptersTable,
   capabilitiesTable,
+  ceiComponentsTable,
   industriesTable,
   dataSourcesTable,
 } from "@workspace/db";
@@ -77,6 +78,7 @@ router.get("/thresholds", async (req, res) => {
       capabilitySlug: capabilitiesTable.slug,
       industryId: capabilitiesTable.industryId,
       benchmarkScore: capabilitiesTable.benchmarkScore,
+      consensusScore: ceiComponentsTable.consensusScore,
       greenMin: capabilityThresholdsTable.greenMin,
       yellowMin: capabilityThresholdsTable.yellowMin,
       redMax: capabilityThresholdsTable.redMax,
@@ -84,16 +86,21 @@ router.get("/thresholds", async (req, res) => {
       sourceIds: capabilityThresholdsTable.sourceIds,
     })
     .from(capabilityThresholdsTable)
-    .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId));
+    .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId))
+    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilityThresholdsTable.capabilityId));
 
   const thresholds = industryId !== undefined
     ? await query.where(eq(capabilitiesTable.industryId, industryId))
     : await query;
 
-  const enriched = thresholds.map(t => ({
-    ...t,
-    status: t.benchmarkScore >= t.greenMin ? "green" as const : t.benchmarkScore >= t.yellowMin ? "yellow" as const : "red" as const,
-  }));
+  const enriched = thresholds.map(t => {
+    const score = t.consensusScore ?? t.benchmarkScore;
+    return {
+      ...t,
+      benchmarkScore: score,
+      status: score >= t.greenMin ? "green" as const : score >= t.yellowMin ? "yellow" as const : "red" as const,
+    };
+  });
 
   res.json(enriched);
 });
