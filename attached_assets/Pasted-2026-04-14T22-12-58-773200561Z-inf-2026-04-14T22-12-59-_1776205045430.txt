@@ -1,0 +1,190 @@
+2026-04-14T22:12:58.773200561Z [inf]  
+2026-04-14T22:12:59.709714992Z [inf]  [35m[Region: us-west1][0m
+2026-04-14T22:12:59.727525737Z [inf]  [35m==============
+2026-04-14T22:12:59.727557570Z [inf]  Using Nixpacks
+2026-04-14T22:12:59.727563271Z [inf]  ==============
+2026-04-14T22:12:59.727567604Z [inf]  [0m
+2026-04-14T22:12:59.727673063Z [inf]  context: fqdp-UXhW
+2026-04-14T22:12:59.852305775Z [inf]  ╔══════════════════════════ Nixpacks v1.38.0 ══════════════════════════╗
+2026-04-14T22:12:59.852354358Z [inf]  ║ setup      │ nodejs_22                                               ║
+2026-04-14T22:12:59.852362256Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:12:59.852366862Z [inf]  ║ install    │ npm config set prefix /usr/local                        ║
+2026-04-14T22:12:59.852373725Z [inf]  ║            │ npm install -g pnpm@10.26.1                             ║
+2026-04-14T22:12:59.852378181Z [inf]  ║            │ pnpm install --frozen-lockfile                          ║
+2026-04-14T22:12:59.852383035Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:12:59.852387766Z [inf]  ║ build      │ pnpm install --frozen-lockfile && pnpm run build:deploy ║
+2026-04-14T22:12:59.852392174Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:12:59.852412114Z [inf]  ║ start      │ pnpm run start                                          ║
+2026-04-14T22:12:59.852416897Z [inf]  ╚══════════════════════════════════════════════════════════════════════╝
+2026-04-14T22:13:20.013850164Z [err]  ERROR: failed to build: listing workers for Build: failed to list workers: Unavailable: connection error: desc = "error reading server preface: read unix @->/run/docker.sock: use of closed network connection"
+2026-04-14T22:13:20.018671683Z [err]  Error: Docker build failed
+2026-04-14T22:13:21.049151327Z [inf]  [35m[Region: us-west1][0m
+2026-04-14T22:13:21.065844926Z [inf]  [35m==============
+2026-04-14T22:13:21.065874906Z [inf]  Using Nixpacks
+2026-04-14T22:13:21.065880151Z [inf]  ==============
+2026-04-14T22:13:21.065884401Z [inf]  [0m
+2026-04-14T22:13:21.065980967Z [inf]  context: fqdp-UXhW
+2026-04-14T22:13:21.191246422Z [inf]  ╔══════════════════════════ Nixpacks v1.38.0 ══════════════════════════╗
+2026-04-14T22:13:21.191276753Z [inf]  ║ setup      │ nodejs_22                                               ║
+2026-04-14T22:13:21.191283723Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:21.191288454Z [inf]  ║ install    │ npm config set prefix /usr/local                        ║
+2026-04-14T22:13:21.191295208Z [inf]  ║            │ npm install -g pnpm@10.26.1                             ║
+2026-04-14T22:13:21.191299559Z [inf]  ║            │ pnpm install --frozen-lockfile                          ║
+2026-04-14T22:13:21.191304295Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:21.191308933Z [inf]  ║ build      │ pnpm install --frozen-lockfile && pnpm run build:deploy ║
+2026-04-14T22:13:21.191313389Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:21.191317669Z [inf]  ║ start      │ pnpm run start                                          ║
+2026-04-14T22:13:21.191322506Z [inf]  ╚══════════════════════════════════════════════════════════════════════╝
+2026-04-14T22:13:41.349661419Z [err]  ERROR: failed to build: listing workers for Build: failed to list workers: Unavailable: connection error: desc = "error reading server preface: read unix @->/run/docker.sock: use of closed network connection"
+2026-04-14T22:13:41.354856083Z [err]  Error: Docker build failed
+2026-04-14T22:13:43.377105782Z [inf]  [35m[Region: us-west1][0m
+2026-04-14T22:13:43.393158180Z [inf]  [35m==============
+2026-04-14T22:13:43.393188791Z [inf]  Using Nixpacks
+2026-04-14T22:13:43.393193994Z [inf]  ==============
+2026-04-14T22:13:43.393198288Z [inf]  [0m
+2026-04-14T22:13:43.393317499Z [inf]  context: fqdp-UXhW
+2026-04-14T22:13:43.519240790Z [inf]  ╔══════════════════════════ Nixpacks v1.38.0 ══════════════════════════╗
+2026-04-14T22:13:43.519289856Z [inf]  ║ setup      │ nodejs_22                                               ║
+2026-04-14T22:13:43.519296998Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:43.519301619Z [inf]  ║ install    │ npm config set prefix /usr/local                        ║
+2026-04-14T22:13:43.519307998Z [inf]  ║            │ npm install -g pnpm@10.26.1                             ║
+2026-04-14T22:13:43.519312369Z [inf]  ║            │ pnpm install --frozen-lockfile                          ║
+2026-04-14T22:13:43.519316970Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:43.519321644Z [inf]  ║ build      │ pnpm install --frozen-lockfile && pnpm run build:deploy ║
+2026-04-14T22:13:43.519326416Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:13:43.519331336Z [inf]  ║ start      │ pnpm run start                                          ║
+2026-04-14T22:13:43.519336084Z [inf]  ╚══════════════════════════════════════════════════════════════════════╝
+2026-04-14T22:14:03.675283993Z [err]  ERROR: failed to build: listing workers for Build: failed to list workers: Unavailable: connection error: desc = "error reading server preface: read unix @->/run/docker.sock: use of closed network connection"
+2026-04-14T22:14:03.680534778Z [err]  Error: Docker build failed
+2026-04-14T22:14:07.703738024Z [inf]  [35m[Region: us-west1][0m
+2026-04-14T22:14:07.720689729Z [inf]  [35m==============
+2026-04-14T22:14:07.720724427Z [inf]  Using Nixpacks
+2026-04-14T22:14:07.720730226Z [inf]  ==============
+2026-04-14T22:14:07.720738581Z [inf]  [0m
+2026-04-14T22:14:07.720835842Z [inf]  context: fqdp-UXhW
+2026-04-14T22:14:07.844822688Z [inf]  ╔══════════════════════════ Nixpacks v1.38.0 ══════════════════════════╗
+2026-04-14T22:14:07.844887523Z [inf]  ║ setup      │ nodejs_22                                               ║
+2026-04-14T22:14:07.844898149Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:14:07.844903591Z [inf]  ║ install    │ npm config set prefix /usr/local                        ║
+2026-04-14T22:14:07.844910749Z [inf]  ║            │ npm install -g pnpm@10.26.1                             ║
+2026-04-14T22:14:07.844916847Z [inf]  ║            │ pnpm install --frozen-lockfile                          ║
+2026-04-14T22:14:07.844922386Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:14:07.844927569Z [inf]  ║ build      │ pnpm install --frozen-lockfile && pnpm run build:deploy ║
+2026-04-14T22:14:07.844937154Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:14:07.844941905Z [inf]  ║ start      │ pnpm run start                                          ║
+2026-04-14T22:14:07.844946477Z [inf]  ╚══════════════════════════════════════════════════════════════════════╝
+2026-04-14T22:14:16.213453224Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:14:16.213523479Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:14:16.213550090Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:14:16.258935484Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:14:16.266322370Z [inf]  [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+2026-04-14T22:14:16.542506543Z [inf]  [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+2026-04-14T22:14:16.543012291Z [inf]  [internal] load .dockerignore
+2026-04-14T22:14:16.543183439Z [inf]  [internal] load .dockerignore
+2026-04-14T22:14:16.543302386Z [inf]  [internal] load .dockerignore
+2026-04-14T22:14:16.572246520Z [inf]  [internal] load .dockerignore
+2026-04-14T22:14:16.590524276Z [inf]  [stage-0 11/12] RUN printf '\nPATH=/app/node_modules/.bin:$PATH' >> /root/.profile
+2026-04-14T22:14:16.590573407Z [inf]  [stage-0 10/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-node_modules/cache,target=/app/node_modules/.cache pnpm install --frozen-lockfile && pnpm run build:deploy
+2026-04-14T22:14:16.590585960Z [inf]  [stage-0  9/12] COPY . /app/.
+2026-04-14T22:14:16.590598026Z [inf]  [stage-0  8/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 pnpm install --frozen-lockfile
+2026-04-14T22:14:16.590609840Z [inf]  [stage-0  7/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm install -g pnpm@10.26.1
+2026-04-14T22:14:16.590619099Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:14:16.590628004Z [inf]  [stage-0  5/12] COPY . /app/.
+2026-04-14T22:14:16.590636357Z [inf]  [stage-0  4/12] RUN nix-env -if .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix && nix-collect-garbage -d
+2026-04-14T22:14:16.590647750Z [inf]  [stage-0  3/12] COPY .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix
+2026-04-14T22:14:16.590654879Z [inf]  [internal] load build context
+2026-04-14T22:14:16.590662815Z [inf]  [stage-0  2/12] WORKDIR /app/
+2026-04-14T22:14:16.590670264Z [inf]  [stage-0 12/12] COPY . /app
+2026-04-14T22:14:16.590677804Z [inf]  [stage-0  6/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm config set prefix /usr/local
+2026-04-14T22:14:16.590706097Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:14:16.590715181Z [inf]  [internal] load build context
+2026-04-14T22:14:16.590726734Z [inf]  [internal] load build context
+2026-04-14T22:14:16.601485067Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:14:16.710647582Z [inf]  [internal] load build context
+2026-04-14T22:14:16.723031823Z [inf]  [stage-0  2/12] WORKDIR /app/
+2026-04-14T22:14:16.723095323Z [inf]  [stage-0  2/12] WORKDIR /app/
+2026-04-14T22:14:16.723485197Z [inf]  [stage-0  3/12] COPY .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix
+2026-04-14T22:14:17.627872949Z [inf]  [stage-0  3/12] COPY .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix
+2026-04-14T22:14:17.632904957Z [inf]  [stage-0  4/12] RUN nix-env -if .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix && nix-collect-garbage -d
+2026-04-14T22:14:18.762568776Z [inf]  unpacking 'https://github.com/NixOS/nixpkgs/archive/ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.tar.gz' into the Git cache...
+
+2026-04-14T22:15:53.415743321Z [inf]  
+2026-04-14T22:15:54.292111637Z [inf]  [35m[Region: us-west1][0m
+2026-04-14T22:15:54.319029627Z [inf]  [35m==============
+2026-04-14T22:15:54.319078233Z [inf]  Using Nixpacks
+2026-04-14T22:15:54.319090292Z [inf]  ==============
+2026-04-14T22:15:54.319099103Z [inf]  [0m
+2026-04-14T22:15:54.319274788Z [inf]  context: lnkf-fCPn
+2026-04-14T22:15:54.459065131Z [inf]  ╔══════════════════════════ Nixpacks v1.38.0 ══════════════════════════╗
+2026-04-14T22:15:54.459093046Z [inf]  ║ setup      │ nodejs_22                                               ║
+2026-04-14T22:15:54.459099248Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:15:54.459103610Z [inf]  ║ install    │ npm config set prefix /usr/local                        ║
+2026-04-14T22:15:54.459110374Z [inf]  ║            │ npm install -g pnpm@10.26.1                             ║
+2026-04-14T22:15:54.459115405Z [inf]  ║            │ pnpm install --frozen-lockfile                          ║
+2026-04-14T22:15:54.459120151Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:15:54.459124619Z [inf]  ║ build      │ pnpm install --frozen-lockfile && pnpm run build:deploy ║
+2026-04-14T22:15:54.459129166Z [inf]  ║──────────────────────────────────────────────────────────────────────║
+2026-04-14T22:15:54.459133572Z [inf]  ║ start      │ pnpm run start                                          ║
+2026-04-14T22:15:54.459137905Z [inf]  ╚══════════════════════════════════════════════════════════════════════╝
+2026-04-14T22:15:54.739054499Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:15:54.739114549Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:15:54.739132531Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:15:54.760469170Z [inf]  [internal] load build definition from Dockerfile
+2026-04-14T22:15:54.763372300Z [inf]  [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+2026-04-14T22:15:55.055844335Z [inf]  [internal] load metadata for ghcr.io/railwayapp/nixpacks:ubuntu-1745885067
+2026-04-14T22:15:55.056332588Z [inf]  [internal] load .dockerignore
+2026-04-14T22:15:55.056389959Z [inf]  [internal] load .dockerignore
+2026-04-14T22:15:55.056800308Z [inf]  [internal] load .dockerignore
+2026-04-14T22:15:55.069909915Z [inf]  [internal] load .dockerignore
+2026-04-14T22:15:55.085687684Z [inf]  [stage-0  4/12] RUN nix-env -if .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix && nix-collect-garbage -d
+2026-04-14T22:15:55.085756327Z [inf]  [stage-0  3/12] COPY .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix
+2026-04-14T22:15:55.085783957Z [inf]  [internal] load build context
+2026-04-14T22:15:55.085801364Z [inf]  [stage-0  2/12] WORKDIR /app/
+2026-04-14T22:15:55.085820677Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:15:55.085922040Z [inf]  [stage-0 12/12] COPY . /app
+2026-04-14T22:15:55.085932093Z [inf]  [stage-0 11/12] RUN printf '\nPATH=/app/node_modules/.bin:$PATH' >> /root/.profile
+2026-04-14T22:15:55.085941773Z [inf]  [stage-0 10/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-node_modules/cache,target=/app/node_modules/.cache pnpm install --frozen-lockfile && pnpm run build:deploy
+2026-04-14T22:15:55.085949830Z [inf]  [stage-0  9/12] COPY . /app/.
+2026-04-14T22:15:55.085975408Z [inf]  [stage-0  8/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 pnpm install --frozen-lockfile
+2026-04-14T22:15:55.085987336Z [inf]  [stage-0  7/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm install -g pnpm@10.26.1
+2026-04-14T22:15:55.085994921Z [inf]  [stage-0  6/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm config set prefix /usr/local
+2026-04-14T22:15:55.086002344Z [inf]  [stage-0  5/12] COPY . /app/.
+2026-04-14T22:15:55.086025079Z [inf]  [internal] load build context
+2026-04-14T22:15:55.086037144Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:15:55.086049667Z [inf]  [internal] load build context
+2026-04-14T22:15:55.097720603Z [inf]  [stage-0  1/12] FROM ghcr.io/railwayapp/nixpacks:ubuntu-1745885067@sha256:d45c89d80e13d7ad0fd555b5130f22a866d9dd10e861f589932303ef2314c7de
+2026-04-14T22:15:55.185503145Z [inf]  [internal] load build context
+2026-04-14T22:15:55.191969221Z [inf]  [stage-0  2/12] WORKDIR /app/
+2026-04-14T22:15:55.192017256Z [inf]  [stage-0  3/12] COPY .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix
+2026-04-14T22:15:55.192036514Z [inf]  [stage-0  4/12] RUN nix-env -if .nixpacks/nixpkgs-ffeebf0acf3ae8b29f8c7049cd911b9636efd7e7.nix && nix-collect-garbage -d
+2026-04-14T22:15:55.192067181Z [inf]  [stage-0  5/12] COPY . /app/.
+2026-04-14T22:15:56.056107495Z [inf]  [stage-0  5/12] COPY . /app/.
+2026-04-14T22:15:56.064547717Z [inf]  [stage-0  6/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm config set prefix /usr/local
+2026-04-14T22:15:56.459433003Z [inf]  npm warn config production Use `--omit=dev` instead.
+
+2026-04-14T22:15:56.522862204Z [inf]  [stage-0  6/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm config set prefix /usr/local
+2026-04-14T22:15:56.525125056Z [inf]  [stage-0  7/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm install -g pnpm@10.26.1
+2026-04-14T22:15:56.711382514Z [inf]  npm warn config production Use `--omit=dev` instead.
+
+2026-04-14T22:15:58.101250689Z [inf]  
+added 1 package in 1s
+
+
+2026-04-14T22:15:58.101277743Z [inf]  1 package is looking for funding
+  run `npm fund` for details
+
+2026-04-14T22:15:58.174104665Z [inf]  [stage-0  7/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm install -g pnpm@10.26.1
+2026-04-14T22:15:58.176061560Z [inf]  [stage-0  8/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 pnpm install --frozen-lockfile
+2026-04-14T22:15:58.271124002Z [inf]  /bin/bash: line 1: pnpm: command not found
+
+2026-04-14T22:15:58.294716751Z [err]  [stage-0  8/12] RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 pnpm install --frozen-lockfile
+2026-04-14T22:15:58.327943960Z [err]  Dockerfile:22
+2026-04-14T22:15:58.327992222Z [err]  -------------------
+2026-04-14T22:15:58.328007415Z [err]  20 |     RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm config set prefix /usr/local
+2026-04-14T22:15:58.328017693Z [err]  21 |     RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 npm install -g pnpm@10.26.1
+2026-04-14T22:15:58.328025801Z [err]  22 | >>> RUN --mount=type=cache,id=s/f4585a12-c207-4faa-9171-5362997768ec-/root/local/share/pnpm/store/v3,target=/root/.local/share/pnpm/store/v3 pnpm install --frozen-lockfile
+2026-04-14T22:15:58.328030683Z [err]  23 |
+2026-04-14T22:15:58.328054342Z [err]  24 |     # build phase
+2026-04-14T22:15:58.328060814Z [err]  -------------------
+2026-04-14T22:15:58.328067424Z [err]  ERROR: failed to build: failed to solve: process "/bin/bash -ol pipefail -c pnpm install --frozen-lockfile" did not complete successfully: exit code: 127
+2026-04-14T22:15:58.334446301Z [err]  Error: Docker build failed
