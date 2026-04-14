@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile
 # Build frontend (capability-economics) then API server
 RUN pnpm run build:deploy
 
+ENV PORT=8080
 EXPOSE 8080
 
 # Push database schema then start the API server
