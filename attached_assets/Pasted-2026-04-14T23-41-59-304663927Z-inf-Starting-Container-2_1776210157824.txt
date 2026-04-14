@@ -1,0 +1,62 @@
+2026-04-14T23:41:59.304663927Z [inf]  Starting Container
+2026-04-14T23:41:59.360940131Z [inf]  
+2026-04-14T23:41:59.360950681Z [inf]  > @workspace/db@0.0.0 push /app/lib/db
+2026-04-14T23:41:59.360971270Z [inf]  > drizzle-kit push --config ./drizzle.config.ts
+2026-04-14T23:41:59.360982190Z [inf]  
+2026-04-14T23:42:00.201362583Z [inf]  Reading config file '/app/lib/db/drizzle.config.ts'
+2026-04-14T23:42:00.201369929Z [inf]  Using 'pg' driver for database querying
+2026-04-14T23:42:00.274064738Z [inf]  [⣷] Pulling schema from database...
+2026-04-14T23:42:00.387682652Z [inf]  [2K[1G[⣯] Pulling schema from database...
+2026-04-14T23:42:01.237978652Z [inf]  [2K[1G[⣟] Pulling schema from database...
+2026-04-14T23:42:01.237985505Z [inf]  [2K[1G[⡿] Pulling schema from database...
+2026-04-14T23:42:01.237992821Z [inf]  [2K[1G[⣽] Pulling schema from database...
+2026-04-14T23:42:01.237993240Z [inf]  [2K[1G[⢿] Pulling schema from database...
+2026-04-14T23:42:01.238000908Z [inf]  [2K[1G[⣷] Pulling schema from database...
+2026-04-14T23:42:01.238002929Z [inf]  [2K[1G[⣻] Pulling schema from database...
+2026-04-14T23:42:01.285243634Z [inf]  [2K[1G[⣯] Pulling schema from database...
+2026-04-14T23:42:01.414560252Z [inf]  [2K[1G[⣟] Pulling schema from database...
+2026-04-14T23:42:02.231734801Z [inf]  [2K[1G[✓] Pulling schema from database...
+2026-04-14T23:42:02.231740451Z [inf]  [i] No changes detected
+2026-04-14T23:42:02.231748590Z [inf]  
+2026-04-14T23:42:02.231754803Z [inf]  > @workspace/scripts@0.0.0 seed /app/scripts
+2026-04-14T23:42:02.231761910Z [inf]  > tsx ./src/seed.ts
+2026-04-14T23:42:02.231767708Z [inf]  
+2026-04-14T23:42:03.359855798Z [inf]  Seed data already exists — skipping knowledge graph seed.
+2026-04-14T23:42:03.359863158Z [inf]  Technology projects already exist — skipping projects seed.
+2026-04-14T23:42:04.199776666Z [inf]  > pnpm --filter @workspace/api-server run start
+2026-04-14T23:42:04.199790616Z [inf]  
+2026-04-14T23:42:04.199798104Z [inf]  
+2026-04-14T23:42:04.199808374Z [inf]  > @workspace/api-server@0.0.0 start /app/artifacts/api-server
+2026-04-14T23:42:04.199818568Z [inf]  > node --enable-source-maps ./dist/index.mjs
+2026-04-14T23:42:04.199831355Z [inf]  
+2026-04-14T23:42:04.199907347Z [inf]  
+2026-04-14T23:42:04.199911737Z [inf]  > workspace@0.0.0 start /app
+2026-04-14T23:42:05.121278866Z [inf]  [Agent] Autonomous monitoring started — routine cycle every 30min, urgency watchdog every 5min
+2026-04-14T23:42:05.121285604Z [inf]  [23:42:04.395] [32mINFO[39m (131): [36mServing SPA from static directory[39m
+2026-04-14T23:42:05.121292833Z [inf]      [35mfrontendDist[39m: "/app/artifacts/capability-economics/dist/public"
+2026-04-14T23:42:05.121300366Z [inf]  [23:42:04.418] [32mINFO[39m (131): [36mServer listening[39m
+2026-04-14T23:42:05.121307535Z [inf]      [35mport[39m: 8080
+2026-04-14T23:42:05.121313907Z [inf]  [23:42:04.419] [32mINFO[39m (131): [36mAgent scheduler started (30min interval)[39m
+2026-04-14T23:42:05.121319738Z [inf]  [Mem0] Cloud client initialized
+2026-04-14T23:42:05.121325470Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Precision Underwriting trend pattern..."
+2026-04-14T23:42:05.217736525Z [inf]  [Letta] Connected — found agent "cei-autonomous-agent" (agent-9835f350-f904-4f04-b5ae-da315a0a1d5e)
+2026-04-14T23:42:05.400153455Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Rapid Claims Resolution trend pattern..."
+2026-04-14T23:42:06.165996591Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Actuarial Modeling trend pattern..."
+2026-04-14T23:42:06.166177280Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Fraud Detection & Prevention trend patte..."
+2026-04-14T23:42:06.286558782Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Digital Distribution trend pattern..."
+2026-04-14T23:42:07.217957180Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Customer Retention trend pattern..."
+2026-04-14T23:42:07.217960743Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Regulatory Compliance trend pattern..."
+2026-04-14T23:42:07.217964302Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Reinsurance Optimization trend pattern..."
+2026-04-14T23:42:07.233296651Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Agent Enablement trend pattern..."
+2026-04-14T23:42:08.266487068Z [inf]  [Mem0] Recalled 0 memories for query: "Insurance Data & Analytics Platform trend pattern..."
+2026-04-14T23:42:08.266497076Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Clinical Decision Support trend pattern..."
+2026-04-14T23:42:08.266503284Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Patient Experience Management trend pat..."
+2026-04-14T23:42:08.270555756Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Revenue Cycle Management trend pattern..."
+2026-04-14T23:42:09.222281614Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Population Health Management trend patt..."
+2026-04-14T23:42:09.222286305Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Clinical Supply Chain trend pattern..."
+2026-04-14T23:42:09.222290315Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Telehealth & Virtual Care trend pattern..."
+2026-04-14T23:42:09.371860332Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Clinical Workforce Management trend pat..."
+2026-04-14T23:42:10.256836112Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Health Data Interoperability trend patt..."
+2026-04-14T23:42:10.256839994Z [inf]  [Mem0] Recalled 0 memories for query: "Healthcare Quality & Patient Safety trend pattern..."
+2026-04-14T23:42:10.256845319Z [inf]  [Mem0] Recalled 0 memories for query: "Banking & Financial Services Credit Decisioning tr..."
+2026-04-14T23:42:10.418982779Z [inf]  [Mem0] Recalled 0 memories for query: "Banking & Financial Services Digital Banking Platf..."

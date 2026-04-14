@@ -8,7 +8,7 @@ import {
   agentRunsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { recallMemories, storeMemory } from "./memory";
+import { recallMemories, storeMemory, recallMemoriesBatch, filterMemoriesForTarget } from "./memory";
 import { emitAgentEvent } from "./events";
 import { lettaRecordCycle } from "./letta";
 import {
@@ -128,6 +128,9 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
   let researchCount = 0;
   let memoriesRecalled = 0;
 
+  const patternBatch = await recallMemoriesBatch("pattern", 100);
+  console.log(`[Agent] Batch recalled ${patternBatch.length} pattern memories for decide phase`);
+
   for (const target of state.targets) {
     if (researchCount >= MAX_RESEARCH_PER_RUN) {
       decisions.push({
@@ -142,25 +145,13 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
       continue;
     }
 
-    const recallResultStr = await recallMemoriesTool.invoke({
-      query: `${target.industryName} ${target.capabilityName} trend pattern`,
-      memoryType: "pattern",
-      limit: 3,
-    });
-    const memories = JSON.parse(recallResultStr);
-    const memoryCount = Array.isArray(memories) ? memories.length : 0;
+    const memories = filterMemoriesForTarget(patternBatch, target.industryName, target.capabilityName, 3);
+    const memoryCount = memories.length;
     memoriesRecalled += memoryCount;
 
-    interface RecalledMemory {
-      createdAt?: string;
-      relevance?: number;
-      relevanceScore?: number;
-    }
-    const hasRecentPattern = Array.isArray(memories) && memories.some((m: RecalledMemory) => {
-      const age = m.createdAt
-        ? (Date.now() - new Date(m.createdAt).getTime()) / (1000 * 60 * 60 * 24)
-        : 999;
-      return age < 14 && (m.relevance ?? m.relevanceScore ?? 0) > 0.5;
+    const hasRecentPattern = memories.some(m => {
+      const age = (Date.now() - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      return age < 14 && m.relevanceScore > 0.5;
     });
 
     if (target.priority < 1 && target.confidence > 0.7 && !hasHighVolatility(target)) {

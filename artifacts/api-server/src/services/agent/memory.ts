@@ -206,6 +206,99 @@ export async function recallMemories(
   return [...results, ...localResults].slice(0, limit);
 }
 
+export async function recallMemoriesBatch(
+  type: MemoryType,
+  limit: number = 100,
+): Promise<AgentMemory[]> {
+  const client = getMem0Client();
+  const results: AgentMemory[] = [];
+
+  if (client) {
+    try {
+      const mem0Results = await client.search(`[${type}] capability industry trend pattern observation`, {
+        agent_id: MEM0_AGENT_ID,
+        app_id: MEM0_APP_ID,
+        limit,
+      });
+
+      for (const m of mem0Results) {
+        results.push({
+          id: m.id || `mem0-${Date.now()}`,
+          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || type,
+          content: m.memory || m.data?.memory || "",
+          metadata: (m.metadata as Record<string, unknown>) || {},
+          relevanceScore: m.score ?? 0.8,
+          accessCount: 0,
+          createdAt: m.created_at ? new Date(m.created_at) : new Date(),
+          source: "mem0",
+        });
+      }
+
+      console.log(`[Mem0] Batch recalled ${results.length} ${type} memories (1 API call)`);
+      if (results.length >= limit) return results;
+    } catch (err) {
+      console.error("[Mem0] Batch search failed, falling back to local DB:", err);
+    }
+  }
+
+  const now = new Date();
+  const localMemories = await db
+    .select()
+    .from(agentMemoriesTable)
+    .where(and(
+      sql`${agentMemoriesTable.memoryType} = ${type}`,
+      sql`(${agentMemoriesTable.expiresAt} IS NULL OR ${agentMemoriesTable.expiresAt} > ${now})`,
+    ))
+    .orderBy(desc(agentMemoriesTable.createdAt))
+    .limit(limit);
+
+  for (const m of localMemories) {
+    const localMeta = (m.metadata as Record<string, unknown>) || {};
+    const isMem0Synced = results.some(r => typeof r.id === "string" && localMeta.mem0Id === r.id);
+    if (!isMem0Synced) {
+      results.push({
+        id: m.id,
+        memoryType: m.memoryType,
+        content: m.content,
+        metadata: localMeta,
+        relevanceScore: m.relevanceScore ?? 1.0,
+        accessCount: m.accessCount,
+        createdAt: m.createdAt,
+        source: "local",
+      });
+    }
+  }
+
+  return results.slice(0, limit);
+}
+
+export function filterMemoriesForTarget(
+  batch: AgentMemory[],
+  industryName: string,
+  capabilityName: string,
+  limit: number = 3,
+): AgentMemory[] {
+  const keywords = `${industryName} ${capabilityName}`.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+  const now = Date.now();
+
+  const scored = batch.map(m => {
+    const text = (m.content + " " + JSON.stringify(m.metadata)).toLowerCase();
+    let matchScore = 0;
+    for (const kw of keywords) {
+      if (text.includes(kw)) matchScore += 1;
+    }
+    const keywordRelevance = keywords.length > 0 ? matchScore / keywords.length : 0;
+    const ageDays = (now - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+    const recencyBoost = Math.exp(-ageDays / 30);
+    return { memory: m, score: keywordRelevance * 0.7 + recencyBoost * 0.3 };
+  });
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(s => ({ ...s.memory, relevanceScore: s.score }));
+}
+
 export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]> {
   const client = getMem0Client();
   const results: AgentMemory[] = [];
