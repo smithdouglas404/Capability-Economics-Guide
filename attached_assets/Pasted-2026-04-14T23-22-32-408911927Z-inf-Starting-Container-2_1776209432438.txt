@@ -1,0 +1,419 @@
+2026-04-14T23:22:32.408911927Z [inf]  Starting Container
+2026-04-14T23:22:33.970598442Z [inf]  Using 'pg' driver for database querying
+2026-04-14T23:22:33.970606028Z [inf]  [⣷] Pulling schema from database...
+2026-04-14T23:22:33.970612894Z [inf]  [2K[1G[⣯] Pulling schema from database...
+2026-04-14T23:22:33.970715757Z [inf]  
+2026-04-14T23:22:33.970721899Z [inf]  > @workspace/db@0.0.0 push /app/lib/db
+2026-04-14T23:22:33.970727433Z [inf]  > drizzle-kit push --config ./drizzle.config.ts
+2026-04-14T23:22:33.970733315Z [inf]  
+2026-04-14T23:22:33.970740174Z [inf]  Reading config file '/app/lib/db/drizzle.config.ts'
+2026-04-14T23:22:34.092748766Z [inf]  [2K[1G[⣟] Pulling schema from database...
+2026-04-14T23:22:34.218276722Z [inf]  [2K[1G[⡿] Pulling schema from database...
+2026-04-14T23:22:34.348430091Z [inf]  [2K[1G[⢿] Pulling schema from database...
+2026-04-14T23:22:35.002184070Z [inf]  [2K[1G[⣻] Pulling schema from database...
+2026-04-14T23:22:35.002188882Z [inf]  [2K[1G[⣽] Pulling schema from database...
+2026-04-14T23:22:35.002194044Z [inf]  [2K[1G[✓] Pulling schema from database...
+2026-04-14T23:22:35.002199285Z [inf]  [i] No changes detected
+2026-04-14T23:22:35.251005597Z [inf]  
+2026-04-14T23:22:35.251029340Z [inf]  > @workspace/scripts@0.0.0 seed /app/scripts
+2026-04-14T23:22:35.251035637Z [inf]  > tsx ./src/seed.ts
+2026-04-14T23:22:35.251041773Z [inf]  
+2026-04-14T23:22:37.136656161Z [inf]  > workspace@0.0.0 start /app
+2026-04-14T23:22:37.136664575Z [inf]  > pnpm --filter @workspace/api-server run start
+2026-04-14T23:22:37.136671920Z [inf]  
+2026-04-14T23:22:37.136826484Z [inf]  Seed data already exists — skipping knowledge graph seed.
+2026-04-14T23:22:37.136832349Z [inf]  Technology projects already exist — skipping projects seed.
+2026-04-14T23:22:37.136837225Z [inf]  
+2026-04-14T23:22:38.050147968Z [inf]  
+2026-04-14T23:22:38.050151789Z [inf]  > @workspace/api-server@0.0.0 start /app/artifacts/api-server
+2026-04-14T23:22:38.050156400Z [inf]  > node --enable-source-maps ./dist/index.mjs
+2026-04-14T23:22:38.050160366Z [inf]  
+2026-04-14T23:22:38.050181756Z [inf]  [Agent] Autonomous monitoring started — routine cycle every 30min, urgency watchdog every 5min
+2026-04-14T23:22:38.050186153Z [inf]  [23:22:37.854] [32mINFO[39m (134): [36mServing SPA from static directory[39m
+2026-04-14T23:22:38.050190044Z [inf]      [35mfrontendDist[39m: "/app/artifacts/capability-economics/dist/public"
+2026-04-14T23:22:38.050193681Z [inf]  [23:22:37.882] [32mINFO[39m (134): [36mServer listening[39m
+2026-04-14T23:22:38.050197346Z [inf]      [35mport[39m: 8080
+2026-04-14T23:22:38.050201793Z [inf]  [23:22:37.884] [32mINFO[39m (134): [36mAgent scheduler started (30min interval)[39m
+2026-04-14T23:22:38.050207285Z [inf]  [Mem0] Cloud client initialized
+2026-04-14T23:22:39.082989543Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.082999202Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.083005105Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.083010833Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.083016507Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.083022564Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.083028784Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.083033944Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.083039031Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.083045610Z [err]    details: {},
+2026-04-14T23:22:39.083050390Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.083060962Z [err]    debugInfo: {}
+2026-04-14T23:22:39.084466951Z [err]  }
+2026-04-14T23:22:39.084470843Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.084475061Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.084478811Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.084482264Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.084486040Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.084489780Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.084494587Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.084498326Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.084502140Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.084506191Z [err]    details: {},
+2026-04-14T23:22:39.084509911Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.088614439Z [err]    debugInfo: {}
+2026-04-14T23:22:39.088619431Z [err]  }
+2026-04-14T23:22:39.088623861Z [inf]  [Letta] Connected — found agent "cei-autonomous-agent" (agent-9835f350-f904-4f04-b5ae-da315a0a1d5e)
+2026-04-14T23:22:39.088628182Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.088632267Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.088636341Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.088641685Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.088646101Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.088650181Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.088654404Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.088659428Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.088663828Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.090578637Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.090589549Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.090594469Z [err]    debugInfo: {}
+2026-04-14T23:22:39.090597644Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.090604045Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.090616257Z [err]  }
+2026-04-14T23:22:39.090626536Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.090626951Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.090636187Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.090641695Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.090704582Z [err]    details: {},
+2026-04-14T23:22:39.090711927Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.093993924Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.094002601Z [err]    debugInfo: {}
+2026-04-14T23:22:39.094007794Z [err]  }
+2026-04-14T23:22:39.094011969Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.094018960Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.094023822Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.094028411Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.094032876Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.094041970Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.094047960Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.094050395Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.094056201Z [err]    details: {},
+2026-04-14T23:22:39.094059543Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.097639508Z [err]    debugInfo: {}
+2026-04-14T23:22:39.097655876Z [err]  }
+2026-04-14T23:22:39.097861043Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.097866432Z [err]    details: {},
+2026-04-14T23:22:39.097872463Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.107137681Z [err]    details: {},
+2026-04-14T23:22:39.107148765Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.107155422Z [err]    debugInfo: {}
+2026-04-14T23:22:39.107172879Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.107178836Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.107185036Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.107191899Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.107194296Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.107207958Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.107218127Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.107226890Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.107235125Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.111931435Z [err]  }
+2026-04-14T23:22:39.235168858Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.235178149Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.235185296Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.235191010Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.235196834Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.235203003Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.235208800Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.235214350Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.235220769Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.235227188Z [err]    details: {},
+2026-04-14T23:22:39.235232855Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.235239742Z [err]    debugInfo: {}
+2026-04-14T23:22:39.238826786Z [err]  }
+2026-04-14T23:22:39.355728070Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:39.355736205Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:39.355742735Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:39.355748317Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:39.355753552Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:39.355758874Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:39.355764155Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:39.355770171Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:39.355775415Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:39.355780720Z [err]    details: {},
+2026-04-14T23:22:39.355785793Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:39.355790947Z [err]    debugInfo: {}
+2026-04-14T23:22:39.358081994Z [err]  }
+2026-04-14T23:22:40.042230403Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:40.042234153Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:40.042238372Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:40.042244963Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:40.042248679Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:40.042252394Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:40.042256262Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:40.042260872Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:40.042264575Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:40.042268288Z [err]    details: {},
+2026-04-14T23:22:40.042272017Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:40.042275722Z [err]    debugInfo: {}
+2026-04-14T23:22:40.044878789Z [err]  }
+2026-04-14T23:22:40.044882574Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:40.044886688Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:40.044890772Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:40.044894779Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:40.044898669Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:40.044902504Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:40.044909024Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:40.044913769Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:40.044917646Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:40.044921410Z [err]    details: {},
+2026-04-14T23:22:40.044925637Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:40.046563675Z [err]    debugInfo: {}
+2026-04-14T23:22:40.046569362Z [err]  }
+2026-04-14T23:22:40.046575398Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:40.046581047Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:40.046587032Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:40.046591167Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:40.046596256Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:40.046601200Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:40.046605904Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:40.046610762Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:40.046615754Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:40.046619821Z [err]    details: {},
+2026-04-14T23:22:40.046623794Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:40.046792267Z [err]    suggestion: 'Rate limit exceeded. Please wait before making more requests',
+2026-04-14T23:22:40.046796060Z [err]  [Mem0] Search failed, falling back to local DB: RateLimitError3: {"error":"Usage quota exceeded for this billing period. Please upgrade your plan at https://app.mem0.ai/dashboard/usage-and-billing.","event_type":"SEARCH","quota_limit":1000,"quota_used":3668,"quota_reset":"2026-05-01T00:00:00+00:00"}
+2026-04-14T23:22:40.046800089Z [err]      at async MemoryClient.search (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:382:22)
+2026-04-14T23:22:40.046806600Z [err]      at async <anonymous> (/app/node_modules/.pnpm/@langchain+core@1.1.39_openai@4.104.0_zod@3.25.76_/node_modules/@langchain/core/src/tools/index.ts:991:30) {
+2026-04-14T23:22:40.046809780Z [err]    debugInfo: {}
+2026-04-14T23:22:40.046812625Z [err]      at MemoryClient._fetchWithErrorHandling (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/client/mem0.ts:160:13)
+2026-04-14T23:22:40.046812864Z [err]      at async recallMemories (/app/artifacts/api-server/src/services/agent/memory.ts:119:27)
+2026-04-14T23:22:40.046814532Z [err]      at createExceptionFromResponse (/app/node_modules/.pnpm/mem0ai@2.4.6_@anthropic-ai+sdk@0.78.0_zod@3.25.76__@langchain+core@1.1.39_openai@4.104._748c8a03c2f3d5b094e4787c639215a5/node_modules/mem0ai/src/common/exceptions.ts:200:10)
+2026-04-14T23:22:40.046817380Z [err]    errorCode: 'HTTP_429',
+2026-04-14T23:22:40.046819847Z [err]  }
+2026-04-14T23:22:40.046823827Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T23:22:40.046826394Z [err]      at async tool.name (/app/artifacts/api-server/src/services/agent/tools.ts:209:24)
+2026-04-14T23:22:40.046826559Z [err]    details: {},
+2026-04-14T23:22:40.051002054Z [err]    debugInfo: {}
+2026-04-14T23:22:40.051005577Z [err]  }
+2026-04-14T23:23:19.387283377Z [inf]  [Mem0] Stored observation memory: mem0-1776208995531
+2026-04-14T23:23:19.387294653Z [inf]  [Mem0] Stored pattern memory: mem0-1776208996522
+2026-04-14T23:23:19.387300853Z [inf]  [Mem0] Stored pattern memory: mem0-1776208996992
+2026-04-14T23:23:19.387313661Z [inf]  [Mem0] Stored decision_context memory: mem0-1776208997830
+2026-04-14T23:23:20.169962810Z [err]  [Letta] Message failed: 500 {"detail":"'SyncServer' object has no attribute 'load_agent'"}
+2026-04-14T23:24:49.558060605Z [inf]  [23:24:40.036] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.558065630Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.558070719Z [inf]        "id": 1,
+2026-04-14T23:24:49.558076098Z [inf]        "method": "GET",
+2026-04-14T23:24:49.558630886Z [inf]        "url": "/insurance-example"
+2026-04-14T23:24:49.558639189Z [inf]      }
+2026-04-14T23:24:49.558646542Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.558654541Z [inf]        "statusCode": 200
+2026-04-14T23:24:49.558660369Z [inf]      }
+2026-04-14T23:24:49.558673049Z [inf]      [35mresponseTime[39m: 12
+2026-04-14T23:24:49.558682868Z [inf]  [23:24:40.502] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.558688692Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.558693994Z [inf]        "id": 2,
+2026-04-14T23:24:49.558701764Z [inf]        "method": "GET",
+2026-04-14T23:24:49.558708690Z [inf]        "url": "/api/case-study/insurance"
+2026-04-14T23:24:49.558716309Z [inf]      }
+2026-04-14T23:24:49.558722010Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.558727675Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.558738943Z [inf]      }
+2026-04-14T23:24:49.558744849Z [inf]      [35mresponseTime[39m: 109
+2026-04-14T23:24:49.558750312Z [inf]  [23:24:42.565] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.558756033Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.558761179Z [inf]        "id": 3,
+2026-04-14T23:24:49.558766702Z [inf]        "method": "GET",
+2026-04-14T23:24:49.558772479Z [inf]        "url": "/insurance-example"
+2026-04-14T23:24:49.558777770Z [inf]      }
+2026-04-14T23:24:49.558789945Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.558795659Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.558800799Z [inf]      }
+2026-04-14T23:24:49.558805487Z [inf]      [35mresponseTime[39m: 2
+2026-04-14T23:24:49.559687786Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.559727935Z [inf]        "id": 5,
+2026-04-14T23:24:49.559735233Z [inf]      }
+2026-04-14T23:24:49.559736895Z [inf]        "method": "GET",
+2026-04-14T23:24:49.559744022Z [inf]        "url": "/insurance-example"
+2026-04-14T23:24:49.559747981Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.559751353Z [inf]      }
+2026-04-14T23:24:49.559755871Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.559766785Z [inf]        "id": 6,
+2026-04-14T23:24:49.559770845Z [inf]  [23:24:43.811] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.559775458Z [inf]        "method": "GET",
+2026-04-14T23:24:49.559783048Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.559784173Z [inf]        "url": "/api/case-study/insurance"
+2026-04-14T23:24:49.559808327Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.559816238Z [inf]      }
+2026-04-14T23:24:49.559818811Z [inf]      }
+2026-04-14T23:24:49.559825765Z [inf]      [35mresponseTime[39m: 3
+2026-04-14T23:24:49.559827523Z [inf]      [35mresponseTime[39m: 10
+2026-04-14T23:24:49.559961904Z [inf]  [23:24:42.763] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.559966198Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.559970077Z [inf]        "id": 4,
+2026-04-14T23:24:49.559975444Z [inf]        "method": "GET",
+2026-04-14T23:24:49.559982866Z [inf]        "url": "/api/case-study/insurance"
+2026-04-14T23:24:49.559988802Z [inf]      }
+2026-04-14T23:24:49.559994859Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.560002519Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.560008678Z [inf]      }
+2026-04-14T23:24:49.560014965Z [inf]      [35mresponseTime[39m: 9
+2026-04-14T23:24:49.560020662Z [inf]  [23:24:43.641] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.560027877Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.562026525Z [inf]  [23:24:44.567] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.562030901Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.562037481Z [inf]        "id": 7,
+2026-04-14T23:24:49.562039698Z [inf]      }
+2026-04-14T23:24:49.562046604Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.562046812Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.562051403Z [inf]        "url": "/api/case-study/insurance"
+2026-04-14T23:24:49.562057874Z [inf]      }
+2026-04-14T23:24:49.562060299Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.562060800Z [inf]      }
+2026-04-14T23:24:49.562068461Z [inf]      [35mresponseTime[39m: 7
+2026-04-14T23:24:49.562069075Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.562069121Z [inf]      }
+2026-04-14T23:24:49.562072309Z [inf]  [23:24:46.816] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.562075641Z [inf]      [35mresponseTime[39m: 14
+2026-04-14T23:24:49.562080264Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.562085963Z [inf]        "id": 9,
+2026-04-14T23:24:49.562089101Z [inf]        "method": "GET",
+2026-04-14T23:24:49.562092705Z [inf]        "method": "GET",
+2026-04-14T23:24:49.562094126Z [inf]      }
+2026-04-14T23:24:49.562098100Z [inf]        "url": "/insurance-example"
+2026-04-14T23:24:49.562100170Z [inf]        "url": "/api/projects"
+2026-04-14T23:24:49.562103037Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.562109406Z [inf]      [35mresponseTime[39m: 2
+2026-04-14T23:24:49.562111938Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.562116046Z [inf]  [23:24:44.764] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.562120949Z [inf]      }
+2026-04-14T23:24:49.562155817Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.562161215Z [inf]        "id": 8,
+2026-04-14T23:24:49.562167907Z [inf]        "method": "GET",
+2026-04-14T23:24:49.565668719Z [inf]  [23:24:48.461] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.565673749Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.565678381Z [inf]        "id": 10,
+2026-04-14T23:24:49.565683635Z [inf]        "method": "GET",
+2026-04-14T23:24:49.565688819Z [inf]        "url": "/api/industries"
+2026-04-14T23:24:49.565694088Z [inf]      }
+2026-04-14T23:24:49.565699182Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.565704576Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.565710136Z [inf]      }
+2026-04-14T23:24:49.565715000Z [inf]      [35mresponseTime[39m: 6
+2026-04-14T23:24:49.565719757Z [inf]  [23:24:48.528] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.565726002Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.565730836Z [inf]        "id": 12,
+2026-04-14T23:24:49.565735621Z [inf]        "method": "GET",
+2026-04-14T23:24:49.565742000Z [inf]        "url": "/api/leaderboard"
+2026-04-14T23:24:49.565746735Z [inf]      }
+2026-04-14T23:24:49.565751663Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.565756786Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.565763776Z [inf]      }
+2026-04-14T23:24:49.565768676Z [inf]      [35mresponseTime[39m: 7
+2026-04-14T23:24:49.565773690Z [inf]  [23:24:48.551] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.565778412Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.565784069Z [inf]        "id": 14,
+2026-04-14T23:24:49.565788926Z [inf]        "method": "GET",
+2026-04-14T23:24:49.565794264Z [inf]        "url": "/api/white-papers"
+2026-04-14T23:24:49.565801078Z [inf]      }
+2026-04-14T23:24:49.565807168Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.565812491Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.565818074Z [inf]      }
+2026-04-14T23:24:49.565823120Z [inf]      [35mresponseTime[39m: 5
+2026-04-14T23:24:49.569368523Z [inf]        "url": "/api/thresholds"
+2026-04-14T23:24:49.569381010Z [inf]      }
+2026-04-14T23:24:49.569382314Z [inf]      }
+2026-04-14T23:24:49.569389423Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.569396688Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.569400869Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.569404745Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.569412865Z [inf]      }
+2026-04-14T23:24:49.569413130Z [inf]      }
+2026-04-14T23:24:49.569414383Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.569424060Z [inf]        "id": 15,
+2026-04-14T23:24:49.569424487Z [inf]      [35mresponseTime[39m: 102
+2026-04-14T23:24:49.569425476Z [inf]      [35mresponseTime[39m: 171
+2026-04-14T23:24:49.569433902Z [inf]  [23:24:48.628] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.569434134Z [inf]        "method": "GET",
+2026-04-14T23:24:49.569435195Z [inf]  [23:24:48.634] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.569441373Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.569446059Z [inf]        "url": "/api/ontology"
+2026-04-14T23:24:49.569452872Z [inf]        "id": 11,
+2026-04-14T23:24:49.569454000Z [inf]      }
+2026-04-14T23:24:49.569460638Z [inf]        "method": "GET",
+2026-04-14T23:24:49.569462918Z [inf]      [35mres[39m: {
+2026-04-14T23:24:49.569477575Z [inf]        "statusCode": 304
+2026-04-14T23:24:49.569483178Z [inf]      }
+2026-04-14T23:24:49.569488486Z [inf]      [35mresponseTime[39m: 86
+2026-04-14T23:24:49.570324967Z [inf]  [23:24:48.627] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:24:49.570330679Z [inf]      [35mreq[39m: {
+2026-04-14T23:24:49.570337043Z [inf]        "id": 13,
+2026-04-14T23:24:49.570344123Z [inf]        "method": "GET",
+2026-04-14T23:24:49.570349972Z [inf]        "url": "/api/insights"
+2026-04-14T23:25:08.698013754Z [inf]  [23:25:01.970] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.698017556Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.698026880Z [inf]        "statusCode": 200
+2026-04-14T23:25:08.698027572Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.698035434Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.698035640Z [inf]      }
+2026-04-14T23:25:08.698039037Z [inf]        "id": 16,
+2026-04-14T23:25:08.698044425Z [inf]      [35mresponseTime[39m: 229
+2026-04-14T23:25:08.698047041Z [inf]        "method": "GET",
+2026-04-14T23:25:08.698050111Z [inf]        "id": 17,
+2026-04-14T23:25:08.698059293Z [inf]        "method": "GET",
+2026-04-14T23:25:08.698060342Z [inf]        "method": "GET",
+2026-04-14T23:25:08.698068286Z [inf]        "url": "/api/cei/history"
+2026-04-14T23:25:08.698069251Z [inf]        "url": "/api/agent/status"
+2026-04-14T23:25:08.698070011Z [inf]      }
+2026-04-14T23:25:08.698076441Z [inf]      }
+2026-04-14T23:25:08.698077935Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.698084155Z [inf]        "statusCode": 200
+2026-04-14T23:25:08.698092194Z [inf]  [23:25:02.231] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.698095550Z [inf]        "url": "/api/cei/current"
+2026-04-14T23:25:08.698098609Z [inf]      }
+2026-04-14T23:25:08.698102982Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.698106645Z [inf]      [35mresponseTime[39m: 344
+2026-04-14T23:25:08.698109906Z [inf]      }
+2026-04-14T23:25:08.698112013Z [inf]        "id": 18,
+2026-04-14T23:25:08.698118642Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.698124557Z [inf]        "statusCode": 200
+2026-04-14T23:25:08.698132697Z [inf]      }
+2026-04-14T23:25:08.698138927Z [inf]      [35mresponseTime[39m: 237
+2026-04-14T23:25:08.698144841Z [inf]  [23:25:01.971] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.699072334Z [inf]      [35mresponseTime[39m: 6
+2026-04-14T23:25:08.699082373Z [inf]  [23:25:05.572] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.699089471Z [inf]        "statusCode": 200
+2026-04-14T23:25:08.699089867Z [inf]  [23:25:04.097] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.699101823Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.699102153Z [inf]      }
+2026-04-14T23:25:08.699104724Z [inf]        "method": "GET",
+2026-04-14T23:25:08.699110739Z [inf]        "id": 20,
+2026-04-14T23:25:08.699111358Z [inf]      [35mresponseTime[39m: 2222
+2026-04-14T23:25:08.699113800Z [inf]        "url": "/api/assess"
+2026-04-14T23:25:08.699117892Z [inf]        "method": "GET",
+2026-04-14T23:25:08.699120154Z [inf]  [23:25:04.190] [32mINFO[39m (134): [36mrequest completed[39m
+2026-04-14T23:25:08.699122472Z [inf]      }
+2026-04-14T23:25:08.699129036Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.699130827Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.699137473Z [inf]        "id": 21,
+2026-04-14T23:25:08.699138639Z [inf]        "statusCode": 304
+2026-04-14T23:25:08.699147159Z [inf]      }
+2026-04-14T23:25:08.699152499Z [inf]        "url": "/api/industries"
+2026-04-14T23:25:08.699160474Z [inf]      }
+2026-04-14T23:25:08.699167743Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.699174110Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.699175133Z [inf]        "statusCode": 304
+2026-04-14T23:25:08.699183028Z [inf]      }
+2026-04-14T23:25:08.699186427Z [inf]        "id": 19,
+2026-04-14T23:25:08.699193186Z [inf]      [35mresponseTime[39m: 5
+2026-04-14T23:25:08.699195344Z [inf]        "method": "GET",
+2026-04-14T23:25:08.699201782Z [inf]  [23:25:04.114] [32mINFO[39m (134): [36mrequest aborted[39m
+2026-04-14T23:25:08.699207742Z [inf]        "url": "/api/agent/events"
+2026-04-14T23:25:08.699215974Z [inf]      }
+2026-04-14T23:25:08.699225500Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.701684330Z [inf]      [35mreq[39m: {
+2026-04-14T23:25:08.701694601Z [inf]        "id": 22,
+2026-04-14T23:25:08.701700269Z [inf]        "method": "GET",
+2026-04-14T23:25:08.701706902Z [inf]        "url": "/api/case-study/insurance"
+2026-04-14T23:25:08.701711801Z [inf]      }
+2026-04-14T23:25:08.701717288Z [inf]      [35mres[39m: {
+2026-04-14T23:25:08.701721920Z [inf]        "statusCode": 304
+2026-04-14T23:25:08.701726163Z [inf]      }
+2026-04-14T23:25:08.701730291Z [inf]      [35mresponseTime[39m: 9
