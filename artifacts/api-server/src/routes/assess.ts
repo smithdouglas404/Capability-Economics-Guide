@@ -6,17 +6,17 @@ import { randomUUID } from "crypto";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let anthropicClient: AnthropicClient | null = null;
-async function getAnthropic(): Promise<AnthropicClient | null> {
+let _resolveModel: ((name: string) => string) | null = null;
+async function getAnthropic(): Promise<AnthropicClient> {
   if (!anthropicClient) {
-    try {
-      const mod = await import("@workspace/integrations-anthropic-ai");
-      anthropicClient = mod.anthropic;
-    } catch (e) {
-      console.warn("Anthropic integration not available:", (e as Error).message);
-      return null;
-    }
+    const mod = await import("@workspace/integrations-anthropic-ai");
+    anthropicClient = mod.anthropic;
+    _resolveModel = mod.resolveModel;
   }
   return anthropicClient;
+}
+function rm(name: string): string {
+  return _resolveModel ? _resolveModel(name) : name;
 }
 
 async function getLetta() {
@@ -194,10 +194,6 @@ router.post("/assess/start", async (req: Request, res: Response) => {
   }
 
   const anthropic = await getAnthropic();
-  if (!anthropic) {
-    res.status(500).json({ error: "AI service unavailable" });
-    return;
-  }
 
   const contextParts: string[] = [];
   if (companyName) contextParts.push(`Company: ${companyName}`);
@@ -231,7 +227,7 @@ Return ONLY valid JSON in this format, no commentary:
 }`;
 
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5",
+    model: rm("claude-haiku-4-5"),
     max_tokens: 600,
     messages: [{ role: "user", content: prompt }],
   });
@@ -279,10 +275,6 @@ router.post("/assess/analyze", async (req: Request, res: Response) => {
     .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
 
   const anthropic = await getAnthropic();
-  if (!anthropic) {
-    res.status(500).json({ error: "AI service unavailable" });
-    return;
-  }
 
   const secData = session.secData as Record<string, unknown> | null;
   const questions = (session.clarifyingQuestions as string[]) || [];
@@ -458,7 +450,7 @@ Rules:
 - Be specific to this company/industry — not generic platitudes`;
 
   const response = await anthropic.messages.create({
-    model: "claude-haiku-4-5",
+    model: rm("claude-haiku-4-5"),
     max_tokens: 6000,
     messages: [{ role: "user", content: prompt }],
   });

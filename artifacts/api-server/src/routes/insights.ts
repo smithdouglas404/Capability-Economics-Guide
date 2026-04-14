@@ -24,17 +24,17 @@ import {
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let anthropicClient: AnthropicClient | null = null;
-async function getAnthropic(): Promise<AnthropicClient | null> {
+let _resolveModel: ((name: string) => string) | null = null;
+async function getAnthropic(): Promise<AnthropicClient> {
   if (!anthropicClient) {
-    try {
-      const mod = await import("@workspace/integrations-anthropic-ai");
-      anthropicClient = mod.anthropic;
-    } catch (e) {
-      console.warn("Anthropic integration not available:", (e as Error).message);
-      return null;
-    }
+    const mod = await import("@workspace/integrations-anthropic-ai");
+    anthropicClient = mod.anthropic;
+    _resolveModel = mod.resolveModel;
   }
   return anthropicClient;
+}
+function rm(name: string): string {
+  return _resolveModel ? _resolveModel(name) : name;
 }
 
 const router: IRouter = Router();
@@ -274,14 +274,10 @@ Format your response as JSON array:
 Only output the JSON array, no other text.`;
 
   const ai = await getAnthropic();
-  if (!ai) {
-    res.status(503).json({ error: "AI service not available" });
-    return;
-  }
 
   try {
     const message = await ai.messages.create({
-      model: "claude-haiku-4-5",
+      model: rm("claude-haiku-4-5"),
       max_tokens: 8192,
       messages: [{ role: "user", content: prompt }],
     });

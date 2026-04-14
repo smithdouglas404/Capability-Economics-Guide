@@ -19,14 +19,17 @@ import { recallMemories, storeMemory } from "./memory";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let _anthropic: AnthropicClient | null = null;
-async function getAnthropic(): Promise<AnthropicClient | null> {
+let _resolveModel: ((name: string) => string) | null = null;
+async function getAnthropic(): Promise<AnthropicClient> {
   if (!_anthropic) {
-    try {
-      const mod = await import("@workspace/integrations-anthropic-ai");
-      _anthropic = mod.anthropic;
-    } catch { return null; }
+    const mod = await import("@workspace/integrations-anthropic-ai");
+    _anthropic = mod.anthropic;
+    _resolveModel = mod.resolveModel;
   }
   return _anthropic;
+}
+function rm(name: string): string {
+  return _resolveModel ? _resolveModel(name) : name;
 }
 
 const CONTENT_STALE_HOURS = 48;
@@ -260,7 +263,6 @@ export const storeMemoryTool = tool(
 export const generateCsuitePerspectivesTool = tool(
   async () => {
     const anthropic = await getAnthropic();
-    if (!anthropic) return JSON.stringify({ success: false, error: "Anthropic unavailable" });
 
     const roles = await db.select().from(cSuiteRolesTable).orderBy(cSuiteRolesTable.id);
     const generated: string[] = [];
@@ -310,7 +312,7 @@ Return ONLY valid JSON:
 chartData subjects must be the 5 most relevant capability dimensions for a ${role.title}. Values should be varied (40-95 range).`;
 
         const message = await anthropic.messages.create({
-          model: "claude-opus-4-5",
+          model: rm("claude-opus-4-5"),
           max_tokens: 1024,
           messages: [{ role: "user", content: prompt }],
         });
@@ -354,7 +356,6 @@ chartData subjects must be the 5 most relevant capability dimensions for a ${rol
 export const generateCaseStudyContentTool = tool(
   async ({ industrySlug }) => {
     const anthropic = await getAnthropic();
-    if (!anthropic) return JSON.stringify({ success: false, error: "Anthropic unavailable" });
 
     const [industry] = await db
       .select()
@@ -441,7 +442,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
 
     try {
       const message = await anthropic.messages.create({
-        model: "claude-opus-4-5",
+        model: rm("claude-opus-4-5"),
         max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       });
