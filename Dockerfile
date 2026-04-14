@@ -16,5 +16,5 @@ RUN pnpm run build:deploy
 
 EXPOSE 8080
 
-# Start the API server — it also serves the built frontend as static files
-CMD ["pnpm", "run", "start"]
+# Push database schema then start the API server
+CMD ["sh", "-c", "pnpm --filter @workspace/db run push && pnpm run start"]

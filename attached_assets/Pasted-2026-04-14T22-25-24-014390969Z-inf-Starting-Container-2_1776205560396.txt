@@ -1,0 +1,52 @@
+2026-04-14T22:25:24.014390969Z [inf]  Starting Container
+2026-04-14T22:25:24.681055733Z [inf]  
+2026-04-14T22:25:24.681059899Z [inf]  > workspace@0.0.0 start /app
+2026-04-14T22:25:24.681063828Z [inf]  > pnpm --filter @workspace/api-server run start
+2026-04-14T22:25:24.681067590Z [inf]  
+2026-04-14T22:25:24.681071798Z [inf]  
+2026-04-14T22:25:24.681075746Z [inf]  > @workspace/api-server@0.0.0 start /app/artifacts/api-server
+2026-04-14T22:25:24.681079949Z [inf]  > node --enable-source-maps ./dist/index.mjs
+2026-04-14T22:25:24.681083677Z [inf]  
+2026-04-14T22:25:24.681087556Z [inf]  [Agent] Autonomous monitoring started — routine cycle every 30min, urgency watchdog every 5min
+2026-04-14T22:25:24.681092076Z [inf]  [22:25:24.583] [32mINFO[39m (27): [36mServing SPA from static directory[39m
+2026-04-14T22:25:24.681096033Z [inf]      [35mfrontendDist[39m: "/app/artifacts/capability-economics/dist/public"
+2026-04-14T22:25:24.681100233Z [inf]  [22:25:24.608] [32mINFO[39m (27): [36mServer listening[39m
+2026-04-14T22:25:24.681103939Z [inf]      [35mport[39m: 8080
+2026-04-14T22:25:24.681108035Z [inf]  [22:25:24.610] [32mINFO[39m (27): [36mAgent scheduler started (30min interval)[39m
+2026-04-14T22:25:24.804924335Z [err]  [Agent] Run failed: _DrizzleQueryError: Failed query: insert into "agent_runs" ("id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at") values (default, $1, $2, default, default, default, default, default, default, default, default, default, default, default, default) returning "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at"
+2026-04-14T22:25:24.804928437Z [err]  params: running,startup
+2026-04-14T22:25:24.804933001Z [err]      at NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+2026-04-14T22:25:24.804937662Z [err]      at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T22:25:24.804942512Z [err]      at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T22:25:24.804947332Z [err]      at async runAgent (/app/artifacts/api-server/src/services/agent/graph.ts:542:17)
+2026-04-14T22:25:24.804951547Z [err]      at async executeRun (/app/artifacts/api-server/src/services/agent/scheduler.ts:59:20) {
+2026-04-14T22:25:24.804955667Z [err]    query: 'insert into "agent_runs" ("id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at") values (default, $1, $2, default, default, default, default, default, default, default, default, default, default, default, default) returning "id", "status", "trigger", "industries_evaluated", "capabilities_researched", "capabilities_skipped", "perplexity_calls", "memories_recalled", "memories_stored", "decisions", "cei_before_index", "cei_after_index", "error_message", "started_at", "completed_at"',
+2026-04-14T22:25:24.816976968Z [err]    params: [ 'running', 'startup' ],
+2026-04-14T22:25:24.816983887Z [err]    cause: error: relation "agent_runs" does not exist
+2026-04-14T22:25:24.816988648Z [err]        at <anonymous> (/app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+2026-04-14T22:25:24.816993234Z [err]        at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+2026-04-14T22:25:24.816997796Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+2026-04-14T22:25:24.817002566Z [err]        at async NodePgPreparedQuery.queryWithCache (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+2026-04-14T22:25:24.817007253Z [err]        at async <anonymous> (/app/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+2026-04-14T22:25:24.817012051Z [err]        at async runAgent (/app/artifacts/api-server/src/services/agent/graph.ts:542:17)
+2026-04-14T22:25:24.817016848Z [err]        at async executeRun (/app/artifacts/api-server/src/services/agent/scheduler.ts:59:20) {
+2026-04-14T22:25:24.817023312Z [err]      length: 109,
+2026-04-14T22:25:24.817028344Z [err]      severity: 'ERROR',
+2026-04-14T22:25:24.817033207Z [err]      code: '42P01',
+2026-04-14T22:25:24.817037674Z [err]      detail: undefined,
+2026-04-14T22:25:24.817042297Z [err]      hint: undefined,
+2026-04-14T22:25:24.817046829Z [err]      position: '13',
+2026-04-14T22:25:24.817051585Z [err]      internalPosition: undefined,
+2026-04-14T22:25:24.817056940Z [err]      internalQuery: undefined,
+2026-04-14T22:25:24.817061686Z [err]      where: undefined,
+2026-04-14T22:25:24.817066717Z [err]      schema: undefined,
+2026-04-14T22:25:24.817071395Z [err]      table: undefined,
+2026-04-14T22:25:24.829827896Z [err]      column: undefined,
+2026-04-14T22:25:24.829834952Z [err]      dataType: undefined,
+2026-04-14T22:25:24.829839907Z [err]      constraint: undefined,
+2026-04-14T22:25:24.829844776Z [err]      file: 'parse_relation.c',
+2026-04-14T22:25:24.829850236Z [err]      line: '1466',
+2026-04-14T22:25:24.829854927Z [err]      routine: 'parserOpenTable'
+2026-04-14T22:25:24.829860647Z [err]    }
+2026-04-14T22:25:24.829865467Z [err]  }
+2026-04-14T22:25:25.769544377Z [inf]  [Letta] Connected — found agent "cei-autonomous-agent" (agent-9835f350-f904-4f04-b5ae-da315a0a1d5e)
