@@ -13,6 +13,7 @@ import {
   allTools,
   getLettaStatus,
 } from "../services/agent";
+import { generateOntologyTool } from "../services/agent/tools";
 
 const router: IRouter = Router();
 
@@ -113,6 +114,26 @@ router.get("/agent/memories", async (req, res) => {
   } catch (err) {
     console.error("Agent memories failed:", err);
     res.status(500).json({ error: "Failed to get agent memories" });
+  }
+});
+
+router.post("/agent/run-ontology", async (_req, res) => {
+  try {
+    const { db: dbConn, industriesTable } = await import("@workspace/db");
+    const industries = await dbConn.select({ slug: industriesTable.slug, name: industriesTable.name }).from(industriesTable);
+    const results: Record<string, unknown> = {};
+    for (const industry of industries) {
+      try {
+        const raw = await generateOntologyTool.invoke({ industrySlug: industry.slug });
+        results[industry.slug] = JSON.parse(raw);
+      } catch (err) {
+        results[industry.slug] = { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+    }
+    res.json({ results });
+  } catch (err) {
+    console.error("[run-ontology] error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
 });
 

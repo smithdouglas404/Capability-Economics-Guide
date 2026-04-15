@@ -838,7 +838,7 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
     try {
       const message = await anthropic.messages.create({
         model: rm("claude-haiku-4-5"),
-        max_tokens: 2048,
+        max_tokens: 4096,
         messages: [{ role: "user", content: relationshipsPrompt }],
       });
       const text = message.content[0].type === "text" ? message.content[0].text : "";
@@ -884,10 +884,8 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
         });
       }
 
-      if (existingAdapter) {
-        await db.delete(ontologyIndustryAdaptersTable)
-          .where(eq(ontologyIndustryAdaptersTable.industryId, industry.id));
-      }
+      await db.delete(ontologyIndustryAdaptersTable)
+        .where(eq(ontologyIndustryAdaptersTable.industryId, industry.id));
       await db.insert(ontologyIndustryAdaptersTable).values({
         industryId: industry.id,
         adapterName: parsed.adapter.adapterName,
