@@ -21,6 +21,7 @@ import {
   generateInsightsTool,
   generateLeaderboardTool,
   generateWhitePapersTool,
+  generateOntologyTool,
 } from "./tools";
 
 interface CapabilityTarget {
@@ -443,6 +444,14 @@ async function generateContentNode(_state: AgentStateType): Promise<Partial<Agen
       emitAgentEvent({ type: "tool_result", tool: "generate_white_papers", industry: slug, success: wpResult.success, skipped: wpResult.skipped ?? false, generated: wpResult.papersGenerated ?? 0 });
     } catch (err) {
       console.error(`[generateContentNode] White papers failed for ${slug}:`, err);
+    }
+
+    try {
+      emitAgentEvent({ type: "tool_call", tool: "generate_ontology", industry: slug, message: `Generating capability ontology for ${slug}...` });
+      const ontResult = JSON.parse(await generateOntologyTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; relationshipsGenerated?: number; error?: string };
+      emitAgentEvent({ type: "tool_result", tool: "generate_ontology", industry: slug, success: ontResult.success, skipped: ontResult.skipped ?? false, generated: ontResult.relationshipsGenerated ?? 0 });
+    } catch (err) {
+      console.error(`[generateContentNode] Ontology failed for ${slug}:`, err);
     }
   }
 

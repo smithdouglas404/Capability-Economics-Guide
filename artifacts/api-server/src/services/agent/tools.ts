@@ -14,6 +14,8 @@ import {
   capabilityInsightsTable,
   industryLeaderboardTable,
   industryWhitePapersTable,
+  ontologyRelationshipsTable,
+  ontologyIndustryAdaptersTable,
 } from "@workspace/db";
 import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
@@ -773,6 +775,142 @@ Only include REAL publications. If unsure of exact title, use the organization's
   },
 );
 
+export const generateOntologyTool = tool(
+  async ({ industrySlug }) => {
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
+    if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
+
+    const [existingAdapter] = await db.select({ id: ontologyIndustryAdaptersTable.id })
+      .from(ontologyIndustryAdaptersTable)
+      .where(eq(ontologyIndustryAdaptersTable.industryId, industry.id))
+      .limit(1);
+
+    const caps = await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name, slug: capabilitiesTable.slug })
+      .from(capabilitiesTable)
+      .where(eq(capabilitiesTable.industryId, industry.id));
+
+    if (caps.length === 0) return JSON.stringify({ success: false, error: "No capabilities found for industry" });
+
+    const capMap = Object.fromEntries(caps.map(c => [c.slug, c.id]));
+    const capNames = caps.map(c => c.name).join(", ");
+
+    if (existingAdapter) {
+      return JSON.stringify({ success: true, skipped: true, reason: "Ontology refreshed within last 90 days" });
+    }
+
+    const anthropic = await getAnthropic();
+
+    const researchContext = await perplexityContextSearch(
+      `How do these ${industry.name} industry capabilities relate to each other in practice? Which capabilities enable others, which depend on others, which compete for investment, and which can substitute for each other? Capabilities: ${capNames}. Focus on real strategic and operational dependencies used by industry leaders.`
+    );
+
+    const relationshipsPrompt = `You are a capability economics ontologist. Based on Perplexity research, generate ontology relationships for the ${industry.name} industry.
+
+Available capabilities (use exact names):
+${caps.map(c => `- ${c.name} (slug: ${c.slug})`).join("\n")}
+
+PERPLEXITY RESEARCH:
+${researchContext}
+
+Return ONLY valid JSON with this structure:
+{
+  "relationships": [
+    {
+      "sourceSlug": "exact-capability-slug",
+      "targetSlug": "exact-capability-slug",
+      "relationshipType": "enables|depends_on|competes_with|substitutes",
+      "strength": "strong|moderate|weak",
+      "description": "1 sentence explaining the real-world relationship",
+      "industryContext": "Brief context specific to ${industry.name}"
+    }
+  ],
+  "adapter": {
+    "adapterName": "${industry.name} Capability Ontology Adapter",
+    "adapterDescription": "2-3 sentence description of how capabilities are structured in ${industry.name}",
+    "capabilityFocusAreas": "Area1 | Area2 | Area3 | Area4 | Area5",
+    "maturityModel": "Level 1 - Initial | Level 2 - Developing | Level 3 - Defined | Level 4 - Managed | Level 5 - Optimizing",
+    "keyDifferentiators": "2-3 sentences on what separates top-performing ${industry.name} organizations in capability maturity"
+  }
+}
+
+Generate 8-12 relationships. Use only slugs from the provided capability list. relationshipType must be one of: enables, depends_on, competes_with, substitutes.`;
+
+    try {
+      const message = await anthropic.messages.create({
+        model: rm("claude-haiku-4-5"),
+        max_tokens: 2048,
+        messages: [{ role: "user", content: relationshipsPrompt }],
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON object in response");
+
+      const parsed = JSON.parse(jsonMatch[0]) as {
+        relationships: Array<{
+          sourceSlug: string; targetSlug: string;
+          relationshipType: string; strength: string;
+          description: string; industryContext: string;
+        }>;
+        adapter: {
+          adapterName: string; adapterDescription: string;
+          capabilityFocusAreas: string; maturityModel: string; keyDifferentiators: string;
+        };
+      };
+
+      const validRelationships = parsed.relationships.filter(
+        r => capMap[r.sourceSlug] && capMap[r.targetSlug] &&
+          ["enables", "depends_on", "competes_with", "substitutes"].includes(r.relationshipType) &&
+          ["strong", "moderate", "weak"].includes(r.strength)
+      );
+
+      if (validRelationships.length === 0) throw new Error("No valid relationships generated");
+
+      const capIds = caps.map(c => c.id);
+      const { inArray } = await import("drizzle-orm");
+      await db.delete(ontologyRelationshipsTable)
+        .where(inArray(ontologyRelationshipsTable.sourceCapabilityId, capIds));
+
+      for (const rel of validRelationships) {
+        const srcId = capMap[rel.sourceSlug];
+        const tgtId = capMap[rel.targetSlug];
+        if (!srcId || !tgtId) continue;
+        await db.insert(ontologyRelationshipsTable).values({
+          sourceCapabilityId: srcId,
+          targetCapabilityId: tgtId,
+          relationshipType: rel.relationshipType,
+          strength: rel.strength,
+          description: rel.description,
+          industryContext: rel.industryContext,
+        });
+      }
+
+      if (existingAdapter) {
+        await db.delete(ontologyIndustryAdaptersTable)
+          .where(eq(ontologyIndustryAdaptersTable.industryId, industry.id));
+      }
+      await db.insert(ontologyIndustryAdaptersTable).values({
+        industryId: industry.id,
+        adapterName: parsed.adapter.adapterName,
+        adapterDescription: parsed.adapter.adapterDescription,
+        capabilityFocusAreas: parsed.adapter.capabilityFocusAreas,
+        maturityModel: parsed.adapter.maturityModel,
+        keyDifferentiators: parsed.adapter.keyDifferentiators,
+      });
+
+      return JSON.stringify({ success: true, industry: industrySlug, relationshipsGenerated: validRelationships.length });
+    } catch (err) {
+      return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+  {
+    name: "generate_ontology",
+    description: "Generate capability ontology relationships and industry adapter using Perplexity research + Claude synthesis. Maps how capabilities enable, depend on, compete with, or substitute each other. Refreshes every 90 days.",
+    schema: z.object({
+      industrySlug: z.string().describe("Slug of the industry (e.g. 'healthcare', 'insurance', 'retail')"),
+    }),
+  },
+);
+
 export const allTools = [
   perplexityResearchTool,
   queryDatabaseTool,
@@ -784,4 +922,5 @@ export const allTools = [
   generateInsightsTool,
   generateLeaderboardTool,
   generateWhitePapersTool,
+  generateOntologyTool,
 ];
