@@ -478,7 +478,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
 
     try {
       const message = await anthropic.messages.create({
-        model: rm("claude-opus-4-5"),
+        model: rm("claude-sonnet-4-5"),
         max_tokens: 2048,
         messages: [{ role: "user", content: prompt }],
       });
