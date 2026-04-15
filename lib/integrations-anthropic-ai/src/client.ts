@@ -11,6 +11,7 @@ const OPENROUTER_MODEL_MAP: Record<string, string> = {
   "claude-haiku-3-5":  "anthropic/claude-3.5-haiku",
   "claude-sonnet-3-5": "anthropic/claude-3.7-sonnet",
   "claude-3-haiku":    "anthropic/claude-3-haiku",
+  "glm-5.1":           "z-ai/glm-5.1",
 };
 
 export const anthropic = new Anthropic({

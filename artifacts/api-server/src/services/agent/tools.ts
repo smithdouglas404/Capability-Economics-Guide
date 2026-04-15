@@ -295,43 +295,74 @@ export const generateCsuitePerspectivesTool = tool(
           ? `\n\nPERPLEXITY RESEARCH CONTEXT (use this to ground your response in real data):\n${researchContext}\n`
           : "";
 
-        const prompt = `You are a Capability Economics expert. Generate a vivid, specific executive perspective for the ${role.title} (${role.name}) role. Focus area: ${role.focus}${contextSection}
-
-Use the research context above to include real benchmarks, specific numbers, and credible industry data in your response.
+        // GLM 5.1 — provocative questions + role-specific chart dimensions
+        const glmPrompt = `You are a Capability Economics expert advising a ${role.title} (${role.name}). Focus: ${role.focus}${contextSection}
 
 Return ONLY valid JSON:
 {
-  "scenario": "A 3-4 sentence specific real-world scenario where this executive applies Capability Economics to make a concrete business decision — include actual numbers and outcomes drawn from real industry benchmarks.",
-  "questions": ["Sharp provocative question 1 a ${role.title} would ask about capability economics", "Question 2", "Question 3"],
-  "capabilities": ["Real functional capability this role owns 1", "Capability 2", "Capability 3"],
-  "metrics": ["Specific named KPI with measured improvement grounded in real data, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2"],
+  "questions": ["Sharp, provocative question 1 a ${role.title} would demand answered about capability economics — challenge assumptions", "Question 2", "Question 3"],
   "chartData": [
-    {"subject": "Relevant Dimension 1", "A": 85, "fullMark": 100},
-    {"subject": "Relevant Dimension 2", "A": 72, "fullMark": 100},
-    {"subject": "Relevant Dimension 3", "A": 90, "fullMark": 100},
-    {"subject": "Relevant Dimension 4", "A": 65, "fullMark": 100},
-    {"subject": "Relevant Dimension 5", "A": 78, "fullMark": 100}
+    {"subject": "Most relevant capability dimension for a ${role.title} — specific label", "A": 85, "fullMark": 100},
+    {"subject": "Dimension 2", "A": 62, "fullMark": 100},
+    {"subject": "Dimension 3", "A": 75, "fullMark": 100},
+    {"subject": "Dimension 4", "A": 48, "fullMark": 100},
+    {"subject": "Dimension 5", "A": 83, "fullMark": 100}
   ]
 }
 
-chartData subjects must be the 5 most relevant capability dimensions for a ${role.title}. Values should be varied (40-95 range).`;
+Questions must challenge conventional thinking and be specific to ${role.title} accountability. Chart subjects must be the 5 most relevant capability dimensions for this role, with values varied across 40-95.`;
+
+        const glmResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://capabilityeconomics.com",
+            "X-Title": "Capability Economics",
+          },
+          body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 4096, messages: [{ role: "user", content: glmPrompt }] }),
+        });
+        const glmData = await glmResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+        if (glmData.error) throw new Error(`GLM error: ${glmData.error.message}`);
+        const glmText = glmData.choices?.[0]?.message?.content ?? "";
+        const glmMatch = glmText.match(/\{[\s\S]*\}/);
+        if (!glmMatch) throw new Error("GLM returned no JSON");
+        const glmParsed = JSON.parse(glmMatch[0]) as { questions: string[]; chartData: { subject: string; A: number; fullMark: number }[] };
+
+        // Sonnet 4.5 — grounded scenario, capabilities, and metrics with real numbers
+        const sonnetPrompt = `You are a Capability Economics consultant. Generate a data-grounded executive perspective for the ${role.title} (${role.name}) role. Focus: ${role.focus}${contextSection}
+
+Use the research context to include real benchmarks and specific numbers.
+
+Return ONLY valid JSON:
+{
+  "scenario": "A 3-4 sentence real-world scenario where this executive applies Capability Economics to make a concrete business decision — include actual dollar amounts, percentages, and timeframes from real industry benchmarks.",
+  "capabilities": ["Real functional capability this ${role.title} owns 1", "Capability 2", "Capability 3"],
+  "metrics": ["Specific named KPI with measured outcome grounded in real data, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2 with number", "Metric 3 with number", "Metric 4 with number", "Metric 5 with number"]
+}`;
 
         const message = await anthropic.messages.create({
-          model: rm("claude-opus-4-5"),
+          model: rm("claude-sonnet-4-5"),
           max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: sonnetPrompt }],
         });
 
         const text = message.content[0].type === "text" ? message.content[0].text : "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("No JSON in response");
+        if (!jsonMatch) throw new Error("No JSON in Sonnet response");
 
-        const parsed = JSON.parse(jsonMatch[0]) as {
+        const sonnetParsed = JSON.parse(jsonMatch[0]) as {
           scenario: string;
-          questions: string[];
           capabilities: string[];
           metrics: string[];
-          chartData: { subject: string; A: number; fullMark: number }[];
+        };
+
+        const parsed = {
+          scenario: sonnetParsed.scenario,
+          questions: glmParsed.questions,
+          capabilities: sonnetParsed.capabilities,
+          metrics: sonnetParsed.metrics,
+          chartData: glmParsed.chartData,
         };
 
         await db.insert(csuitePerspectivesTable).values({
@@ -353,7 +384,7 @@ chartData subjects must be the 5 most relevant capability dimensions for a ${rol
   },
   {
     name: "generate_csuite_perspectives",
-    description: "Generate AI-powered C-suite executive perspectives for all roles using Perplexity (real-world research context) + Claude (structured output). Stores results in the database for the frontend to display. Skips roles with fresh content (< 48h old). Call once per research cycle.",
+    description: "Generate AI-powered C-suite executive perspectives for all roles. Uses Perplexity for research context, GLM 5.1 for provocative questions + chart dimensions, and Sonnet 4.5 for grounded scenario + metrics. Stores results in the database. Skips roles with fresh content (< 48h old). Call once per research cycle.",
     schema: z.object({}),
   },
 );
