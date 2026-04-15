@@ -1,0 +1,190 @@
+import { Router, type IRouter } from "express";
+import { db } from "@workspace/db";
+import {
+  capabilityAssessmentsTable,
+  industriesTable,
+  capabilityInsightsTable,
+  industryLeaderboardTable,
+  industryWhitePapersTable,
+  ontologyIndustryAdaptersTable,
+  csuitePerspectivesTable,
+  caseStudyContentTable,
+  agentRunsTable,
+  agentMemoriesTable,
+} from "@workspace/db";
+import { desc, count, gte, sql, eq } from "drizzle-orm";
+
+const router: IRouter = Router();
+
+router.get("/admin/overview", async (_req, res) => {
+  const now = new Date();
+  const day = new Date(now.getTime() - 86400000);
+  const week = new Date(now.getTime() - 7 * 86400000);
+  const month = new Date(now.getTime() - 30 * 86400000);
+
+  const [assessments, agentRuns, memories, openrouterResp] = await Promise.all([
+    db.select({
+      total: count(),
+      completed: sql<number>`count(case when status = 'complete' then 1 end)::int`,
+      last24h: sql<number>`count(case when created_at >= ${day.toISOString()} then 1 end)::int`,
+      last7d: sql<number>`count(case when created_at >= ${week.toISOString()} then 1 end)::int`,
+      last30d: sql<number>`count(case when created_at >= ${month.toISOString()} then 1 end)::int`,
+    }).from(capabilityAssessmentsTable),
+
+    db.select({
+      total: count(),
+      lastRun: sql<string>`max(started_at)`,
+    }).from(agentRunsTable),
+
+    db.select({ total: count() }).from(agentMemoriesTable),
+
+    fetch("https://openrouter.ai/api/v1/auth/key", {
+      headers: { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+    }).then(r => r.json()).catch(() => null),
+  ]);
+
+  const costs = (openrouterResp as { data?: { usage_daily: number; usage_weekly: number; usage_monthly: number; usage: number } } | null)?.data ?? null;
+
+  res.json({
+    assessments: assessments[0],
+    agent: { ...agentRuns[0], memories: memories[0].total },
+    costs: costs ? {
+      daily: costs.usage_daily,
+      weekly: costs.usage_weekly,
+      monthly: costs.usage_monthly,
+      allTime: costs.usage,
+    } : null,
+  });
+});
+
+router.get("/admin/assessments", async (_req, res) => {
+  const rows = await db
+    .select({
+      sessionId: capabilityAssessmentsTable.sessionId,
+      companyName: capabilityAssessmentsTable.companyName,
+      industry: capabilityAssessmentsTable.industry,
+      opportunity: capabilityAssessmentsTable.opportunity,
+      status: capabilityAssessmentsTable.status,
+      confidenceScore: capabilityAssessmentsTable.confidenceScore,
+      createdAt: capabilityAssessmentsTable.createdAt,
+      hasVoice: sql<boolean>`voice_transcript is not null`,
+      hasDocument: sql<boolean>`document_text is not null`,
+      hasJobPosting: sql<boolean>`job_posting_text is not null`,
+    })
+    .from(capabilityAssessmentsTable)
+    .orderBy(desc(capabilityAssessmentsTable.createdAt))
+    .limit(100);
+
+  res.json(rows);
+});
+
+router.get("/admin/content", async (_req, res) => {
+  const industries = await db.select().from(industriesTable);
+
+  const [insights, leaderboard, whitePapers, ontology, csuite, caseStudy] = await Promise.all([
+    db.select({
+      industryId: capabilityInsightsTable.industryId,
+      latest: sql<string>`max(generated_at)`,
+      count: count(),
+    }).from(capabilityInsightsTable).groupBy(capabilityInsightsTable.industryId),
+
+    db.select({
+      industryId: industryLeaderboardTable.industryId,
+      latest: sql<string>`null`,
+      count: count(),
+    }).from(industryLeaderboardTable).groupBy(industryLeaderboardTable.industryId),
+
+    db.select({
+      industryId: industryWhitePapersTable.industryId,
+      latest: sql<string>`max(created_at)`,
+      count: count(),
+    }).from(industryWhitePapersTable).groupBy(industryWhitePapersTable.industryId),
+
+    db.select({
+      industryId: ontologyIndustryAdaptersTable.industryId,
+      latest: sql<string>`null`,
+      count: count(),
+    }).from(ontologyIndustryAdaptersTable).groupBy(ontologyIndustryAdaptersTable.industryId),
+
+    db.select({
+      count: count(),
+      latest: sql<string>`max(generated_at)`,
+    }).from(csuitePerspectivesTable),
+
+    db.select({
+      industryId: caseStudyContentTable.industryId,
+      latest: sql<string>`max(generated_at)`,
+      count: count(),
+    }).from(caseStudyContentTable).groupBy(caseStudyContentTable.industryId),
+  ]);
+
+  const toMap = (rows: { industryId: number | null; latest: string | null; count: number }[]) =>
+    Object.fromEntries(rows.filter(r => r.industryId != null).map(r => [r.industryId, { latest: r.latest, count: r.count }]));
+
+  res.json({
+    industries,
+    content: {
+      insights: toMap(insights),
+      leaderboard: toMap(leaderboard),
+      whitePapers: toMap(whitePapers),
+      ontology: toMap(ontology),
+      caseStudy: toMap(caseStudy),
+      csuite: { latest: csuite[0]?.latest ?? null, count: csuite[0]?.count ?? 0 },
+    },
+  });
+});
+
+router.get("/admin/agent-runs", async (_req, res) => {
+  const runs = await db
+    .select()
+    .from(agentRunsTable)
+    .orderBy(desc(agentRunsTable.startedAt))
+    .limit(20);
+
+  res.json(runs);
+});
+
+router.post("/admin/trigger/:tool", async (req, res) => {
+  const { tool } = req.params;
+  const { industrySlug } = req.body as { industrySlug?: string };
+
+  const validTools = [
+    "generate-insights", "generate-leaderboard", "generate-white-papers",
+    "generate-ontology", "generate-csuite", "generate-case-study", "run-agent",
+  ];
+
+  if (!validTools.includes(tool)) {
+    res.status(400).json({ error: `Unknown tool: ${tool}` });
+    return;
+  }
+
+  const endpointMap: Record<string, string> = {
+    "generate-insights": `/api/agent/run-insights${industrySlug ? `?industry=${industrySlug}` : ""}`,
+    "generate-leaderboard": `/api/agent/run-leaderboard${industrySlug ? `?industry=${industrySlug}` : ""}`,
+    "generate-white-papers": `/api/agent/run-white-papers${industrySlug ? `?industry=${industrySlug}` : ""}`,
+    "generate-ontology": `/api/agent/run-ontology${industrySlug ? `?industry=${industrySlug}` : ""}`,
+    "generate-csuite": `/api/agent/run-csuite`,
+    "generate-case-study": `/api/agent/run-case-study${industrySlug ? `?industry=${industrySlug}` : ""}`,
+    "run-agent": `/api/agent/run`,
+  };
+
+  const endpoint = endpointMap[tool];
+  res.json({ triggered: true, tool, industrySlug, endpoint });
+  fetch(`http://localhost:${process.env.PORT ?? 8080}${endpoint}`, { method: "POST" }).catch(() => null);
+});
+
+router.get("/admin/models", (_req, res) => {
+  res.json([
+    { task: "C-suite questions + chart dimensions", model: "z-ai/glm-5.1", reason: "Reasoning model — provocative, assumption-challenging" },
+    { task: "C-suite scenario + metrics", model: "anthropic/claude-sonnet-4.5", reason: "Grounded narrative with real numbers" },
+    { task: "Case study content", model: "anthropic/claude-sonnet-4.5", reason: "ROI data, 5-year projections, KPI credibility" },
+    { task: "Capability ontology relationships", model: "deepseek/deepseek-chat", reason: "Most precise logical relationship typing" },
+    { task: "Assessment clarifying questions", model: "z-ai/glm-5.1", reason: "Strategic interrogation, reveals hidden gaps" },
+    { task: "Assessment full analysis", model: "z-ai/glm-5.1 (8192 tokens)", reason: "Deepest reasoning — roadmap, gaps, competitor scoring" },
+    { task: "Capability insights + alerts", model: "anthropic/claude-haiku-4.5", reason: "Fast structured extraction" },
+    { task: "Industry leaderboard", model: "anthropic/claude-haiku-4.5", reason: "Bulk extraction, speed over depth" },
+    { task: "White papers", model: "anthropic/claude-haiku-4.5", reason: "Citation-style output, runs every 15 days" },
+  ]);
+});
+
+export default router;

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Briefcase, Shield, Users, Network, Building2, BarChart3, Layers, Lightbulb, Activity, ScanSearch } from "lucide-react";
+import { Briefcase, Shield, Users, Network, Building2, BarChart3, Layers, Lightbulb, Activity, ScanSearch, Settings2 } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
@@ -16,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/insights", label: "Insights", icon: Lightbulb },
     { href: "/organization", label: "My Org", icon: Building2 },
     { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+    { href: "/admin", label: "Admin", icon: Settings2 },
   ];
 
   return (

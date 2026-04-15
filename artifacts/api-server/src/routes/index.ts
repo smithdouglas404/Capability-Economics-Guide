@@ -11,6 +11,7 @@ import agentRouter from "./agent";
 import contentRouter from "./content";
 import assessRouter from "./assess";
 import secRouter from "./sec";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use(agentRouter);
 router.use(contentRouter);
 router.use(assessRouter);
 router.use(secRouter);
+router.use(adminRouter);
 
 export default router;
