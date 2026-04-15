@@ -137,6 +137,97 @@ router.post("/agent/run-ontology", async (_req, res) => {
   }
 });
 
+router.get("/agent/model-compare", async (req, res) => {
+  const industrySlug = (req.query.industry as string) || "healthcare";
+  try {
+    const { db: dbConn, industriesTable, capabilitiesTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const mod = await import("@workspace/integrations-anthropic-ai");
+    const client = mod.anthropic;
+
+    const [industry] = await dbConn.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
+    if (!industry) { res.status(404).json({ error: "Industry not found" }); return; }
+
+    const caps = await dbConn.select({ name: capabilitiesTable.name, slug: capabilitiesTable.slug })
+      .from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industry.id));
+
+    const prompt = `You are a capability economics ontologist. Generate 4 capability relationship examples for the ${industry.name} industry.
+
+Available capabilities:
+${caps.map(c => `- ${c.name} (slug: ${c.slug})`).join("\n")}
+
+Return JSON array of 4 relationships:
+[{
+  "sourceSlug": "slug",
+  "targetSlug": "slug",
+  "relationshipType": "enables|depends_on|competes_with|substitutes",
+  "strength": "strong|moderate|weak",
+  "description": "Precise 1-sentence explanation with real-world strategic context",
+  "industryInsight": "Why this relationship specifically matters for ${industry.name} performance and ROI"
+}]
+
+Be specific, strategic, and grounded in real ${industry.name} industry dynamics. No generic responses.`;
+
+    const runViaAnthropic = async (model: string) => {
+      const start = Date.now();
+      try {
+        const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+        const resolvedModel = hasOpenRouter ? `anthropic/${model}` : model;
+        const message = await client.messages.create({
+          model: resolvedModel,
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        });
+        const text = message.content[0].type === "text" ? message.content[0].text : "";
+        const match = text.match(/\[[\s\S]*\]/);
+        const parsed = match ? JSON.parse(match[0]) : null;
+        return { model: resolvedModel, latencyMs: Date.now() - start, result: parsed, rawLength: text.length, error: null };
+      } catch (err) {
+        return { model, latencyMs: Date.now() - start, result: null, rawLength: 0, error: err instanceof Error ? err.message : String(err) };
+      }
+    };
+
+    const runViaOpenRouter = async (model: string) => {
+      const start = Date.now();
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      if (!apiKey) return { model, latencyMs: 0, result: null, rawLength: 0, error: "No OPENROUTER_API_KEY" };
+      try {
+        const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://capabilityeconomics.com",
+            "X-Title": "Capability Economics",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1024,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+        const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+        if (data.error) throw new Error(data.error.message);
+        const text = data.choices?.[0]?.message?.content ?? "";
+        const match = text.match(/\[[\s\S]*\]/);
+        const parsed = match ? JSON.parse(match[0]) : null;
+        return { model, latencyMs: Date.now() - start, result: parsed, rawLength: text.length, error: null };
+      } catch (err) {
+        return { model, latencyMs: Date.now() - start, result: null, rawLength: 0, error: err instanceof Error ? err.message : String(err) };
+      }
+    };
+
+    const [sonnet, deepseek] = await Promise.all([
+      runViaAnthropic("claude-sonnet-4-5"),
+      runViaOpenRouter("deepseek/deepseek-chat"),
+    ]);
+
+    res.json({ industry: industry.name, models: { sonnet, deepseek } });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 router.get("/agent/tools", (_req, res) => {
   res.json({
     tools: allTools.map(t => ({
