@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import { capabilityAssessmentsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
@@ -143,12 +143,14 @@ router.post("/assess/start", async (req: Request, res: Response) => {
   const {
     companyName, companyCik, industry, opportunity,
     voiceTranscript, documentText, jobPostingText,
-    competitors, sessionId: existingId, quickAssess
+    competitors, sessionId: existingId, quickAssess,
+    organizationSessionToken,
   } = req.body as {
     companyName?: string; companyCik?: string; industry?: string; opportunity?: string;
     voiceTranscript?: string; documentText?: string; jobPostingText?: string;
     competitors?: Array<{ name: string; cik?: string }>;
     sessionId?: string; quickAssess?: boolean;
+    organizationSessionToken?: string;
   };
 
   const sessionId: string = existingId || randomUUID();
@@ -156,6 +158,7 @@ router.post("/assess/start", async (req: Request, res: Response) => {
   await db.insert(capabilityAssessmentsTable)
     .values({
       sessionId,
+      organizationSessionToken: organizationSessionToken || null,
       companyName: companyName || null,
       industry: industry || null,
       opportunity: opportunity || null,
@@ -168,6 +171,7 @@ router.post("/assess/start", async (req: Request, res: Response) => {
     .onConflictDoUpdate({
       target: capabilityAssessmentsTable.sessionId,
       set: {
+        organizationSessionToken: organizationSessionToken || null,
         companyName: companyName || null,
         industry: industry || null,
         opportunity: opportunity || null,
@@ -568,22 +572,80 @@ router.get("/assess/share/:token", async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
-router.get("/assess", async (_req: Request, res: Response) => {
+router.get("/assess", async (req: Request, res: Response) => {
+  const orgToken = (req.query.orgToken as string)?.trim();
+
+  if (!orgToken) {
+    res.json([]);
+    return;
+  }
+
   const rows = await db.select({
     sessionId: capabilityAssessmentsTable.sessionId,
     shareToken: capabilityAssessmentsTable.shareToken,
     companyName: capabilityAssessmentsTable.companyName,
     industry: capabilityAssessmentsTable.industry,
+    opportunity: capabilityAssessmentsTable.opportunity,
     confidenceScore: capabilityAssessmentsTable.confidenceScore,
     status: capabilityAssessmentsTable.status,
     createdAt: capabilityAssessmentsTable.createdAt,
   })
     .from(capabilityAssessmentsTable)
-    .where(eq(capabilityAssessmentsTable.status, "complete"))
+    .where(eq(capabilityAssessmentsTable.organizationSessionToken, orgToken))
     .orderBy(desc(capabilityAssessmentsTable.createdAt))
     .limit(20);
 
   res.json(rows);
+});
+
+router.patch("/assess/:sessionId", async (req: Request, res: Response) => {
+  const { sessionId } = req.params;
+  const {
+    companyName, companyCik, industry, opportunity,
+    voiceTranscript, documentText, jobPostingText, competitors,
+  } = req.body as {
+    companyName?: string; companyCik?: string; industry?: string; opportunity?: string;
+    voiceTranscript?: string; documentText?: string; jobPostingText?: string;
+    competitors?: Array<{ name: string; cik?: string }>;
+  };
+
+  const existing = await db.select({ sessionId: capabilityAssessmentsTable.sessionId, organizationSessionToken: capabilityAssessmentsTable.organizationSessionToken })
+    .from(capabilityAssessmentsTable)
+    .where(eq(capabilityAssessmentsTable.sessionId, sessionId))
+    .limit(1);
+
+  if (!existing.length) {
+    res.status(404).json({ error: "Assessment not found" });
+    return;
+  }
+
+  await db.update(capabilityAssessmentsTable)
+    .set({
+      companyName: companyName || null,
+      industry: industry || null,
+      opportunity: opportunity || null,
+      voiceTranscript: voiceTranscript || null,
+      documentText: documentText || null,
+      jobPostingText: jobPostingText || null,
+      competitors: competitors?.filter(c => c.name?.trim()) || null,
+      clarifyingQuestions: null,
+      clarifyingAnswers: null,
+      analysisResult: null,
+      roadmap: null,
+      peerBenchmark: null,
+      secData: null,
+      competitorSecData: null,
+      confidenceScore: null,
+      status: "pending",
+      updatedAt: new Date(),
+    })
+    .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
+
+  if (companyName?.trim()) {
+    runPrimarySecLookup(sessionId, companyName, companyCik || undefined).catch(console.error);
+  }
+
+  res.json({ sessionId, status: "pending" });
 });
 
 export default router;

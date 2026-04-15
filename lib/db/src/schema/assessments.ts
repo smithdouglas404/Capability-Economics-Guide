@@ -4,6 +4,7 @@ export const capabilityAssessmentsTable = pgTable("capability_assessments", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").notNull().unique(),
   shareToken: text("share_token").unique(),
+  organizationSessionToken: text("organization_session_token"),
   companyName: text("company_name"),
   industry: text("industry"),
   opportunity: text("opportunity"),

@@ -156,6 +156,7 @@ interface AssessmentHistoryItem {
   shareToken: string | null;
   companyName: string | null;
   industry: string | null;
+  opportunity: string | null;
   confidenceScore: number | null;
   status: string;
   createdAt: string;
@@ -201,7 +202,8 @@ const COMPETITOR_COLORS = [
 
 export default function Assess() {
   const [step, setStep] = useState<Step>("input");
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+  const [orgSessionToken] = useState<string | null>(() => localStorage.getItem("ce_session_token"));
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
   const [opportunity, setOpportunity] = useState("");
@@ -237,6 +239,7 @@ export default function Assess() {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [selectedCompanyCik, setSelectedCompanyCik] = useState("");
   const [selectedCompanyConfirmed, setSelectedCompanyConfirmed] = useState(false);
+  const [allowManualCompany, setAllowManualCompany] = useState(false);
   const companySearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const companyInputRef = useRef<HTMLInputElement>(null);
 
@@ -264,16 +267,21 @@ export default function Assess() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const refreshHistory = useCallback(() => {
+    if (!orgSessionToken) return;
+    fetch(`${API}/assess?orgToken=${encodeURIComponent(orgSessionToken)}`)
+      .then(r => r.json())
+      .then((data: AssessmentHistoryItem[]) => { if (Array.isArray(data)) setHistory(data); })
+      .catch(() => {});
+  }, [orgSessionToken]);
+
   useEffect(() => {
     fetch(`${API}/industries`)
       .then(r => r.json())
       .then((data: IndustryOption[]) => { if (Array.isArray(data)) setIndustryOptions(data); })
       .catch(() => {});
-    fetch(`${API}/assess`)
-      .then(r => r.json())
-      .then((data: AssessmentHistoryItem[]) => { if (Array.isArray(data)) setHistory(data.slice(0, 5)); })
-      .catch(() => {});
-  }, []);
+    refreshHistory();
+  }, [refreshHistory]);
 
   const recognitionRef = useRef<unknown>(null);
   const interimRef = useRef<string>("");
@@ -440,6 +448,7 @@ export default function Assess() {
     setCompanyName(value);
     setSelectedCompanyCik("");
     setSelectedCompanyConfirmed(false);
+    setAllowManualCompany(false);
     if (companySearchTimer.current) clearTimeout(companySearchTimer.current);
     if (value.trim().length < 2) {
       setCompanySearchResults([]);
@@ -452,13 +461,21 @@ export default function Assess() {
       setCompanySearchLoading(true);
       try {
         const resp = await fetch(`${API}/sec/search?q=${encodeURIComponent(value)}`, { signal: companyAbortCtrl.current.signal });
-        const data = await resp.json() as { results: SecCompanyResult[] };
-        if (data.results?.length) { setCompanySearchResults(data.results); setCompanyDropdownOpen(true); }
-        else { setCompanySearchResults([]); setCompanyDropdownOpen(false); }
+        const data = await resp.json() as { results: SecCompanyResult[]; allowManual?: boolean };
+        if (data.results?.length) { setCompanySearchResults(data.results); setCompanyDropdownOpen(true); setAllowManualCompany(false); }
+        else { setCompanySearchResults([]); setCompanyDropdownOpen(true); setAllowManualCompany(!!data.allowManual); }
       } catch (err) {
-        if ((err as Error).name !== "AbortError") setCompanySearchResults([]);
+        if ((err as Error).name !== "AbortError") { setCompanySearchResults([]); setCompanyDropdownOpen(false); }
       } finally { setCompanySearchLoading(false); }
     }, 300);
+  };
+
+  const useCompanyManually = () => {
+    setSelectedCompanyCik("");
+    setSelectedCompanyConfirmed(true);
+    setCompanyDropdownOpen(false);
+    setCompanySearchResults([]);
+    setAllowManualCompany(false);
   };
 
   const selectCompany = (result: SecCompanyResult) => {
@@ -538,6 +555,7 @@ export default function Assess() {
           sessionId, companyName, companyCik: selectedCompanyCik, industry, opportunity,
           voiceTranscript, documentText, jobPostingText: showJobPosting ? jobPostingText : "",
           competitors: validCompetitors, quickAssess,
+          organizationSessionToken: orgSessionToken || undefined,
         }),
       });
       const data = await resp.json() as { questions: string[]; sessionId: string; quickAssess?: boolean };
@@ -554,6 +572,30 @@ export default function Assess() {
       setIsLoading(false);
     }
   };
+
+  const loadAssessmentForEdit = useCallback((h: AssessmentHistoryItem) => {
+    setSessionId(h.sessionId);
+    setCompanyName(h.companyName || "");
+    setIndustry(h.industry || "");
+    setOpportunity(h.opportunity || "");
+    setSelectedCompanyCik("");
+    setSelectedCompanyConfirmed(!!h.companyName);
+    setVoiceTranscript("");
+    setDocumentText("");
+    setDocumentName("");
+    setJobPostingText("");
+    setShowJobPosting(false);
+    setCompetitors([{ name: "", cik: "", confirmed: false }]);
+    setQuestions([]);
+    setAnswers(["", "", ""]);
+    setAnalysis(null);
+    setRoadmap(null);
+    setShareToken(null);
+    setSecStatus("idle");
+    setError(null);
+    setStep("input");
+    setShowHistory(false);
+  }, []);
 
   const pollSecStatus = useCallback(async () => {
     if (secStatus !== "searching") return;
@@ -599,6 +641,7 @@ export default function Assess() {
       setAnalysis(data.analysis);
       setRoadmap(data.roadmap || data.analysis?.roadmap || null);
       setStep("results");
+      refreshHistory();
       fetch(`${API}/data-sources`)
         .then(r => r.json())
         .then((sources: ResearchSource[]) => { if (Array.isArray(sources)) setResearchSources(sources.slice(0, 8)); })
@@ -728,15 +771,22 @@ export default function Assess() {
               <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-primary/10 text-primary">
                 Powered by Claude · WEF Framework · Letta Memory
               </div>
-              {history.length > 0 && (
-                <button
-                  onClick={() => setShowHistory(!showHistory)}
-                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <History className="w-3.5 h-3.5" />
-                  {showHistory ? "Hide" : "Recent assessments"}
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {!orgSessionToken && (
+                  <span className="text-xs text-muted-foreground italic">
+                    Set up your org profile to save assessments
+                  </span>
+                )}
+                {orgSessionToken && history.length > 0 && (
+                  <button
+                    onClick={() => setShowHistory(!showHistory)}
+                    className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    {showHistory ? "Hide" : `My assessments (${history.length})`}
+                  </button>
+                )}
+              </div>
             </div>
 
             <h1 className="text-4xl font-serif text-foreground mb-2">Capability Assessment</h1>
@@ -756,17 +806,30 @@ export default function Assess() {
                   <div className="divide-y divide-border">
                     {history.map(h => (
                       <div key={h.sessionId} className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-muted/20 transition-colors">
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{h.companyName || "Unnamed Company"}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium text-foreground truncate">{h.companyName || "Unnamed Company"}</div>
+                            <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-sm font-medium ${h.status === "complete" ? "bg-primary/10 text-primary" : h.status === "clarifying" ? "bg-yellow-500/10 text-yellow-600" : "bg-muted text-muted-foreground"}`}>
+                              {h.status === "complete" ? "Complete" : h.status === "clarifying" ? "In progress" : h.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5 truncate">
                             {h.industry && <span>{h.industry} · </span>}
+                            {h.opportunity && <span className="italic">{h.opportunity.slice(0, 60)}{h.opportunity.length > 60 ? "…" : ""} · </span>}
                             {new Date(h.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                           </div>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex items-center gap-2 shrink-0">
                           {h.confidenceScore && (
                             <span className="text-xs font-medium text-primary">{h.confidenceScore}/100</span>
                           )}
+                          <button
+                            onClick={() => loadAssessmentForEdit(h)}
+                            className="inline-flex items-center gap-1 text-xs border border-border px-2 py-1 hover:bg-muted/50 transition-colors text-foreground"
+                            title="Edit this assessment"
+                          >
+                            Edit
+                          </button>
                           {h.shareToken && (
                             <a href={`${BASE}/assess/share/${h.shareToken}`} target="_blank" rel="noopener noreferrer"
                               className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
@@ -847,32 +910,53 @@ export default function Assess() {
                         {companyName && <button onClick={clearCompany} className="mr-2 text-muted-foreground hover:text-foreground shrink-0"><X className="w-3.5 h-3.5" /></button>}
                       </div>
                       <AnimatePresence>
-                        {companyDropdownOpen && companySearchResults.length > 0 && (
+                        {companyDropdownOpen && (companySearchResults.length > 0 || allowManualCompany) && (
                           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.12 }}
                             className="absolute z-50 top-full left-0 right-0 mt-1 border border-border bg-background shadow-lg overflow-hidden">
-                            <div className="px-3 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground font-medium">SEC EDGAR matches</div>
-                            {companySearchResults.map((result, i) => (
-                              <button key={i} type="button" onMouseDown={() => selectCompany(result)}
-                                className="w-full text-left px-3 py-2.5 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors">
+                            {companySearchResults.length > 0 && (
+                              <>
+                                <div className="px-3 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground font-medium">SEC EDGAR matches</div>
+                                {companySearchResults.map((result, i) => (
+                                  <button key={i} type="button" onMouseDown={() => selectCompany(result)}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-colors">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div>
+                                        <div className="text-sm font-medium text-foreground flex items-center gap-2">
+                                          {result.entityName}
+                                          {result.ticker && <span className="text-xs font-bold text-primary border border-primary/20 bg-primary/5 px-1.5 py-0.5 rounded-sm">{result.ticker}</span>}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                          {result.location && <span>{result.location} · </span>}
+                                          SEC filing {result.fileDate ? new Date(result.fileDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "—"}
+                                        </div>
+                                      </div>
+                                      <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    </div>
+                                  </button>
+                                ))}
+                              </>
+                            )}
+                            {allowManualCompany && companyName.trim().length >= 2 && (
+                              <button type="button" onMouseDown={useCompanyManually}
+                                className="w-full text-left px-3 py-2.5 hover:bg-muted/50 transition-colors border-t border-border/50">
                                 <div className="flex items-center justify-between gap-2">
                                   <div>
-                                    <div className="text-sm font-medium text-foreground flex items-center gap-2">
-                                      {result.entityName}
-                                      {result.ticker && <span className="text-xs font-bold text-primary border border-primary/20 bg-primary/5 px-1.5 py-0.5 rounded-sm">{result.ticker}</span>}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground mt-0.5">
-                                      {result.location && <span>{result.location} · </span>}
-                                      10-K filed {result.fileDate ? new Date(result.fileDate).toLocaleDateString("en-US", { year: "numeric", month: "short" }) : "—"}
-                                    </div>
+                                    <div className="text-sm font-medium text-foreground">Use "{companyName}" anyway</div>
+                                    <div className="text-xs text-muted-foreground mt-0.5">No SEC filing found — assessment will proceed without 10-K data</div>
                                   </div>
                                   <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
                                 </div>
                               </button>
-                            ))}
+                            )}
                           </motion.div>
                         )}
                       </AnimatePresence>
-                      {selectedCompanyConfirmed && <p className="text-xs text-primary mt-1 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Confirmed — will pull most recent 10-K filing</p>}
+                      {selectedCompanyConfirmed && (
+                        <p className="text-xs text-primary mt-1 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          {selectedCompanyCik ? "Confirmed — will pull most recent SEC filing" : `Using "${companyName}" — no SEC filing will be retrieved`}
+                        </p>
+                      )}
                     </div>
                   </div>
 
