@@ -690,8 +690,8 @@ export const generateWhitePapersTool = tool(
     const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
     if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
 
-    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
-    const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
+    const FIFTEEN_DAYS_MS = 15 * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - FIFTEEN_DAYS_MS);
     const existing = await db.select({ id: industryWhitePapersTable.id, createdAt: industryWhitePapersTable.createdAt })
       .from(industryWhitePapersTable)
       .where(eq(industryWhitePapersTable.industryId, industry.id))
@@ -766,7 +766,7 @@ Only include REAL publications. If unsure of exact title, use the organization's
   },
   {
     name: "generate_white_papers",
-    description: "Generate real industry research paper entries using Perplexity (finds real publications) + Claude (structured output). Writes to the database. Skips if white papers already exist for this industry.",
+    description: "Generate real industry research paper entries using Perplexity (finds real publications) + Claude (structured output). Writes to the database. Refreshes every 15 days, keeping all historical papers.",
     schema: z.object({
       industrySlug: z.string().describe("Slug of the industry (e.g. 'healthcare', 'insurance', 'retail')"),
     }),
