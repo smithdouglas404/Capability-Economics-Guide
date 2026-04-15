@@ -18,6 +18,9 @@ import {
   storeMemoryTool,
   generateCsuitePerspectivesTool,
   generateCaseStudyContentTool,
+  generateInsightsTool,
+  generateLeaderboardTool,
+  generateWhitePapersTool,
 } from "./tools";
 
 interface CapabilityTarget {
@@ -412,39 +415,51 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
 }
 
 async function generateContentNode(_state: AgentStateType): Promise<Partial<AgentStateType>> {
-  emitAgentEvent({ type: "phase", phase: "generating_content", message: "Generating C-suite perspectives and case study content..." });
+  emitAgentEvent({ type: "phase", phase: "generating_content", message: "Generating insights, leaderboard, white papers, C-suite perspectives, and case study content..." });
+
+  const industries = await db.select({ slug: industriesTable.slug }).from(industriesTable);
+  const industrySlugs = industries.map(i => i.slug);
+
+  for (const slug of industrySlugs) {
+    try {
+      emitAgentEvent({ type: "tool_call", tool: "generate_insights", industry: slug, message: `Generating insights for ${slug}...` });
+      const insightResult = JSON.parse(await generateInsightsTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; insightsGenerated?: number; error?: string };
+      emitAgentEvent({ type: "tool_result", tool: "generate_insights", industry: slug, success: insightResult.success, skipped: insightResult.skipped ?? false, generated: insightResult.insightsGenerated ?? 0 });
+    } catch (err) {
+      console.error(`[generateContentNode] Insights failed for ${slug}:`, err);
+    }
+
+    try {
+      emitAgentEvent({ type: "tool_call", tool: "generate_leaderboard", industry: slug, message: `Generating leaderboard for ${slug}...` });
+      const lbResult = JSON.parse(await generateLeaderboardTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; entriesGenerated?: number; error?: string };
+      emitAgentEvent({ type: "tool_result", tool: "generate_leaderboard", industry: slug, success: lbResult.success, skipped: lbResult.skipped ?? false, generated: lbResult.entriesGenerated ?? 0 });
+    } catch (err) {
+      console.error(`[generateContentNode] Leaderboard failed for ${slug}:`, err);
+    }
+
+    try {
+      emitAgentEvent({ type: "tool_call", tool: "generate_white_papers", industry: slug, message: `Generating white papers for ${slug}...` });
+      const wpResult = JSON.parse(await generateWhitePapersTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; papersGenerated?: number; error?: string };
+      emitAgentEvent({ type: "tool_result", tool: "generate_white_papers", industry: slug, success: wpResult.success, skipped: wpResult.skipped ?? false, generated: wpResult.papersGenerated ?? 0 });
+    } catch (err) {
+      console.error(`[generateContentNode] White papers failed for ${slug}:`, err);
+    }
+  }
 
   try {
     emitAgentEvent({ type: "tool_call", tool: "generate_csuite_perspectives", message: "Generating executive perspectives for all roles..." });
-    const csuiteResult = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as {
-      success: boolean;
-      generated?: string[];
-      skipped?: string[];
-      error?: string;
-    };
-    emitAgentEvent({
-      type: "tool_result",
-      tool: "generate_csuite_perspectives",
-      generated: csuiteResult.generated?.length ?? 0,
-      skipped: csuiteResult.skipped?.length ?? 0,
-    });
-
-    emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance", message: "Generating insurance case study content..." });
-    const caseStudyResult = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as {
-      success: boolean;
-      skipped?: boolean;
-      error?: string;
-    };
-    emitAgentEvent({
-      type: "tool_result",
-      tool: "generate_case_study",
-      industry: "insurance",
-      success: caseStudyResult.success,
-      skipped: caseStudyResult.skipped ?? false,
-    });
+    const csuiteResult = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as { success: boolean; generated?: string[]; skipped?: string[] };
+    emitAgentEvent({ type: "tool_result", tool: "generate_csuite_perspectives", generated: csuiteResult.generated?.length ?? 0, skipped: csuiteResult.skipped?.length ?? 0 });
   } catch (err) {
-    console.error("[generateContentNode] Error:", err);
-    emitAgentEvent({ type: "tool_error", tool: "generate_content", error: err instanceof Error ? err.message : "unknown" });
+    console.error("[generateContentNode] C-suite perspectives error:", err);
+  }
+
+  try {
+    emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance", message: "Generating insurance case study content..." });
+    const caseStudyResult = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as { success: boolean; skipped?: boolean };
+    emitAgentEvent({ type: "tool_result", tool: "generate_case_study", industry: "insurance", success: caseStudyResult.success, skipped: caseStudyResult.skipped ?? false });
+  } catch (err) {
+    console.error("[generateContentNode] Case study error:", err);
   }
 
   return {};

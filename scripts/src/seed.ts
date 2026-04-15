@@ -7,9 +7,6 @@ import {
   cSuiteRolesTable,
   capabilityRoleMappingsTable,
   capabilityThresholdsTable,
-  capabilityInsightsTable,
-  industryLeaderboardTable,
-  industryWhitePapersTable,
 } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
@@ -332,129 +329,13 @@ async function seedThresholds() {
   console.log(`Seeded ${thresholds.length} capability thresholds.`);
 }
 
-async function seedInitialInsights() {
-  const existing = await db.select().from(capabilityInsightsTable).limit(1);
-  if (existing.length > 0) {
-    console.log("Insights already seeded — skipping.");
-    return;
-  }
-  const industries = await db.select().from(industriesTable);
-  if (industries.length === 0) return;
-  const indMap = Object.fromEntries(industries.map(i => [i.slug, i.id]));
-
-  const insights = [
-    { industrySlug: "healthcare", title: "Clinical Workforce Burnout Threatens Revenue Base", content: "Healthcare organizations face a compounding crisis: clinical burnout is driving attrition rates 2–3× above pre-pandemic levels, directly eroding the revenue-generating capacity of care delivery. Gartner estimates that replacing a single physician costs $500K–$1M when factoring recruitment, onboarding, and lost productivity. The economic multiplier effect means workforce instability cascades into scheduling gaps, patient access limitations, and downstream volume declines.", recommendation: "Invest immediately in workforce analytics and scheduling optimization platforms. Organizations that reduce overtime by 15% report 22% lower turnover within 18 months.", severity: "critical" },
-    { industrySlug: "healthcare", title: "Telehealth Scaling Requires Population Health Economics", content: "Telehealth adoption plateaued at 15–20% of eligible visits post-pandemic, well below the 40–60% potential identified by McKinsey. The gap stems from a misalignment: telehealth is deployed as a convenience feature rather than a population health economics tool. Organizations that reframe telehealth as a chronic disease management capability see 3–5× higher ROI through avoided ER visits and reduced inpatient days.", recommendation: "Integrate telehealth platforms with population health stratification tools to target the top 20% of cost drivers — this segment generates 80% of avoidable utilization.", severity: "warning" },
-    { industrySlug: "healthcare", title: "Supply Chain Instability Undermines Clinical Quality Margins", content: "Clinical supply chain disruptions cost health systems an estimated $5.4B annually in substitute product costs, staff time managing shortages, and procedure delays. The capability gap is strategic: most health systems manage supply chain as an operational function rather than a clinical quality and margin lever.", recommendation: "Build predictive supply chain capabilities using AI-driven demand forecasting. Pilot programs at major IDNs show 18–23% reduction in supply expense per adjusted discharge.", severity: "critical" },
-    { industrySlug: "insurance", title: "Integrate Telehealth Scaling with Population Health Economics", content: "Insurers investing in digital distribution are achieving 30–40% lower customer acquisition costs compared to traditional agent-only models. However, organizations that treat digital as a supplementary channel rather than a primary capability leave significant margin on the table.", recommendation: "Shift digital distribution strategy from support to primary. Organizations with mature digital capabilities report 2.5× higher new business growth in under-45 demographics.", severity: "warning" },
-    { industrySlug: "insurance", title: "Urgent: Precision Underwriting Gap Creates Adverse Selection Risk", content: "Carriers without AI-augmented underwriting capabilities are experiencing adverse selection as competitors cherry-pick lower-risk segments using real-time behavioral data. The loss ratio impact of a 5-point adverse selection shift can reduce combined ratio by 3–8 points, threatening profitability in competitive lines.", recommendation: "Accelerate AI underwriting deployment with a 90-day pilot in personal auto or homeowners. Carriers report 12–18 month payback periods on underwriting automation investments.", severity: "critical" },
-    { industrySlug: "banking-financial-services", title: "Open Banking Capability Defines Next Decade of Revenue", content: "Banks without mature open banking APIs are ceding embedded finance revenue to fintech competitors. JPMorgan and Citi report that API ecosystems generate $2–4B in annual fee revenue from third-party integrations. Community and regional banks risk becoming 'dumb pipes' as financial services unbundle.", recommendation: "Launch an API-first open banking program within 6 months targeting top 10 fintech partnerships. Focus initial integrations on personal finance management and small business lending.", severity: "warning" },
-    { industrySlug: "retail", title: "Personalization Gap Costs 15–25% in Recoverable Revenue", content: "Retailers with mature personalization capabilities convert at 2–3× the rate of those relying on batch segmentation. McKinsey estimates $1.7T in recoverable retail revenue sits behind personalization barriers. The capability gap is not technology — it is the organizational inability to operationalize customer data in real-time decisioning.", recommendation: "Implement a real-time personalization engine starting with email and homepage experiences. Retailers report 20–35% uplift in email revenue within 60 days of AI-driven content optimization.", severity: "warning" },
-    { industrySlug: "manufacturing", title: "Predictive Maintenance Delivers Immediate ROI in Asset-Heavy Operations", content: "Manufacturing organizations implementing predictive maintenance capabilities report 25–40% reductions in unplanned downtime and 10–15% decreases in maintenance costs. The economic case is compelling: for a $500M revenue manufacturer, a 10% reduction in downtime translates to $15–25M in recovered throughput annually.", recommendation: "Deploy IoT-enabled predictive maintenance on the top 20% of critical assets by failure cost. Pilot programs typically achieve positive ROI within 12–18 months with 3–5× return over 5 years.", severity: "info" },
-    { industrySlug: "technology", title: "AI/ML Ops Capability is Now a Competitive Moat", content: "Technology companies with mature MLOps capabilities ship AI features 4–6× faster than those without. The compounding effect is significant: faster iteration cycles mean faster product-market fit discovery, lower cost per experiment, and higher feature adoption rates. Organizations without MLOps infrastructure spend 60–80% of data scientist time on infrastructure rather than modeling.", recommendation: "Invest in a centralized MLOps platform with automated model monitoring and deployment pipelines. The 18-month ROI from reduced time-to-production and improved model performance averages 300–400%.", severity: "warning" },
-  ];
-
-  for (const insight of insights) {
-    const industryId = indMap[insight.industrySlug];
-    if (!industryId) continue;
-    await db.insert(capabilityInsightsTable).values({
-      industryId,
-      insightType: "agent_generated",
-      title: insight.title,
-      content: insight.content,
-      severity: insight.severity,
-      recommendation: insight.recommendation,
-      metadata: { source: "seed", model: "static", generatedAt: new Date().toISOString() },
-    });
-  }
-  console.log(`Seeded ${insights.length} initial insights.`);
-}
-
-async function seedLeaderboard() {
-  const existing = await db.select().from(industryLeaderboardTable).limit(1);
-  if (existing.length > 0) {
-    console.log("Leaderboard already seeded — skipping.");
-    return;
-  }
-  const industries = await db.select().from(industriesTable);
-  if (industries.length === 0) return;
-  const indMap = Object.fromEntries(industries.map(i => [i.slug, i.id]));
-
-  const entries = [
-    { industrySlug: "technology", companyName: "Microsoft", overallMaturity: 88, topCapability: "AI/ML Operations", topCapabilityScore: 94, weakestCapability: "Customer Success", weakestCapabilityScore: 72, investmentLevel: "high", trend: "up", rank: 1 },
-    { industrySlug: "retail", companyName: "Walmart", overallMaturity: 85, topCapability: "Supply Chain", topCapabilityScore: 92, weakestCapability: "Personalization", weakestCapabilityScore: 68, investmentLevel: "high", trend: "up", rank: 1 },
-    { industrySlug: "retail", companyName: "Amazon", overallMaturity: 94, topCapability: "Personalization Engine", topCapabilityScore: 98, weakestCapability: "Physical Store Ops", weakestCapabilityScore: 74, investmentLevel: "high", trend: "up", rank: 2 },
-    { industrySlug: "banking-financial-services", companyName: "JPMorgan Chase", overallMaturity: 84, topCapability: "Digital Banking Platform", topCapabilityScore: 91, weakestCapability: "Open Banking APIs", weakestCapabilityScore: 67, investmentLevel: "high", trend: "up", rank: 1 },
-    { industrySlug: "insurance", companyName: "Progressive", overallMaturity: 80, topCapability: "Precision Underwriting", topCapabilityScore: 90, weakestCapability: "Reinsurance Optimization", weakestCapabilityScore: 58, investmentLevel: "high", trend: "up", rank: 1 },
-    { industrySlug: "healthcare", companyName: "Mayo Clinic", overallMaturity: 78, topCapability: "Clinical Decision Support", topCapabilityScore: 88, weakestCapability: "Revenue Cycle", weakestCapabilityScore: 61, investmentLevel: "high", trend: "stable", rank: 1 },
-    { industrySlug: "manufacturing", companyName: "Siemens", overallMaturity: 82, topCapability: "Smart Factory", topCapabilityScore: 91, weakestCapability: "Sustainability Reporting", weakestCapabilityScore: 63, investmentLevel: "high", trend: "up", rank: 1 },
-  ];
-
-  for (const e of entries) {
-    const industryId = indMap[e.industrySlug];
-    if (!industryId) continue;
-    await db.insert(industryLeaderboardTable).values({
-      industryId,
-      companyName: e.companyName,
-      overallMaturity: e.overallMaturity,
-      topCapability: e.topCapability,
-      topCapabilityScore: e.topCapabilityScore,
-      weakestCapability: e.weakestCapability,
-      weakestCapabilityScore: e.weakestCapabilityScore,
-      investmentLevel: e.investmentLevel as "high" | "medium" | "low",
-      trend: e.trend as "up" | "down" | "stable",
-      rank: e.rank,
-    });
-  }
-  console.log(`Seeded ${entries.length} leaderboard entries.`);
-}
-
-async function seedWhitePapers() {
-  const existing = await db.select().from(industryWhitePapersTable).limit(1);
-  if (existing.length > 0) {
-    console.log("White papers already seeded — skipping.");
-    return;
-  }
-  const industries = await db.select().from(industriesTable);
-  if (industries.length === 0) return;
-  const indMap = Object.fromEntries(industries.map(i => [i.slug, i.id]));
-
-  const papers = [
-    { industrySlug: "healthcare", title: "The Quadruple Aim: Workforce Sustainability as a Capability", author: "Berwick, Nolan & Whittington", organization: "Institute for Healthcare Improvement", abstract: "Healthcare organizations must treat workforce sustainability as a core economic capability, not a HR function. This paper quantifies the revenue-at-risk from clinical burnout and presents a capability economics framework for measuring and improving workforce ROI.", category: "Workforce", url: "https://www.ihi.org/resources/articles/triple-aim-care-health-cost", publishedYear: 2024, relevanceScore: 95, tags: "workforce, burnout, revenue, capability" },
-    { industrySlug: "insurance", title: "The Algorithmic Insurer: AI-Native Underwriting as Competitive Moat", author: "McKinsey Global Institute", organization: "McKinsey & Company", abstract: "AI-native underwriting capabilities create compounding competitive advantages through adverse selection avoidance, real-time risk pricing, and portfolio optimization. Insurers that delay capability investment face structural disadvantage within 36 months.", category: "Underwriting", url: "https://www.mckinsey.com/industries/financial-services/our-insights/insurance-blog", publishedYear: 2024, relevanceScore: 93, tags: "underwriting, AI, competitive advantage, pricing" },
-    { industrySlug: "banking-financial-services", title: "Open Banking Economics: From Compliance to Revenue Engine", author: "Accenture Banking Research", organization: "Accenture", abstract: "Banks that treat open banking as a regulatory compliance exercise leave $2–4B in annual fee revenue unrealized. This research quantifies the revenue opportunity from API ecosystems and presents a capability maturity model for open banking platforms.", category: "Digital Banking", url: "https://www.accenture.com/us-en/insights/banking/open-banking", publishedYear: 2024, relevanceScore: 91, tags: "open banking, APIs, revenue, fintech" },
-    { industrySlug: "retail", title: "Personalization at Scale: The $1.7T Retail Capability Opportunity", author: "McKinsey & Company", organization: "McKinsey Global Institute", abstract: "Personalization capabilities represent the single largest recoverable revenue opportunity in retail. This paper presents the economic model for personalization ROI, including case studies from 47 global retailers showing 15–35% revenue uplift from mature personalization capabilities.", category: "Customer Experience", url: "https://www.mckinsey.com/industries/retail/our-insights/the-value-of-getting-personalization-right", publishedYear: 2024, relevanceScore: 94, tags: "personalization, retail, revenue, AI" },
-    { industrySlug: "manufacturing", title: "Industry 4.0 Capability Economics: Predictive Maintenance ROI", author: "Deloitte Insights", organization: "Deloitte", abstract: "Predictive maintenance capabilities deliver the highest short-term ROI of any Industry 4.0 investment. Analysis of 200 manufacturing deployments shows average 28% reduction in unplanned downtime and 13% reduction in maintenance costs within 18 months.", category: "Operations", url: "https://www2.deloitte.com/us/en/insights/focus/industry-4-0/predictive-maintenance.html", publishedYear: 2024, relevanceScore: 90, tags: "predictive maintenance, IoT, ROI, manufacturing" },
-    { industrySlug: "technology", title: "MLOps as Competitive Infrastructure: The Platform Advantage", author: "Gartner Research", organization: "Gartner", abstract: "Organizations with mature MLOps capabilities ship AI-powered features at 4–6× the velocity of those without. This research quantifies the compounding advantage of MLOps infrastructure investment and presents a maturity model for technology capability assessment.", category: "AI/ML", url: "https://www.gartner.com/en/information-technology/insights/machine-learning", publishedYear: 2024, relevanceScore: 92, tags: "MLOps, AI, velocity, platform engineering" },
-  ];
-
-  for (const p of papers) {
-    const industryId = indMap[p.industrySlug];
-    if (!industryId) continue;
-    await db.insert(industryWhitePapersTable).values({
-      industryId,
-      title: p.title,
-      author: p.author,
-      organization: p.organization,
-      abstract: p.abstract,
-      category: p.category,
-      url: p.url,
-      publishedYear: p.publishedYear,
-      relevanceScore: p.relevanceScore,
-      tags: p.tags,
-    });
-  }
-  console.log(`Seeded ${papers.length} white papers.`);
-}
-
 async function run() {
   await seed();
   const { seedProjects } = await import("./seed-projects");
   await seedProjects();
   await seedThresholds();
-  await seedInitialInsights();
-  await seedLeaderboard();
-  await seedWhitePapers();
+  // Insights, leaderboard, and white papers are generated by the autonomous agent
+  // using Perplexity research + Claude synthesis on every cycle. No static data.
 }
 
 run().then(() => {

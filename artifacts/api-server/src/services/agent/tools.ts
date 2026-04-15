@@ -11,8 +11,11 @@ import {
   csuitePerspectivesTable,
   caseStudyContentTable,
   capabilityMetricsTable,
+  capabilityInsightsTable,
+  industryLeaderboardTable,
+  industryWhitePapersTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
 import { computeCEI } from "../cei-engine";
 import { recallMemories, storeMemory } from "./memory";
@@ -494,6 +497,275 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
   },
 );
 
+export const generateInsightsTool = tool(
+  async ({ industrySlug }) => {
+    const anthropic = await getAnthropic();
+
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
+    if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
+
+    const cutoff = new Date(Date.now() - CONTENT_STALE_HOURS * 60 * 60 * 1000);
+    const recent = await db.select().from(capabilityInsightsTable)
+      .where(and(eq(capabilityInsightsTable.industryId, industry.id), gt(capabilityInsightsTable.generatedAt, cutoff)))
+      .limit(1);
+    if (recent.length > 0) return JSON.stringify({ success: true, skipped: true, reason: "Insights are fresh" });
+
+    const caps = await db.select({
+      id: capabilitiesTable.id,
+      name: capabilitiesTable.name,
+      benchmarkScore: capabilitiesTable.benchmarkScore,
+      economicView: capabilitiesTable.economicView,
+    }).from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industry.id));
+
+    const components = await db.select({
+      capabilityId: ceiComponentsTable.capabilityId,
+      consensusScore: ceiComponentsTable.consensusScore,
+      velocity: ceiComponentsTable.velocity,
+    }).from(ceiComponentsTable).where(eq(ceiComponentsTable.industryId, industry.id));
+
+    const compMap = new Map(components.map(c => [c.capabilityId, c]));
+    const capSummary = caps.map(c => {
+      const comp = compMap.get(c.id);
+      const score = comp?.consensusScore ?? c.benchmarkScore;
+      const velocity = comp?.velocity ?? 0;
+      return `- ${c.name}: score ${score}/100, trend ${velocity >= 0 ? "+" : ""}${velocity.toFixed(1)}/mo. ${c.economicView}`;
+    }).join("\n");
+
+    const researchContext = await perplexityContextSearch(
+      `What are the most urgent capability gaps, market disruptions, and strategic opportunities facing the ${industry.name} industry in 2024-2026? Include specific companies, percentages, dollar amounts, and real analyst data from McKinsey, Gartner, Deloitte, or Forrester. Focus on operational risks and economic impact.`
+    );
+
+    const prompt = `You are a Capability Economics advisor analyzing the ${industry.name} industry using real market data.
+
+Current capability scores:
+${capSummary}
+
+PERPLEXITY RESEARCH (use this to ground insights in real data):
+${researchContext}
+
+Generate exactly 4 strategic insights based on the capability scores and research above. Each must reference specific data points from the research.
+
+Return ONLY valid JSON array:
+[
+  {
+    "title": "Concise insight title (max 12 words)",
+    "content": "2-3 sentences with specific data points, percentages, dollar amounts from the research. Reference real companies or analyst data.",
+    "recommendation": "1-2 sentences with a specific, actionable recommendation including timeline and measurable target.",
+    "severity": "critical" | "warning" | "info",
+    "capabilityFocus": "name of the most relevant capability from the list above"
+  }
+]
+
+Severity rules: "critical" = immediate revenue or operational risk, "warning" = 6-month strategic concern, "info" = growth opportunity. Use at least 1 critical and 1 info.`;
+
+    try {
+      const message = await anthropic.messages.create({
+        model: rm("claude-haiku-4-5"),
+        max_tokens: 2048,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error("No JSON array in response");
+
+      const insights = JSON.parse(jsonMatch[0]) as Array<{
+        title: string; content: string; recommendation: string; severity: string; capabilityFocus?: string;
+      }>;
+
+      const capNameMap = new Map(caps.map(c => [c.name, c.id]));
+
+      await db.delete(capabilityInsightsTable).where(eq(capabilityInsightsTable.industryId, industry.id));
+
+      await Promise.all(insights.map(insight => {
+        const capId = insight.capabilityFocus ? capNameMap.get(insight.capabilityFocus) ?? null : null;
+        return db.insert(capabilityInsightsTable).values({
+          industryId: industry.id,
+          capabilityId: capId,
+          insightType: "agent_generated",
+          title: insight.title,
+          content: insight.content,
+          severity: insight.severity as "critical" | "warning" | "info",
+          recommendation: insight.recommendation,
+          metadata: { source: "perplexity+claude", model: "claude-haiku-4-5", generatedAt: new Date().toISOString() },
+        });
+      }));
+
+      return JSON.stringify({ success: true, industry: industrySlug, insightsGenerated: insights.length });
+    } catch (err) {
+      return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+  {
+    name: "generate_insights",
+    description: "Generate AI-powered capability insights and alerts for an industry using Perplexity (real market research) + Claude (structured analysis). Writes directly to the database. Skips if insights are fresh (< 48h). Call once per cycle per industry.",
+    schema: z.object({
+      industrySlug: z.string().describe("Slug of the industry (e.g. 'healthcare', 'insurance', 'retail')"),
+    }),
+  },
+);
+
+export const generateLeaderboardTool = tool(
+  async ({ industrySlug }) => {
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
+    if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
+
+    const existing = await db.select().from(industryLeaderboardTable)
+      .where(eq(industryLeaderboardTable.industryId, industry.id)).limit(1);
+    if (existing.length > 0) return JSON.stringify({ success: true, skipped: true, reason: "Leaderboard exists" });
+
+    const anthropic = await getAnthropic();
+
+    const researchContext = await perplexityContextSearch(
+      `Who are the top 4-5 companies in the ${industry.name} industry ranked by operational capability maturity, digital transformation, and innovation investment in 2024-2026? Include specific capability strengths and weaknesses, maturity scores, investment levels, and whether they are improving or declining. Use real data from analyst reports.`
+    );
+
+    const prompt = `You are a Capability Economics analyst. Based on this research, generate a leaderboard of the top companies in ${industry.name}.
+
+PERPLEXITY RESEARCH:
+${researchContext}
+
+Return ONLY valid JSON array of exactly 4 companies, ranked 1-4:
+[
+  {
+    "companyName": "Real company name",
+    "overallMaturity": 85,
+    "topCapability": "Their strongest capability name",
+    "topCapabilityScore": 92,
+    "weakestCapability": "Their weakest capability name",
+    "weakestCapabilityScore": 58,
+    "investmentLevel": "high" | "medium" | "low",
+    "trend": "up" | "down" | "stable",
+    "rank": 1
+  }
+]
+
+All scores must be integers 40-100. Use real companies from the research. Investment level and trend must reflect real analyst data.`;
+
+    try {
+      const message = await anthropic.messages.create({
+        model: rm("claude-haiku-4-5"),
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error("No JSON array in response");
+
+      const entries = JSON.parse(jsonMatch[0]) as Array<{
+        companyName: string; overallMaturity: number; topCapability: string; topCapabilityScore: number;
+        weakestCapability: string; weakestCapabilityScore: number; investmentLevel: string; trend: string; rank: number;
+      }>;
+
+      await Promise.all(entries.map(e =>
+        db.insert(industryLeaderboardTable).values({
+          industryId: industry.id,
+          companyName: e.companyName,
+          overallMaturity: e.overallMaturity,
+          topCapability: e.topCapability,
+          topCapabilityScore: e.topCapabilityScore,
+          weakestCapability: e.weakestCapability,
+          weakestCapabilityScore: e.weakestCapabilityScore,
+          investmentLevel: e.investmentLevel as "high" | "medium" | "low",
+          trend: e.trend as "up" | "down" | "stable",
+          rank: e.rank,
+        })
+      ));
+
+      return JSON.stringify({ success: true, industry: industrySlug, entriesGenerated: entries.length });
+    } catch (err) {
+      return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+  {
+    name: "generate_leaderboard",
+    description: "Generate a real-data industry capability leaderboard using Perplexity research + Claude synthesis. Writes top companies and their capability scores to the database. Skips if leaderboard already exists for this industry.",
+    schema: z.object({
+      industrySlug: z.string().describe("Slug of the industry (e.g. 'healthcare', 'insurance', 'retail')"),
+    }),
+  },
+);
+
+export const generateWhitePapersTool = tool(
+  async ({ industrySlug }) => {
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
+    if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
+
+    const existing = await db.select().from(industryWhitePapersTable)
+      .where(eq(industryWhitePapersTable.industryId, industry.id)).limit(1);
+    if (existing.length > 0) return JSON.stringify({ success: true, skipped: true, reason: "White papers exist" });
+
+    const anthropic = await getAnthropic();
+
+    const researchContext = await perplexityContextSearch(
+      `What are the most important and cited industry research reports, white papers, and analyst publications on capability maturity, digital transformation ROI, and operational excellence in the ${industry.name} sector published 2022-2026? Include actual titles, authors, organizations (McKinsey, Gartner, Deloitte, Forrester, Accenture, BCG, WEF, etc.) and key findings.`
+    );
+
+    const prompt = `You are a research librarian for a Capability Economics platform. Generate 3 real research paper entries for the ${industry.name} industry.
+
+PERPLEXITY RESEARCH (use only real publications found in this data):
+${researchContext}
+
+Return ONLY valid JSON array of exactly 3 papers:
+[
+  {
+    "title": "Exact or close to exact real report title",
+    "author": "Real author name or organization research team",
+    "organization": "Real organization (McKinsey, Gartner, Deloitte, etc.)",
+    "abstract": "2-3 sentences summarizing the real key findings with specific data points, percentages, and conclusions.",
+    "category": "One of: Strategy | Operations | Technology | Workforce | Finance | Risk",
+    "url": "Real URL if known, or organization's research page URL",
+    "publishedYear": 2024,
+    "relevanceScore": 90,
+    "tags": "comma separated relevant tags"
+  }
+]
+
+Only include REAL publications. If unsure of exact title, use the organization's well-known research series. relevanceScore must be 75-98.`;
+
+    try {
+      const message = await anthropic.messages.create({
+        model: rm("claude-haiku-4-5"),
+        max_tokens: 1024,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error("No JSON array in response");
+
+      const papers = JSON.parse(jsonMatch[0]) as Array<{
+        title: string; author: string; organization: string; abstract: string;
+        category: string; url: string; publishedYear: number; relevanceScore: number; tags: string;
+      }>;
+
+      await Promise.all(papers.map(p =>
+        db.insert(industryWhitePapersTable).values({
+          industryId: industry.id,
+          title: p.title,
+          author: p.author,
+          organization: p.organization,
+          abstract: p.abstract,
+          category: p.category,
+          url: p.url,
+          publishedYear: p.publishedYear,
+          relevanceScore: p.relevanceScore,
+          tags: p.tags,
+        })
+      ));
+
+      return JSON.stringify({ success: true, industry: industrySlug, papersGenerated: papers.length });
+    } catch (err) {
+      return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
+    }
+  },
+  {
+    name: "generate_white_papers",
+    description: "Generate real industry research paper entries using Perplexity (finds real publications) + Claude (structured output). Writes to the database. Skips if white papers already exist for this industry.",
+    schema: z.object({
+      industrySlug: z.string().describe("Slug of the industry (e.g. 'healthcare', 'insurance', 'retail')"),
+    }),
+  },
+);
+
 export const allTools = [
   perplexityResearchTool,
   queryDatabaseTool,
@@ -502,4 +774,7 @@ export const allTools = [
   storeMemoryTool,
   generateCsuitePerspectivesTool,
   generateCaseStudyContentTool,
+  generateInsightsTool,
+  generateLeaderboardTool,
+  generateWhitePapersTool,
 ];
