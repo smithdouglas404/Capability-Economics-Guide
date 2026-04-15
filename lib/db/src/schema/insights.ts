@@ -41,6 +41,7 @@ export const industryWhitePapersTable = pgTable("industry_white_papers", {
   relevanceScore: integer("relevance_score").notNull().default(80),
   tags: text("tags"),
   sourceIds: jsonb("source_ids").$type<number[]>(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 export const industryLeaderboardTable = pgTable("industry_leaderboard", {

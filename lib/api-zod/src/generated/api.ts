@@ -552,6 +552,10 @@ export const ListLeaderboardResponse = zod.array(ListLeaderboardResponseItem);
  */
 export const ListWhitePapersQueryParams = zod.object({
   industryId: zod.coerce.number().optional(),
+  category: zod.string().optional(),
+  year: zod.coerce.number().optional(),
+  limit: zod.coerce.number().optional(),
+  offset: zod.coerce.number().optional(),
 });
 
 export const ListWhitePapersResponseItem = zod.object({

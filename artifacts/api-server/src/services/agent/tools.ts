@@ -690,9 +690,16 @@ export const generateWhitePapersTool = tool(
     const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, industrySlug));
     if (!industry) return JSON.stringify({ success: false, error: `Industry ${industrySlug} not found` });
 
-    const existing = await db.select().from(industryWhitePapersTable)
-      .where(eq(industryWhitePapersTable.industryId, industry.id)).limit(1);
-    if (existing.length > 0) return JSON.stringify({ success: true, skipped: true, reason: "White papers exist" });
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const cutoff = new Date(Date.now() - THIRTY_DAYS_MS);
+    const existing = await db.select({ id: industryWhitePapersTable.id, createdAt: industryWhitePapersTable.createdAt })
+      .from(industryWhitePapersTable)
+      .where(eq(industryWhitePapersTable.industryId, industry.id))
+      .orderBy(desc(industryWhitePapersTable.createdAt))
+      .limit(1);
+    if (existing.length > 0 && existing[0].createdAt && existing[0].createdAt > cutoff) {
+      return JSON.stringify({ success: true, skipped: true, reason: "White papers refreshed within last 30 days" });
+    }
 
     const anthropic = await getAnthropic();
 
