@@ -226,11 +226,20 @@ Return ONLY valid JSON in this format, no commentary:
   ]
 }`;
 
-  const response = await anthropic.messages.create({
-    model: rm("claude-haiku-4-5"),
-    max_tokens: 600,
-    messages: [{ role: "user", content: prompt }],
+  // GLM 5.1 — strategic interrogation, challenges assumptions, produces sharp gap-revealing questions
+  const glmQResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://capabilityeconomics.com",
+      "X-Title": "Capability Economics",
+    },
+    body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
   });
+  const glmQData = await glmQResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+  if (glmQData.error) throw new Error(`GLM error: ${glmQData.error.message}`);
+  const response = { content: [{ type: "text" as const, text: glmQData.choices?.[0]?.message?.content ?? "" }] };
 
   let questions: string[] = [];
   const text = response.content[0].type === "text" ? response.content[0].text : "";
@@ -449,13 +458,21 @@ Rules:
 - Confidence score 40-60 for minimal input, 65-80 for good Q&A, 80-95 for SEC data + detailed context
 - Be specific to this company/industry — not generic platitudes`;
 
-  const response = await anthropic.messages.create({
-    model: rm("claude-haiku-4-5"),
-    max_tokens: 6000,
-    messages: [{ role: "user", content: prompt }],
+  // GLM 5.1 — deep reasoning for gap identification, roadmap planning, competitor scoring, SEC interpretation
+  const glmAResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://capabilityeconomics.com",
+      "X-Title": "Capability Economics",
+    },
+    body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 8192, messages: [{ role: "user", content: prompt }] }),
   });
+  const glmAData = await glmAResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+  if (glmAData.error) throw new Error(`GLM analysis error: ${glmAData.error.message}`);
 
-  const rawText = response.content[0].type === "text" ? response.content[0].text : "{}";
+  const rawText = glmAData.choices?.[0]?.message?.content ?? "{}";
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);
 
   let analysis: Record<string, unknown> = {};

@@ -867,12 +867,24 @@ Return ONLY valid JSON with this structure:
 Generate 8-12 relationships. Use only slugs from the provided capability list. relationshipType must be one of: enables, depends_on, competes_with, substitutes.`;
 
     try {
-      const message = await anthropic.messages.create({
-        model: rm("claude-haiku-4-5"),
-        max_tokens: 4096,
-        messages: [{ role: "user", content: relationshipsPrompt }],
+      // DeepSeek — most precise logical relationship typing (enables/depends_on/competes_with/substitutes)
+      const dsResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://capabilityeconomics.com",
+          "X-Title": "Capability Economics",
+        },
+        body: JSON.stringify({
+          model: "deepseek/deepseek-chat",
+          max_tokens: 4096,
+          messages: [{ role: "user", content: relationshipsPrompt }],
+        }),
       });
-      const text = message.content[0].type === "text" ? message.content[0].text : "";
+      const dsData = await dsResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+      if (dsData.error) throw new Error(`DeepSeek error: ${dsData.error.message}`);
+      const text = dsData.choices?.[0]?.message?.content ?? "";
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON object in response");
 
