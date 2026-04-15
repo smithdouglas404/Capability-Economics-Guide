@@ -168,25 +168,6 @@ Return JSON array of 4 relationships:
 
 Be specific, strategic, and grounded in real ${industry.name} industry dynamics. No generic responses.`;
 
-    const runViaAnthropic = async (model: string) => {
-      const start = Date.now();
-      try {
-        const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
-        const resolvedModel = hasOpenRouter ? `anthropic/${model}` : model;
-        const message = await client.messages.create({
-          model: resolvedModel,
-          max_tokens: 1024,
-          messages: [{ role: "user", content: prompt }],
-        });
-        const text = message.content[0].type === "text" ? message.content[0].text : "";
-        const match = text.match(/\[[\s\S]*\]/);
-        const parsed = match ? JSON.parse(match[0]) : null;
-        return { model: resolvedModel, latencyMs: Date.now() - start, result: parsed, rawLength: text.length, error: null };
-      } catch (err) {
-        return { model, latencyMs: Date.now() - start, result: null, rawLength: 0, error: err instanceof Error ? err.message : String(err) };
-      }
-    };
-
     const runViaOpenRouter = async (model: string) => {
       const start = Date.now();
       const apiKey = process.env.OPENROUTER_API_KEY;
@@ -218,7 +199,7 @@ Be specific, strategic, and grounded in real ${industry.name} industry dynamics.
     };
 
     const [sonnet, deepseek] = await Promise.all([
-      runViaAnthropic("claude-sonnet-4-5"),
+      runViaOpenRouter("anthropic/claude-sonnet-4.5"),
       runViaOpenRouter("deepseek/deepseek-chat"),
     ]);
 
