@@ -15,7 +15,12 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
       max_tokens: opts.maxTokens,
       messages: [{ role: "user", content: prompt }],
     };
-    if (opts.jsonMode) body.response_format = { type: "json_object" };
+    if (opts.jsonMode) {
+      body.response_format = { type: "json_object" };
+      // Disable reasoning emission in JSON mode so reasoning tokens don't consume max_tokens
+      // and truncate the JSON output. GLM 5.1 otherwise emits large reasoning blocks.
+      body.reasoning = { enabled: false, exclude: true };
+    }
     const resp = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -30,9 +35,9 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
 }
 
 async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, jsonMode = false): Promise<string> {
-  // GLM 5.1 emits large reasoning tokens that eat the max_tokens budget and truncate JSON output.
-  // Prefer GLM 4.6 for JSON-mode structured output; keep 5.1 as fallback for free-form reasoning.
-  const models = jsonMode ? ["z-ai/glm-4.6", "z-ai/glm-5.1"] : ["z-ai/glm-5.1", "z-ai/glm-4.6"];
+  // Prefer GLM 5.1 always. For JSON mode we disable reasoning emission (see glmCallOnce)
+  // so reasoning tokens don't consume max_tokens and truncate the JSON. GLM 4.6 is fallback.
+  const models = ["z-ai/glm-5.1", "z-ai/glm-4.6"];
   let lastErr: unknown = null;
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
