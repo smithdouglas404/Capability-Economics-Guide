@@ -106,6 +106,20 @@ Full-stack educational platform teaching novice users about capability economics
 - Agent files: `artifacts/api-server/src/services/agent/` — graph.ts (LangGraph), tools.ts (LangChain tools), memory.ts (Mem0), letta.ts (Letta client), events.ts (SSE), scheduler.ts
 - Max 6 Perplexity research calls per agent run to control API costs
 
+### Capability Intelligence Enrichment Agent (Phase 8)
+- Perplexity + GLM 5.1 research pipeline for automated capability intelligence enrichment
+- **Pipeline stages**: For each of 6 industries: (1) Capability Quadrant Classification, (2) Value Chain Stage Analysis, (3) Company Profile + Mapping
+- **Perplexity research**: sonar-pro model for real-time industry data gathering
+- **GLM 5.1 synthesis**: z-ai/glm-5.1 via OpenRouter for structured JSON extraction from research
+- **Timeout**: 180s AbortController on GLM calls, 8192 max_tokens for value chain synthesis
+- **extractJson**: robust parser handling ```json fences, truncated arrays (finds last `}` + appends `]`), object fallback
+- DB tables: `capability_quadrants` (quadrant classification + economic impact scores), `value_chain_stages` (patent/startup/capital metrics per stage), `company_capability_profiles` (FEVI/CDI scores), `company_capability_mappings` (company-to-capability links)
+- API endpoints: POST `/api/enrichment/run`, GET `/api/enrichment/status`, GET `/api/enrichment/quadrants`, GET `/api/enrichment/value-chain`, GET `/api/enrichment/companies`, GET `/api/enrichment/company-mappings`, GET `/api/enrichment/graph`
+- Admin UI: "Enrich Now" button on `/admin` page with live status display
+- Enrichment service: `artifacts/api-server/src/services/enrichment/index.ts`
+- Enrichment route: `artifacts/api-server/src/routes/enrichment.ts` (mounted at `/api/enrichment`)
+- Verified production data: 108 quadrants, 44 value chain stages, 117 companies, 157 mappings across 6 industries
+
 ### Key Dependencies
 - **wouter** for client-side routing
 - **framer-motion** for animations

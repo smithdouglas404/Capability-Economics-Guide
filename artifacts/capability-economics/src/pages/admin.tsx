@@ -6,6 +6,7 @@ import {
   CheckCircle, Clock, AlertCircle, Database, Cpu, BarChart3,
   FileText, Lightbulb, Trophy, BookOpen, Network, UserSquare2,
   Mic, File, Briefcase, ChevronUp, ChevronDown, Minus,
+  Zap, Building2, GitBranch, Layers,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -140,9 +141,34 @@ export default function AdminDashboard() {
   const { data: agentRuns, loading: runsLoading, refetch: refetchRuns } = useApi<AgentRun[]>("/admin/agent-runs");
   const { data: models } = useApi<ModelEntry[]>("/admin/models");
 
+  const { data: enrichStatus, loading: enrichLoading, refetch: refetchEnrich } = useApi<{
+    quadrants: number; valueChainStages: number; companies: number; companyMappings: number;
+  }>("/enrichment/status");
+
   const [triggering, setTriggering] = useState<string | null>(null);
+  const [enrichRunning, setEnrichRunning] = useState(false);
+  const [enrichResult, setEnrichResult] = useState<{
+    quadrantsClassified: number; valueChainStagesCreated: number;
+    companiesProfiled: number; companyMappingsCreated: number;
+    errors: string[]; durationMs: number;
+  } | null>(null);
   const [sortField, setSortField] = useState<"createdAt" | "companyName" | "status">("createdAt");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const triggerEnrichment = async () => {
+    setEnrichRunning(true);
+    setEnrichResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/enrichment/run`, { method: "POST" });
+      const result = await res.json();
+      setEnrichResult(result);
+      refetchEnrich();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setEnrichRunning(false);
+    }
+  };
 
   const triggerTool = async (tool: string, industrySlug?: string) => {
     const key = `${tool}-${industrySlug ?? "all"}`;
@@ -419,6 +445,94 @@ export default function AdminDashboard() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Enrichment Pipeline */}
+      <Card className="mb-6">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Zap className="w-5 h-5" /> Capability Enrichment Pipeline
+            <span className="text-sm font-normal text-muted-foreground ml-2">Perplexity research → GLM 5.1 synthesis</span>
+          </CardTitle>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={triggerEnrichment}
+              disabled={enrichRunning}
+              className="gap-1.5"
+            >
+              {enrichRunning ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+              {enrichRunning ? "Enriching..." : "Enrich Now"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={refetchEnrich} disabled={enrichLoading}>
+              <RefreshCw className={`w-3 h-3 ${enrichLoading ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <Layers className="w-5 h-5 text-purple-500" />
+              <div>
+                <p className="text-2xl font-bold font-mono">{enrichStatus?.quadrants ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">Quadrant Classifications</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <GitBranch className="w-5 h-5 text-blue-500" />
+              <div>
+                <p className="text-2xl font-bold font-mono">{enrichStatus?.valueChainStages ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">Value Chain Stages</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <Building2 className="w-5 h-5 text-green-500" />
+              <div>
+                <p className="text-2xl font-bold font-mono">{enrichStatus?.companies ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">Company Profiles</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+              <Network className="w-5 h-5 text-orange-500" />
+              <div>
+                <p className="text-2xl font-bold font-mono">{enrichStatus?.companyMappings ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">Company↔Capability Mappings</p>
+              </div>
+            </div>
+          </div>
+
+          {enrichResult && (
+            <div className="p-4 rounded-lg border border-border bg-muted/30">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span className="text-sm font-medium">Enrichment Complete — {(enrichResult.durationMs / 1000).toFixed(1)}s</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                <span className="text-muted-foreground">+{enrichResult.quadrantsClassified} quadrants</span>
+                <span className="text-muted-foreground">+{enrichResult.valueChainStagesCreated} stages</span>
+                <span className="text-muted-foreground">+{enrichResult.companiesProfiled} companies</span>
+                <span className="text-muted-foreground">+{enrichResult.companyMappingsCreated} mappings</span>
+              </div>
+              {enrichResult.errors.length > 0 && (
+                <div className="mt-2 text-xs text-red-500">
+                  {enrichResult.errors.length} error(s): {enrichResult.errors[0]}
+                  {enrichResult.errors.length > 1 && ` (+${enrichResult.errors.length - 1} more)`}
+                </div>
+              )}
+            </div>
+          )}
+
+          {enrichRunning && (
+            <div className="flex items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
+              <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
+              <div>
+                <p className="text-sm font-medium">Running enrichment across all industries...</p>
+                <p className="text-xs text-muted-foreground">Perplexity research → GLM 5.1 synthesis → DB insert (this may take 2-5 minutes)</p>
+              </div>
             </div>
           )}
         </CardContent>

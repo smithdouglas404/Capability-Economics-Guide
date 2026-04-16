@@ -12,6 +12,7 @@ import contentRouter from "./content";
 import assessRouter from "./assess";
 import secRouter from "./sec";
 import adminRouter from "./admin";
+import enrichmentRouter from "./enrichment";
 
 const router: IRouter = Router();
 
@@ -28,5 +29,6 @@ router.use(contentRouter);
 router.use(assessRouter);
 router.use(secRouter);
 router.use(adminRouter);
+router.use("/enrichment", enrichmentRouter);
 
 export default router;

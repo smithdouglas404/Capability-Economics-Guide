@@ -10,3 +10,4 @@ export * from "./cei";
 export * from "./agent";
 export * from "./csuite-perspectives";
 export * from "./assessments";
+export * from "./enrichment";
