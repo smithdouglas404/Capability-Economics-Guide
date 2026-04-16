@@ -108,7 +108,7 @@ Value case: ${state.valueCase}
 Decompose the objective into ${MAX_QUERIES_PER_CYCLE} precise web research queries. Each query must demand specific numbers, named examples, and 2024-2026 data. Mix of kinds across: capability_gap, opportunity, recommendation, risk, insight, benchmark.
 
 Return ONLY JSON: { "queries": [ { "kind": "...", "title": "...", "query": "specific question to ask Perplexity sonar-deep-research", "recencyHint": "optional" } ] }`;
-  const out = await glmReasonTool.invoke({ prompt, maxTokens: 1500 });
+  const out = await glmReasonTool.invoke({ prompt, maxTokens: 1500, jsonMode: true });
   const parsed = extractJSON<{ queries: PlannedQuery[] }>(out);
   const plan = (parsed?.queries ?? []).slice(0, MAX_QUERIES_PER_CYCLE);
   if (plan.length === 0) return { researchPlan: [], errors: [...state.errors, "decompose: no queries produced"], toolCalls: state.toolCalls + 1 };

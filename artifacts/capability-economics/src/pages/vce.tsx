@@ -114,9 +114,11 @@ export default function VCEPage() {
       fetch(`${apiBase}/api/vce/inbox`).then(r => r.json()).catch(() => ({ findings: [], questions: [], counts: { findings: 0, questions: 0 } })),
       fetch(`${apiBase}/api/industries`).then(r => r.json()).catch(() => []),
     ]);
-    setAssessments(Array.isArray(a) ? a : []);
+    const list = Array.isArray(a) ? a : [];
+    setAssessments(list);
     setInbox(i);
     setIndustries(Array.isArray(ind) ? ind : []);
+    setSelectedId(prev => prev ?? (list[0]?.id ?? null));
     setLoading(false);
   }
   useEffect(() => { loadAll(); }, []);
@@ -164,19 +166,25 @@ export default function VCEPage() {
                 <CardHeader><CardTitle className="text-base">All Campaigns</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   {assessments.length === 0 && <p className="text-sm text-muted-foreground">No campaigns yet.</p>}
-                  {assessments.map(a => (
-                    <button
-                      key={a.id}
-                      onClick={() => setSelectedId(a.id)}
-                      className={`w-full text-left p-3 rounded-md border transition ${selectedId === a.id ? "border-violet-400 bg-violet-50" : "hover:bg-muted/50"}`}
-                    >
-                      <div className="font-medium text-sm truncate">{a.clientName}</div>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <StatusBadge status={a.status} />
-                        <span className="text-xs text-muted-foreground">Day {a.currentCycle}/{a.totalCycles}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {assessments.map(a => {
+                    const pct = a.totalCycles > 0 ? Math.min(100, (a.currentCycle / a.totalCycles) * 100) : 0;
+                    return (
+                      <button
+                        key={a.id}
+                        onClick={() => setSelectedId(a.id)}
+                        className={`w-full text-left p-3 rounded-md border transition ${selectedId === a.id ? "border-violet-400 bg-violet-50 shadow-sm" : "hover:bg-muted/50"}`}
+                      >
+                        <div className="font-medium text-sm truncate">{a.clientName}</div>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          <StatusBadge status={a.status} />
+                          <span className="text-xs text-muted-foreground">Day {a.currentCycle}/{a.totalCycles}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                    );
+                  })}
                 </CardContent>
               </Card>
               <div>

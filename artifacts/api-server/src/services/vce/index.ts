@@ -70,9 +70,12 @@ Value case:
 Return ONLY JSON:
 { "objective": "campaign objective paragraph", "questions": [ { "question": "...", "rationale": "...", "priority": 1-5 } ] }`;
 
-  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 2000 });
+  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 2000, jsonMode: true });
   const parsed = extractJSON<{ objective: string; questions: { question: string; rationale: string; priority: number }[] }>(raw);
-  if (!parsed?.questions || parsed.questions.length === 0) throw new Error("Intake parse failed");
+  if (!parsed?.questions || parsed.questions.length === 0) {
+    console.error("[VCE intake] parse failed. Raw:", raw.slice(0, 1500));
+    throw new Error("Intake parse failed (GLM returned unparseable output)");
+  }
 
   const rows = parsed.questions.slice(0, 7).map((q, i) => ({
     assessmentId,
@@ -159,7 +162,7 @@ Return ONLY valid JSON:
   "risks": ["..."],
   "nextSteps": ["..."]
 }`;
-  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 6144 });
+  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 6144, jsonMode: true });
   const report = extractJSON<{
     executiveSummary: string;
     capabilityGaps: { name: string; gap: string; impact: string }[];

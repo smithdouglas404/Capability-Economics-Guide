@@ -4,26 +4,49 @@ import { z } from "zod";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
 
-async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000): Promise<string> {
+async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs: number; jsonMode: boolean; model: string }): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs);
   try {
+    const body: Record<string, unknown> = {
+      model: opts.model,
+      max_tokens: opts.maxTokens,
+      messages: [{ role: "user", content: prompt }],
+    };
+    if (opts.jsonMode) body.response_format = { type: "json_object" };
     const resp = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "z-ai/glm-5.1",
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
+      body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices[0]?.message?.content ?? "";
+    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).slice(0, 400)}`);
+    const data = await resp.json() as { choices: Array<{ message: { content: string; reasoning?: string } }> };
+    const msg = data.choices[0]?.message;
+    return (msg?.content && msg.content.trim().length > 0) ? msg.content : (msg?.reasoning ?? "");
   } finally { clearTimeout(timer); }
+}
+
+async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, jsonMode = false): Promise<string> {
+  // GLM 5.1 emits large reasoning tokens that eat the max_tokens budget and truncate JSON output.
+  // Prefer GLM 4.6 for JSON-mode structured output; keep 5.1 as fallback for free-form reasoning.
+  const models = jsonMode ? ["z-ai/glm-4.6", "z-ai/glm-5.1"] : ["z-ai/glm-5.1", "z-ai/glm-4.6"];
+  let lastErr: unknown = null;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const out = await glmCallOnce(prompt, { maxTokens, timeoutMs, jsonMode, model });
+        if (out && out.trim().length > 0) return out;
+        lastErr = new Error(`empty content from ${model}`);
+      } catch (e) {
+        lastErr = e;
+        console.warn(`[glmCall] ${model} attempt ${attempt + 1} failed:`, e instanceof Error ? e.message : e);
+      }
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("GLM all retries failed");
 }
 
 export function extractJSON<T>(raw: string): T | null {
@@ -45,14 +68,13 @@ export function extractJSON<T>(raw: string): T | null {
 }
 
 export const glmReasonTool = tool(
-  async ({ prompt, maxTokens }: { prompt: string; maxTokens?: number }) => {
-    const out = await glmCall(prompt, maxTokens ?? 4096);
-    return out;
+  async ({ prompt, maxTokens, jsonMode }: { prompt: string; maxTokens?: number; jsonMode?: boolean }) => {
+    return await glmCall(prompt, maxTokens ?? 4096, 180_000, jsonMode ?? false);
   },
   {
     name: "glm_reason",
-    description: "Run a GLM 5.1 reasoning prompt. Use for planning, decomposition, critique and synthesis.",
-    schema: z.object({ prompt: z.string(), maxTokens: z.number().optional() }),
+    description: "Run a GLM 5.1 reasoning prompt. Use for planning, decomposition, critique and synthesis. Set jsonMode=true when expecting strict JSON output.",
+    schema: z.object({ prompt: z.string(), maxTokens: z.number().optional(), jsonMode: z.boolean().optional() }),
   },
 );
 
@@ -133,7 +155,7 @@ export const crossValidateTool = tool(
 Claim: """${claim}"""
 
 Cited research: """${sources.slice(0, 8000)}"""`;
-    const out = await glmCall(prompt, 1500);
+    const out = await glmCall(prompt, 1500, 180_000, true);
     const parsed = extractJSON<{ supported: boolean; supportingEvidence: string[]; contradictions: string[]; unsupportedLeaps: string[]; evidenceCount: number; crossValidated: boolean; confidence: number }>(out);
     return JSON.stringify(parsed ?? { supported: false, supportingEvidence: [], contradictions: ["parse failure"], unsupportedLeaps: [], evidenceCount: 0, crossValidated: false, confidence: 0.4 });
   },
@@ -164,7 +186,7 @@ Return ONLY JSON:
   "body": "4-6 paragraphs: (1) what the evidence shows with numbers, (2) why this matters for the client specifically, (3) the structural mechanism, (4) precedents and benchmarks, (5) recommended next move",
   "confidence": 0.5-0.95
 }`;
-    const out = await glmCall(prompt, 3000);
+    const out = await glmCall(prompt, 3000, 180_000, true);
     const parsed = extractJSON<{ title: string; summary: string; body: string; confidence: number }>(out);
     return JSON.stringify(parsed ?? { title, summary: "Synthesis failed", body: out.slice(0, 4000), confidence: 0.4 });
   },
@@ -193,7 +215,7 @@ Already asked questions (do not repeat or paraphrase):
 """${alreadyAsked}"""
 
 Return ONLY JSON: { "questions": [ { "question": "...", "rationale": "why we need it", "priority": 1-5 } ] }`;
-    const out = await glmCall(prompt, 1200);
+    const out = await glmCall(prompt, 1200, 180_000, true);
     const parsed = extractJSON<{ questions: { question: string; rationale: string; priority: number }[] }>(out);
     return JSON.stringify(parsed?.questions ?? []);
   },
