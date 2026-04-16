@@ -15,6 +15,7 @@ import InsightsPage from "@/pages/insights";
 import CEIDashboard from "@/pages/cei-dashboard";
 import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
+import Workbench from "@/pages/workbench";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/assess" component={Assess} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/workbench" component={Workbench} />
       <Route component={NotFound} />
     </Switch>
   );

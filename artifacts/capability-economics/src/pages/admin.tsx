@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
+import EnrichmentAdmin from "@/components/enrichment-admin";
 
 const API_BASE = "/api";
 
@@ -635,6 +636,7 @@ export default function AdminDashboard() {
       </Card>
 
       <div className="mt-6 space-y-6">
+        <EnrichmentAdmin />
         <EducationalContentAdmin />
         <CaseStudyAdmin />
       </div>
