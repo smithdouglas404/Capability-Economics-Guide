@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/ce-pitch-deck/"
+title = "CE Platform Slide Deck"
+version = "1.0.0"
+id = "artifacts/ce-pitch-deck"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/ce-pitch-deck/" ]
+localPort = 18193
+
+[services.development]
+run = "pnpm --filter @workspace/ce-pitch-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ce-pitch-deck", "run", "build" ]
+publicDir = "artifacts/ce-pitch-deck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18193"
+BASE_PATH = "/ce-pitch-deck/"
