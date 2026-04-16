@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, AlertTriangle } from "lucide-react";
+import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, AlertTriangle, Shield, FileText, GitMerge } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 
 const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -140,39 +141,29 @@ export default function Alpha() {
       )}
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="grid grid-cols-4 md:grid-cols-7 mb-6 h-auto">
-          <TabsTrigger value="evar" className="flex flex-col items-center gap-1 py-2"><TrendingDown className="h-4 w-4" /><span className="text-[11px]">EVaR</span></TabsTrigger>
-          <TabsTrigger value="cascade" className="flex flex-col items-center gap-1 py-2"><Network className="h-4 w-4" /><span className="text-[11px]">Cascade</span></TabsTrigger>
-          <TabsTrigger value="narrative" className="flex flex-col items-center gap-1 py-2"><GitCompare className="h-4 w-4" /><span className="text-[11px]">Narrative Δ</span></TabsTrigger>
-          <TabsTrigger value="arbitrage" className="flex flex-col items-center gap-1 py-2"><Layers className="h-4 w-4" /><span className="text-[11px]">Arbitrage</span></TabsTrigger>
-          <TabsTrigger value="fragility" className="flex flex-col items-center gap-1 py-2"><ShieldAlert className="h-4 w-4" /><span className="text-[11px]">Fragility</span></TabsTrigger>
-          <TabsTrigger value="flows" className="flex flex-col items-center gap-1 py-2"><Waves className="h-4 w-4" /><span className="text-[11px]">Flows</span></TabsTrigger>
-          <TabsTrigger value="talent" className="flex flex-col items-center gap-1 py-2"><Users className="h-4 w-4" /><span className="text-[11px]">Talent</span></TabsTrigger>
+        <TabsList className="grid grid-cols-5 md:grid-cols-10 mb-6 h-auto">
+          <TabsTrigger value="evar" className="flex flex-col items-center gap-1 py-2"><TrendingDown className="h-4 w-4" /><span className="text-[10px]">EVaR</span></TabsTrigger>
+          <TabsTrigger value="cascade" className="flex flex-col items-center gap-1 py-2"><Network className="h-4 w-4" /><span className="text-[10px]">Cascade</span></TabsTrigger>
+          <TabsTrigger value="narrative" className="flex flex-col items-center gap-1 py-2"><GitCompare className="h-4 w-4" /><span className="text-[10px]">Narrative Δ</span></TabsTrigger>
+          <TabsTrigger value="moat" className="flex flex-col items-center gap-1 py-2"><Shield className="h-4 w-4" /><span className="text-[10px]">Moat</span></TabsTrigger>
+          <TabsTrigger value="fragility" className="flex flex-col items-center gap-1 py-2"><ShieldAlert className="h-4 w-4" /><span className="text-[10px]">Fragility</span></TabsTrigger>
+          <TabsTrigger value="arbitrage" className="flex flex-col items-center gap-1 py-2"><Layers className="h-4 w-4" /><span className="text-[10px]">Arbitrage</span></TabsTrigger>
+          <TabsTrigger value="flows" className="flex flex-col items-center gap-1 py-2"><Waves className="h-4 w-4" /><span className="text-[10px]">Flows</span></TabsTrigger>
+          <TabsTrigger value="talent" className="flex flex-col items-center gap-1 py-2"><Users className="h-4 w-4" /><span className="text-[10px]">Talent</span></TabsTrigger>
+          <TabsTrigger value="twin" className="flex flex-col items-center gap-1 py-2"><GitMerge className="h-4 w-4" /><span className="text-[10px]">M&A Twin</span></TabsTrigger>
+          <TabsTrigger value="thesis" className="flex flex-col items-center gap-1 py-2"><FileText className="h-4 w-4" /><span className="text-[10px]">Thesis</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="evar"><EvarTab /></TabsContent>
         <TabsContent value="cascade"><CascadeTab /></TabsContent>
         <TabsContent value="narrative"><NarrativeTab /></TabsContent>
-        <TabsContent value="arbitrage"><StubTab title="Capability Arbitrage Map" desc="Capabilities where our consensus-adjusted EVaR diverges from market pricing. Comes online after EVaR enrichment completes for all tracked industries." method={[
-          "Cross-reference EVaR output with public comparables (SaaS multiples, VC round data).",
-          "Flag capabilities where implied valuation ≠ cashflow-at-risk.",
-          "Rank long/short pairs by Sharpe-adjusted spread.",
-        ]} needsEnrichment /></TabsContent>
-        <TabsContent value="fragility"><StubTab title="Capability Fragility Scorecard" desc="A stress-test score per capability combining concentration risk, dependency depth, and supply-chain single-points-of-failure." method={[
-          "Compute blast-radius from Cascade DAG (upstream + downstream).",
-          "Add supplier concentration (HHI) and geographic concentration.",
-          "Produce 0–100 fragility score with 3 worst-case scenarios.",
-        ]} needsEnrichment /></TabsContent>
-        <TabsContent value="flows"><StubTab title="Capability Flow Sankey" desc="Where capital and demand are flowing between capabilities quarter-over-quarter. Requires Talent + Funding ingest layer." method={[
-          "Ingest VC round data tagged by capability (already partly loaded).",
-          "Ingest hiring deltas from public jobs boards.",
-          "Render Sankey: capital → capability → industry.",
-        ]} needsEnrichment /></TabsContent>
-        <TabsContent value="talent"><StubTab title="Talent Chain" desc="Which talent clusters feed which capabilities and where the bottlenecks are." method={[
-          "Map LinkedIn / GitHub talent density to capabilities.",
-          "Compute supply/demand ratio per capability per geography.",
-          "Surface bottleneck capabilities where demand > 3× supply.",
-        ]} needsEnrichment /></TabsContent>
+        <TabsContent value="moat"><MoatTab /></TabsContent>
+        <TabsContent value="fragility"><FragilityTab /></TabsContent>
+        <TabsContent value="arbitrage"><ArbitrageTab /></TabsContent>
+        <TabsContent value="flows"><FlowsTab /></TabsContent>
+        <TabsContent value="talent"><TalentTab /></TabsContent>
+        <TabsContent value="twin"><TwinTab /></TabsContent>
+        <TabsContent value="thesis"><ThesisTab /></TabsContent>
       </Tabs>
     </div>
   );
@@ -617,5 +608,534 @@ function EmptyPrompt({ title, msg }: { title: string; msg: string }) {
         <p className="text-sm text-zinc-500 mt-1">{msg}</p>
       </CardContent>
     </Card>
+  );
+}
+
+/* ============================= Moat Score Tab ============================= */
+type MoatItem = { capabilityId: number; capabilityName: string; industryName: string; moatScore: number; tier: string; components: { halfLifeContribution: number; dependencyDepth: number; economicImpact: number; stickiness: number; supplierConcentration: number }; halfLifeMonths: number; upstreamDeps: number; downstreamDeps: number; hhi: number; enriched: boolean };
+
+function tierBadge(tier: string) {
+  const map: Record<string, string> = {
+    fortress: "bg-emerald-500/15 text-emerald-700 border-emerald-500/40",
+    defensible: "bg-blue-500/15 text-blue-700 border-blue-500/40",
+    contestable: "bg-amber-500/15 text-amber-700 border-amber-500/40",
+    exposed: "bg-red-500/15 text-red-700 border-red-500/40",
+  };
+  return map[tier] ?? "";
+}
+
+function MoatTab() {
+  const [items, setItems] = useState<MoatItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showOnlyEnriched, setShowOnlyEnriched] = useState(false);
+  useEffect(() => { (async () => {
+    try { const r = await fetch(`${apiBase}/api/alpha/moat`); if (r.ok) { const d = await r.json(); setItems(d.items); } } finally { setLoading(false); }
+  })(); }, []);
+  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing moat scores…</div>;
+  if (!items || items.length === 0) return <EmptyPrompt title="No capability data" msg="Add capabilities to see moat scores." />;
+
+  const filtered = showOnlyEnriched ? items.filter(i => i.enriched) : items;
+  const tierCounts = items.reduce((acc, i) => { acc[i.tier] = (acc[i.tier] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-3">
+        {(["fortress", "defensible", "contestable", "exposed"] as const).map(t => (
+          <Card key={t}><CardContent className="p-4">
+            <div className="text-xs text-zinc-500 uppercase">{t}</div>
+            <div className={`text-2xl font-bold mt-1 ${tierBadge(t).split(" ").find(x => x.startsWith("text-"))}`}>{tierCounts[t] ?? 0}</div>
+          </CardContent></Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Moat Score = how hard to replicate this capability</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => setShowOnlyEnriched(v => !v)}>
+            {showOnlyEnriched ? "Show all" : "Only enriched"}
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[600px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
+                <tr className="text-left text-xs uppercase text-zinc-500">
+                  <th className="py-2 px-3">Capability</th>
+                  <th className="py-2 px-2">Industry</th>
+                  <th className="py-2 px-2 text-right">Score</th>
+                  <th className="py-2 px-2">Tier</th>
+                  <th className="py-2 px-2 text-right">Half-life</th>
+                  <th className="py-2 px-2 text-right">Deps</th>
+                  <th className="py-2 px-2">Composition</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(it => (
+                  <tr key={it.capabilityId} className="border-b">
+                    <td className="py-2 px-3 font-medium">{it.capabilityName}{it.enriched && <span className="ml-1 text-[9px] text-emerald-600">●</span>}</td>
+                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2 text-right tabular-nums font-bold">{it.moatScore}</td>
+                    <td className="py-2 px-2"><Badge variant="outline" className={`${tierBadge(it.tier)} border text-xs capitalize`}>{it.tier}</Badge></td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{Math.round(it.halfLifeMonths)}mo</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{it.upstreamDeps}↑ {it.downstreamDeps}↓</td>
+                    <td className="py-2 px-2 w-48"><MoatBar c={it.components} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MoatBar({ c }: { c: MoatItem["components"] }) {
+  const segs: Array<{ label: string; val: number; color: string }> = [
+    { label: "Half-life", val: c.halfLifeContribution * 0.30, color: "bg-emerald-500" },
+    { label: "Depth", val: c.dependencyDepth * 0.25, color: "bg-blue-500" },
+    { label: "Impact", val: c.economicImpact * 0.20, color: "bg-purple-500" },
+    { label: "Sticky", val: c.stickiness * 0.15, color: "bg-amber-500" },
+    { label: "Conc.", val: c.supplierConcentration * 0.10, color: "bg-pink-500" },
+  ];
+  const total = segs.reduce((s, x) => s + x.val, 0) || 1;
+  return (
+    <div className="flex h-2 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800" title={segs.map(s => `${s.label}: ${s.val.toFixed(0)}`).join(" • ")}>
+      {segs.map((s, i) => <div key={i} className={s.color} style={{ width: `${(s.val / total) * 100}%` }} />)}
+    </div>
+  );
+}
+
+/* ============================= Fragility Tab ============================= */
+type FragilityItem = { capabilityId: number; capabilityName: string; industryName: string; fragilityScore: number; severity: string; components: { decaySpeed: number; upstreamDepth: number; supplierConcentration: number; edgeShock: number; disruptionPressure: number }; topUpstreamRiskMm: number; halfLifeMonths: number; upstreamDeps: number; enriched: boolean };
+
+function severityColor(s: string) {
+  return s === "critical" ? "bg-red-500/15 text-red-700 border-red-500/40"
+    : s === "elevated" ? "bg-orange-500/15 text-orange-700 border-orange-500/40"
+    : s === "moderate" ? "bg-amber-500/15 text-amber-700 border-amber-500/40"
+    : "bg-emerald-500/15 text-emerald-700 border-emerald-500/40";
+}
+
+function FragilityTab() {
+  const [items, setItems] = useState<FragilityItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/fragility`); if (r.ok) { const d = await r.json(); setItems(d.items); } } finally { setLoading(false); } })(); }, []);
+  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing fragility…</div>;
+  if (!items || items.length === 0) return <EmptyPrompt title="No fragility data" msg="Add capabilities + dependencies first." />;
+
+  const counts = items.reduce((acc, i) => { acc[i.severity] = (acc[i.severity] ?? 0) + 1; return acc; }, {} as Record<string, number>);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-4 gap-3">
+        {(["critical", "elevated", "moderate", "stable"] as const).map(s => (
+          <Card key={s} className={s === "critical" ? "border-red-500/50" : ""}><CardContent className="p-4">
+            <div className="text-xs text-zinc-500 uppercase">{s}</div>
+            <div className={`text-2xl font-bold mt-1 ${severityColor(s).split(" ").find(x => x.startsWith("text-"))}`}>{counts[s] ?? 0}</div>
+          </CardContent></Card>
+        ))}
+      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Capabilities ranked by fragility (higher = more vulnerable)</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[600px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
+                <tr className="text-left text-xs uppercase text-zinc-500">
+                  <th className="py-2 px-3">Capability</th>
+                  <th className="py-2 px-2">Industry</th>
+                  <th className="py-2 px-2 text-right">Score</th>
+                  <th className="py-2 px-2">Severity</th>
+                  <th className="py-2 px-2 text-right">Top upstream risk</th>
+                  <th className="py-2 px-2 text-right">½-life</th>
+                  <th className="py-2 px-2">Vector</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.slice(0, 50).map(it => (
+                  <tr key={it.capabilityId} className="border-b">
+                    <td className="py-2 px-3 font-medium">{it.capabilityName}{it.enriched && <span className="ml-1 text-[9px] text-emerald-600">●</span>}</td>
+                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2 text-right tabular-nums font-bold text-red-600">{it.fragilityScore}</td>
+                    <td className="py-2 px-2"><Badge variant="outline" className={`${severityColor(it.severity)} border text-xs capitalize`}>{it.severity}</Badge></td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{it.topUpstreamRiskMm > 0 ? fmtMoney(it.topUpstreamRiskMm) : "—"}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{Math.round(it.halfLifeMonths)}mo</td>
+                    <td className="py-2 px-2 w-44">
+                      <div className="flex gap-0.5 items-end h-6">
+                        {(["decaySpeed", "upstreamDepth", "supplierConcentration", "edgeShock", "disruptionPressure"] as const).map(k => (
+                          <div key={k} title={`${k}: ${it.components[k]}`} className="bg-red-500/60 w-full rounded-sm" style={{ height: `${Math.max(4, it.components[k])}%` }} />
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================= Arbitrage Tab ============================= */
+type ArbitrageItem = { capabilityId: number; capabilityName: string; industryName: string; marketImpliedMm: number; intrinsicMm: number; spreadMm: number; spreadPct: number | null; direction: "long" | "short" | "neutral"; companies: number; ceQuadrant: string | null; consensusQuadrant: string | null; confidence: number; rationale: string | null };
+
+function ArbitrageTab() {
+  const [data, setData] = useState<{ items: ArbitrageItem[]; totals: { longExposureMm: number; shortExposureMm: number; pairs: number } } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/arbitrage`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
+
+  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping arbitrage spreads…</div>;
+  if (!data || data.items.length === 0) return <EmptyPrompt title="No arbitrage spreads yet" msg="Run Alpha Enrichment to compute intrinsic vs market-implied values." />;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Long exposure</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.longExposureMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Short exposure</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.shortExposureMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Pairs scored</div><div className="text-xl font-bold mt-1">{data.totals.pairs}</div></CardContent></Card>
+      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Intrinsic value vs market-implied (FEVI-weighted)</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[560px] overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
+                <tr className="text-left text-xs uppercase text-zinc-500">
+                  <th className="py-2 px-3">Capability</th>
+                  <th className="py-2 px-2">Industry</th>
+                  <th className="py-2 px-2 text-right">Intrinsic</th>
+                  <th className="py-2 px-2 text-right">Market</th>
+                  <th className="py-2 px-2 text-right">Spread</th>
+                  <th className="py-2 px-2">Direction</th>
+                  <th className="py-2 px-2 text-center">Companies</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.items.map(it => (
+                  <tr key={it.capabilityId} className="border-b">
+                    <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
+                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.intrinsicMm)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{fmtMoney(it.marketImpliedMm)}</td>
+                    <td className={`py-2 px-2 text-right tabular-nums font-bold ${it.spreadMm > 0 ? "text-emerald-600" : it.spreadMm < 0 ? "text-red-600" : ""}`}>{it.spreadMm > 0 ? "+" : ""}{fmtMoney(it.spreadMm)}{it.spreadPct != null && <span className="ml-1 text-[10px] text-zinc-500">({it.spreadPct > 0 ? "+" : ""}{it.spreadPct}%)</span>}</td>
+                    <td className="py-2 px-2"><Badge variant="outline" className={`text-xs capitalize ${it.direction === "long" ? "text-emerald-600 border-emerald-500/40" : it.direction === "short" ? "text-red-600 border-red-500/40" : "text-zinc-500"}`}>{it.direction}</Badge></td>
+                    <td className="py-2 px-2 text-center text-xs">{it.companies}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================= Flows Tab ============================= */
+type FlowsResp = { stages: Array<{ name: string; totalCapitalMm: number; avgTrend: number; count: number }>; industries: Array<{ id: number; name: string; totalCapitalMm: number; avgTrend: number; count: number }>; links: Array<{ source: string; target: string; valueMm: number; trendPct: number }>; totals: { totalCapitalMm: number; acceleratingMm: number; deceleratingMm: number } };
+
+function FlowsTab() {
+  const [data, setData] = useState<FlowsResp | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/flows`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
+
+  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Aggregating capital flows…</div>;
+  if (!data || data.stages.length === 0) return <EmptyPrompt title="No capital flow data" msg="Run base enrichment to populate value-chain stages." />;
+
+  const maxStage = Math.max(...data.stages.map(s => s.totalCapitalMm), 1);
+  const maxInd = Math.max(...data.industries.map(i => i.totalCapitalMm), 1);
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Total tracked capital</div><div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalCapitalMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Accelerating (&gt;10%/yr)</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.acceleratingMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Decelerating (&lt;-5%/yr)</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.deceleratingMm)}</div></CardContent></Card>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader><CardTitle className="text-base">Capital by value-chain stage</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data.stages.map(s => (
+              <div key={s.name}>
+                <div className="flex justify-between text-xs mb-1"><span className="font-medium">{s.name}</span><span className="tabular-nums">{fmtMoney(s.totalCapitalMm)} <span className={s.avgTrend > 0 ? "text-emerald-600" : "text-red-600"}>{s.avgTrend > 0 ? "+" : ""}{s.avgTrend}%</span></span></div>
+                <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div className={`h-full ${s.avgTrend > 0 ? "bg-emerald-500" : "bg-red-500"}`} style={{ width: `${(s.totalCapitalMm / maxStage) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="text-base">Capital by industry</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {data.industries.map(i => (
+              <div key={i.id}>
+                <div className="flex justify-between text-xs mb-1"><span className="font-medium">{i.name}</span><span className="tabular-nums">{fmtMoney(i.totalCapitalMm)} <span className={i.avgTrend > 0 ? "text-emerald-600" : "text-red-600"}>{i.avgTrend > 0 ? "+" : ""}{i.avgTrend}%</span></span></div>
+                <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                  <div className={`h-full ${i.avgTrend > 0 ? "bg-emerald-500" : "bg-red-500"}`} style={{ width: `${(i.totalCapitalMm / maxInd) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Top capital flow links (stage → industry)</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-80 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b text-xs uppercase text-zinc-500">
+                <tr><th className="text-left py-2 px-3">Stage</th><th className="text-left py-2 px-2">Industry</th><th className="text-right py-2 px-2">Capital</th><th className="text-right py-2 px-2">Trend</th></tr>
+              </thead>
+              <tbody>
+                {data.links.slice(0, 30).map((l, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="py-2 px-3 font-medium">{l.source.replace("stage:", "")}</td>
+                    <td className="py-2 px-2 text-zinc-500">{l.target.replace("industry:", "")}</td>
+                    <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(l.valueMm)}</td>
+                    <td className={`py-2 px-2 text-right tabular-nums ${l.trendPct > 0 ? "text-emerald-600" : "text-red-600"}`}>{l.trendPct > 0 ? "+" : ""}{l.trendPct}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================= Talent Tab ============================= */
+type TalentItem = { capabilityId: number; capabilityName: string; industryName: string; quadrant: string | null; adoptionMomentum: number | null; companies: number; coreCount: number; partialCount: number; masteryRatio: number; bottleneckScore: number; status: string; sectorMix: Array<{ sector: string; count: number }>; stageMix: Array<{ stage: string; count: number }>; topCompanies: Array<{ name: string; country: string; stage: string | null; strength: string; fevi: number }> };
+
+function TalentTab() {
+  const [items, setItems] = useState<TalentItem[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/talent`); if (r.ok) { const d = await r.json(); setItems(d.items); if (d.items[0]) setSelectedId(d.items[0].capabilityId); } } finally { setLoading(false); } })(); }, []);
+  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping talent density…</div>;
+  if (!items || items.length === 0) return <EmptyPrompt title="No talent mappings yet" msg="Need company-capability mappings to compute supply/demand." />;
+
+  const selected = items.find(i => i.capabilityId === selectedId);
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <Card className="lg:col-span-2">
+        <CardHeader><CardTitle className="text-base">Bottleneck capabilities</CardTitle></CardHeader>
+        <CardContent className="p-0">
+          <div className="max-h-[560px] overflow-auto">
+            {items.map(it => (
+              <button key={it.capabilityId} onClick={() => setSelectedId(it.capabilityId)} className={`w-full text-left px-4 py-2 border-b hover:bg-zinc-50 dark:hover:bg-zinc-900 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+                <div className="flex justify-between items-start gap-2">
+                  <div>
+                    <div className="font-medium text-sm">{it.capabilityName}</div>
+                    <div className="text-xs text-zinc-500">{it.industryName} • {it.companies} cos · {Math.round(it.masteryRatio * 100)}% mastery</div>
+                  </div>
+                  <Badge variant="outline" className={`text-[10px] capitalize ${it.status === "bottleneck" ? "border-red-500/50 text-red-600" : it.status === "saturated" ? "border-zinc-400 text-zinc-500" : it.status === "competitive" ? "border-amber-500/50 text-amber-600" : "border-blue-500/50 text-blue-600"}`}>{it.status}</Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+      <Card className="lg:col-span-3">
+        <CardHeader><CardTitle className="text-base">{selected?.capabilityName ?? "—"}</CardTitle><div className="text-xs text-zinc-500">{selected?.industryName}</div></CardHeader>
+        <CardContent>
+          {selected ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div><div className="text-xs text-zinc-500">Companies</div><div className="text-2xl font-bold">{selected.companies}</div></div>
+                <div><div className="text-xs text-zinc-500">Core mastery</div><div className="text-2xl font-bold text-emerald-600">{selected.coreCount}</div></div>
+                <div><div className="text-xs text-zinc-500">Bottleneck</div><div className="text-2xl font-bold text-red-600">{selected.bottleneckScore}</div></div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-zinc-500 mb-1">By funding stage</div>
+                <div className="flex flex-wrap gap-1">
+                  {selected.stageMix.map(s => <Badge key={s.stage} variant="secondary" className="text-xs">{s.stage}: {s.count}</Badge>)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-zinc-500 mb-1">By sector</div>
+                <div className="flex flex-wrap gap-1">
+                  {selected.sectorMix.map(s => <Badge key={s.sector} variant="outline" className="text-xs">{s.sector}: {s.count}</Badge>)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs uppercase text-zinc-500 mb-1">Top companies (by FEVI)</div>
+                <div className="space-y-1">
+                  {selected.topCompanies.map(c => (
+                    <div key={c.name} className="flex justify-between border-b py-1.5 text-sm">
+                      <div><span className="font-medium">{c.name}</span> <span className="text-xs text-zinc-500">{c.country} • {c.stage ?? "—"}</span></div>
+                      <div className="text-xs"><Badge variant="outline" className="mr-1">{c.strength}</Badge>FEVI {c.fevi.toFixed(1)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : <div className="text-zinc-400 text-sm">Pick a capability…</div>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+/* ============================= M&A Twin Tab ============================= */
+type Industry = { id: number; name: string };
+type TwinResp = { industryA: Industry; industryB: Industry; summary: { sharedCount: number; onlyACount: number; onlyBCount: number; jaccard: number; totalSynergyMm: number; clashCount: number }; synergies: Array<{ capabilityName: string; a: any; b: any; clash: boolean; clashType: string | null; synergyMm: number }>; onlyA: Array<{ id: number; name: string; quadrant: string | null }>; onlyB: Array<{ id: number; name: string; quadrant: string | null }> };
+
+function TwinTab() {
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [aId, setAId] = useState<string>("");
+  const [bId, setBId] = useState<string>("");
+  const [data, setData] = useState<TwinResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${apiBase}/api/industries`).then(r => r.json()).then((d: Industry[]) => {
+      setIndustries(d);
+      if (d.length >= 2) { setAId(String(d[0].id)); setBId(String(d[1].id)); }
+    });
+  }, []);
+
+  async function run() {
+    if (!aId || !bId || aId === bId) { setErr("Pick two different industries"); return; }
+    setLoading(true); setErr(null); setData(null);
+    try {
+      const r = await fetch(`${apiBase}/api/alpha/twin?industryAId=${aId}&industryBId=${bId}`);
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "twin failed");
+      setData(j);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-xs text-zinc-500 mb-1">Acquirer (A)</div>
+            <Select value={aId} onValueChange={setAId}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>{industries.map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <div className="text-xs text-zinc-500 mb-1">Target (B)</div>
+            <Select value={bId} onValueChange={setBId}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>{industries.map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <Button onClick={run} disabled={loading}>{loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <GitMerge className="h-4 w-4 mr-2" />}Compute Twin</Button>
+        </CardContent>
+      </Card>
+      {err && <div className="text-sm text-red-600">{err}</div>}
+      {data && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Shared</div><div className="text-xl font-bold mt-1 text-emerald-600">{data.summary.sharedCount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Only in A</div><div className="text-xl font-bold mt-1">{data.summary.onlyACount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Only in B</div><div className="text-xl font-bold mt-1">{data.summary.onlyBCount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Synergy</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.summary.totalSynergyMm)}</div></CardContent></Card>
+            <Card className={data.summary.clashCount > 0 ? "border-red-500/40" : ""}><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Clash zones</div><div className="text-xl font-bold mt-1 text-red-600">{data.summary.clashCount}</div></CardContent></Card>
+          </div>
+          <Card>
+            <CardHeader><CardTitle className="text-base">Synergy / clash zones (overlap = {(data.summary.jaccard * 100).toFixed(1)}%)</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="max-h-96 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b text-xs uppercase text-zinc-500">
+                    <tr><th className="text-left py-2 px-3">Capability</th><th className="py-2 px-2">A quadrant</th><th className="py-2 px-2">B quadrant</th><th className="text-right py-2 px-2">Synergy</th><th className="py-2 px-2">Status</th></tr>
+                  </thead>
+                  <tbody>
+                    {data.synergies.map(s => (
+                      <tr key={s.capabilityName} className={`border-b ${s.clash ? "bg-red-50 dark:bg-red-950/20" : ""}`}>
+                        <td className="py-2 px-3 font-medium">{s.capabilityName}</td>
+                        <td className="py-2 px-2"><QuadrantChip q={s.a.quadrant} /></td>
+                        <td className="py-2 px-2"><QuadrantChip q={s.b.quadrant} /></td>
+                        <td className="py-2 px-2 text-right tabular-nums text-emerald-600">{fmtMoney(s.synergyMm)}</td>
+                        <td className="py-2 px-2">{s.clash ? <Badge variant="outline" className="text-red-600 border-red-500/50 text-xs">CLASH: {s.clashType}</Badge> : <Badge variant="outline" className="text-emerald-600 border-emerald-500/50 text-xs">synergy</Badge>}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card><CardHeader><CardTitle className="text-base">Acquirer-only ({data.industryA.name})</CardTitle></CardHeader><CardContent><div className="flex flex-wrap gap-1">{data.onlyA.map(c => <Badge key={c.id} variant="secondary" className="text-xs">{c.name}</Badge>)}</div></CardContent></Card>
+            <Card><CardHeader><CardTitle className="text-base">Target-only ({data.industryB.name})</CardTitle></CardHeader><CardContent><div className="flex flex-wrap gap-1">{data.onlyB.map(c => <Badge key={c.id} variant="secondary" className="text-xs">{c.name}</Badge>)}</div></CardContent></Card>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ============================= Thesis Memo Tab ============================= */
+type Capability = { id: number; name: string; industryId: number };
+type ThesisResp = { capabilityId: number; capabilityName: string; industryName: string; generatedAt: string; memoMarkdown: string; inputs: any };
+
+function ThesisTab() {
+  const [caps, setCaps] = useState<Capability[]>([]);
+  const [capId, setCapId] = useState<string>("");
+  const [memo, setMemo] = useState<ThesisResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => { fetch(`${apiBase}/api/capabilities`).then(r => r.json()).then((d: Capability[]) => { setCaps(d); if (d[0]) setCapId(String(d[0].id)); }); }, []);
+
+  async function generate() {
+    if (!capId) return;
+    setLoading(true); setErr(null); setMemo(null);
+    try {
+      const r = await fetch(`${apiBase}/api/alpha/thesis`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ capabilityId: parseInt(capId) }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "thesis failed");
+      setMemo(j);
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardContent className="p-4 flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[260px]">
+            <div className="text-xs text-zinc-500 mb-1">Capability</div>
+            <Select value={capId} onValueChange={setCapId}>
+              <SelectTrigger><SelectValue placeholder="Pick capability" /></SelectTrigger>
+              <SelectContent>{caps.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <Button onClick={generate} disabled={loading || !capId}>{loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}Generate Memo</Button>
+        </CardContent>
+      </Card>
+      {err && <div className="text-sm text-red-600 px-2">{err}</div>}
+      {loading && <Card><CardContent className="p-8 text-center text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />Composing thesis from EVaR + Cascade + Narrative + company data… (~30s)</CardContent></Card>}
+      {memo && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="text-base">{memo.capabilityName}</CardTitle>
+                <div className="text-xs text-zinc-500 mt-1">{memo.industryName} • Generated {new Date(memo.generatedAt).toLocaleString()}</div>
+              </div>
+              <div className="text-xs text-zinc-500 text-right">
+                <div>{memo.inputs.upstream}↑ {memo.inputs.downstream}↓ deps</div>
+                <div>{memo.inputs.topCompanies?.length ?? 0} companies</div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <article className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-bold prose-h1:text-xl prose-h2:text-base prose-h2:mt-5 prose-h2:mb-2 prose-p:my-2 prose-li:my-0.5 leading-relaxed">
+              <ReactMarkdown>{memo.memoMarkdown}</ReactMarkdown>
+            </article>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
