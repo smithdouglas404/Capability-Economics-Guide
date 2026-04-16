@@ -202,6 +202,7 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 async function enrichValueChainStages(
   industryId: number,
   industryName: string,
+  capabilities: Array<{ id: number; name: string }>,
 ): Promise<{ created: number; errors: string[] }> {
   let created = 0;
   const errors: string[] = [];
@@ -277,8 +278,18 @@ Return ONLY a JSON array. No markdown.`;
     return { created, errors };
   }
 
+  const capMap = new Map(capabilities.map(c => [c.name.toLowerCase(), c]));
+
   for (const stage of parsed) {
     try {
+      const capIds: number[] = [];
+      if (stage.key_capabilities) {
+        for (const capName of stage.key_capabilities) {
+          const cap = capMap.get(capName.toLowerCase());
+          if (cap) capIds.push(cap.id);
+        }
+      }
+
       await db.insert(valueChainStagesTable).values({
         industryId,
         stageName: stage.stage_name || "Unknown Stage",
@@ -292,7 +303,7 @@ Return ONLY a JSON array. No markdown.`;
         capitalFlowMm: stage.capital_flow_mm || null,
         capitalTrendPct: stage.capital_trend_pct || null,
         disruptionSummary: stage.disruption_summary || "",
-        keyCapabilities: stage.key_capabilities || [],
+        keyCapabilities: capIds,
         keyCompanies: stage.key_companies || [],
         perplexitySources: researchResult.sources,
       });
@@ -397,7 +408,7 @@ Return ONLY a JSON array. No markdown.`;
             await db.insert(companyCapabilityMappingsTable).values({
               companyId: inserted.id,
               capabilityId: cap.id,
-              strength: quadrant === "hot" ? "core" : quadrant === "emerging" ? "emerging" : "adjacent",
+              strength: company.quadrant === "hot" ? "core" : company.quadrant === "emerging" ? "emerging" : "adjacent",
             });
             mapped++;
           } catch (e) {
@@ -495,7 +506,7 @@ async function _executeEnrichment(
     }
 
     try {
-      const vcResult = await enrichValueChainStages(industry.id, industry.name);
+      const vcResult = await enrichValueChainStages(industry.id, industry.name, industryCaps);
       result.valueChainStagesCreated += vcResult.created;
       result.errors.push(...vcResult.errors);
       log.info(`  Value chain: ${vcResult.created} stages`);
