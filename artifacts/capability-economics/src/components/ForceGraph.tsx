@@ -428,9 +428,18 @@ export default function ForceGraph({ data }: ForceGraphProps) {
 
       <div className="absolute bottom-3 right-3 bg-card/90 backdrop-blur border rounded-sm p-3 shadow-sm z-20">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Legend</div>
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground mb-2">
           <span className="flex items-center gap-2"><span className="w-4 h-0.5" style={{ background: "var(--color-border)" }} /> Belongs to</span>
           <span className="flex items-center gap-2"><span className="w-4 h-0.5 border-t border-dashed" style={{ borderColor: "var(--color-chart-5)" }} /> Dependency</span>
+        </div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-1">Quadrant Colors</div>
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {(["hot", "emerging", "cooling", "table_stakes"] as QuadrantTier[]).map(q => (
+            <span key={q} className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: QUADRANT_COLORS[q] }} />
+              {QUADRANT_LABELS[q]}
+            </span>
+          ))}
         </div>
       </div>
 

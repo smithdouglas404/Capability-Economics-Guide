@@ -329,7 +329,7 @@ export default function KnowledgeGraph() {
               variant={tab === "network" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("network")}
-              className="rounded-sm"
+              className="rounded-sm hidden md:inline-flex"
             >
               <Network className="w-4 h-4 mr-2" />
               Network
