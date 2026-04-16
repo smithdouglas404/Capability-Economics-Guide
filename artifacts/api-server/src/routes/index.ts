@@ -13,6 +13,7 @@ import assessRouter from "./assess";
 import secRouter from "./sec";
 import adminRouter from "./admin";
 import enrichmentRouter from "./enrichment";
+import { enrichmentAliasRouter } from "./enrichment";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(assessRouter);
 router.use(secRouter);
 router.use(adminRouter);
 router.use("/enrichment", enrichmentRouter);
+router.use(enrichmentAliasRouter);
 
 export default router;

@@ -145,6 +145,13 @@ export default function AdminDashboard() {
     quadrants: number; valueChainStages: number; companies: number; companyMappings: number;
   }>("/enrichment/status");
 
+  const { data: enrichRuns, refetch: refetchEnrichRuns } = useApi<Array<{
+    id: number; startedAt: string; completedAt: string | null; status: string;
+    quadrantsClassified: number; valueChainStagesCreated: number;
+    companiesProfiled: number; companyMappingsCreated: number;
+    durationMs: number | null; errors: string[] | null;
+  }>>("/enrichment/runs?limit=10");
+
   const [triggering, setTriggering] = useState<string | null>(null);
   const [enrichRunning, setEnrichRunning] = useState(false);
   const [enrichResult, setEnrichResult] = useState<{
@@ -163,6 +170,7 @@ export default function AdminDashboard() {
       const result = await res.json();
       setEnrichResult(result);
       refetchEnrich();
+      refetchEnrichRuns();
     } catch (e) {
       console.error(e);
     } finally {
@@ -532,6 +540,56 @@ export default function AdminDashboard() {
               <div>
                 <p className="text-sm font-medium">Running enrichment across all industries...</p>
                 <p className="text-xs text-muted-foreground">Perplexity research → GLM 5.1 synthesis → DB insert (this may take 2-5 minutes)</p>
+              </div>
+            </div>
+          )}
+
+          {enrichRuns && enrichRuns.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                <Clock className="w-4 h-4" /> Run History
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border text-muted-foreground">
+                      <th className="py-1.5 text-left font-medium">Started</th>
+                      <th className="py-1.5 text-left font-medium">Status</th>
+                      <th className="py-1.5 text-right font-medium">Quadrants</th>
+                      <th className="py-1.5 text-right font-medium">Stages</th>
+                      <th className="py-1.5 text-right font-medium">Companies</th>
+                      <th className="py-1.5 text-right font-medium">Mappings</th>
+                      <th className="py-1.5 text-right font-medium">Duration</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrichRuns.map((run) => (
+                      <tr key={run.id} className="border-b border-border/50">
+                        <td className="py-1.5">{new Date(run.startedAt).toLocaleString()}</td>
+                        <td className="py-1.5">
+                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs ${
+                            run.status === "completed" ? "bg-green-500/10 text-green-600" :
+                            run.status === "running" ? "bg-blue-500/10 text-blue-600" :
+                            run.status === "completed_with_errors" ? "bg-yellow-500/10 text-yellow-600" :
+                            "bg-red-500/10 text-red-600"
+                          }`}>
+                            {run.status === "running" && <RefreshCw className="w-3 h-3 animate-spin" />}
+                            {run.status === "completed" && <CheckCircle className="w-3 h-3" />}
+                            {run.status === "completed_with_errors" && <AlertCircle className="w-3 h-3" />}
+                            {run.status}
+                          </span>
+                        </td>
+                        <td className="py-1.5 text-right font-mono">{run.quadrantsClassified}</td>
+                        <td className="py-1.5 text-right font-mono">{run.valueChainStagesCreated}</td>
+                        <td className="py-1.5 text-right font-mono">{run.companiesProfiled}</td>
+                        <td className="py-1.5 text-right font-mono">{run.companyMappingsCreated}</td>
+                        <td className="py-1.5 text-right font-mono">
+                          {run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

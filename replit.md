@@ -71,6 +71,23 @@ Full-stack educational platform teaching novice users about capability economics
 - `data_sources` — Citation tracking: title, url, publisher, publishedDate, accessedDate, sourceType
 - `ontology_relationships` — Capability-to-capability relationships (enables, competes_with, etc.)
 - `ontology_industry_adapters` — Industry-specific ontology customizations with maturity models
+- `capability_quadrants` — Hot/emerging/cooling/table_stakes classification with economic impact scores, perplexity sources
+- `value_chain_stages` — Industry value chain stages with patent counts, startup counts, capital flows, HHI scores
+- `company_capability_profiles` — Real company profiles with FEVI/CDI scores, funding stages, NAICS codes
+- `company_capability_mappings` — Company-to-capability links with strength (core/emerging/adjacent)
+- `enrichment_runs` — Run history tracking for enrichment pipeline executions
+
+### Enrichment Pipeline
+- Perplexity research → GLM 5.1 (via OpenRouter) synthesis → DB insert
+- Three enrichment phases: capability quadrant classification, value chain stages, company profiles
+- All three phases store `perplexitySources` (array of URLs) from Perplexity research
+- `perplexitySearch()` returns `PerplexityResult { content: string; sources: string[] }`
+- GLM 5.1 calls via OpenRouter with 180s timeout, 4096-8192 max_tokens
+- Enrichment run history tracked in `enrichment_runs` table with status/duration/error tracking
+- Concurrency lock prevents simultaneous enrichment runs (409 on concurrent attempt)
+- Per-industry cleanup before re-enrichment prevents duplicate accumulation
+- API routes: `/api/enrichment/run` (POST), `/api/enrichment/status`, `/api/enrichment/runs`, `/api/enrichment/quadrants`, `/api/enrichment/value-chain`, `/api/enrichment/companies` (paginated), `/api/enrichment/graph`
+- Alias read-only routes under `/api/ontology/` prefix for graph/quadrants/companies/value-chain/runs
 
 ### Data Pipeline (Phase 5)
 - All benchmark data is researched via Perplexity API (sonar-pro model) — no fabricated data

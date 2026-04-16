@@ -51,6 +51,19 @@ export const companyCapabilityProfilesTable = pgTable("company_capability_profil
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
 });
 
+export const enrichmentRunsTable = pgTable("enrichment_runs", {
+  id: serial("id").primaryKey(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  quadrantsClassified: integer("quadrants_classified").default(0).notNull(),
+  valueChainStagesCreated: integer("value_chain_stages_created").default(0).notNull(),
+  companiesProfiled: integer("companies_profiled").default(0).notNull(),
+  companyMappingsCreated: integer("company_mappings_created").default(0).notNull(),
+  durationMs: integer("duration_ms"),
+  errors: jsonb("errors").$type<string[]>(),
+  status: varchar("status", { length: 20 }).default("running").notNull(),
+});
+
 export const companyCapabilityMappingsTable = pgTable("company_capability_mappings", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companyCapabilityProfilesTable.id, { onDelete: "cascade" }),

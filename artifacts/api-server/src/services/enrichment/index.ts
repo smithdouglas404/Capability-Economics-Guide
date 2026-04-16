@@ -6,6 +6,7 @@ import {
   valueChainStagesTable,
   companyCapabilityProfilesTable,
   companyCapabilityMappingsTable,
+  enrichmentRunsTable,
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
@@ -21,7 +22,12 @@ interface EnrichmentResult {
   durationMs: number;
 }
 
-async function perplexitySearch(query: string): Promise<string> {
+interface PerplexityResult {
+  content: string;
+  sources: string[];
+}
+
+async function perplexitySearch(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
   const resp = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -45,8 +51,10 @@ async function perplexitySearch(query: string): Promise<string> {
     const errText = await resp.text();
     throw new Error(`Perplexity error ${resp.status}: ${errText}`);
   }
-  const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0]?.message?.content ?? "";
+  const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+  const content = data.choices[0]?.message?.content ?? "";
+  const sources = data.citations ?? [];
+  return { content, sources };
 }
 
 async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> {
@@ -121,15 +129,15 @@ async function enrichCapabilityQuadrants(
   const errors: string[] = [];
 
   const capNames = capabilities.map(c => c.name).join(", ");
-  const research = await perplexitySearch(
+  const researchResult = await perplexitySearch(
     `For the ${industryName} industry, analyze the following capabilities in terms of their current adoption trajectory, enterprise ROI evidence, economic impact, patent activity trends, and startup funding momentum (2023-2026). Capabilities: ${capNames}. For each capability, provide: (1) whether it is Hot (proven ROI, scaling), Emerging (early traction, high potential), Cooling (commoditizing, declining differentiation), or Table Stakes (baseline requirement); (2) economic impact percentage or dollar figure; (3) adoption rate or growth percentage. Be specific with numbers.`
   );
 
-  if (!research) return { classified: 0, errors: [`No Perplexity response for ${industryName} quadrants`] };
+  if (!researchResult.content) return { classified: 0, errors: [`No Perplexity response for ${industryName} quadrants`] };
 
   const glmPrompt = `You are a Capability Economics analyst. Based on this research about ${industryName} capabilities:
 
-${research}
+${researchResult.content}
 
 For each of these capabilities, produce a JSON array where each element has:
 - "name": capability name (must exactly match one of: ${JSON.stringify(capabilities.map(c => c.name))})
@@ -175,6 +183,7 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
         adoptionMomentumScore: Math.min(100, Math.max(0, item.adoption_momentum_score || 50)),
         disruptionIntensity: Math.min(1, Math.max(0, item.disruption_intensity || 0.5)),
         rationale: item.rationale || `${cap.name} classified as ${quadrant} based on research analysis.`,
+        perplexitySources: researchResult.sources,
       });
       classified++;
     } catch (e) {
@@ -193,9 +202,9 @@ async function enrichValueChainStages(
   const errors: string[] = [];
 
   log.info(`  Value chain: calling Perplexity for ${industryName}...`);
-  let research: string;
+  let researchResult: PerplexityResult;
   try {
-    research = await perplexitySearch(
+    researchResult = await perplexitySearch(
       `What are the 6-8 key value chain stages for ${industryName} industry digital transformation and capability development in 2024-2026? For each stage provide: (1) name of the stage, (2) how many distinct NAICS sectors are involved, (3) approximate patent filings in this area (2019-2024 count and 5-year growth %), (4) number of active startups and 5-year growth %, (5) estimated capital flow in $millions and 5-year growth %, (6) market concentration (high/medium/low), (7) key technologies and capabilities at this stage, (8) key companies at this stage. Be specific with real numbers.`
     );
   } catch (e) {
@@ -204,11 +213,11 @@ async function enrichValueChainStages(
     return { created, errors };
   }
 
-  if (!research) return { created: 0, errors: [`No Perplexity response for ${industryName} value chain`] };
+  if (!researchResult.content) return { created: 0, errors: [`No Perplexity response for ${industryName} value chain`] };
 
   const glmPrompt = `You are a Capability Economics analyst. Based on this research about the ${industryName} value chain:
 
-${research}
+${researchResult.content}
 
 Produce a JSON array of 6-8 value chain stages, each with:
 - "stage_name": short name (3-5 words)
@@ -280,6 +289,7 @@ Return ONLY a JSON array. No markdown.`;
         disruptionSummary: stage.disruption_summary || "Research-derived disruption analysis.",
         keyCapabilities: stage.key_capabilities || [],
         keyCompanies: stage.key_companies || [],
+        perplexitySources: researchResult.sources,
       });
       created++;
     } catch (e) {
@@ -300,15 +310,15 @@ async function enrichCompanyProfiles(
   const errors: string[] = [];
 
   const capNames = capabilities.map(c => c.name).slice(0, 10).join(", ");
-  const research = await perplexitySearch(
+  const researchResult = await perplexitySearch(
     `Who are the top 20-25 companies (startups, scaleups, and established players) that are leading innovators in ${industryName} capabilities in 2024-2026? Focus on companies enabling: ${capNames}. For each company provide: (1) company name, (2) country/headquarters, (3) NAICS code and sector if known, (4) primary capability they enable, (5) funding stage (seed, Series A, Series B, growth, public, private), (6) whether their approach is hot (proven ROI, scaling), emerging (early traction), cooling (commoditizing), or table stakes (baseline). Include global companies, not just US-based. Be specific with real company names.`
   );
 
-  if (!research) return { profiled: 0, mapped: 0, errors: [`No Perplexity response for ${industryName} companies`] };
+  if (!researchResult.content) return { profiled: 0, mapped: 0, errors: [`No Perplexity response for ${industryName} companies`] };
 
   const glmPrompt = `You are a Capability Economics analyst. Based on this research about ${industryName} companies:
 
-${research}
+${researchResult.content}
 
 Produce a JSON array of 15-25 real companies, each with:
 - "name": company name
@@ -364,6 +374,7 @@ Return ONLY a JSON array. No markdown.`;
         quadrant,
         fundingStage: company.funding_stage || "private",
         description: company.description || `${company.name} — ${industryName} capability provider.`,
+        perplexitySources: researchResult.sources,
       }).returning({ id: companyCapabilityProfilesTable.id });
 
       profiled++;
@@ -416,6 +427,34 @@ async function _runEnrichmentInner(): Promise<EnrichmentResult> {
     durationMs: 0,
   };
 
+  const [runRecord] = await db.insert(enrichmentRunsTable).values({
+    status: "running",
+  }).returning({ id: enrichmentRunsTable.id });
+
+  try {
+    return await _executeEnrichment(runRecord.id, result, start);
+  } catch (e) {
+    result.durationMs = Date.now() - start;
+    result.errors.push(`Fatal enrichment error: ${e}`);
+    await db.update(enrichmentRunsTable).set({
+      completedAt: new Date(),
+      quadrantsClassified: result.quadrantsClassified,
+      valueChainStagesCreated: result.valueChainStagesCreated,
+      companiesProfiled: result.companiesProfiled,
+      companyMappingsCreated: result.companyMappingsCreated,
+      durationMs: result.durationMs,
+      errors: result.errors,
+      status: "failed",
+    }).where(eq(enrichmentRunsTable.id, runRecord.id));
+    return result;
+  }
+}
+
+async function _executeEnrichment(
+  runId: number,
+  result: EnrichmentResult,
+  start: number,
+): Promise<EnrichmentResult> {
   const industries = await db.select().from(industriesTable);
   const allCaps = await db.select().from(capabilitiesTable);
 
@@ -467,6 +506,17 @@ async function _runEnrichmentInner(): Promise<EnrichmentResult> {
 
   result.durationMs = Date.now() - start;
   log.info(`Enrichment complete in ${(result.durationMs / 1000).toFixed(1)}s: ${result.quadrantsClassified} quadrants, ${result.valueChainStagesCreated} stages, ${result.companiesProfiled} companies, ${result.companyMappingsCreated} mappings, ${result.errors.length} errors`);
+
+  await db.update(enrichmentRunsTable).set({
+    completedAt: new Date(),
+    quadrantsClassified: result.quadrantsClassified,
+    valueChainStagesCreated: result.valueChainStagesCreated,
+    companiesProfiled: result.companiesProfiled,
+    companyMappingsCreated: result.companyMappingsCreated,
+    durationMs: result.durationMs,
+    errors: result.errors.length > 0 ? result.errors : null,
+    status: result.errors.length > 0 ? "completed_with_errors" : "completed",
+  }).where(eq(enrichmentRunsTable.id, runId));
 
   return result;
 }
