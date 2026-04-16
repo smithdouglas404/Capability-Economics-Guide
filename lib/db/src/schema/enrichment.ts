@@ -44,6 +44,8 @@ export const valueChainStagesTable = pgTable("value_chain_stages", {
   capitalFlowMm: real("capital_flow_mm"),
   capitalTrendPct: real("capital_trend_pct"),
   disruptionSummary: text("disruption_summary").notNull(),
+  shifts: jsonb("shifts").$type<string[]>(),
+  risks: jsonb("risks").$type<string[]>(),
   keyCapabilities: jsonb("key_capabilities").$type<number[]>(),
   keyCompanies: jsonb("key_companies").$type<string[]>(),
   perplexitySources: jsonb("perplexity_sources").$type<string[]>(),

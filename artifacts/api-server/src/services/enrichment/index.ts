@@ -240,6 +240,8 @@ Produce a JSON array of 6-8 value chain stages, each with:
 - "capital_flow_mm": capital flow in $millions (number)
 - "capital_trend_pct": 5-year capital growth percentage (number)
 - "disruption_summary": 2-3 sentence disruption narrative
+- "shifts": array of 3-5 short bullet strings describing structural shifts at this stage (e.g. "Additive manufacturing for long-tail spares")
+- "risks": array of 3-5 short bullet strings describing disruptors and downside risks (e.g. "Supply chain fragility", "Data silos & versioning")
 - "key_capabilities": array of 3-5 capability names
 - "key_companies": array of 3-5 real company names
 
@@ -269,6 +271,8 @@ Return ONLY a JSON array. No markdown.`;
     capital_flow_mm: number;
     capital_trend_pct: number;
     disruption_summary: string;
+    shifts?: string[];
+    risks?: string[];
     key_capabilities: string[];
     key_companies: string[];
   }>;
@@ -307,6 +311,8 @@ Return ONLY a JSON array. No markdown.`;
         capitalFlowMm: stage.capital_flow_mm || null,
         capitalTrendPct: stage.capital_trend_pct || null,
         disruptionSummary: stage.disruption_summary || "",
+        shifts: Array.isArray(stage.shifts) ? stage.shifts.filter(s => typeof s === "string" && s.trim()).slice(0, 6) : null,
+        risks: Array.isArray(stage.risks) ? stage.risks.filter(s => typeof s === "string" && s.trim()).slice(0, 6) : null,
         keyCapabilities: capIds,
         keyCompanies: stage.key_companies || [],
         perplexitySources: researchResult.sources,

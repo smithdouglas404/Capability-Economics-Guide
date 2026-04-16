@@ -101,6 +101,7 @@ async function graphHandler(req: Request, res: Response) {
       id: companyCapabilityProfilesTable.id,
       name: companyCapabilityProfilesTable.name,
       country: companyCapabilityProfilesTable.country,
+      naicsSector: companyCapabilityProfilesTable.naicsSector,
       industryId: companyCapabilityProfilesTable.industryId,
       feviScore: companyCapabilityProfilesTable.feviScore,
       cdiScore: companyCapabilityProfilesTable.cdiScore,
