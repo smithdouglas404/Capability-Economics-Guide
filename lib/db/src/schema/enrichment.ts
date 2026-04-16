@@ -2,10 +2,24 @@ import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb } from 
 import { capabilitiesTable } from "./capabilities";
 import { industriesTable } from "./industries";
 
+export const enrichmentRunsTable = pgTable("enrichment_runs", {
+  id: serial("id").primaryKey(),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  quadrantsClassified: integer("quadrants_classified").default(0).notNull(),
+  valueChainStagesCreated: integer("value_chain_stages_created").default(0).notNull(),
+  companiesProfiled: integer("companies_profiled").default(0).notNull(),
+  companyMappingsCreated: integer("company_mappings_created").default(0).notNull(),
+  durationMs: integer("duration_ms"),
+  errors: jsonb("errors").$type<string[]>(),
+  status: varchar("status", { length: 20 }).default("running").notNull(),
+});
+
 export const capabilityQuadrantsTable = pgTable("capability_quadrants", {
   id: serial("id").primaryKey(),
   capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
+  runId: integer("run_id").references(() => enrichmentRunsTable.id, { onDelete: "set null" }),
   quadrant: varchar("quadrant", { length: 20 }).notNull(),
   economicImpactScore: real("economic_impact_score").notNull(),
   adoptionMomentumScore: real("adoption_momentum_score").notNull(),
@@ -18,6 +32,7 @@ export const capabilityQuadrantsTable = pgTable("capability_quadrants", {
 export const valueChainStagesTable = pgTable("value_chain_stages", {
   id: serial("id").primaryKey(),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
+  runId: integer("run_id").references(() => enrichmentRunsTable.id, { onDelete: "set null" }),
   stageName: text("stage_name").notNull(),
   stageOrder: integer("stage_order").notNull(),
   numSectors: integer("num_sectors"),
@@ -42,6 +57,7 @@ export const companyCapabilityProfilesTable = pgTable("company_capability_profil
   naicsCode: text("naics_code"),
   naicsSector: text("naics_sector"),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
+  runId: integer("run_id").references(() => enrichmentRunsTable.id, { onDelete: "set null" }),
   feviScore: real("fevi_score").notNull(),
   cdiScore: real("cdi_score").notNull(),
   quadrant: varchar("quadrant", { length: 20 }).notNull(),
@@ -51,23 +67,11 @@ export const companyCapabilityProfilesTable = pgTable("company_capability_profil
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
 });
 
-export const enrichmentRunsTable = pgTable("enrichment_runs", {
-  id: serial("id").primaryKey(),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
-  quadrantsClassified: integer("quadrants_classified").default(0).notNull(),
-  valueChainStagesCreated: integer("value_chain_stages_created").default(0).notNull(),
-  companiesProfiled: integer("companies_profiled").default(0).notNull(),
-  companyMappingsCreated: integer("company_mappings_created").default(0).notNull(),
-  durationMs: integer("duration_ms"),
-  errors: jsonb("errors").$type<string[]>(),
-  status: varchar("status", { length: 20 }).default("running").notNull(),
-});
-
 export const companyCapabilityMappingsTable = pgTable("company_capability_mappings", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").notNull().references(() => companyCapabilityProfilesTable.id, { onDelete: "cascade" }),
   capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
+  runId: integer("run_id").references(() => enrichmentRunsTable.id, { onDelete: "set null" }),
   strength: varchar("strength", { length: 20 }).notNull().default("core"),
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
 });

@@ -16,7 +16,12 @@ import { runEnrichment } from "../services/enrichment/index";
 
 const router = Router();
 
-router.post("/run", async (_req: Request, res: Response) => {
+router.post("/run", async (req: Request, res: Response) => {
+  const adminKey = req.headers["x-admin-key"];
+  if (process.env.NODE_ENV === "production" && adminKey !== process.env.ADMIN_API_KEY) {
+    res.status(403).json({ error: "Forbidden" });
+    return;
+  }
   try {
     const result = await runEnrichment();
     res.json(result);
@@ -64,8 +69,14 @@ router.get("/company-mappings", async (req: Request, res: Response) => {
   }
 });
 
-async function graphHandler(_req: Request, res: Response) {
+async function graphHandler(req: Request, res: Response) {
   try {
+    const runId = parseRunId(req) ?? await getLatestRunId();
+    const runFilter = runId ? eq(capabilityQuadrantsTable.runId, runId) : undefined;
+    const vcRunFilter = runId ? eq(valueChainStagesTable.runId, runId) : undefined;
+    const companyRunFilter = runId ? eq(companyCapabilityProfilesTable.runId, runId) : undefined;
+    const mappingRunFilter = runId ? eq(companyCapabilityMappingsTable.runId, runId) : undefined;
+
     const industries = await db.select().from(industriesTable);
     const capabilities = await db.select({
       id: capabilitiesTable.id,
@@ -74,18 +85,19 @@ async function graphHandler(_req: Request, res: Response) {
       benchmarkScore: capabilitiesTable.benchmarkScore,
     }).from(capabilitiesTable);
 
-    const quadrants = await db.select({
+    const quadrantsQuery = db.select({
       capabilityId: capabilityQuadrantsTable.capabilityId,
       quadrant: capabilityQuadrantsTable.quadrant,
       economicImpactScore: capabilityQuadrantsTable.economicImpactScore,
       adoptionMomentumScore: capabilityQuadrantsTable.adoptionMomentumScore,
       disruptionIntensity: capabilityQuadrantsTable.disruptionIntensity,
     }).from(capabilityQuadrantsTable);
+    const quadrants = runFilter ? await quadrantsQuery.where(runFilter) : await quadrantsQuery;
 
     const dependencies = await db.select().from(capabilityDependenciesTable);
     const ontologyRels = await db.select().from(ontologyRelationshipsTable);
 
-    const companies = await db.select({
+    const companiesQuery = db.select({
       id: companyCapabilityProfilesTable.id,
       name: companyCapabilityProfilesTable.name,
       country: companyCapabilityProfilesTable.country,
@@ -95,10 +107,13 @@ async function graphHandler(_req: Request, res: Response) {
       quadrant: companyCapabilityProfilesTable.quadrant,
       fundingStage: companyCapabilityProfilesTable.fundingStage,
     }).from(companyCapabilityProfilesTable);
+    const companies = companyRunFilter ? await companiesQuery.where(companyRunFilter) : await companiesQuery;
 
-    const companyMappings = await db.select().from(companyCapabilityMappingsTable);
+    const mappingsQuery = db.select().from(companyCapabilityMappingsTable);
+    const companyMappings = mappingRunFilter ? await mappingsQuery.where(mappingRunFilter) : await mappingsQuery;
 
-    const valueChainStages = await db.select().from(valueChainStagesTable);
+    const vcQuery = db.select().from(valueChainStagesTable);
+    const valueChainStages = vcRunFilter ? await vcQuery.where(vcRunFilter) : await vcQuery;
 
     const quadrantMap = new Map(quadrants.map(q => [q.capabilityId, q]));
     const enrichedCapabilities = capabilities.map(c => ({
@@ -126,12 +141,28 @@ async function graphHandler(_req: Request, res: Response) {
 
 router.get("/graph", graphHandler);
 
+async function getLatestRunId(): Promise<number | null> {
+  const [latest] = await db.select({ id: enrichmentRunsTable.id })
+    .from(enrichmentRunsTable)
+    .where(sql`${enrichmentRunsTable.status} IN ('completed', 'completed_with_errors')`)
+    .orderBy(desc(enrichmentRunsTable.startedAt))
+    .limit(1);
+  return latest?.id ?? null;
+}
+
+function parseRunId(req: Request): number | undefined {
+  return req.query.runId ? parseInt(req.query.runId as string) : undefined;
+}
+
 async function queryQuadrants(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const conditions = industryId && !isNaN(industryId) ? eq(capabilityQuadrantsTable.industryId, industryId) : undefined;
-    const rows = conditions
-      ? await db.select().from(capabilityQuadrantsTable).where(conditions).orderBy(desc(capabilityQuadrantsTable.generatedAt))
+    const runId = parseRunId(req) ?? await getLatestRunId();
+    const conditions = [];
+    if (industryId && !isNaN(industryId)) conditions.push(eq(capabilityQuadrantsTable.industryId, industryId));
+    if (runId) conditions.push(eq(capabilityQuadrantsTable.runId, runId));
+    const rows = conditions.length > 0
+      ? await db.select().from(capabilityQuadrantsTable).where(sql`${sql.join(conditions, sql` AND `)}`).orderBy(desc(capabilityQuadrantsTable.generatedAt))
       : await db.select().from(capabilityQuadrantsTable).orderBy(desc(capabilityQuadrantsTable.generatedAt));
     res.json(rows);
   } catch (err) {
@@ -142,9 +173,12 @@ async function queryQuadrants(req: Request, res: Response) {
 async function queryValueChainStages(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const conditions = industryId && !isNaN(industryId) ? eq(valueChainStagesTable.industryId, industryId) : undefined;
-    const rows = conditions
-      ? await db.select().from(valueChainStagesTable).where(conditions).orderBy(valueChainStagesTable.stageOrder)
+    const runId = parseRunId(req) ?? await getLatestRunId();
+    const conditions = [];
+    if (industryId && !isNaN(industryId)) conditions.push(eq(valueChainStagesTable.industryId, industryId));
+    if (runId) conditions.push(eq(valueChainStagesTable.runId, runId));
+    const rows = conditions.length > 0
+      ? await db.select().from(valueChainStagesTable).where(sql`${sql.join(conditions, sql` AND `)}`).orderBy(valueChainStagesTable.stageOrder)
       : await db.select().from(valueChainStagesTable).orderBy(valueChainStagesTable.stageOrder);
     res.json(rows);
   } catch (err) {
@@ -155,19 +189,24 @@ async function queryValueChainStages(req: Request, res: Response) {
 async function queryCompanies(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+    const runId = parseRunId(req) ?? await getLatestRunId();
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
     const offset = (page - 1) * limit;
 
-    const conditions = industryId && !isNaN(industryId) ? eq(companyCapabilityProfilesTable.industryId, industryId) : undefined;
+    const conditions = [];
+    if (industryId && !isNaN(industryId)) conditions.push(eq(companyCapabilityProfilesTable.industryId, industryId));
+    if (runId) conditions.push(eq(companyCapabilityProfilesTable.runId, runId));
+    const whereClause = conditions.length > 0 ? sql`${sql.join(conditions, sql` AND `)}` : undefined;
+
     const query = db.select().from(companyCapabilityProfilesTable);
     const countQuery = db.select({ count: sql<number>`count(*)::int` }).from(companyCapabilityProfilesTable);
 
-    const rows = conditions
-      ? await query.where(conditions).orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset)
+    const rows = whereClause
+      ? await query.where(whereClause).orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset)
       : await query.orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset);
-    const [total] = conditions
-      ? await countQuery.where(conditions)
+    const [total] = whereClause
+      ? await countQuery.where(whereClause)
       : await countQuery;
 
     res.json({ data: rows, page, limit, total: total?.count ?? 0 });

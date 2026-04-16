@@ -124,6 +124,7 @@ async function enrichCapabilityQuadrants(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string; benchmarkScore: number }>,
+  runId: number,
 ): Promise<{ classified: number; errors: string[] }> {
   let classified = 0;
   const errors: string[] = [];
@@ -183,6 +184,7 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
       await db.insert(capabilityQuadrantsTable).values({
         capabilityId: cap.id,
         industryId,
+        runId,
         quadrant: item.quadrant,
         economicImpactScore: Math.min(100, Math.max(0, item.economic_impact_score)),
         adoptionMomentumScore: Math.min(100, Math.max(0, item.adoption_momentum_score)),
@@ -203,6 +205,7 @@ async function enrichValueChainStages(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string }>,
+  runId: number,
 ): Promise<{ created: number; errors: string[] }> {
   let created = 0;
   const errors: string[] = [];
@@ -292,6 +295,7 @@ Return ONLY a JSON array. No markdown.`;
 
       await db.insert(valueChainStagesTable).values({
         industryId,
+        runId,
         stageName: stage.stage_name || "Unknown Stage",
         stageOrder: stage.stage_order || created + 1,
         numSectors: stage.num_sectors || null,
@@ -320,6 +324,7 @@ async function enrichCompanyProfiles(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string }>,
+  runId: number,
 ): Promise<{ profiled: number; mapped: number; errors: string[] }> {
   let profiled = 0;
   let mapped = 0;
@@ -390,6 +395,7 @@ Return ONLY a JSON array. No markdown.`;
         naicsCode: company.naics_code || null,
         naicsSector: company.naics_sector || null,
         industryId,
+        runId,
         feviScore: Math.min(1, Math.max(0, company.fevi_score)),
         cdiScore: Math.min(1, Math.max(0, company.cdi_score)),
         quadrant: company.quadrant,
@@ -408,6 +414,7 @@ Return ONLY a JSON array. No markdown.`;
             await db.insert(companyCapabilityMappingsTable).values({
               companyId: inserted.id,
               capabilityId: cap.id,
+              runId,
               strength: company.quadrant === "hot" ? "core" : company.quadrant === "emerging" ? "emerging" : "adjacent",
             });
             mapped++;
@@ -488,16 +495,8 @@ async function _executeEnrichment(
 
     log.info(`Enriching ${industry.name}: ${industryCaps.length} capabilities`);
 
-    await db.delete(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.industryId, industry.id));
-    await db.delete(valueChainStagesTable).where(eq(valueChainStagesTable.industryId, industry.id));
-    const existingCompanies = await db.select({ id: companyCapabilityProfilesTable.id }).from(companyCapabilityProfilesTable).where(eq(companyCapabilityProfilesTable.industryId, industry.id));
-    for (const c of existingCompanies) {
-      await db.delete(companyCapabilityMappingsTable).where(eq(companyCapabilityMappingsTable.companyId, c.id));
-    }
-    await db.delete(companyCapabilityProfilesTable).where(eq(companyCapabilityProfilesTable.industryId, industry.id));
-
     try {
-      const qResult = await enrichCapabilityQuadrants(industry.id, industry.name, industryCaps);
+      const qResult = await enrichCapabilityQuadrants(industry.id, industry.name, industryCaps, runId);
       result.quadrantsClassified += qResult.classified;
       result.errors.push(...qResult.errors);
       log.info(`  Quadrants: ${qResult.classified} classified`);
@@ -506,7 +505,7 @@ async function _executeEnrichment(
     }
 
     try {
-      const vcResult = await enrichValueChainStages(industry.id, industry.name, industryCaps);
+      const vcResult = await enrichValueChainStages(industry.id, industry.name, industryCaps, runId);
       result.valueChainStagesCreated += vcResult.created;
       result.errors.push(...vcResult.errors);
       log.info(`  Value chain: ${vcResult.created} stages`);
@@ -515,7 +514,7 @@ async function _executeEnrichment(
     }
 
     try {
-      const compResult = await enrichCompanyProfiles(industry.id, industry.name, industryCaps);
+      const compResult = await enrichCompanyProfiles(industry.id, industry.name, industryCaps, runId);
       result.companiesProfiled += compResult.profiled;
       result.companyMappingsCreated += compResult.mapped;
       result.errors.push(...compResult.errors);
