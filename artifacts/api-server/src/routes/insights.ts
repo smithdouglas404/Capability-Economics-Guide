@@ -23,21 +23,6 @@ import {
   ResearchCapabilityBody,
 } from "@workspace/api-zod";
 
-type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
-let anthropicClient: AnthropicClient | null = null;
-let _resolveModel: ((name: string) => string) | null = null;
-async function getAnthropic(): Promise<AnthropicClient> {
-  if (!anthropicClient) {
-    const mod = await import("@workspace/integrations-anthropic-ai");
-    anthropicClient = mod.anthropic;
-    _resolveModel = mod.resolveModel;
-  }
-  return anthropicClient;
-}
-function rm(name: string): string {
-  return _resolveModel ? _resolveModel(name) : name;
-}
-
 const router: IRouter = Router();
 
 router.get("/insights", async (req, res) => {
@@ -280,17 +265,39 @@ Format your response as JSON array:
 
 Only output the JSON array, no other text.`;
 
-  const ai = await getAnthropic();
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    res.status(503).json({ error: "AI service not configured" });
+    return;
+  }
 
   try {
-    const message = await ai.messages.create({
-      model: rm("claude-haiku-4-5"),
-      max_tokens: 8192,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180_000);
+    let resp: Response;
+    try {
+      resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://capabilityeconomics.com",
+          "X-Title": "Capability Economics",
+        },
+        body: JSON.stringify({
+          model: "z-ai/glm-5.1",
+          max_tokens: 8192,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
-    const block = message.content[0];
-    const text = block.type === "text" ? block.text : "";
+    const data = (await resp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+    if (data.error) throw new Error(`GLM error: ${data.error.message}`);
+    const text = data.choices?.[0]?.message?.content ?? "";
 
     let insights;
     try {
@@ -309,7 +316,7 @@ Only output the JSON array, no other text.`;
         content: insight.content,
         severity: insight.severity || "info",
         recommendation: insight.recommendation,
-        metadata: { source: "anthropic", model: "claude-haiku-4-5", generatedAt: new Date().toISOString() },
+        metadata: { source: "openrouter", model: "z-ai/glm-5.1", generatedAt: new Date().toISOString() },
       });
     }
 

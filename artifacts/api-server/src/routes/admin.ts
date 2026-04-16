@@ -181,7 +181,7 @@ router.get("/admin/models", (_req, res) => {
     { task: "Capability ontology relationships", model: "deepseek/deepseek-chat", reason: "Most precise logical relationship typing" },
     { task: "Assessment clarifying questions", model: "z-ai/glm-5.1", reason: "Strategic interrogation, reveals hidden gaps" },
     { task: "Assessment full analysis", model: "z-ai/glm-5.1 (8192 tokens)", reason: "Deepest reasoning — roadmap, gaps, competitor scoring" },
-    { task: "Capability insights + alerts", model: "anthropic/claude-haiku-4.5", reason: "Fast structured extraction" },
+    { task: "Capability insights + alerts", model: "z-ai/glm-5.1", reason: "Strategic reasoning for actionable insights" },
     { task: "Industry leaderboard", model: "anthropic/claude-haiku-4.5", reason: "Bulk extraction, speed over depth" },
     { task: "White papers", model: "anthropic/claude-haiku-4.5", reason: "Citation-style output, runs every 15 days" },
   ]);
