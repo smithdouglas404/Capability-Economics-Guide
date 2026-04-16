@@ -9,14 +9,13 @@ import InsuranceExample from "@/pages/insurance-example";
 import CSuite from "@/pages/c-suite";
 import KnowledgeGraph from "@/pages/knowledge-graph";
 import OrganizationSetup from "@/pages/organization";
-import Dashboard from "@/pages/dashboard";
 import Projects from "@/pages/projects";
 import InsightsPage from "@/pages/insights";
 import CEIDashboard from "@/pages/cei-dashboard";
 import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
-import Workbench from "@/pages/workbench";
 import VCE from "@/pages/vce";
+import Alpha from "@/pages/alpha";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +23,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/alpha" component={Alpha} />
       <Route path="/cei" component={CEIDashboard} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
@@ -31,10 +31,8 @@ function Router() {
       <Route path="/projects" component={Projects} />
       <Route path="/insights" component={InsightsPage} />
       <Route path="/organization" component={OrganizationSetup} />
-      <Route path="/dashboard" component={Dashboard} />
       <Route path="/assess" component={Assess} />
       <Route path="/admin" component={AdminDashboard} />
-      <Route path="/workbench" component={Workbench} />
       <Route path="/vce" component={VCE} />
       <Route component={NotFound} />
     </Switch>
