@@ -4,6 +4,7 @@ import {
   cSuiteRolesTable,
   csuitePerspectivesTable,
   caseStudyContentTable,
+  caseStudiesTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
@@ -64,7 +65,14 @@ router.get("/case-study/:industrySlug", async (req, res) => {
       .where(eq(caseStudyContentTable.industryId, industry.id))
       .orderBy(desc(caseStudyContentTable.generatedAt));
 
-    res.json({ industry, capabilities });
+    const [study] = await db
+      .select()
+      .from(caseStudiesTable)
+      .where(eq(caseStudiesTable.industryId, industry.id))
+      .orderBy(desc(caseStudiesTable.generatedAt))
+      .limit(1);
+
+    res.json({ industry, capabilities, study: study ?? null });
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch case study", details: String(err) });
   }

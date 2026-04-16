@@ -11,3 +11,5 @@ export * from "./agent";
 export * from "./csuite-perspectives";
 export * from "./assessments";
 export * from "./enrichment";
+export * from "./educational-content";
+export * from "./case-studies";

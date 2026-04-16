@@ -48,9 +48,24 @@ interface RoiRow {
   valueGenerated: number;
 }
 
+interface StudyNarrative {
+  id: number;
+  title: string;
+  executiveSummary: string;
+  situation: string;
+  challenges: string[];
+  recommendations: { title: string; rationale: string; impact: string }[];
+  fiveYearOutlook: string;
+  kpis: { name: string; baseline: string; target: string }[];
+  sources: { url: string; title: string }[];
+  generatedAt: string;
+  model: string;
+}
+
 interface CaseStudyData {
   industry: { id: number; slug: string; name: string };
   capabilities: Capability[];
+  study: StudyNarrative | null;
 }
 
 function TrendIcon({ trend }: { trend: "up" | "down" | "neutral" }) {
@@ -86,8 +101,7 @@ export default function InsuranceExample() {
             </div>
           </div>
           <p className="text-xl text-muted-foreground leading-relaxed">
-            Insurance is fundamentally a business of capabilities. Carriers don't sell physical products; they sell promises.
-            The economic value of an insurer is entirely dictated by how well they execute core capabilities like underwriting and claims processing.
+            {data?.study?.executiveSummary ?? "Insurance is fundamentally a business of capabilities. Carriers don't sell physical products; they sell promises. The economic value of an insurer is entirely dictated by how well they execute core capabilities like underwriting and claims processing."}
           </p>
         </div>
       </section>
@@ -179,6 +193,72 @@ export default function InsuranceExample() {
           </motion.div>
         )}
       </section>
+
+      {/* AI-Generated Strategic Narrative */}
+      {!loading && !error && data?.study && (
+        <section className="py-16 bg-muted/30 border-y">
+          <div className="container mx-auto px-4 max-w-5xl space-y-12">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">Strategic Briefing</div>
+              <h2 className="text-3xl font-serif text-foreground mb-4">{data.study.title}</h2>
+              <p className="text-lg text-muted-foreground whitespace-pre-line">{data.study.situation}</p>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              <div>
+                <h3 className="text-xl font-serif text-foreground mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-primary" /> Strategic Challenges</h3>
+                <ul className="space-y-3">
+                  {data.study.challenges.map((c, i) => (
+                    <li key={i} className="flex gap-3 text-sm text-foreground"><span className="text-primary font-bold">{i + 1}.</span><span>{c}</span></li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-xl font-serif text-foreground mb-4 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-primary" /> Recommendations</h3>
+                <div className="space-y-4">
+                  {data.study.recommendations.map((r, i) => (
+                    <div key={i} className="bg-card border p-4 rounded-sm">
+                      <div className="font-serif text-foreground mb-1">{r.title}</div>
+                      <div className="text-xs text-muted-foreground mb-2">{r.rationale}</div>
+                      <div className="text-xs text-primary font-medium">Impact: {r.impact}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-serif text-foreground mb-4">5-Year KPI Targets</h3>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {data.study.kpis.map((k, i) => (
+                  <div key={i} className="bg-card border p-4 rounded-sm">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.name}</div>
+                    <div className="text-sm text-muted-foreground"><span className="font-mono">Now:</span> {k.baseline}</div>
+                    <div className="text-sm text-primary"><span className="font-mono">Target:</span> {k.target}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-serif text-foreground mb-4">5-Year Outlook</h3>
+              <p className="text-base text-muted-foreground whitespace-pre-line">{data.study.fiveYearOutlook}</p>
+            </div>
+
+            {data.study.sources.length > 0 && (
+              <div className="pt-6 border-t">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Sources</div>
+                <div className="flex flex-wrap gap-2">
+                  {data.study.sources.map((s, i) => (
+                    <a key={i} href={s.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">{s.title}</a>
+                  ))}
+                </div>
+                <div className="text-xs text-muted-foreground mt-2">Generated {new Date(data.study.generatedAt).toLocaleDateString()} via {data.study.model}</div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Financial Visualization */}
       {!loading && !error && roiData.length > 0 && (

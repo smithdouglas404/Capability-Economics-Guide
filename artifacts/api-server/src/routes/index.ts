@@ -14,10 +14,14 @@ import secRouter from "./sec";
 import adminRouter from "./admin";
 import enrichmentRouter from "./enrichment";
 import { enrichmentAliasRouter } from "./enrichment";
+import educationalContentRouter from "./educational-content";
+import caseStudiesRouter from "./case-studies";
+import dynamicIndustriesRouter from "./dynamic-industries";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(dynamicIndustriesRouter);
 router.use(industriesRouter);
 router.use(enrichmentAliasRouter);
 router.use(capabilitiesRouter);
@@ -31,6 +35,8 @@ router.use(contentRouter);
 router.use(assessRouter);
 router.use(secRouter);
 router.use(adminRouter);
+router.use(educationalContentRouter);
+router.use(caseStudiesRouter);
 router.use("/enrichment", enrichmentRouter);
 
 export default router;

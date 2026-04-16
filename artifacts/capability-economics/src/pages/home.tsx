@@ -1,9 +1,75 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, Target, LineChart, Zap, Building2, Shield, Users } from "lucide-react";
+import { ArrowRight, Target, LineChart, Zap, Building2, Shield, Users, BookOpen, Clock, ExternalLink } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
+
+interface EducationalContent {
+  id: number;
+  slug: string;
+  title: string;
+  summary: string;
+  bodyMarkdown: string;
+  keyTakeaways: string[];
+  sources: { url: string; title: string }[];
+  category: string;
+  estimatedReadMinutes: number;
+}
+
+function EducationalLibrary() {
+  const [items, setItems] = useState<EducationalContent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/educational-content")
+      .then(r => r.ok ? r.json() : [])
+      .then((d: EducationalContent[]) => { setItems(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  if (loading || items.length === 0) return null;
+
+  return (
+    <section className="py-24 bg-muted/30 border-t">
+      <div className="container mx-auto px-4">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <div className="inline-flex items-center gap-2 text-primary text-sm font-semibold uppercase tracking-wider mb-3">
+            <BookOpen className="w-4 h-4" /> Foundational Library
+          </div>
+          <h2 className="text-3xl md:text-4xl font-serif text-foreground">Learn the Discipline</h2>
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {items.map(item => (
+            <Card key={item.id} className="bg-card border shadow-sm h-full rounded-none flex flex-col" data-testid={`edu-card-${item.slug}`}>
+              <CardHeader className="flex-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 uppercase tracking-wider">
+                  <span className="font-semibold text-primary">{item.category}</span>
+                  <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{item.estimatedReadMinutes} min</span>
+                </div>
+                <CardTitle className="font-serif text-xl">{item.title}</CardTitle>
+                <CardDescription className="text-base text-muted-foreground">{item.summary}</CardDescription>
+              </CardHeader>
+              <CardContent className="border-t pt-4">
+                <ul className="space-y-2 text-sm text-muted-foreground mb-4">
+                  {item.keyTakeaways.slice(0, 3).map((t, i) => (
+                    <li key={i} className="flex gap-2"><span className="text-primary">•</span><span>{t}</span></li>
+                  ))}
+                </ul>
+                {item.sources.length > 0 && (
+                  <a href={item.sources[0].url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
+                    <ExternalLink className="w-3 h-3" /> {item.sources[0].title}
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -149,6 +215,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Editor-managed educational content (CMS) */}
+      <EducationalLibrary />
 
       {/* Autonomous Agent Memory Showcase */}
       <AgentMemoryShowcase />

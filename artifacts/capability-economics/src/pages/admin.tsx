@@ -8,6 +8,8 @@ import {
   Mic, File, Briefcase, ChevronUp, ChevronDown, Minus,
   Zap, Building2, GitBranch, Layers,
 } from "lucide-react";
+import EducationalContentAdmin from "@/components/educational-content-admin";
+import CaseStudyAdmin from "@/components/case-study-admin";
 
 const API_BASE = "/api";
 
@@ -631,6 +633,11 @@ export default function AdminDashboard() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="mt-6 space-y-6">
+        <EducationalContentAdmin />
+        <CaseStudyAdmin />
+      </div>
     </div>
   );
 }
