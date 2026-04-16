@@ -85,7 +85,8 @@ Full-stack educational platform teaching novice users about capability economics
 - GLM 5.1 calls via OpenRouter with 180s timeout, 4096-8192 max_tokens
 - Enrichment run history tracked in `enrichment_runs` table with status/duration/error tracking
 - Concurrency lock prevents simultaneous enrichment runs (409 on concurrent attempt)
-- Per-industry cleanup before re-enrichment prevents duplicate accumulation
+- Per-run data retention: each enrichment run creates new rows tagged with runId FK, preserving historical data
+- Query endpoints default to latest completed run (optional ?runId= for historical queries)
 - API routes: `/api/enrichment/run` (POST), `/api/enrichment/status`, `/api/enrichment/runs`, `/api/enrichment/quadrants`, `/api/enrichment/value-chain`, `/api/enrichment/companies` (paginated), `/api/enrichment/graph`
 - Alias read-only routes under `/api/ontology/` prefix for graph/quadrants/companies/value-chain/runs
 
