@@ -61,7 +61,12 @@ export default function KnowledgeGraph() {
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [tab, setTab] = useState<"network" | "industries" | "compare">(isMobile ? "industries" : "network");
-  const [graphData, setGraphData] = useState<any>(null);
+  interface GraphDataShape {
+    industries: Array<{ id: number; name: string; slug: string; icon: string }>;
+    capabilities: Array<{ id: number; name: string; industryId: number; benchmarkScore: number; quadrant: string; economicImpactScore: number; adoptionMomentumScore: number; disruptionIntensity: number }>;
+    dependencies: Array<{ id: number; capabilityId: number; dependsOnId: number; strength: string }>;
+  }
+  const [graphData, setGraphData] = useState<GraphDataShape | null>(null);
   const [graphLoading, setGraphLoading] = useState(false);
 
   const { data: industries, isLoading: loadingIndustries } = useListIndustries();

@@ -81,6 +81,13 @@ interface ForceGraphProps {
   data: GraphData;
 }
 
+interface CapabilityDetail {
+  description?: string;
+  traditionalView?: string;
+  economicView?: string;
+  roleMappings?: Array<{ roleTitle: string; roleName: string; relevance: string; perspective: string }>;
+}
+
 export default function ForceGraph({ data }: ForceGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -89,6 +96,32 @@ export default function ForceGraph({ data }: ForceGraphProps) {
   const [activeIndustries, setActiveIndustries] = useState<Set<number>>(() => new Set(data.industries.map(i => i.id)));
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(() => new Set(["hot", "emerging", "cooling", "table_stakes"]));
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [capDetail, setCapDetail] = useState<CapabilityDetail | null>(null);
+  const [capDetailLoading, setCapDetailLoading] = useState(false);
+  const detailCache = useRef<Map<number, CapabilityDetail>>(new Map());
+
+  const fetchCapabilityDetail = useCallback((capId: number) => {
+    if (detailCache.current.has(capId)) {
+      setCapDetail(detailCache.current.get(capId)!);
+      return;
+    }
+    setCapDetailLoading(true);
+    setCapDetail(null);
+    fetch(`/api/capabilities/${capId}`)
+      .then(r => { if (!r.ok) throw new Error("fetch failed"); return r.json(); })
+      .then(d => {
+        const detail: CapabilityDetail = {
+          description: d.description,
+          traditionalView: d.traditionalView,
+          economicView: d.economicView,
+          roleMappings: d.roleMappings,
+        };
+        detailCache.current.set(capId, detail);
+        setCapDetail(detail);
+      })
+      .catch(() => setCapDetail(null))
+      .finally(() => setCapDetailLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -277,9 +310,6 @@ export default function ForceGraph({ data }: ForceGraphProps) {
     const tooltip = d3.select(container).select(".graph-tooltip");
 
     node.on("mouseenter", function(event, d) {
-      if (d.type === "industry") {
-        setHighlightIndustry(d.industryId);
-      }
       const tooltipEl = tooltip.node() as HTMLElement;
       if (tooltipEl) {
         tooltipEl.textContent = "";
@@ -302,11 +332,16 @@ export default function ForceGraph({ data }: ForceGraphProps) {
         .style("top", `${event.clientY - rect.top - 8}px`);
     })
     .on("mouseleave", function() {
-      setHighlightIndustry(null);
       tooltip.style("display", "none");
     })
     .on("click", function(_event, d) {
+      if (d.type === "industry") {
+        setHighlightIndustry(prev => prev === d.industryId ? null : d.industryId);
+      }
       setSelectedNode(prev => prev?.id === d.id ? null : d);
+      if (d.type === "capability" && d.capId) {
+        fetchCapabilityDetail(d.capId);
+      }
     });
 
     simulation.on("tick", () => {
@@ -421,6 +456,13 @@ export default function ForceGraph({ data }: ForceGraphProps) {
               </>
             ) : (
               <>
+                {capDetailLoading && <p className="text-xs text-muted-foreground">Loading details…</p>}
+                {capDetail?.description && (
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wider">Description</span>
+                    <p className="text-foreground mt-1">{capDetail.description}</p>
+                  </div>
+                )}
                 <div>
                   <span className="text-muted-foreground text-xs uppercase tracking-wider">Industry</span>
                   <p className="font-medium text-foreground">{data.industries.find(i => i.id === selectedNode.industryId)?.name}</p>
@@ -438,6 +480,18 @@ export default function ForceGraph({ data }: ForceGraphProps) {
                     <span className="font-mono font-semibold text-foreground text-xs">{selectedNode.benchmarkScore}/100</span>
                   </div>
                 </div>
+                {capDetail?.traditionalView && (
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wider">Traditional View</span>
+                    <p className="text-foreground mt-1 italic">{capDetail.traditionalView}</p>
+                  </div>
+                )}
+                {capDetail?.economicView && (
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wider">Economic View</span>
+                    <p className="text-foreground mt-1 italic">{capDetail.economicView}</p>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-muted-foreground text-xs uppercase tracking-wider">Economic Impact</span>
@@ -463,6 +517,22 @@ export default function ForceGraph({ data }: ForceGraphProps) {
                         </li>
                       ))}
                     </ul>
+                  </div>
+                )}
+                {capDetail?.roleMappings && capDetail.roleMappings.length > 0 && (
+                  <div>
+                    <span className="text-muted-foreground text-xs uppercase tracking-wider">C-Suite Relevance</span>
+                    <div className="mt-1 space-y-2">
+                      {capDetail.roleMappings.map((rm, i) => (
+                        <div key={i} className="border rounded-sm p-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-foreground text-xs">{rm.roleTitle}</span>
+                            <span className={`text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded ${rm.relevance === "high" ? "bg-primary/10 text-primary" : rm.relevance === "medium" ? "bg-accent/50 text-accent-foreground" : "text-muted-foreground bg-muted"}`}>{rm.relevance}</span>
+                          </div>
+                          <p className="text-muted-foreground text-xs mt-1">{rm.perspective}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </>
