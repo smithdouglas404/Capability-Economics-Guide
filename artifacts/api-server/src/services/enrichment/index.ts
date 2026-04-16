@@ -286,7 +286,7 @@ Return ONLY a JSON array. No markdown.`;
         startupTrendPct: stage.startup_trend_pct || null,
         capitalFlowMm: stage.capital_flow_mm || null,
         capitalTrendPct: stage.capital_trend_pct || null,
-        disruptionSummary: stage.disruption_summary || "Research-derived disruption analysis.",
+        disruptionSummary: stage.disruption_summary || "",
         keyCapabilities: stage.key_capabilities || [],
         keyCompanies: stage.key_companies || [],
         perplexitySources: researchResult.sources,
@@ -373,7 +373,7 @@ Return ONLY a JSON array. No markdown.`;
         cdiScore: Math.min(1, Math.max(0, company.cdi_score || 0.3)),
         quadrant,
         fundingStage: company.funding_stage || "private",
-        description: company.description || `${company.name} — ${industryName} capability provider.`,
+        description: company.description || "",
         perplexitySources: researchResult.sources,
       }).returning({ id: companyCapabilityProfilesTable.id });
 

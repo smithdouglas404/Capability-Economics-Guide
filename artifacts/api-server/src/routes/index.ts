@@ -19,6 +19,7 @@ const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(industriesRouter);
+router.use(enrichmentAliasRouter);
 router.use(capabilitiesRouter);
 router.use(organizationsRouter);
 router.use(dashboardRouter);
@@ -31,6 +32,5 @@ router.use(assessRouter);
 router.use(secRouter);
 router.use(adminRouter);
 router.use("/enrichment", enrichmentRouter);
-router.use(enrichmentAliasRouter);
 
 export default router;

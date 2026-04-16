@@ -205,4 +205,54 @@ enrichmentAliasRouter.get("/ontology/runs", (req: Request, res: Response, next) 
   router(req, res, next);
 });
 
+enrichmentAliasRouter.get("/capabilities/quadrants", async (req: Request, res: Response) => {
+  try {
+    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+    const conditions = industryId && !isNaN(industryId) ? eq(capabilityQuadrantsTable.industryId, industryId) : undefined;
+    const rows = conditions
+      ? await db.select().from(capabilityQuadrantsTable).where(conditions).orderBy(desc(capabilityQuadrantsTable.generatedAt))
+      : await db.select().from(capabilityQuadrantsTable).orderBy(desc(capabilityQuadrantsTable.generatedAt));
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
+  }
+});
+
+enrichmentAliasRouter.get("/value-chain/stages", async (req: Request, res: Response) => {
+  try {
+    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+    const conditions = industryId && !isNaN(industryId) ? eq(valueChainStagesTable.industryId, industryId) : undefined;
+    const rows = conditions
+      ? await db.select().from(valueChainStagesTable).where(conditions).orderBy(valueChainStagesTable.stageOrder)
+      : await db.select().from(valueChainStagesTable).orderBy(valueChainStagesTable.stageOrder);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
+  }
+});
+
+enrichmentAliasRouter.get("/companies", async (req: Request, res: Response) => {
+  try {
+    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+    const offset = (page - 1) * limit;
+
+    const conditions = industryId && !isNaN(industryId) ? eq(companyCapabilityProfilesTable.industryId, industryId) : undefined;
+    const query = db.select().from(companyCapabilityProfilesTable);
+    const countQuery = db.select({ count: sql<number>`count(*)::int` }).from(companyCapabilityProfilesTable);
+
+    const rows = conditions
+      ? await query.where(conditions).orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset)
+      : await query.orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset);
+    const [total] = conditions
+      ? await countQuery.where(conditions)
+      : await countQuery;
+
+    res.json({ data: rows, page, limit, total: total?.count ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
+  }
+});
+
 export default router;
