@@ -83,72 +83,66 @@ export const glmReasonTool = tool(
   },
 );
 
-// PhD-grade Perplexity research using sonar-deep-research (multi-source, structured)
+// Perplexity research — tier-selectable for cost control.
+// - tier "deep":  sonar-deep-research  (~$5/1k + reasoning tokens). Use sparingly (cycle 1, or when breadth is critical).
+// - tier "pro":   sonar-pro            (~5-10x cheaper than deep). Use for refinement cycles.
+// - tier "basic": sonar                (cheapest, single-pass). Final fallback on error.
+async function runPerplexity(model: string, sysPrompt: string, query: string, apiKey: string, timeoutMs: number) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const resp = await fetch(PERPLEXITY_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      signal: ctrl.signal,
+      body: JSON.stringify({ model, messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
+    });
+    return resp;
+  } finally { clearTimeout(timer); }
+}
+
 export const perplexityDeepResearchTool = tool(
-  async ({ query, recencyHint }: { query: string; recencyHint?: string }) => {
+  async ({ query, recencyHint, tier }: { query: string; recencyHint?: string; tier?: "deep" | "pro" | "basic" }) => {
     const apiKey = process.env.PERPLEXITY_API_KEY;
     if (!apiKey) return JSON.stringify({ success: false, error: "PERPLEXITY_API_KEY missing" });
     try {
       const sysPrompt = `You are a PhD-level management consulting research analyst. Provide rigorous, citation-rich research with: (1) specific numbers and percentages from primary sources, (2) named real-world examples and case studies, (3) explicit dates from 2023-2026, (4) directly contradicting evidence where it exists, (5) structural causal mechanisms (not just correlations). Cite every numeric claim. ${recencyHint ?? ""}`;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 240_000);
-      const resp = await fetch(PERPLEXITY_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          model: "sonar-deep-research",
-          messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }],
-        }),
-      }).catch(async (e) => {
-        // sonar-deep-research can be slow/expensive — fall back to sonar-pro if it fails
-        clearTimeout(timer);
-        if ((e as Error).name === "AbortError") throw e;
-        const r = await fetch(PERPLEXITY_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "sonar-pro", messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
-        });
-        return r;
-      });
-      clearTimeout(timer);
-      if (!resp.ok) {
-        // Final fallback to plain sonar
-        const r2 = await fetch(PERPLEXITY_URL, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "sonar", messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
-        });
-        if (!r2.ok) return JSON.stringify({ success: false, error: `Perplexity ${r2.status}` });
-        const data2 = await r2.json() as { choices: Array<{ message: { content: string } }>; search_results?: Array<{ url: string; title?: string }>; citations?: string[] };
-        return JSON.stringify({
-          success: true,
-          model: "sonar",
-          content: data2.choices[0]?.message?.content ?? "",
-          sources: (data2.search_results ?? []).map(s => ({ url: s.url, title: s.title ?? s.url })),
-        });
+      // Cost-ordered chain starting from the requested tier; fall back downward on failure.
+      const chain = tier === "pro"
+        ? ["sonar-pro", "sonar"]
+        : tier === "basic"
+        ? ["sonar"]
+        : ["sonar-deep-research", "sonar-pro", "sonar"];
+      let lastErr = "";
+      for (const model of chain) {
+        try {
+          const timeoutMs = model === "sonar-deep-research" ? 240_000 : 120_000;
+          const resp = await runPerplexity(model, sysPrompt, query, apiKey, timeoutMs);
+          if (!resp.ok) { lastErr = `Perplexity ${model} ${resp.status}`; continue; }
+          const data = await resp.json() as { choices: Array<{ message: { content: string } }>; search_results?: Array<{ url: string; title?: string }>; citations?: string[] };
+          const content = data.choices[0]?.message?.content ?? "";
+          if (!content.trim()) { lastErr = `Perplexity ${model} empty content`; continue; }
+          const sources = (data.search_results ?? []).map(s => ({ url: s.url, title: s.title ?? s.url }));
+          if (sources.length === 0 && data.citations) {
+            sources.push(...data.citations.slice(0, 12).map(u => ({ url: u, title: u })));
+          }
+          return JSON.stringify({ success: true, model, content, sources });
+        } catch (e) {
+          lastErr = e instanceof Error ? e.message : "fail";
+        }
       }
-      const data = await resp.json() as { choices: Array<{ message: { content: string } }>; search_results?: Array<{ url: string; title?: string }>; citations?: string[] };
-      const sources = (data.search_results ?? []).map(s => ({ url: s.url, title: s.title ?? s.url }));
-      if (sources.length === 0 && data.citations) {
-        sources.push(...data.citations.slice(0, 12).map(u => ({ url: u, title: u })));
-      }
-      return JSON.stringify({
-        success: true,
-        model: "sonar-deep-research",
-        content: data.choices[0]?.message?.content ?? "",
-        sources,
-      });
+      return JSON.stringify({ success: false, error: lastErr || "all Perplexity tiers failed" });
     } catch (e) {
       return JSON.stringify({ success: false, error: e instanceof Error ? e.message : "research failed" });
     }
   },
   {
     name: "perplexity_deep_research",
-    description: "Run rigorous, citation-rich web research using Perplexity sonar-deep-research (with sonar-pro fallback). Use for any query that needs PhD-grade evidence with primary-source numbers and named examples.",
+    description: "Run citation-rich web research using Perplexity. Pass tier='deep' for first-cycle breadth (sonar-deep-research), tier='pro' for refinement cycles (sonar-pro, cheaper), or tier='basic' for cheapest single-pass.",
     schema: z.object({
       query: z.string().describe("Specific research question. Be precise; reference time period, geography, and metric you want."),
       recencyHint: z.string().optional().describe("Optional recency directive, e.g. 'Prioritize 2025-2026 data'."),
+      tier: z.enum(["deep", "pro", "basic"]).optional().describe("Cost tier. Default 'deep'."),
     }),
   },
 );
@@ -160,7 +154,7 @@ export const crossValidateTool = tool(
 Claim: """${claim}"""
 
 Cited research: """${sources.slice(0, 8000)}"""`;
-    const out = await glmCall(prompt, 1500, 180_000, true);
+    const out = await glmCall(prompt, 900, 180_000, true);
     const parsed = extractJSON<{ supported: boolean; supportingEvidence: string[]; contradictions: string[]; unsupportedLeaps: string[]; evidenceCount: number; crossValidated: boolean; confidence: number }>(out);
     return JSON.stringify(parsed ?? { supported: false, supportingEvidence: [], contradictions: ["parse failure"], unsupportedLeaps: [], evidenceCount: 0, crossValidated: false, confidence: 0.4 });
   },
@@ -191,7 +185,7 @@ Return ONLY JSON:
   "body": "4-6 paragraphs: (1) what the evidence shows with numbers, (2) why this matters for the client specifically, (3) the structural mechanism, (4) precedents and benchmarks, (5) recommended next move",
   "confidence": 0.5-0.95
 }`;
-    const out = await glmCall(prompt, 3000, 180_000, true);
+    const out = await glmCall(prompt, 1800, 180_000, true);
     const parsed = extractJSON<{ title: string; summary: string; body: string; confidence: number }>(out);
     return JSON.stringify(parsed ?? { title, summary: "Synthesis failed", body: out.slice(0, 4000), confidence: 0.4 });
   },

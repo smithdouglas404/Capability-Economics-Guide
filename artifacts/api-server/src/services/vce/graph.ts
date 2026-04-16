@@ -122,7 +122,10 @@ async function researchNode(state: S): Promise<Partial<S>> {
   let calls = 0;
   for (const p of state.researchPlan) {
     try {
-      const raw = await perplexityDeepResearchTool.invoke({ query: p.query, recencyHint: p.recencyHint });
+      // Cost control: only the FIRST cycle gets sonar-deep-research for breadth.
+      // Subsequent cycles use sonar-pro (5-10x cheaper) since they're refining known gaps.
+      const tier = state.cycleNumber === 1 ? "deep" : "pro";
+      const raw = await perplexityDeepResearchTool.invoke({ query: p.query, recencyHint: p.recencyHint, tier });
       calls++;
       const parsed = JSON.parse(raw) as { success: boolean; content?: string; sources?: { url: string; title: string }[]; model?: string; error?: string };
       if (!parsed.success || !parsed.content) {

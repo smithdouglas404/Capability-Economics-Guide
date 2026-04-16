@@ -91,7 +91,9 @@ export function startScheduler(): void {
     return;
   }
 
-  console.log("[Agent] Autonomous monitoring started — routine cycle every 30min, urgency watchdog every 5min");
+  const routineHours = ROUTINE_INTERVAL_MS / (60 * 60 * 1000);
+  const watchdogMinutes = WATCHDOG_INTERVAL_MS / (60 * 1000);
+  console.log(`[Agent] Autonomous monitoring started — routine cycle every ${routineHours}h, urgency watchdog every ${watchdogMinutes}min`);
 
   routineTimer = setInterval(() => executeRun("routine"), ROUTINE_INTERVAL_MS);
   watchdogTimer = setInterval(() => watchdogCheck(), WATCHDOG_INTERVAL_MS);
