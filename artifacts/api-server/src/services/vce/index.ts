@@ -1,283 +1,165 @@
 import { db } from "@workspace/db";
 import {
   vceAssessmentsTable,
+  vceCyclesTable,
   vceQuestionsTable,
   vceResearchItemsTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, asc, and } from "drizzle-orm";
+import { eq, and, asc, inArray } from "drizzle-orm";
+import { glmReasonTool, extractJSON } from "./tools";
+import { runCycle as graphRunCycle } from "./graph";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
+// ----- Campaign / intake setup -----
 
-async function callGLM(prompt: string, maxTokens = 4096, timeoutMs = 180_000): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not configured");
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const resp = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "z-ai/glm-5.1",
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: ctrl.signal,
-    });
-    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices[0]?.message?.content ?? "";
-  } finally {
-    clearTimeout(timer);
-  }
-}
+export async function createCampaign(input: {
+  clientName: string;
+  industryId?: number;
+  valueCase: string;
+  valueCaseSource: "typed" | "uploaded" | "voice_transcript";
+  durationDays?: number;
+  totalCycles?: number;
+}) {
+  const durationDays = input.durationDays ?? 7;
+  const totalCycles = input.totalCycles ?? durationDays;
+  const start = new Date();
+  const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-async function perplexityResearch(query: string): Promise<{ content: string; sources: { url: string; title: string }[] }> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return { content: "", sources: [] };
-  try {
-    const resp = await fetch(PERPLEXITY_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          { role: "system", content: "You are a senior management consulting research analyst. Provide concise, factual research with specific numbers, benchmarks, dates and named real-world examples from 2023-2026 data. Cite sources." },
-          { role: "user", content: query },
-        ],
-      }),
-    });
-    if (!resp.ok) return { content: "", sources: [] };
-    const data = await resp.json() as {
-      choices: Array<{ message: { content: string } }>;
-      citations?: string[];
-      search_results?: Array<{ url: string; title?: string }>;
-    };
-    const content = data.choices[0]?.message?.content ?? "";
-    const sources = (data.search_results ?? []).map(s => ({ url: s.url, title: s.title ?? s.url }));
-    if (sources.length === 0 && data.citations) {
-      sources.push(...data.citations.slice(0, 8).map(u => ({ url: u, title: u })));
-    }
-    return { content, sources };
-  } catch {
-    return { content: "", sources: [] };
-  }
-}
+  const [created] = await db.insert(vceAssessmentsTable).values({
+    clientName: input.clientName,
+    industryId: input.industryId ?? null,
+    valueCase: input.valueCase,
+    valueCaseSource: input.valueCaseSource,
+    status: "planning",
+    durationDays,
+    totalCycles,
+    currentCycle: 0,
+    scheduledStart: start,
+    scheduledEnd: end,
+  }).returning();
 
-function extractJSON<T>(raw: string): T | null {
-  if (!raw) return null;
-  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const candidate = fence ? fence[1] : raw;
-  const start = candidate.indexOf("{");
-  const startA = candidate.indexOf("[");
-  let s = -1;
-  if (start === -1) s = startA;
-  else if (startA === -1) s = start;
-  else s = Math.min(start, startA);
-  if (s === -1) return null;
-  const open = candidate[s];
-  const close = open === "{" ? "}" : "]";
-  const end = candidate.lastIndexOf(close);
-  if (end === -1 || end < s) return null;
-  try {
-    return JSON.parse(candidate.slice(s, end + 1)) as T;
-  } catch {
-    return null;
-  }
+  // Pre-create N cycle rows in 'scheduled' state, one per day
+  const cycleRows = Array.from({ length: totalCycles }).map((_, i) => ({
+    assessmentId: created.id,
+    cycleNumber: i + 1,
+    status: "scheduled" as const,
+    scheduledFor: new Date(start.getTime() + i * 24 * 60 * 60 * 1000),
+  }));
+  await db.insert(vceCyclesTable).values(cycleRows);
+
+  return created;
 }
 
 export async function generateIntakeQuestions(assessmentId: number): Promise<number> {
-  const [assessment] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
-  if (!assessment) throw new Error("Assessment not found");
+  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  if (!a) throw new Error("Assessment not found");
 
   let industryName = "general";
-  if (assessment.industryId) {
-    const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, assessment.industryId));
+  if (a.industryId) {
+    const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, a.industryId));
     if (ind) industryName = ind.name;
   }
 
-  const prompt = `You are a Virtual Capability Engineer interviewing a client. Their value case is below. Generate 5 to 7 sharp clarifying questions that a senior strategy consultant would ask before going off to research and build a Capability Economics assessment.
+  const prompt = `You are a Virtual Capability Engineer beginning a ${a.durationDays}-day research engagement with ${a.clientName} (${industryName}). Read the value case below and generate 5-7 sharp clarifying intake questions a senior partner would ask before the engagement starts. Each question should probe ONE dimension (current state, target outcome, time horizon, risk tolerance, budget, competitive context, success metric, internal capability, etc.) and be answerable in 1-3 sentences. Avoid yes/no.
 
-Client: ${assessment.clientName}
-Industry: ${industryName}
+Also propose a one-paragraph CAMPAIGN OBJECTIVE — what we will set out to learn over the ${a.durationDays} days.
 
-Value Case:
-"""
-${assessment.valueCase}
-"""
+Value case:
+"""${a.valueCase}"""
 
-Each question should:
-- Probe ONE specific dimension (current capability state, target outcome, time horizon, risk tolerance, budget, competitive context, team readiness, success metric, etc.)
-- Be answerable in 1-3 sentences
-- Avoid yes/no questions
-- Include a one-line rationale explaining why it matters
+Return ONLY JSON:
+{ "objective": "campaign objective paragraph", "questions": [ { "question": "...", "rationale": "...", "priority": 1-5 } ] }`;
 
-Return ONLY valid JSON with this shape:
-{ "questions": [ { "question": "...", "rationale": "..." }, ... ] }`;
-
-  const raw = await callGLM(prompt, 2048);
-  const parsed = extractJSON<{ questions: { question: string; rationale: string }[] }>(raw);
-  if (!parsed?.questions || !Array.isArray(parsed.questions)) {
-    throw new Error("GLM did not return valid questions JSON");
-  }
+  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 2000 });
+  const parsed = extractJSON<{ objective: string; questions: { question: string; rationale: string; priority: number }[] }>(raw);
+  if (!parsed?.questions || parsed.questions.length === 0) throw new Error("Intake parse failed");
 
   const rows = parsed.questions.slice(0, 7).map((q, i) => ({
     assessmentId,
+    cycleId: null,
     question: q.question,
     rationale: q.rationale ?? null,
+    priority: Math.max(1, Math.min(5, q.priority ?? 3)),
+    status: "pending" as const,
     displayOrder: i,
   }));
-  if (rows.length === 0) throw new Error("No questions generated");
   await db.insert(vceQuestionsTable).values(rows);
-  await db.update(vceAssessmentsTable).set({ status: "intake", updatedAt: new Date() }).where(eq(vceAssessmentsTable.id, assessmentId));
-  return rows.length;
-}
-
-export async function runResearch(assessmentId: number): Promise<{ itemsCreated: number; areas: string[] }> {
-  const [assessment] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
-  if (!assessment) throw new Error("Assessment not found");
-
-  let industryName = "general";
-  if (assessment.industryId) {
-    const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, assessment.industryId));
-    if (ind) industryName = ind.name;
-  }
-
-  const questions = await db.select().from(vceQuestionsTable)
-    .where(eq(vceQuestionsTable.assessmentId, assessmentId))
-    .orderBy(asc(vceQuestionsTable.displayOrder));
-  const qa = questions.map(q => `Q: ${q.question}\nA: ${q.answer ?? "(no answer)"}`).join("\n\n");
-
-  await db.update(vceAssessmentsTable).set({ status: "researching", updatedAt: new Date() }).where(eq(vceAssessmentsTable.id, assessmentId));
-
-  // Step 1 — GLM 5.1 plans the research areas
-  const planPrompt = `You are a Virtual Capability Engineer. Based on the client value case and Q&A below, identify 5-6 research areas to investigate using web research. Each area should map to one of these kinds: capability_gap, opportunity, recommendation, risk, insight, benchmark.
-
-Client: ${assessment.clientName} (${industryName})
-
-Value Case:
-"""
-${assessment.valueCase}
-"""
-
-Q&A from intake:
-${qa}
-
-Return ONLY valid JSON:
-{ "areas": [ { "kind": "capability_gap|opportunity|recommendation|risk|insight|benchmark", "title": "short title", "researchQuery": "specific query to run on Perplexity that will return real 2024-2026 data with numbers and named examples" }, ... ] }`;
-
-  const planRaw = await callGLM(planPrompt, 2048);
-  const plan = extractJSON<{ areas: { kind: string; title: string; researchQuery: string }[] }>(planRaw);
-  if (!plan?.areas || !Array.isArray(plan.areas) || plan.areas.length === 0) {
-    throw new Error("GLM did not return valid research plan");
-  }
-
-  // Step 2 — for each area: Perplexity research → GLM synthesis → store as pending item
-  let created = 0;
-  const errors: string[] = [];
-  for (const area of plan.areas.slice(0, 6)) {
-    try {
-      const research = await perplexityResearch(area.researchQuery);
-      if (!research.content || research.content.length < 80) {
-        errors.push(`${area.title}: empty research`);
-        continue;
-      }
-      const synthPrompt = `Synthesize the research below into a single executive-grade finding for a Capability Economics assessment. Be specific, cite numbers, name companies/benchmarks where relevant. Output ONLY valid JSON.
-
-Client context: ${assessment.clientName} (${industryName})
-Value case (1-line): ${assessment.valueCase.slice(0, 280)}
-
-Finding kind: ${area.kind}
-Title: ${area.title}
-
-Research:
-"""
-${research.content.slice(0, 5000)}
-"""
-
-Return:
-{
-  "summary": "1-2 sentence executive takeaway",
-  "body": "3-5 paragraph narrative with specifics, numbers, named examples and implications for the client",
-  "confidenceScore": 0.55-0.95
-}`;
-      const synthRaw = await callGLM(synthPrompt, 2048);
-      const synth = extractJSON<{ summary: string; body: string; confidenceScore?: number }>(synthRaw);
-      if (!synth?.summary || !synth?.body) {
-        errors.push(`${area.title}: synthesis parse failed`);
-        continue;
-      }
-      await db.insert(vceResearchItemsTable).values({
-        assessmentId,
-        kind: area.kind,
-        title: area.title,
-        summary: synth.summary,
-        body: synth.body,
-        sources: research.sources,
-        confidenceScore: Math.max(0, Math.min(1, synth.confidenceScore ?? 0.7)),
-        status: "pending",
-        includeInReport: true,
-      });
-      created++;
-    } catch (e) {
-      errors.push(`${area.title}: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
 
   await db.update(vceAssessmentsTable).set({
-    status: created > 0 ? "review" : "intake",
+    objective: parsed.objective ?? null,
+    status: "active",
     updatedAt: new Date(),
   }).where(eq(vceAssessmentsTable.id, assessmentId));
 
-  if (created === 0) {
-    throw new Error(`Research produced no items. Errors: ${errors.join("; ")}`);
-  }
-
-  return { itemsCreated: created, areas: plan.areas.map(a => a.title) };
+  return rows.length;
 }
 
-export async function finalizeAssessment(assessmentId: number) {
-  const [assessment] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
-  if (!assessment) throw new Error("Assessment not found");
+// ----- Cycle execution -----
 
-  const approved = await db.select().from(vceResearchItemsTable).where(
-    and(
-      eq(vceResearchItemsTable.assessmentId, assessmentId),
-      eq(vceResearchItemsTable.status, "approved"),
-      eq(vceResearchItemsTable.includeInReport, true),
-    )
-  );
-  if (approved.length === 0) throw new Error("No approved research items to finalize. Approve at least one item first.");
+export async function runNextCycle(assessmentId: number) {
+  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  if (!a) throw new Error("Assessment not found");
+  if (a.status === "finalized" || a.status === "cancelled") throw new Error(`Campaign is ${a.status}`);
+
+  const cycles = await db.select().from(vceCyclesTable).where(eq(vceCyclesTable.assessmentId, assessmentId)).orderBy(asc(vceCyclesTable.cycleNumber));
+  const next = cycles.find(c => c.status === "scheduled");
+  if (!next) throw new Error("No scheduled cycle remaining. Finalize the campaign or extend it.");
+
+  return await graphRunCycle(assessmentId, next.id);
+}
+
+export async function runCycleById(assessmentId: number, cycleId: number) {
+  return await graphRunCycle(assessmentId, cycleId);
+}
+
+// ----- Final report -----
+
+export async function finalizeAssessment(assessmentId: number) {
+  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  if (!a) throw new Error("Assessment not found");
+
+  const approved = await db.select().from(vceResearchItemsTable).where(and(
+    eq(vceResearchItemsTable.assessmentId, assessmentId),
+    eq(vceResearchItemsTable.status, "approved"),
+    eq(vceResearchItemsTable.includeInReport, true),
+  ));
+  if (approved.length === 0) throw new Error("Approve at least one finding before finalizing.");
 
   let industryName = "general";
-  if (assessment.industryId) {
-    const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, assessment.industryId));
+  if (a.industryId) {
+    const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, a.industryId));
     if (ind) industryName = ind.name;
   }
 
-  const findingsBlock = approved.map(a => `[${a.kind.toUpperCase()}] ${a.title}\nSummary: ${a.summary}\nDetail: ${a.body}\n`).join("\n---\n");
+  const cycles = await db.select().from(vceCyclesTable).where(and(
+    eq(vceCyclesTable.assessmentId, assessmentId),
+    inArray(vceCyclesTable.status, ["completed"]),
+  )).orderBy(asc(vceCyclesTable.cycleNumber));
+  const cycleNarrative = cycles.map(c => `Cycle ${c.cycleNumber}: ${c.summary || ""}`).filter(Boolean).join("\n\n");
 
-  const prompt = `You are the Virtual Capability Engineer assembling a final Capability Economics assessment report. Use ONLY the approved findings below — do not invent new data.
+  const findingsBlock = approved.map(a => `[${a.kind.toUpperCase()}] ${a.title}\nSummary: ${a.summary}\nDetail: ${a.body}\nEvidence: ${a.evidenceCount} sources, cross-validated=${a.crossValidated}`).join("\n---\n");
 
-Client: ${assessment.clientName} (${industryName})
-Value case: """${assessment.valueCase}"""
+  const prompt = `You are the VCE assembling the final Capability Economics assessment report after a ${a.durationDays}-day research campaign for ${a.clientName} (${industryName}). Use ONLY the approved findings below — do not invent new data.
+
+Campaign objective: ${a.objective || "(none)"}
+Value case: ${a.valueCase}
+
+Cycle-by-cycle narrative:
+${cycleNarrative}
 
 Approved findings:
 ${findingsBlock}
 
-Produce a single executive-grade report. Return ONLY valid JSON:
+Return ONLY valid JSON:
 {
-  "executiveSummary": "3-4 sentence partner-level summary tying findings to the client's value case",
-  "capabilityGaps": [ { "name": "capability name", "gap": "what is missing", "impact": "consequence if unaddressed" } ],
-  "recommendations": [ { "title": "...", "rationale": "...", "impact": "expected outcome", "horizon": "0-6mo|6-18mo|18-36mo" } ],
+  "executiveSummary": "3-5 sentence partner-level summary tying findings to the client's value case",
+  "capabilityGaps": [ { "name": "...", "gap": "...", "impact": "..." } ],
+  "recommendations": [ { "title": "...", "rationale": "...", "impact": "...", "horizon": "0-6mo|6-18mo|18-36mo" } ],
   "quadrantInsights": { "hot": ["..."], "emerging": ["..."], "cooling": ["..."], "tableStakes": ["..."] },
   "risks": ["..."],
-  "nextSteps": ["concrete action 1", "concrete action 2", ...]
+  "nextSteps": ["..."]
 }`;
-
-  const raw = await callGLM(prompt, 6144);
+  const raw = await glmReasonTool.invoke({ prompt, maxTokens: 6144 });
   const report = extractJSON<{
     executiveSummary: string;
     capabilityGaps: { name: string; gap: string; impact: string }[];
