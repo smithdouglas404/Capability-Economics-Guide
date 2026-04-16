@@ -45,65 +45,11 @@ router.get("/status", async (_req: Request, res: Response) => {
   }
 });
 
-router.get("/runs", async (req: Request, res: Response) => {
-  try {
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
-    const runs = await db.select().from(enrichmentRunsTable).orderBy(desc(enrichmentRunsTable.startedAt)).limit(limit);
-    res.json(runs);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
-  }
-});
+router.get("/runs", queryRuns);
 
-router.get("/quadrants", async (req: Request, res: Response) => {
-  try {
-    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const conditions = industryId ? eq(capabilityQuadrantsTable.industryId, industryId) : undefined;
-    const rows = conditions
-      ? await db.select().from(capabilityQuadrantsTable).where(conditions).orderBy(desc(capabilityQuadrantsTable.generatedAt))
-      : await db.select().from(capabilityQuadrantsTable).orderBy(desc(capabilityQuadrantsTable.generatedAt));
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
-  }
-});
-
-router.get("/value-chain", async (req: Request, res: Response) => {
-  try {
-    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const conditions = industryId ? eq(valueChainStagesTable.industryId, industryId) : undefined;
-    const rows = conditions
-      ? await db.select().from(valueChainStagesTable).where(conditions).orderBy(valueChainStagesTable.stageOrder)
-      : await db.select().from(valueChainStagesTable).orderBy(valueChainStagesTable.stageOrder);
-    res.json(rows);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
-  }
-});
-
-router.get("/companies", async (req: Request, res: Response) => {
-  try {
-    const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const page = Math.max(1, parseInt(req.query.page as string) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
-    const offset = (page - 1) * limit;
-
-    const conditions = industryId && !isNaN(industryId) ? eq(companyCapabilityProfilesTable.industryId, industryId) : undefined;
-    const query = db.select().from(companyCapabilityProfilesTable);
-    const countQuery = db.select({ count: sql<number>`count(*)::int` }).from(companyCapabilityProfilesTable);
-
-    const rows = conditions
-      ? await query.where(conditions).orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset)
-      : await query.orderBy(desc(companyCapabilityProfilesTable.feviScore)).limit(limit).offset(offset);
-    const [total] = conditions
-      ? await countQuery.where(conditions)
-      : await countQuery;
-
-    res.json({ data: rows, page, limit, total: total?.count ?? 0 });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
-  }
-});
+router.get("/quadrants", queryQuadrants);
+router.get("/value-chain", queryValueChainStages);
+router.get("/companies", queryCompanies);
 
 router.get("/company-mappings", async (req: Request, res: Response) => {
   try {
@@ -118,7 +64,7 @@ router.get("/company-mappings", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/graph", async (_req: Request, res: Response) => {
+async function graphHandler(_req: Request, res: Response) {
   try {
     const industries = await db.select().from(industriesTable);
     const capabilities = await db.select({
@@ -176,36 +122,11 @@ router.get("/graph", async (_req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Graph query failed" });
   }
-});
+}
 
-export const enrichmentAliasRouter = Router();
+router.get("/graph", graphHandler);
 
-enrichmentAliasRouter.get("/ontology/graph", (req: Request, res: Response, next) => {
-  req.url = "/graph";
-  router(req, res, next);
-});
-
-enrichmentAliasRouter.get("/ontology/quadrants", (req: Request, res: Response, next) => {
-  req.url = "/quadrants";
-  router(req, res, next);
-});
-
-enrichmentAliasRouter.get("/ontology/companies", (req: Request, res: Response, next) => {
-  req.url = "/companies";
-  router(req, res, next);
-});
-
-enrichmentAliasRouter.get("/ontology/value-chain", (req: Request, res: Response, next) => {
-  req.url = "/value-chain";
-  router(req, res, next);
-});
-
-enrichmentAliasRouter.get("/ontology/runs", (req: Request, res: Response, next) => {
-  req.url = "/runs";
-  router(req, res, next);
-});
-
-enrichmentAliasRouter.get("/capabilities/quadrants", async (req: Request, res: Response) => {
+async function queryQuadrants(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
     const conditions = industryId && !isNaN(industryId) ? eq(capabilityQuadrantsTable.industryId, industryId) : undefined;
@@ -216,9 +137,9 @@ enrichmentAliasRouter.get("/capabilities/quadrants", async (req: Request, res: R
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
   }
-});
+}
 
-enrichmentAliasRouter.get("/value-chain/stages", async (req: Request, res: Response) => {
+async function queryValueChainStages(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
     const conditions = industryId && !isNaN(industryId) ? eq(valueChainStagesTable.industryId, industryId) : undefined;
@@ -229,9 +150,9 @@ enrichmentAliasRouter.get("/value-chain/stages", async (req: Request, res: Respo
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
   }
-});
+}
 
-enrichmentAliasRouter.get("/companies", async (req: Request, res: Response) => {
+async function queryCompanies(req: Request, res: Response) {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
@@ -253,6 +174,28 @@ enrichmentAliasRouter.get("/companies", async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
   }
-});
+}
+
+async function queryRuns(_req: Request, res: Response) {
+  try {
+    const limit = Math.min(50, Math.max(1, parseInt(_req.query.limit as string) || 20));
+    const runs = await db.select().from(enrichmentRunsTable).orderBy(desc(enrichmentRunsTable.startedAt)).limit(limit);
+    res.json(runs);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Query failed" });
+  }
+}
+
+export const enrichmentAliasRouter = Router();
+
+enrichmentAliasRouter.get("/ontology/graph", graphHandler);
+enrichmentAliasRouter.get("/ontology/quadrants", queryQuadrants);
+enrichmentAliasRouter.get("/ontology/companies", queryCompanies);
+enrichmentAliasRouter.get("/ontology/value-chain", queryValueChainStages);
+enrichmentAliasRouter.get("/ontology/runs", queryRuns);
+
+enrichmentAliasRouter.get("/capabilities/quadrants", queryQuadrants);
+enrichmentAliasRouter.get("/value-chain/stages", queryValueChainStages);
+enrichmentAliasRouter.get("/companies", queryCompanies);
 
 export default router;

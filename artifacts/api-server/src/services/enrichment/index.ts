@@ -171,18 +171,23 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
   for (const item of parsed) {
     const cap = capMap.get(item.name?.toLowerCase());
     if (!cap) continue;
-    const quadrant = ["hot", "emerging", "cooling", "table_stakes"].includes(item.quadrant)
-      ? item.quadrant
-      : "emerging";
+    if (!["hot", "emerging", "cooling", "table_stakes"].includes(item.quadrant)) {
+      errors.push(`Skipping ${item.name}: invalid quadrant "${item.quadrant}"`);
+      continue;
+    }
+    if (item.economic_impact_score == null || item.adoption_momentum_score == null || item.disruption_intensity == null || !item.rationale) {
+      errors.push(`Skipping ${item.name}: missing required fields from GLM output`);
+      continue;
+    }
     try {
       await db.insert(capabilityQuadrantsTable).values({
         capabilityId: cap.id,
         industryId,
-        quadrant,
-        economicImpactScore: Math.min(100, Math.max(0, item.economic_impact_score || 50)),
-        adoptionMomentumScore: Math.min(100, Math.max(0, item.adoption_momentum_score || 50)),
-        disruptionIntensity: Math.min(1, Math.max(0, item.disruption_intensity || 0.5)),
-        rationale: item.rationale || `${cap.name} classified as ${quadrant} based on research analysis.`,
+        quadrant: item.quadrant,
+        economicImpactScore: Math.min(100, Math.max(0, item.economic_impact_score)),
+        adoptionMomentumScore: Math.min(100, Math.max(0, item.adoption_momentum_score)),
+        disruptionIntensity: Math.min(1, Math.max(0, item.disruption_intensity)),
+        rationale: item.rationale,
         perplexitySources: researchResult.sources,
       });
       classified++;
@@ -359,9 +364,14 @@ Return ONLY a JSON array. No markdown.`;
 
   for (const company of parsed) {
     if (!company.name) continue;
-    const quadrant = ["hot", "emerging", "cooling", "table_stakes"].includes(company.quadrant)
-      ? company.quadrant
-      : "emerging";
+    if (!["hot", "emerging", "cooling", "table_stakes"].includes(company.quadrant)) {
+      errors.push(`Skipping ${company.name}: invalid quadrant "${company.quadrant}"`);
+      continue;
+    }
+    if (company.fevi_score == null || company.cdi_score == null) {
+      errors.push(`Skipping ${company.name}: missing FEVI/CDI scores from GLM output`);
+      continue;
+    }
     try {
       const [inserted] = await db.insert(companyCapabilityProfilesTable).values({
         name: company.name,
@@ -369,9 +379,9 @@ Return ONLY a JSON array. No markdown.`;
         naicsCode: company.naics_code || null,
         naicsSector: company.naics_sector || null,
         industryId,
-        feviScore: Math.min(1, Math.max(0, company.fevi_score || 0.5)),
-        cdiScore: Math.min(1, Math.max(0, company.cdi_score || 0.3)),
-        quadrant,
+        feviScore: Math.min(1, Math.max(0, company.fevi_score)),
+        cdiScore: Math.min(1, Math.max(0, company.cdi_score)),
+        quadrant: company.quadrant,
         fundingStage: company.funding_stage || "private",
         description: company.description || "",
         perplexitySources: researchResult.sources,
