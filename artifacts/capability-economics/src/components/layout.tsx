@@ -9,6 +9,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Home", icon: Briefcase },
     { href: "/cei", label: "CEI Index", icon: Activity },
     { href: "/workbench", label: "Workbench", icon: Sparkles },
+    { href: "/vce", label: "VCE", icon: Sparkles },
     { href: "/assess", label: "Assess", icon: ScanSearch },
     { href: "/insurance-example", label: "Case Study", icon: Shield },
     { href: "/c-suite", label: "C-Suite", icon: Users },

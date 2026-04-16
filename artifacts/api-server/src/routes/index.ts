@@ -17,6 +17,7 @@ import { enrichmentAliasRouter } from "./enrichment";
 import educationalContentRouter from "./educational-content";
 import caseStudiesRouter from "./case-studies";
 import dynamicIndustriesRouter from "./dynamic-industries";
+import vceRouter from "./vce";
 
 const router: IRouter = Router();
 
@@ -37,6 +38,7 @@ router.use(secRouter);
 router.use(adminRouter);
 router.use(educationalContentRouter);
 router.use(caseStudiesRouter);
+router.use(vceRouter);
 router.use("/enrichment", enrichmentRouter);
 
 export default router;

@@ -13,3 +13,4 @@ export * from "./assessments";
 export * from "./enrichment";
 export * from "./educational-content";
 export * from "./case-studies";
+export * from "./vce";
