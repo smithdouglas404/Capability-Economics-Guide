@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useListIndustries, useGetIndustry, useGetCapability, useCompareIndustries, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
   ChevronRight, ArrowLeft, BarChart3, GitBranch, Users,
-  TrendingUp, TrendingDown, Minus, Loader2, Layers
+  TrendingUp, TrendingDown, Minus, Loader2, Layers, Network
 } from "lucide-react";
 import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
   PolarAngleAxis, PolarRadiusAxis, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip
 } from "recharts";
+
+const ForceGraph = lazy(() => import("@/components/ForceGraph"));
 
 const iconMap: Record<string, React.ElementType> = {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
@@ -57,10 +59,34 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
 export default function KnowledgeGraph() {
   const [selectedIndustryId, setSelectedIndustryId] = useState<number | null>(null);
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
-  const [tab, setTab] = useState<"industries" | "compare">("industries");
+  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
+  const [tab, setTab] = useState<"network" | "industries" | "compare">(isMobile ? "industries" : "network");
+  const [graphData, setGraphData] = useState<any>(null);
+  const [graphLoading, setGraphLoading] = useState(false);
 
   const { data: industries, isLoading: loadingIndustries } = useListIndustries();
   const { data: comparison, isLoading: loadingComparison } = useCompareIndustries();
+
+  const [graphError, setGraphError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tab === "network" && !graphData && !graphError) {
+      setGraphLoading(true);
+      fetch("/api/ontology/graph")
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
+        .then(d => {
+          if (!d.industries || !d.capabilities || !d.dependencies) {
+            throw new Error("Invalid graph data shape");
+          }
+          setGraphData(d);
+        })
+        .catch(err => setGraphError(err.message || "Failed to load graph"))
+        .finally(() => setGraphLoading(false));
+    }
+  }, [tab, graphData, graphError]);
   const { data: industryDetail, isLoading: loadingIndustry } = useGetIndustry(selectedIndustryId ?? 0, {
     query: { queryKey: getGetIndustryQueryKey(selectedIndustryId ?? 0), enabled: !!selectedIndustryId },
   });
@@ -295,6 +321,15 @@ export default function KnowledgeGraph() {
           </p>
           <div className="flex gap-2 mt-6">
             <Button
+              variant={tab === "network" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTab("network")}
+              className="rounded-sm"
+            >
+              <Network className="w-4 h-4 mr-2" />
+              Network
+            </Button>
+            <Button
               variant={tab === "industries" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("industries")}
@@ -316,7 +351,28 @@ export default function KnowledgeGraph() {
         </div>
       </section>
 
-      {tab === "compare" ? (
+      {tab === "network" ? (
+        <section className="relative" style={{ height: "calc(100vh - 260px)", minHeight: 500 }}>
+          {graphLoading ? (
+            <div className="flex justify-center items-center h-full">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : graphData ? (
+            <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+              <ForceGraph data={graphData} />
+            </Suspense>
+          ) : graphError ? (
+            <div className="flex flex-col justify-center items-center h-full text-muted-foreground gap-2">
+              <p>Failed to load graph: {graphError}</p>
+              <button onClick={() => { setGraphError(null); setGraphData(null); }} className="text-primary text-sm underline">Retry</button>
+            </div>
+          ) : (
+            <div className="flex justify-center items-center h-full text-muted-foreground">
+              No graph data available. Run the enrichment pipeline first.
+            </div>
+          )}
+        </section>
+      ) : tab === "compare" ? (
         <section className="py-12 container mx-auto px-4 max-w-5xl">
           {loadingComparison ? (
             <div className="flex justify-center py-20">
