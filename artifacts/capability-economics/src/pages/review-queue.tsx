@@ -1,16 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Plus, Loader2, MessageSquare, Eye, AlertTriangle, History, AlertCircle, RotateCcw } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Plus, Loader2, MessageSquare, Eye, AlertTriangle, History, AlertCircle, RotateCcw, LogIn, LogOut } from "lucide-react";
+import { Show, SignInButton, useUser, useClerk } from "@clerk/react";
 
 const API_BASE = "/api";
 
-function getAdminKey(): string {
-  return localStorage.getItem("admin_key") ?? "";
-}
+const authFetchInit: RequestInit = { credentials: "include" };
+
 function adminHeaders(extra?: Record<string, string>): Record<string, string> {
-  const k = getAdminKey();
-  return { ...(extra ?? {}), ...(k ? { "x-admin-key": k } : {}) };
+  return { ...(extra ?? {}) };
 }
 
 
@@ -22,7 +21,7 @@ type QueueItem = {
   submittedBy: string | null;
   revisionCount: number;
   createdAt: string;
-  reviewNotes: Array<{ role: string; comment: string; ts: string }> | null;
+  reviewNotes: Array<{ role: string; comment: string; ts: string; reviewer?: string }> | null;
   summaryNarrative: string | null;
   hasEconomics: boolean;
   enrichmentReady: boolean;
@@ -78,6 +77,7 @@ function NewCapabilityForm({ industries, onCreated }: { industries: Industry[]; 
     try {
       const res = await fetch(`${API_BASE}/review/draft`, {
         method: "POST",
+        credentials: "include",
         headers: adminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ name, industryId, description }),
       });
@@ -218,7 +218,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   const retry = async () => {
     setBusy("retry"); setMsg(null);
     try {
-      const r = await fetch(`${API_BASE}/review/${item.id}/retry`, { method: "POST" });
+      const r = await fetch(`${API_BASE}/review/${item.id}/retry`, { method: "POST", credentials: "include", headers: adminHeaders() });
       const b = await r.json();
       if (!r.ok) setMsg(b.error ?? "failed");
       else { setMsg(b.message ?? "Retrying enrichment…"); onAction(); }
@@ -228,7 +228,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   const approve = async () => {
     setBusy("approve"); setMsg(null);
     try {
-      const r = await fetch(`${API_BASE}/review/${item.id}/approve`, { method: "POST", headers: adminHeaders() });
+      const r = await fetch(`${API_BASE}/review/${item.id}/approve`, { method: "POST", credentials: "include", headers: adminHeaders() });
       const b = await r.json();
       if (!r.ok) setMsg(b.error ?? "failed");
       else { setMsg("Approved."); onAction(); }
@@ -239,6 +239,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
     try {
       const r = await fetch(`${API_BASE}/review/${item.id}/reject`, {
         method: "POST",
+        credentials: "include",
         headers: adminHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ comment: comment.trim() || undefined }),
       });
@@ -380,6 +381,9 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
             <div key={i} className="text-xs flex gap-2">
               <span className="text-muted-foreground shrink-0">{new Date(n.ts).toLocaleString()}</span>
               <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{n.role}</span>
+              {n.reviewer && (
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 text-[10px]">{n.reviewer}</span>
+              )}
               <span>{n.comment}</span>
             </div>
           ))}
@@ -395,35 +399,67 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   );
 }
 
+function SignInRequired() {
+  return (
+    <Card className="mb-6 border-amber-500/40">
+      <CardContent className="py-6 flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-sm flex-1">
+          <div className="font-semibold text-amber-700 mb-1">Sign in required</div>
+          <div className="text-muted-foreground mb-3">
+            The review queue is restricted to named reviewers. Sign in with your own account so approvals and rejections are attributed correctly.
+          </div>
+          <SignInButton mode="modal">
+            <Button size="sm" className="gap-2"><LogIn className="w-3.5 h-3.5" /> Sign in</Button>
+          </SignInButton>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReviewerBadge() {
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  if (!user) return null;
+  const label = user.fullName || user.primaryEmailAddress?.emailAddress || user.username || user.id;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-700">Signed in as <b>{label}</b></span>
+      <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-1.5"><LogOut className="w-3.5 h-3.5" /> Sign out</Button>
+    </div>
+  );
+}
+
 export default function ReviewQueue() {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [unauthorized, setUnauthorized] = useState(false);
-  const [adminKey, setAdminKey] = useState<string>(() => localStorage.getItem("admin_key") ?? "");
+  const { isSignedIn, isLoaded } = useUser();
 
   const fetchQueue = useCallback(async () => {
+    if (!isSignedIn) { setQueue([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const qRes = await fetch(`${API_BASE}/review/queue`, { headers: adminHeaders() });
+      const qRes = await fetch(`${API_BASE}/review/queue`, { credentials: "include", headers: adminHeaders() });
       if (qRes.status === 401) {
-        setUnauthorized(true);
         setQueue([]);
       } else {
-        setUnauthorized(false);
         const q = await qRes.json();
         setQueue(Array.isArray(q) ? q : []);
       }
       const i = await fetch(`${API_BASE}/industries`).then(r => r.json());
       setIndustries(Array.isArray(i) ? i : []);
     } finally { setLoading(false); }
-  }, []);
+  }, [isSignedIn]);
 
   useEffect(() => {
+    if (!isLoaded) return;
     fetchQueue();
+    if (!isSignedIn) return;
     const id = setInterval(fetchQueue, 15000);
     return () => clearInterval(id);
-  }, [fetchQueue]);
+  }, [fetchQueue, isLoaded, isSignedIn]);
 
   return (
     <div className="min-h-screen bg-background p-6 max-w-screen-xl mx-auto">
@@ -433,34 +469,16 @@ export default function ReviewQueue() {
           <p className="text-muted-foreground mt-1">Human-in-the-loop approval for new and revised capabilities. Auto-refreshes every 15s.</p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="password"
-            placeholder="Admin key (prod only)"
-            value={adminKey}
-            onChange={e => { setAdminKey(e.target.value); localStorage.setItem("admin_key", e.target.value); }}
-            className="w-44 h-9 text-xs px-2 border bg-background rounded"
-          />
+          <Show when="signed-in"><ReviewerBadge /></Show>
           <Button variant="outline" onClick={fetchQueue} className="gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> Refresh
           </Button>
         </div>
       </div>
 
-      {unauthorized && (
-        <Card className="mb-6 border-red-500/40">
-          <CardContent className="py-4 flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <div className="font-semibold text-red-700">Unauthorized</div>
-              <div className="text-muted-foreground">
-                The review queue is admin-only. Paste your admin key into the field above and refresh.
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Show when="signed-out"><SignInRequired /></Show>
 
-      {!unauthorized && <NewCapabilityForm industries={industries} onCreated={fetchQueue} />}
+      <Show when="signed-in"><NewCapabilityForm industries={industries} onCreated={fetchQueue} /></Show>
 
       <Card>
         <CardHeader className="pb-3">

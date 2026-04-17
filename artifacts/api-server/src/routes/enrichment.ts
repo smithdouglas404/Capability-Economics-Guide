@@ -13,11 +13,11 @@ import {
 } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { runEnrichment } from "../services/enrichment/index";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireReviewer } from "../middlewares/requireReviewer";
 
 const router = Router();
 
-router.post("/run", requireAdmin, async (req: Request, res: Response) => {
+router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
   try {
     const result = await runEnrichment();
     res.json(result);

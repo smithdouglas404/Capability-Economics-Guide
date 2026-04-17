@@ -8,11 +8,16 @@ import {
 import { eq, sql, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { enqueueEnrichmentJob, getQueuePositionFor } from "../services/alpha/queue";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
 
 const router: IRouter = Router();
 
-router.use(requireAdmin);
+router.use(requireReviewer());
+
+function reviewerLabel(r: Reviewer | undefined): string {
+  if (!r) return "reviewer";
+  return r.displayName || r.email || r.userId;
+}
 
 
 function slugify(s: string): string {
@@ -64,7 +69,7 @@ router.post("/review/draft", async (req, res) => {
     economicView: economicView ?? `A measurable, compounding capability that drives margin, defensibility, and option value.`,
     benchmarkScore: 50,
     reviewStatus: "pending_review",
-    submittedBy: "admin_form",
+    submittedBy: reviewerLabel(req.reviewer),
     revisionCount: 0,
     reviewNotes: [],
     enrichmentStatus: "running",
@@ -72,7 +77,7 @@ router.post("/review/draft", async (req, res) => {
     enrichmentUpdatedAt: new Date(),
   }).returning();
   await enqueueDraftEnrichment(cap.id, industryId);
-  res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment queued (~60-90s once it starts)." });
+  res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment queued (~60-90s once it starts).", submittedBy: reviewerLabel(req.reviewer) });
 });
 
 router.get("/review/queue", async (_req, res) => {
@@ -136,8 +141,8 @@ router.post("/review/:id/approve", async (req, res) => {
   const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, id));
   if (!cap) { res.status(404).json({ error: "not found" }); return; }
   if (cap.reviewStatus !== "pending_review") { res.status(409).json({ error: `cap is ${cap.reviewStatus}` }); return; }
-  const notes = (cap.reviewNotes ?? []) as Array<{ role: "reviewer" | "system"; comment: string; ts: string }>;
-  notes.push({ role: "reviewer", comment: "Approved.", ts: new Date().toISOString() });
+  const notes = (cap.reviewNotes ?? []) as Array<{ role: "reviewer" | "system"; comment: string; ts: string; reviewer?: string }>;
+  notes.push({ role: "reviewer", comment: "Approved.", ts: new Date().toISOString(), reviewer: reviewerLabel(req.reviewer) });
   const updated = await db.update(capabilitiesTable)
     .set({ reviewStatus: "approved", reviewNotes: notes })
     .where(and(eq(capabilitiesTable.id, id), eq(capabilitiesTable.reviewStatus, "pending_review")))
@@ -167,8 +172,8 @@ router.post("/review/:id/reject", async (req, res) => {
     return;
   }
 
-  const notes = (cap.reviewNotes ?? []) as Array<{ role: "reviewer" | "system"; comment: string; ts: string }>;
-  notes.push({ role: "reviewer", comment, ts: new Date().toISOString() });
+  const notes = (cap.reviewNotes ?? []) as Array<{ role: "reviewer" | "system"; comment: string; ts: string; reviewer?: string }>;
+  notes.push({ role: "reviewer", comment, ts: new Date().toISOString(), reviewer: reviewerLabel(req.reviewer) });
   notes.push({ role: "system", comment: "Revision in progress — narrative will be regenerated.", ts: new Date().toISOString() });
   const updated = await db.update(capabilitiesTable).set({
     reviewNotes: notes,

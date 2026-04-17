@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut } from "lucide-react";
+import { Show, SignInButton, useUser, useClerk } from "@clerk/react";
 
 const API_BASE = "/api";
 
@@ -30,7 +31,8 @@ export default function EnrichmentAdmin() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
-  const [adminKey, setAdminKey] = useState<string>(() => localStorage.getItem("admin_key") ?? "");
+  const { isSignedIn, user } = useUser();
+  const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
@@ -52,6 +54,7 @@ export default function EnrichmentAdmin() {
   }, [fetchAll, running]);
 
   const triggerRun = async () => {
+    if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
     if (!confirm("Run capability enrichment? This calls Perplexity + GLM 5.1 across all industries and may take 5-15 minutes.")) return;
     setRunning(true);
     setError(null);
@@ -59,7 +62,7 @@ export default function EnrichmentAdmin() {
     try {
       const res = await fetch(`${API_BASE}/enrichment/run`, {
         method: "POST",
-        headers: adminKey ? { "x-admin-key": adminKey } : {},
+        credentials: "include",
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -88,13 +91,19 @@ export default function EnrichmentAdmin() {
         <CardTitle className="text-lg flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-primary" /> Capability Enrichment Agent
         </CardTitle>
-        <input
-          type="password"
-          placeholder="Admin key (prod only)"
-          value={adminKey}
-          onChange={e => { setAdminKey(e.target.value); localStorage.setItem("admin_key", e.target.value); }}
-          className="w-44 h-8 text-xs px-2 border bg-background rounded"
-        />
+        <Show when="signed-in">
+          <div className="flex items-center gap-2">
+            <span className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-700">
+              Signed in as <b>{user?.fullName || user?.primaryEmailAddress?.emailAddress || user?.username || user?.id}</b>
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-1.5"><LogOut className="w-3.5 h-3.5" /> Sign out</Button>
+          </div>
+        </Show>
+        <Show when="signed-out">
+          <SignInButton mode="modal">
+            <Button size="sm" className="gap-2"><LogIn className="w-3.5 h-3.5" /> Sign in to run</Button>
+          </SignInButton>
+        </Show>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground mb-4">
@@ -132,7 +141,7 @@ export default function EnrichmentAdmin() {
         </div>
 
         <div className="flex gap-2 mb-6">
-          <Button onClick={triggerRun} disabled={running} className="gap-2">
+          <Button onClick={triggerRun} disabled={running || !isSignedIn} title={!isSignedIn ? "Sign in to run enrichment" : undefined} className="gap-2">
             {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {running ? "Running enrichment..." : "Enrich Now"}
           </Button>
