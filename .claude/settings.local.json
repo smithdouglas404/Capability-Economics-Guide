@@ -16,7 +16,10 @@
       "Bash(npx drizzle-kit:*)",
       "Bash(ls /home/runner/workspace/artifacts/capability-economics/src/pages/admin-payments*)",
       "Bash(ls /home/runner/workspace/artifacts/capability-economics/src/pages/usage*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(node:*)",
+      "Bash(npx tsx:*)",
+      "Bash(node_modules/.bin/tsx:*)"
     ]
   }
 }
