@@ -187,7 +187,7 @@ function TraceabilityDialog() {
         <DialogHeader>
           <DialogTitle>Methodology & Source Traceability</DialogTitle>
           <DialogDescription>
-            Every number on this page comes from one of two sources: (1) Perplexity research grounded in cited URLs, then synthesized by GLM-4.6, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
+            Every number on this page comes from one of two sources: (1) Perplexity research grounded in cited URLs, then synthesized by GLM-5.1, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">
@@ -241,12 +241,12 @@ function TraceabilityDialog() {
             Capability names matched across two industries via token overlap coefficient ≥ 0.5. Synergy = 10% of the smaller side's revenue exposure — but only when BOTH sides have GLM-enriched revenue figures. Otherwise the row appears with synergy = "—" and a clash flag if the two industries' quadrants for that capability disagree.
           </Section>
           <Section title="Thesis Memo">
-            7-section investment memo synthesized by GLM-4.6 (zai-org/GLM-4.6 via OpenRouter) from the capability's full Alpha record (economics + quadrant + dependencies + edge scores + cited sources). Markdown rendered as-is, no post-processing.
+            7-section investment memo synthesized by GLM-5.1 (z-ai/glm-5.1 via OpenRouter) from the capability's full Alpha record (economics + quadrant + dependencies + edge scores + cited sources). Markdown rendered as-is, no post-processing.
           </Section>
           <Section title="Data sources">
             <ul className="list-disc pl-5 space-y-1">
               <li><strong>Perplexity sonar</strong> — grounded research with citation URLs, captured into <code>capability_economics.sources</code> jsonb.</li>
-              <li><strong>GLM-4.6 (OpenRouter)</strong> — strict-JSON synthesis of Perplexity prose into typed numeric fields with rationale.</li>
+              <li><strong>GLM-5.1 (OpenRouter)</strong> — strict-JSON synthesis of Perplexity prose into typed numeric fields with rationale.</li>
               <li><strong>Internal graph</strong> — <code>capabilities</code>, <code>capability_dependencies</code>, <code>company_capability_mappings</code>, <code>value_chain_stages</code> (seeded from public registries).</li>
             </ul>
           </Section>

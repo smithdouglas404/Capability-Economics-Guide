@@ -37,7 +37,7 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
 async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, jsonMode = false): Promise<string> {
   // Prefer GLM 5.1 always. For JSON mode we disable reasoning emission (see glmCallOnce)
   // so reasoning tokens don't consume max_tokens and truncate the JSON. GLM 4.6 is fallback.
-  const models = ["z-ai/glm-5.1", "z-ai/glm-4.6"];
+  const models = ["z-ai/glm-5.1"];
   let lastErr: unknown = null;
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {

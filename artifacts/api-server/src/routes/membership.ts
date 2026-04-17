@@ -69,7 +69,7 @@ const DEFAULT_TIERS = [
     displayOrder: 3,
     features: [
       "Everything in Workbench, with no caps on submissions",
-      "Autonomous discovery agent: generate capability research for any industry you ask for, using live Perplexity research and GLM-4.6 synthesis",
+      "Autonomous discovery agent: generate capability research for any industry you ask for, using live Perplexity research and GLM-5.1 synthesis",
       "Full review-queue admin: approve, reject-with-comment (re-enriches against your feedback), or terminate",
       "Custom industries beyond the 6 included verticals",
       "Persistent agent memory: the system remembers prior research patterns across runs",
