@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { sourceTriangulationsTable, capabilitiesTable, industriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logLlmCall } from "./llm-usage";
 
 interface PerplexityResponse {
   choices: Array<{ message: { content: string } }>;
@@ -78,6 +79,7 @@ export async function triangulateCapability(
 
   const sourceResults = await Promise.all(
     PERSPECTIVES.map(async (perspective) => {
+      const startedAt = Date.now();
       try {
         const resp = await fetch("https://api.perplexity.ai/chat/completions", {
           method: "POST",
@@ -106,8 +108,12 @@ Base your score on the most recent data available (2024-2026). Be specific about
           }),
         });
 
-        if (!resp.ok) throw new Error(`Perplexity ${resp.status}`);
+        if (!resp.ok) {
+          logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+          throw new Error(`Perplexity ${resp.status}`);
+        }
         const data = (await resp.json()) as PerplexityResponse;
+        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, httpStatus: resp.status, responseJson: data });
         const content = data.choices[0]?.message?.content ?? "";
         const citations = data.citations ?? [];
 
@@ -125,6 +131,7 @@ Base your score on the most recent data available (2024-2026). Be specific about
           citations,
         };
       } catch (err) {
+        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
         console.warn(`Triangulation source ${perspective.label} failed:`, err);
         return null;
       }

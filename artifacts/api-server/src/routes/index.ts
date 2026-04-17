@@ -23,6 +23,7 @@ import reviewRouter from "./review";
 import membershipRouter from "./membership";
 import macroEventsRouter from "./macro-events";
 import companiesRouter from "./companies";
+import usageRouter from "./usage";
 
 const router: IRouter = Router();
 
@@ -50,5 +51,6 @@ router.use(reviewRouter);
 router.use(membershipRouter);
 router.use(macroEventsRouter);
 router.use(companiesRouter);
+router.use(usageRouter);
 
 export default router;

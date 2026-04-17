@@ -88,6 +88,7 @@ Tag 2-6 capabilities per company. Skip companies you can't tag with at least one
 Return a JSON array of ${limit} entries.`;
 
   let resp: Response;
+  const _coStart = Date.now();
   try {
     resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -99,11 +100,16 @@ Return a JSON array of ${limit} entries.`;
       signal: AbortSignal.timeout(120_000),
     });
   } catch (err) {
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { inserted: 0, updated: 0, companies: [], errors: [err instanceof Error ? err.message : String(err)] };
   }
-  if (!resp.ok) return { inserted: 0, updated: 0, companies: [], errors: [`perplexity ${resp.status}`] };
+  if (!resp.ok) {
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+    return { inserted: 0, updated: 0, companies: [], errors: [`perplexity ${resp.status}`] };
+  }
 
   const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+  logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, httpStatus: resp.status, responseJson: data });
   const content = data.choices[0]?.message?.content ?? "";
   const citations = data.citations ?? [];
   const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();

@@ -1,4 +1,5 @@
 import { db } from "@workspace/db";
+import { logLlmCall } from "./llm-usage";
 import { macroEventsTable, industriesTable, capabilitiesTable, type MacroEvent } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
@@ -255,6 +256,7 @@ Return JSON array (max 5 entries):
 }]
 Tag 1-4 capabilities per event. Skip the field only if no capability in the menu is materially affected.`;
 
+  const _meStart = Date.now();
   try {
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -265,8 +267,12 @@ Tag 1-4 capabilities per event. Skip the field only if no capability in the menu
       }),
       signal: AbortSignal.timeout(60_000),
     });
-    if (!resp.ok) throw new Error(`Perplexity ${resp.status}`);
+    if (!resp.ok) {
+      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+      throw new Error(`Perplexity ${resp.status}`);
+    }
     const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, httpStatus: resp.status, responseJson: data });
     const content = data.choices[0]?.message?.content ?? "";
     const citations = data.citations ?? [];
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
@@ -321,6 +327,7 @@ Tag 1-4 capabilities per event. Skip the field only if no capability in the menu
     }
     return { inserted: inserted.length, events: inserted, errors: [] };
   } catch (err) {
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { inserted: 0, events: [], errors: [err instanceof Error ? err.message : String(err)] };
   }
 }
