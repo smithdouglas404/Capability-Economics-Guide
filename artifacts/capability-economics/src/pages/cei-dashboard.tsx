@@ -974,16 +974,25 @@ export default function CEIDashboard() {
                         </div>
                       )}
 
-                      <div className="mt-3 px-3 py-2 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
+                      <div className="mt-3 px-3 py-2.5 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
                         <div className="flex items-start gap-2">
                           <Info className="w-3 h-3 mt-0.5 shrink-0 text-blue-600" />
-                          <div>
-                            <span className="font-semibold text-foreground">How shocks apply:</span> each active event contributes
-                            <code className="mx-1 px-1 bg-background rounded">severity × directionSign × 0.5 × decayFactor</code> to <strong>market sentiment</strong>,
-                            and <code className="mx-1 px-1 bg-background rounded">severity × 0.005 × decayFactor</code> to <strong>volatility</strong>.
-                            decayFactor = max(0, 1 - elapsedDays / decayDays). Currently shifting sentiment by
-                            <strong className={macroEvents && macroEvents.summary.sentimentShock < 0 ? "text-red-600" : "text-emerald-600"}> {macroEvents?.summary.sentimentShock ?? 0}</strong>
-                            and volatility by <strong className="text-amber-600">+{macroEvents?.summary.volatilityBoost ?? 0}</strong>.
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="font-semibold text-foreground">How shocks apply</div>
+                            <div className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 leading-relaxed">
+                              <div className="text-foreground/70">Market sentiment</div>
+                              <code className="px-1.5 py-0.5 bg-background rounded text-[10.5px] font-mono break-all">+= severity × directionSign × 0.5 × decayFactor</code>
+                              <div className="text-foreground/70">Volatility</div>
+                              <code className="px-1.5 py-0.5 bg-background rounded text-[10.5px] font-mono break-all">+= severity × 0.005 × decayFactor</code>
+                              <div className="text-foreground/70">decayFactor</div>
+                              <code className="px-1.5 py-0.5 bg-background rounded text-[10.5px] font-mono break-all">max(0, 1 − elapsedDays / decayDays)</code>
+                            </div>
+                            <div className="pt-1 border-t border-border/40">
+                              Currently shifting sentiment by{" "}
+                              <strong className={macroEvents && macroEvents.summary.sentimentShock < 0 ? "text-red-600" : "text-emerald-600"}>{macroEvents?.summary.sentimentShock ?? 0}</strong>
+                              {" "}and volatility by{" "}
+                              <strong className="text-amber-600">+{macroEvents?.summary.volatilityBoost ?? 0}</strong>.
+                            </div>
                           </div>
                         </div>
                       </div>
