@@ -20,6 +20,7 @@ import VCE from "@/pages/vce";
 import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
 import Companies from "@/pages/companies";
+import Usage from "@/pages/usage";
 import Simulation from "@/pages/simulation";
 import WarRoom from "@/pages/war-room";
 import TradeSignalsPage from "@/pages/trade-signals";
