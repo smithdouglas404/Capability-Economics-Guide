@@ -458,42 +458,83 @@ export default function CEIDashboard() {
                         </div>
                       </div>
 
-                      <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">
-                        10 Stalest Capabilities (next in rotation queue)
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs">
-                          <thead className="border-b text-muted-foreground">
-                            <tr className="text-left">
-                              <th className="py-1.5 pr-3 font-medium">Capability</th>
-                              <th className="py-1.5 pr-3 font-medium">Industry</th>
-                              <th className="py-1.5 pr-3 font-medium text-right">Last Refreshed</th>
-                              <th className="py-1.5 pr-3 font-medium text-right">Sources</th>
-                              <th className="py-1.5 pr-3 font-medium text-right">Score</th>
-                              <th className="py-1.5 pr-3 font-medium text-right">Confidence</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {freshness.capabilities.slice(0, 10).map(item => (
-                              <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
-                                <td className="py-1.5 pr-3 font-medium">{item.capability}</td>
-                                <td className="py-1.5 pr-3 text-muted-foreground">{item.industry}</td>
-                                <td className="py-1.5 pr-3 text-right font-mono">
-                                  {item.lastTriangulatedAt
-                                    ? `${item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago`
-                                    : <span className="text-red-600">never</span>}
-                                </td>
-                                <td className="py-1.5 pr-3 text-right font-mono">{item.sourceCount}/4</td>
-                                <td className="py-1.5 pr-3 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
-                                <td className="py-1.5 pr-3 text-right font-mono">{item.confidence !== null ? `${(item.confidence * 100).toFixed(0)}%` : "—"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 font-semibold">
+                            ✓ 10 Most Recently Refreshed
+                          </div>
+                          <div className="overflow-x-auto rounded-sm border border-emerald-200 dark:border-emerald-900/40">
+                            <table className="w-full text-xs">
+                              <thead className="border-b bg-emerald-50/50 dark:bg-emerald-950/20 text-muted-foreground">
+                                <tr className="text-left">
+                                  <th className="py-1.5 px-2 font-medium">Capability</th>
+                                  <th className="py-1.5 px-2 font-medium text-right">Refreshed</th>
+                                  <th className="py-1.5 px-2 font-medium text-right">Score</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {[...freshness.capabilities]
+                                  .filter(c => c.lastTriangulatedAt)
+                                  .sort((a, b) => new Date(b.lastTriangulatedAt!).getTime() - new Date(a.lastTriangulatedAt!).getTime())
+                                  .slice(0, 10)
+                                  .map(item => (
+                                    <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
+                                      <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
+                                      <td className="py-1.5 px-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
+                                        {item.ageHours! < 1 ? `${Math.round(item.ageHours! * 60)}m` : item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago
+                                      </td>
+                                      <td className="py-1.5 px-2 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
+                                    </tr>
+                                  ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 font-semibold">
+                            ⏳ 10 Stalest — Next in Rotation Queue
+                          </div>
+                          <div className="overflow-x-auto rounded-sm border border-amber-200 dark:border-amber-900/40">
+                            <table className="w-full text-xs">
+                              <thead className="border-b bg-amber-50/50 dark:bg-amber-950/20 text-muted-foreground">
+                                <tr className="text-left">
+                                  <th className="py-1.5 px-2 font-medium">Capability</th>
+                                  <th className="py-1.5 px-2 font-medium text-right">Last</th>
+                                  <th className="py-1.5 px-2 font-medium text-right">Score</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {freshness.capabilities.slice(0, 10).map(item => (
+                                  <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
+                                    <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
+                                    <td className="py-1.5 px-2 text-right font-mono text-amber-700 dark:text-amber-400">
+                                      {item.lastTriangulatedAt
+                                        ? `${item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago`
+                                        : <span className="text-red-600">never</span>}
+                                    </td>
+                                    <td className="py-1.5 px-2 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-                        <span>Rotation runs every 24h, refreshing the 10 oldest caps. Urgency burst triggers within 5min when confidence drops.</span>
+                      <div className="mt-3 px-3 py-2 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-3 h-3 mt-0.5 shrink-0 text-amber-600" />
+                          <div>
+                            <span className="font-semibold text-foreground">Why are some caps {Math.round(((freshness.capabilities[0]?.ageHours ?? 0) / 24) * 10) / 10}d old?</span>{" "}
+                            The rotation refreshes <strong>10 caps every 24h</strong>. With <strong>{freshness.summary.total} caps total</strong>, it takes
+                            ~{Math.ceil(freshness.summary.total / 10)} days for every capability to be touched once. The "stalest" column is what's
+                            <em> next</em> in line — they'll be refreshed in the upcoming rotations. Urgency bursts can jump the queue within 5min when confidence drops below 35%.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 flex items-center justify-end text-[11px] text-muted-foreground">
                         <button
                           onClick={() => refetchFreshness()}
                           className="flex items-center gap-1 px-2 py-1 hover:text-foreground hover:bg-muted/50 rounded-sm transition"
