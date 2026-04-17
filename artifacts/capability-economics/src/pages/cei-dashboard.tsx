@@ -96,6 +96,20 @@ interface CatalogTemplate {
 }
 interface CatalogResponse { templates: CatalogTemplate[]; total: number; }
 interface CapabilityListItem { id: number; name: string; slug: string; industryId: number; }
+interface CapabilityTreeNode {
+  id: number;
+  name: string;
+  slug: string;
+  industryId: number;
+  isLeaf: boolean;
+  parentCapabilityId: number | null;
+  score: number | null;
+  confidence: number | null;
+  velocity: number | null;
+  updatedAt: string | null;
+  children: CapabilityTreeNode[];
+}
+interface CapabilityTreeResponse { roots: CapabilityTreeNode[]; total: number; }
 interface MacroShock {
   sentimentShock: number;
   volatilityBoost: number;
@@ -179,11 +193,12 @@ function useAgentEvents() {
   return { events, connected };
 }
 
-function useApi<T>(url: string) {
+function useApi<T>(url: string | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const hasDataRef = useRef(false);
   const refetch = useCallback(async () => {
+    if (!url) { setLoading(false); return; }
     if (!hasDataRef.current) setLoading(true);
     try {
       const res = await fetch(url);
@@ -383,6 +398,11 @@ export default function CEIDashboard() {
   const { events: agentEvents, connected: sseConnected } = useAgentEvents();
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
+  const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set());
+  const selectedIndustryId = selectedIndustry ? industryList?.find(i => i.slug === selectedIndustry)?.id ?? null : null;
+  const treeUrl = selectedIndustryId ? `${API_BASE}/cei/capability-tree?industryId=${selectedIndustryId}` : null;
+  const { data: capabilityTree } = useApi<CapabilityTreeResponse>(treeUrl ?? `${API_BASE}/cei/capability-tree?industryId=__none__`);
+  useEffect(() => { setExpandedParents(new Set()); }, [selectedIndustry]);
   const [showAgentActivity, setShowAgentActivity] = useState(true);
 
   useEffect(() => {
@@ -1240,7 +1260,7 @@ export default function CEIDashboard() {
                         transition={{ duration: 0.3 }}
                         className="overflow-hidden"
                       >
-                        <div className="pt-3 mt-3 border-t space-y-2">
+                        <div className="pt-3 mt-3 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="bg-muted/50 rounded-sm p-2">
                               <div className="text-[10px] text-muted-foreground uppercase">CEI Contribution</div>
@@ -1251,6 +1271,117 @@ export default function CEIDashboard() {
                               <div className="text-sm font-mono font-bold">{ind.topMoverDelta > 0 ? "+" : ""}{ind.topMoverDelta.toFixed(1)} pts</div>
                             </div>
                           </div>
+                          {capabilityTree && capabilityTree.roots.length > 0 ? (
+                            <div className="border border-border/60 rounded-sm overflow-hidden">
+                              <div className="bg-muted/40 px-2 py-1 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[10px] font-semibold text-muted-foreground uppercase">
+                                <div>Capability</div>
+                                <div className="text-right">Score</div>
+                                <div className="text-right">Conf</div>
+                                <div className="text-right w-12">Velocity</div>
+                              </div>
+                              <div className="divide-y divide-border/40 max-h-[360px] overflow-y-auto">
+                                {capabilityTree.roots.map(root => {
+                                  const hasChildren = root.children.length > 0;
+                                  const isExpanded = expandedParents.has(root.id);
+                                  const childScores = root.children.map(c => c.score).filter((s): s is number => typeof s === "number");
+                                  const childMax = childScores.length ? Math.max(...childScores) : null;
+                                  const childMin = childScores.length ? Math.min(...childScores) : null;
+                                  const spread = childMax !== null && childMin !== null ? childMax - childMin : null;
+                                  return (
+                                    <div key={root.id}>
+                                      <div
+                                        className={`px-2 py-1.5 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-xs items-center ${hasChildren ? "cursor-pointer hover:bg-muted/40" : ""}`}
+                                        onClick={() => {
+                                          if (!hasChildren) return;
+                                          setExpandedParents(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(root.id)) next.delete(root.id); else next.add(root.id);
+                                            return next;
+                                          });
+                                        }}
+                                      >
+                                        <div className="flex items-center gap-1 min-w-0">
+                                          {hasChildren ? (
+                                            isExpanded ? <ChevronDown className="w-3 h-3 shrink-0 text-muted-foreground" /> : <ChevronUp className="w-3 h-3 shrink-0 text-muted-foreground rotate-90" />
+                                          ) : (
+                                            <span className="w-3 h-3 shrink-0" />
+                                          )}
+                                          <span className="font-medium truncate">{root.name}</span>
+                                          {hasChildren && (
+                                            <span className="text-[9px] text-muted-foreground ml-1 shrink-0">
+                                              {root.children.length} sub{spread !== null ? ` · σ ${spread.toFixed(0)}pt` : ""}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="text-right font-mono font-bold tabular-nums">
+                                          {root.score !== null ? root.score.toFixed(1) : "—"}
+                                        </div>
+                                        <div className="text-right font-mono text-muted-foreground tabular-nums">
+                                          {root.confidence !== null ? (root.confidence * 100).toFixed(0) + "%" : "—"}
+                                        </div>
+                                        <div className="text-right font-mono w-12 tabular-nums">
+                                          {root.velocity !== null ? (
+                                            <span className={root.velocity > 0 ? "text-emerald-600" : root.velocity < 0 ? "text-red-600" : "text-muted-foreground"}>
+                                              {root.velocity > 0 ? "+" : ""}{(root.velocity * 100).toFixed(1)}%
+                                            </span>
+                                          ) : "—"}
+                                        </div>
+                                      </div>
+                                      <AnimatePresence>
+                                        {hasChildren && isExpanded && (
+                                          <motion.div
+                                            initial={{ height: 0, opacity: 0 }}
+                                            animate={{ height: "auto", opacity: 1 }}
+                                            exit={{ height: 0, opacity: 0 }}
+                                            transition={{ duration: 0.2 }}
+                                            className="overflow-hidden bg-muted/15"
+                                          >
+                                            {root.children.map(child => {
+                                              const delta = child.score !== null && root.score !== null ? child.score - root.score : null;
+                                              return (
+                                                <div key={child.id} className="px-2 py-1 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[11px] items-center border-t border-border/30">
+                                                  <div className="flex items-center gap-1 min-w-0 pl-5">
+                                                    <span className="text-muted-foreground/60 shrink-0">└</span>
+                                                    <span className="truncate">{child.name}</span>
+                                                    {delta !== null && Math.abs(delta) >= 0.1 && (
+                                                      <span className={`text-[9px] font-mono ml-1 px-1 rounded shrink-0 ${
+                                                        delta > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                                        : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                                                      }`}>
+                                                        {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs parent
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                  <div className="text-right font-mono font-semibold tabular-nums">
+                                                    {child.score !== null ? child.score.toFixed(1) : "—"}
+                                                  </div>
+                                                  <div className="text-right font-mono text-muted-foreground tabular-nums">
+                                                    {child.confidence !== null ? (child.confidence * 100).toFixed(0) + "%" : "—"}
+                                                  </div>
+                                                  <div className="text-right font-mono w-12 tabular-nums">
+                                                    {child.velocity !== null ? (
+                                                      <span className={child.velocity > 0 ? "text-emerald-600" : child.velocity < 0 ? "text-red-600" : "text-muted-foreground"}>
+                                                        {child.velocity > 0 ? "+" : ""}{(child.velocity * 100).toFixed(1)}%
+                                                      </span>
+                                                    ) : "—"}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </motion.div>
+                                        )}
+                                      </AnimatePresence>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                              <div className="bg-muted/30 px-2 py-1 text-[10px] text-muted-foreground border-t border-border/40">
+                                Click parents with sub-counts to expand. Δ shows child deviation from parent rollup.
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-muted-foreground italic text-center py-2">Loading capabilities…</div>
+                          )}
                         </div>
                       </motion.div>
                     )}

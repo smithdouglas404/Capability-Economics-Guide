@@ -179,6 +179,59 @@ router.get("/cei/stale", async (req, res) => {
   res.json(stale);
 });
 
+router.get("/cei/capability-tree", async (req, res) => {
+  try {
+    const industryId = Number(req.query.industryId);
+    const capsQuery = !isNaN(industryId)
+      ? db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId))
+      : db.select().from(capabilitiesTable);
+    const compsQuery = !isNaN(industryId)
+      ? db.select().from(ceiComponentsTable).where(eq(ceiComponentsTable.industryId, industryId))
+      : db.select().from(ceiComponentsTable);
+    const [caps, comps] = await Promise.all([capsQuery, compsQuery]);
+
+    const compByCap = new Map(comps.map(c => [c.capabilityId, c]));
+    const childrenByParent = new Map<number, typeof caps>();
+    for (const c of caps) {
+      if (c.parentCapabilityId !== null && c.parentCapabilityId !== undefined) {
+        const arr = childrenByParent.get(c.parentCapabilityId) ?? [];
+        arr.push(c);
+        childrenByParent.set(c.parentCapabilityId, arr);
+      }
+    }
+
+    const buildNode = (cap: typeof caps[number]) => {
+      const comp = compByCap.get(cap.id);
+      const kids = (childrenByParent.get(cap.id) ?? [])
+        .map(buildNode)
+        .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity));
+      return {
+        id: cap.id,
+        name: cap.name,
+        slug: cap.slug,
+        industryId: cap.industryId,
+        isLeaf: cap.isLeaf,
+        parentCapabilityId: cap.parentCapabilityId,
+        score: comp?.consensusScore ?? null,
+        confidence: comp?.confidence ?? null,
+        velocity: comp?.velocity ?? null,
+        updatedAt: comp?.updatedAt ?? null,
+        children: kids,
+      };
+    };
+
+    const roots = caps
+      .filter(c => c.parentCapabilityId === null || c.parentCapabilityId === undefined)
+      .map(buildNode)
+      .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity));
+
+    res.json({ roots, total: caps.length });
+  } catch (err: unknown) {
+    console.error("CEI capability-tree failed:", err);
+    res.status(500).json({ error: "Failed to get capability tree" });
+  }
+});
+
 router.get("/cei/components", async (req, res) => {
   try {
     const industryId = Number(req.query.industryId);
