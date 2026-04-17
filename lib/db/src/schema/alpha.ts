@@ -18,6 +18,18 @@ export const capabilityEconomicsTable = pgTable("capability_economics", {
   consensusSummary: text("consensus_summary"),
   consensusSources: jsonb("consensus_sources").$type<string[]>(),
   rationale: text("rationale"),
+  // Capability detail enrichments (added 2026-04)
+  aiExposureScore: real("ai_exposure_score"),
+  aiTimeToDisplacementMonths: real("ai_time_to_displacement_months"),
+  aiSubstitutes: jsonb("ai_substitutes").$type<string[]>(),
+  aiNarrative: text("ai_narrative"),
+  traditionalNarrative: text("traditional_narrative"),
+  economicNarrative: text("economic_narrative"),
+  metricInterpretations: jsonb("metric_interpretations").$type<Array<{ name: string; interpretation: string }>>(),
+  dependencyRationales: jsonb("dependency_rationales").$type<Array<{ dependsOnName: string; rationale: string }>>(),
+  roleConsequences: jsonb("role_consequences").$type<Array<{ roleTitle: string; consequence: string }>>(),
+  playbook: jsonb("playbook").$type<string[]>(),
+  benchmarkInterpretation: text("benchmark_interpretation"),
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
 });
 

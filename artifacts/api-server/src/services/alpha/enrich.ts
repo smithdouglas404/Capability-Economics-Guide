@@ -4,10 +4,13 @@ import {
   capabilityDependenciesTable,
   capabilityQuadrantsTable,
   capabilityEconomicsTable,
+  capabilityMetricsTable,
+  capabilityRoleMappingsTable,
+  cSuiteRolesTable,
   dependencyEdgeScoresTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
 
 let alphaRunning = false;
@@ -195,11 +198,165 @@ async function enrichOneEdge(
   }
 }
 
+async function enrichOneCapabilityDetail(
+  cap: { id: number; name: string; industryId: number; description: string | null; traditionalView: string | null; economicView: string | null; benchmarkScore: number | null },
+  industryName: string,
+  econRowId: number,
+  econ: { consensusQuadrant: string | null; consensusSummary: string | null; halfLifeMonths: number | null; marginStructurePct: number | null; revenueExposureMm: number | null },
+  metrics: Array<{ name: string; description: string | null; benchmarkValue: number | null; unit: string | null }>,
+  deps: Array<{ dependsOnName: string; strength: string | null }>,
+  roles: Array<{ roleTitle: string; roleName: string; relevance: string | null }>,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const research = await perplexity(
+      `For the enterprise capability "${cap.name}" in ${industryName} (2024-2026): ` +
+      `(1) How is generative AI / LLMs disrupting or augmenting this capability? Which AI vendors or open models are credible substitutes? ` +
+      `(2) What % of incumbent revenue is at risk from AI substitution within 36 months? ` +
+      `(3) Why is the conventional / "checklist" view of this capability ("${cap.traditionalView ?? "treated as IT"}") economically wrong? ` +
+      `(4) What is the actual dollar consequence of treating it as a real economic capability? ` +
+      `(5) For each of these metrics, what does a top-quartile vs bottom-quartile reading actually mean in dollars or risk: ${metrics.map(m => `"${m.name}"`).join(", ") || "n/a"}. ` +
+      `(6) For each dependency, why does it matter: ${deps.map(d => `"${d.dependsOnName}"`).join(", ") || "n/a"}. ` +
+      `Cite real companies, regulators, or 10-K disclosures from 2024-2026.`
+    );
+    if (!research.content) return { ok: false, error: "empty detail research" };
+
+    const metricList = metrics.map(m => ({ name: m.name, benchmark: m.benchmarkValue, unit: m.unit }));
+    const depList = deps.map(d => ({ name: d.dependsOnName, strength: d.strength }));
+    const roleList = roles.map(r => ({ title: r.roleTitle, name: r.roleName, relevance: r.relevance }));
+
+    const glmText = await glmJson(
+      `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
+      `Existing context:\n` +
+      `- traditional view: "${cap.traditionalView ?? ""}"\n` +
+      `- economic view: "${cap.economicView ?? ""}"\n` +
+      `- benchmark score: ${cap.benchmarkScore ?? "?"} / 100\n` +
+      `- CE quadrant (street consensus): ${econ.consensusQuadrant ?? "?"}\n` +
+      `- half-life months: ${econ.halfLifeMonths ?? "?"}\n` +
+      `- margin %: ${econ.marginStructurePct ?? "?"}\n` +
+      `- revenue exposure $M: ${econ.revenueExposureMm ?? "?"}\n` +
+      `- metrics: ${JSON.stringify(metricList)}\n` +
+      `- dependencies: ${JSON.stringify(depList)}\n` +
+      `- c-suite roles: ${JSON.stringify(roleList)}\n\n` +
+      `Return ONLY a JSON object with these keys (every narrative must be 2-3 sentences, "consequence-style", not definition-style — name a dollar amount, a regulator, a deadline, or a competitor):\n\n` +
+      `"traditional_narrative" (string, 2-3 sentences explaining WHY the conventional view is wrong with a concrete number or example), ` +
+      `"economic_narrative" (string, 2-3 sentences quantifying the dollar value of treating this as a real capability, include a specific multiplier or $ figure), ` +
+      `"metric_interpretations" (array of {name: string, interpretation: string} — interpretation is 1-2 sentences explaining what crossing the benchmark means in money or risk; one entry per metric in input order), ` +
+      `"dependency_rationales" (array of {dependsOnName: string, rationale: string} — rationale is 1-2 sentences naming the real-world risk if the upstream cap is disrupted, mention a vendor or regulation; one per dependency), ` +
+      `"role_consequences" (array of {roleTitle: string, consequence: string} — 1-2 sentences naming what this exec must do or explain this quarter; one per role), ` +
+      `"playbook" (array of exactly 3 strings — concrete actions a buyer should take this week, ≤ 18 words each, no fluff), ` +
+      `"benchmark_interpretation" (string, 1-2 sentences telling the user what their benchmark score means in dollars vs the median), ` +
+      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI substitution within 36 months), ` +
+      `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
+      `"ai_substitutes" (array of 2-6 strings — real AI vendor / model names that credibly substitute or augment this capability), ` +
+      `"ai_narrative" (string, 2-3 sentences on how GenAI specifically reshapes this capability, name vendors and a probability or $ figure)\n\n` +
+      `Output strict JSON only, no prose.`,
+      4000,
+    );
+
+    const parsed = extractJson(glmText) as {
+      traditional_narrative?: string;
+      economic_narrative?: string;
+      metric_interpretations?: Array<{ name: string; interpretation: string }>;
+      dependency_rationales?: Array<{ dependsOnName: string; rationale: string }>;
+      role_consequences?: Array<{ roleTitle: string; consequence: string }>;
+      playbook?: string[];
+      benchmark_interpretation?: string;
+      ai_exposure_score?: number;
+      ai_time_to_displacement_months?: number;
+      ai_substitutes?: string[];
+      ai_narrative?: string;
+    };
+    if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad detail JSON" };
+
+    await db.update(capabilityEconomicsTable).set({
+      traditionalNarrative: parsed.traditional_narrative ?? null,
+      economicNarrative: parsed.economic_narrative ?? null,
+      metricInterpretations: Array.isArray(parsed.metric_interpretations) ? parsed.metric_interpretations.slice(0, 12) : null,
+      dependencyRationales: Array.isArray(parsed.dependency_rationales) ? parsed.dependency_rationales.slice(0, 20) : null,
+      roleConsequences: Array.isArray(parsed.role_consequences) ? parsed.role_consequences.slice(0, 12) : null,
+      playbook: Array.isArray(parsed.playbook) ? parsed.playbook.slice(0, 3) : null,
+      benchmarkInterpretation: parsed.benchmark_interpretation ?? null,
+      aiExposureScore: parsed.ai_exposure_score != null ? Math.min(100, Math.max(0, parsed.ai_exposure_score)) : null,
+      aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
+      aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
+      aiNarrative: parsed.ai_narrative ?? null,
+    }).where(eq(capabilityEconomicsTable.id, econRowId));
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e).substring(0, 200) };
+  }
+}
+
 export interface AlphaEnrichResult {
   capabilitiesEnriched: number;
   edgesEnriched: number;
+  detailsEnriched?: number;
   errors: string[];
   durationMs: number;
+}
+
+export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
+  if (alphaRunning) throw new Error("Alpha enrichment already in progress");
+  alphaRunning = true;
+  const start = Date.now();
+  const errors: string[] = [];
+  let enriched = 0;
+  try {
+    const limit = opts.limit ?? 6;
+    const econRows = await db.select().from(capabilityEconomicsTable);
+    const targets = opts.capabilityId != null
+      ? econRows.filter(r => r.capabilityId === opts.capabilityId)
+      : econRows
+          .filter(r => opts.force || r.traditionalNarrative == null || r.aiExposureScore == null)
+          .slice(0, limit);
+    if (targets.length === 0) return { enriched: 0, errors: [], durationMs: Date.now() - start };
+
+    const caps = await db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, targets.map(t => t.capabilityId)));
+    const capById = new Map(caps.map(c => [c.id, c]));
+    const industries = await db.select().from(industriesTable);
+    const indById = new Map(industries.map(i => [i.id, i.name]));
+    const allMetrics = await db.select().from(capabilityMetricsTable).where(inArray(capabilityMetricsTable.capabilityId, targets.map(t => t.capabilityId)));
+    const allDeps = await db.select({
+      capabilityId: capabilityDependenciesTable.capabilityId,
+      dependsOnId: capabilityDependenciesTable.dependsOnId,
+      strength: capabilityDependenciesTable.strength,
+    }).from(capabilityDependenciesTable).where(inArray(capabilityDependenciesTable.capabilityId, targets.map(t => t.capabilityId)));
+    const depCapIds = Array.from(new Set(allDeps.map(d => d.dependsOnId)));
+    const depCaps = depCapIds.length > 0 ? await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name }).from(capabilitiesTable).where(inArray(capabilitiesTable.id, depCapIds)) : [];
+    const depCapById = new Map(depCaps.map(c => [c.id, c.name]));
+    const allRoleMappings = await db.select({
+      capabilityId: capabilityRoleMappingsTable.capabilityId,
+      roleId: capabilityRoleMappingsTable.roleId,
+      relevance: capabilityRoleMappingsTable.relevance,
+    }).from(capabilityRoleMappingsTable).where(inArray(capabilityRoleMappingsTable.capabilityId, targets.map(t => t.capabilityId)));
+    const allRoles = await db.select().from(cSuiteRolesTable);
+    const roleById = new Map(allRoles.map(r => [r.id, r]));
+
+    log.info(`[AlphaDetail] enriching detail for ${targets.length} capabilities`);
+    for (const econRow of targets) {
+      const cap = capById.get(econRow.capabilityId);
+      if (!cap) { errors.push(`[detail:cap${econRow.capabilityId}] missing capability`); continue; }
+      const indName = indById.get(cap.industryId) ?? "Unknown";
+      const metrics = allMetrics.filter(m => m.capabilityId === cap.id).map(m => ({ name: m.name, description: m.description, benchmarkValue: m.benchmarkValue, unit: m.unit }));
+      const deps = allDeps.filter(d => d.capabilityId === cap.id).map(d => ({ dependsOnName: depCapById.get(d.dependsOnId) ?? "?", strength: d.strength }));
+      const roles = allRoleMappings.filter(rm => rm.capabilityId === cap.id).map(rm => {
+        const role = roleById.get(rm.roleId);
+        return { roleTitle: role?.title ?? "?", roleName: role?.name ?? "?", relevance: rm.relevance };
+      });
+      const r = await enrichOneCapabilityDetail(cap, indName, econRow.id, {
+        consensusQuadrant: econRow.consensusQuadrant,
+        consensusSummary: econRow.consensusSummary,
+        halfLifeMonths: econRow.halfLifeMonths,
+        marginStructurePct: econRow.marginStructurePct,
+        revenueExposureMm: econRow.revenueExposureMm,
+      }, metrics, deps, roles);
+      if (r.ok) enriched++; else errors.push(`[detail:${cap.name}] ${r.error}`);
+    }
+    return { enriched, errors, durationMs: Date.now() - start };
+  } finally {
+    alphaRunning = false;
+  }
 }
 
 export async function runAlphaEnrichment(opts: { limitCapabilities?: number; limitEdges?: number; industryId?: number } = {}): Promise<AlphaEnrichResult> {

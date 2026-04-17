@@ -4,10 +4,13 @@ import { useListIndustries, useGetIndustry, useGetCapability, useCompareIndustri
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
   ChevronRight, ArrowLeft, BarChart3, GitBranch, Users,
-  TrendingUp, TrendingDown, Minus, Loader2, Layers, Network
+  TrendingUp, TrendingDown, Minus, Loader2, Layers, Network,
+  Sparkles, AlertTriangle, Activity, BookOpen, RefreshCw, ExternalLink, Info,
+  Bot, Zap, Target,
 } from "lucide-react";
 import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
@@ -99,32 +102,298 @@ export default function KnowledgeGraph() {
     query: { queryKey: getGetCapabilityQueryKey(selectedCapabilityId ?? 0), enabled: !!selectedCapabilityId },
   });
 
+  interface AlphaDetailShape {
+    economics: null | {
+      tamUsdMm: number | null;
+      marginStructurePct: number | null;
+      halfLifeMonths: number | null;
+      revenueExposureMm: number | null;
+      consensusQuadrant: string | null;
+      consensusConfidence: number | null;
+      consensusSummary: string | null;
+      consensusSources: string[] | null;
+      rationale: string | null;
+      aiExposureScore: number | null;
+      aiTimeToDisplacementMonths: number | null;
+      aiSubstitutes: string[] | null;
+      aiNarrative: string | null;
+      traditionalNarrative: string | null;
+      economicNarrative: string | null;
+      metricInterpretations: Array<{ name: string; interpretation: string }> | null;
+      dependencyRationales: Array<{ dependsOnName: string; rationale: string }> | null;
+      roleConsequences: Array<{ roleTitle: string; consequence: string }> | null;
+      playbook: string[] | null;
+      benchmarkInterpretation: string | null;
+      generatedAt: string | null;
+    };
+    evar: { mo12: number | null; mo24: number | null; mo36: number | null; ceQuadrant: string | null };
+    fragility: { score: number | null; topUpstreamRiskMm: number | null; scoredEdges: number; totalUpstreamEdges: number };
+    cascade: { nodes: Array<{ id: number; name: string; depth: number }>; edges: Array<{ fromId: number; toId: number; dollarImpactMm: number | null; disruptionProbability: number | null }>; totalExpectedImpactMm: number };
+    sources: string[] | null;
+    generatedAt: string | null;
+  }
+  const [alphaDetail, setAlphaDetail] = useState<AlphaDetailShape | null>(null);
+  const [alphaLoading, setAlphaLoading] = useState(false);
+  const [rerunning, setRerunning] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedCapabilityId) { setAlphaDetail(null); setRerunError(null); return; }
+    setAlphaLoading(true);
+    fetch(`/api/alpha/capability/${selectedCapabilityId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: AlphaDetailShape | null) => setAlphaDetail(d))
+      .catch(() => setAlphaDetail(null))
+      .finally(() => setAlphaLoading(false));
+  }, [selectedCapabilityId]);
+
+  const rerunDetail = async () => {
+    if (!selectedCapabilityId) return;
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const resp = await fetch(`/api/alpha/enrich-detail`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ capabilityId: selectedCapabilityId, force: true }),
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({} as { error?: string }));
+        throw new Error(body?.error ?? `HTTP ${resp.status}`);
+      }
+      const r = await fetch(`/api/alpha/capability/${selectedCapabilityId}`);
+      if (r.ok) setAlphaDetail(await r.json());
+    } catch (e) {
+      setRerunError(e instanceof Error ? e.message : "Rerun failed");
+    } finally {
+      setRerunning(false);
+    }
+  };
+
   if (selectedCapabilityId && capabilityDetail) {
+    const econ = alphaDetail?.economics;
+    const evar = alphaDetail?.evar;
+    const fragility = alphaDetail?.fragility;
+    const cascade = alphaDetail?.cascade;
+    const fmt$ = (n: number | null | undefined) => n == null ? "—" : n >= 1000 ? `$${(n / 1000).toFixed(1)}B` : `$${Math.round(n)}M`;
+    const interpForMetric = (name: string) => econ?.metricInterpretations?.find(i => i.name.toLowerCase() === name.toLowerCase())?.interpretation;
+    const rationaleForDep = (name: string) => econ?.dependencyRationales?.find(d => d.dependsOnName.toLowerCase() === name.toLowerCase())?.rationale;
+    const consequenceForRole = (title: string) => econ?.roleConsequences?.find(r => r.roleTitle.toLowerCase() === title.toLowerCase())?.consequence;
+    const ceQ = evar?.ceQuadrant;
+    const streetQ = econ?.consensusQuadrant;
+    const quadrantsDisagree = ceQ && streetQ && ceQ !== streetQ;
     return (
       <div className="min-h-screen bg-background pb-24">
         <section className="bg-muted/30 py-8 border-b">
           <div className="container mx-auto px-4 max-w-5xl">
-            <Button variant="ghost" onClick={() => setSelectedCapabilityId(null)} className="mb-4 -ml-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Back to {industryDetail?.name}
-            </Button>
-            <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{capabilityDetail.name}</h1>
-            <p className="text-lg text-muted-foreground mt-2">{capabilityDetail.description}</p>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <Button variant="ghost" onClick={() => setSelectedCapabilityId(null)} className="mb-4 -ml-2 text-muted-foreground hover:text-foreground">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to {industryDetail?.name}
+                </Button>
+                <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{capabilityDetail.name}</h1>
+                <p className="text-lg text-muted-foreground mt-2">{capabilityDetail.description}</p>
+              </div>
+              <div className="hidden md:flex flex-col items-end gap-2">
+                {alphaDetail?.generatedAt && (
+                  <span className="text-xs text-muted-foreground">
+                    Economics refreshed {new Date(alphaDetail.generatedAt).toLocaleDateString()}
+                  </span>
+                )}
+                <Button size="sm" variant="outline" onClick={rerunDetail} disabled={rerunning} className="rounded-sm">
+                  {rerunning ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                  {rerunning ? "Rerunning…" : "Rerun economics"}
+                </Button>
+                {rerunError && (
+                  <span className="text-xs text-rose-600 max-w-[12rem] text-right">{rerunError}</span>
+                )}
+              </div>
+            </div>
           </div>
         </section>
 
         <div className="container mx-auto px-4 max-w-5xl py-8 space-y-8">
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card className="rounded-none border-l-4 border-l-muted-foreground">
-              <CardHeader><CardTitle className="text-sm uppercase tracking-wider text-muted-foreground font-sans">Traditional View</CardTitle></CardHeader>
-              <CardContent><p className="text-foreground">{capabilityDetail.traditionalView}</p></CardContent>
-            </Card>
+          {/* TOP ALPHA STRIP: EVaR · CE-vs-Street · AI Exposure */}
+          <div className="grid md:grid-cols-3 gap-4">
+            {/* EVaR */}
             <Card className="rounded-none border-l-4 border-l-primary">
-              <CardHeader><CardTitle className="text-sm uppercase tracking-wider text-primary font-sans">Economic View</CardTitle></CardHeader>
-              <CardContent><p className="text-foreground">{capabilityDetail.economicView}</p></CardContent>
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                  <Activity className="w-3.5 h-3.5" /> Enterprise Value at Risk
+                </div>
+                {alphaLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                ) : evar?.mo36 != null ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div><div className="text-xs text-muted-foreground">12mo</div><div className="font-mono text-sm font-semibold text-foreground">{fmt$(evar.mo12)}</div></div>
+                      <div><div className="text-xs text-muted-foreground">24mo</div><div className="font-mono text-sm font-semibold text-amber-600">{fmt$(evar.mo24)}</div></div>
+                      <div><div className="text-xs text-muted-foreground">36mo</div><div className="font-mono text-base font-semibold text-rose-600">{fmt$(evar.mo36)}</div></div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+                      Decay-adjusted $ at risk if half-life of {Math.round(econ?.halfLifeMonths ?? 0)}mo holds.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Awaiting economic enrichment.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* CE vs Street */}
+            <Card className={`rounded-none border-l-4 ${quadrantsDisagree ? "border-l-amber-500" : "border-l-muted-foreground"}`}>
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                  <Target className="w-3.5 h-3.5" /> CE vs Street
+                </div>
+                {econ?.consensusQuadrant && ceQ ? (
+                  <>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs px-2 py-0.5 rounded-sm bg-primary/10 text-primary font-medium">CE: {ceQ}</span>
+                      <span className="text-muted-foreground text-xs">vs</span>
+                      <span className="text-xs px-2 py-0.5 rounded-sm bg-muted text-foreground font-medium">Street: {streetQ}</span>
+                    </div>
+                    {quadrantsDisagree && (
+                      <div className="text-xs text-amber-700 font-medium mb-2">Disagreement · conf {econ.consensusConfidence != null ? Math.round(econ.consensusConfidence * 100) + "%" : "—"}</div>
+                    )}
+                    {econ.rationale && (
+                      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{econ.rationale}</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">Awaiting economic enrichment.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* AI Exposure */}
+            <Card className="rounded-none border-l-4 border-l-violet-500">
+              <CardContent className="pt-5">
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground mb-3">
+                  <Bot className="w-3.5 h-3.5" /> AI Exposure
+                </div>
+                {econ?.aiExposureScore != null ? (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-2xl font-mono font-semibold text-violet-700">{Math.round(econ.aiExposureScore)}%</span>
+                      <span className="text-xs text-muted-foreground">revenue at risk</span>
+                    </div>
+                    {econ.aiTimeToDisplacementMonths != null && (
+                      <div className="text-xs text-muted-foreground mt-1">in ~{Math.round(econ.aiTimeToDisplacementMonths)} months</div>
+                    )}
+                    {econ.aiSubstitutes && econ.aiSubstitutes.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {econ.aiSubstitutes.slice(0, 4).map((s, i) => (
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded-sm border border-violet-100">{s}</span>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">{alphaLoading ? "Loading…" : "AI exposure scoring queued."}</p>
+                )}
+              </CardContent>
             </Card>
           </div>
 
+          {/* AI narrative if present */}
+          {econ?.aiNarrative && (
+            <Card className="rounded-none bg-violet-50/50 border-violet-200">
+              <CardContent className="pt-5">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-violet-600 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-violet-700 mb-1">How GenAI reshapes this capability</div>
+                    <p className="text-sm text-foreground leading-relaxed">{econ.aiNarrative}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Traditional vs Economic narrative */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="rounded-none border-l-4 border-l-muted-foreground">
+              <CardHeader className="pb-2"><CardTitle className="text-sm uppercase tracking-wider text-muted-foreground font-sans">Traditional View</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-foreground font-medium mb-2">{capabilityDetail.traditionalView}</p>
+                {econ?.traditionalNarrative && (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{econ.traditionalNarrative}</p>
+                )}
+              </CardContent>
+            </Card>
+            <Card className="rounded-none border-l-4 border-l-primary">
+              <CardHeader className="pb-2"><CardTitle className="text-sm uppercase tracking-wider text-primary font-sans">Economic View</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-foreground font-medium mb-2">{capabilityDetail.economicView}</p>
+                {econ?.economicNarrative && (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{econ.economicNarrative}</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fragility + Cascade preview */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="rounded-none border-l-4 border-l-rose-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-serif text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-rose-600" /> Fragility
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {fragility?.score != null ? (
+                  <>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-3xl font-mono font-semibold text-rose-600">{fragility.score}</span>
+                      <span className="text-xs text-muted-foreground">/ 100</span>
+                    </div>
+                    <p className="text-sm text-foreground">
+                      Top upstream risk: <span className="font-mono font-semibold">{fmt$(fragility.topUpstreamRiskMm)}</span>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{fragility.scoredEdges} of {fragility.totalUpstreamEdges} upstream edges priced.</p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{fragility?.totalUpstreamEdges === 0 ? "No upstream dependencies." : "Upstream edges not yet priced."}</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-none border-l-4 border-l-accent">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-serif text-lg flex items-center gap-2">
+                  <Network className="w-5 h-5 text-accent" /> Cascade Impact
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {cascade && cascade.nodes.length > 1 ? (
+                  <>
+                    <p className="text-sm text-foreground mb-2">
+                      <span className="font-mono font-semibold">{cascade.nodes.length - 1}</span> downstream capabilities · expected blast radius{" "}
+                      <span className="font-mono font-semibold text-rose-600">{fmt$(cascade.totalExpectedImpactMm)}</span>
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {cascade.nodes.filter(n => n.depth > 0).slice(0, 8).map(n => (
+                        <button
+                          key={n.id}
+                          onClick={() => setSelectedCapabilityId(n.id)}
+                          className="text-xs px-2 py-0.5 bg-accent/10 text-accent rounded-sm hover:bg-accent/20 transition-colors"
+                        >
+                          {n.name}
+                          {n.depth > 1 && <span className="text-muted-foreground ml-1">·{n.depth}</span>}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No downstream cascade yet (no dependents priced).</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Key Metrics + Dependencies + C-Suite, with interpretations */}
           <div className="grid md:grid-cols-2 gap-6">
             <Card className="rounded-none">
               <CardHeader>
@@ -135,19 +404,25 @@ export default function KnowledgeGraph() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {capabilityDetail.metrics.map((metric: CapabilityMetric) => (
-                    <div key={metric.id} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="font-semibold text-sm text-foreground">{metric.name}</span>
-                        {metric.benchmarkValue != null && (
-                          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-sm font-mono">
-                            Benchmark: {metric.benchmarkValue} {metric.unit}
-                          </span>
+                  {capabilityDetail.metrics.map((metric: CapabilityMetric) => {
+                    const interp = interpForMetric(metric.name);
+                    return (
+                      <div key={metric.id} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="font-semibold text-sm text-foreground">{metric.name}</span>
+                          {metric.benchmarkValue != null && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-sm font-mono">
+                              Benchmark: {metric.benchmarkValue} {metric.unit}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{metric.description}</p>
+                        {interp && (
+                          <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{interp}</p>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{metric.description}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {capabilityDetail.metrics.length === 0 && (
                     <p className="text-sm text-muted-foreground">No metrics defined yet.</p>
                   )}
@@ -165,17 +440,25 @@ export default function KnowledgeGraph() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {capabilityDetail.dependencies.map((dep: CapabilityDependency) => (
-                      <div key={dep.id} className="flex items-center justify-between">
-                        <button
-                          onClick={() => setSelectedCapabilityId(dep.dependsOnId)}
-                          className="text-sm text-primary hover:underline cursor-pointer"
-                        >
-                          {dep.dependsOnName}
-                        </button>
-                        <StrengthBadge strength={dep.strength} />
-                      </div>
-                    ))}
+                    {capabilityDetail.dependencies.map((dep: CapabilityDependency) => {
+                      const rationale = rationaleForDep(dep.dependsOnName);
+                      return (
+                        <div key={dep.id} className="border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <button
+                              onClick={() => setSelectedCapabilityId(dep.dependsOnId)}
+                              className="text-sm text-primary hover:underline cursor-pointer"
+                            >
+                              {dep.dependsOnName}
+                            </button>
+                            <StrengthBadge strength={dep.strength} />
+                          </div>
+                          {rationale && (
+                            <p className="text-xs text-muted-foreground leading-relaxed">{rationale}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                     {capabilityDetail.dependencies.length === 0 && (
                       <p className="text-sm text-muted-foreground">No dependencies mapped.</p>
                     )}
@@ -192,15 +475,21 @@ export default function KnowledgeGraph() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {capabilityDetail.roleMappings.map((rm: RoleMapping) => (
-                      <div key={rm.roleId} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-sm">{rm.roleTitle} — {rm.roleName}</span>
-                          <RelevanceBadge relevance={rm.relevance} />
+                    {capabilityDetail.roleMappings.map((rm: RoleMapping) => {
+                      const consequence = consequenceForRole(rm.roleTitle);
+                      return (
+                        <div key={rm.roleId} className="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold text-sm">{rm.roleTitle} — {rm.roleName}</span>
+                            <RelevanceBadge relevance={rm.relevance} />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{rm.perspective}</p>
+                          {consequence && (
+                            <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{consequence}</p>
+                          )}
                         </div>
-                        <p className="text-xs text-muted-foreground">{rm.perspective}</p>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {capabilityDetail.roleMappings.length === 0 && (
                       <p className="text-sm text-muted-foreground">No role mappings defined.</p>
                     )}
@@ -210,8 +499,30 @@ export default function KnowledgeGraph() {
             </div>
           </div>
 
+          {/* Playbook */}
+          {econ?.playbook && econ.playbook.length > 0 && (
+            <Card className="rounded-none border-l-4 border-l-emerald-500 bg-emerald-50/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="font-serif text-lg flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-emerald-600" /> This Week's Playbook
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ol className="space-y-2">
+                  {econ.playbook.map((p, i) => (
+                    <li key={i} className="flex gap-3 text-sm text-foreground">
+                      <span className="font-mono text-emerald-700 font-semibold shrink-0">{i + 1}.</span>
+                      <span>{p}</span>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Benchmark Score with interpretation */}
           <Card className="rounded-none bg-muted/30">
-            <CardHeader>
+            <CardHeader className="pb-2">
               <CardTitle className="font-serif text-lg">Benchmark Score</CardTitle>
             </CardHeader>
             <CardContent>
@@ -224,7 +535,54 @@ export default function KnowledgeGraph() {
                 </div>
                 <span className="font-mono text-lg font-semibold text-foreground">{capabilityDetail.benchmarkScore}/100</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Industry average maturity benchmark score</p>
+              {econ?.benchmarkInterpretation ? (
+                <p className="text-sm text-foreground mt-3 leading-relaxed">{econ.benchmarkInterpretation}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">Industry average maturity benchmark score</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Sources + last-updated trust footer */}
+          <Card className="rounded-none">
+            <CardContent className="pt-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5" /> Sources & Methodology
+                  </div>
+                  {alphaDetail?.sources && alphaDetail.sources.length > 0 ? (
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className="rounded-sm h-8">
+                          <Info className="w-3.5 h-3.5 mr-1.5" />
+                          View {alphaDetail.sources.length} citations
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-96 max-h-80 overflow-auto">
+                        <div className="space-y-2">
+                          {econ?.consensusSummary && (
+                            <div className="text-xs text-muted-foreground italic mb-2 pb-2 border-b">{econ.consensusSummary}</div>
+                          )}
+                          {alphaDetail.sources.map((src, i) => (
+                            <a key={i} href={src} target="_blank" rel="noreferrer" className="flex items-start gap-1.5 text-xs text-primary hover:underline">
+                              <ExternalLink className="w-3 h-3 mt-0.5 shrink-0" />
+                              <span className="break-all">{src}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No sources captured yet.</p>
+                  )}
+                </div>
+                <div className="text-right text-xs text-muted-foreground">
+                  {alphaDetail?.generatedAt
+                    ? <>Economics refreshed<br/><span className="font-mono">{new Date(alphaDetail.generatedAt).toLocaleString()}</span></>
+                    : "Not yet enriched"}
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

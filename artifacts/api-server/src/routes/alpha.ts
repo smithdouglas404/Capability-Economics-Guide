@@ -11,8 +11,8 @@ import {
   companyCapabilityProfilesTable,
   companyCapabilityMappingsTable,
 } from "@workspace/db";
-import { eq, sql, and } from "drizzle-orm";
-import { runAlphaEnrichment } from "../services/alpha/enrich";
+import { eq, sql, and, inArray } from "drizzle-orm";
+import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
 import { generateThesisMemo } from "../services/alpha/thesis";
 
 const router = Router();
@@ -53,6 +53,126 @@ router.post("/enrich", async (req: Request, res: Response) => {
     const msg = err instanceof Error ? err.message : "Alpha enrichment failed";
     const status = msg.includes("already in progress") ? 409 : 500;
     res.status(status).json({ error: msg });
+  }
+});
+
+router.post("/enrich-detail", async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    const expected = process.env.ADMIN_API_KEY;
+    const provided = req.headers["x-admin-key"];
+    if (!expected || typeof provided !== "string" || provided !== expected) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+  }
+  const limit = typeof req.body?.limit === "number" ? req.body.limit : 6;
+  const force = req.body?.force === true;
+  const capabilityId = typeof req.body?.capabilityId === "number" ? req.body.capabilityId : undefined;
+  try {
+    const result = await runDetailEnrichment({ limit, force, capabilityId });
+    res.json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Detail enrichment failed";
+    const status = msg.includes("already in progress") ? 409 : 500;
+    res.status(status).json({ error: msg });
+  }
+});
+
+// Capability detail aggregator — used by the capability detail page
+router.get("/capability/:id", async (req: Request, res: Response) => {
+  try {
+    const capId = parseInt(req.params.id);
+    if (isNaN(capId)) { res.status(400).json({ error: "bad id" }); return; }
+
+    const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId));
+    if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
+
+    const [econ] = await db.select().from(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
+    const [quad] = await db.select().from(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId));
+
+    // EVaR projection — only when all required inputs exist (no synthetic defaults)
+    let evar: { mo12: number | null; mo24: number | null; mo36: number | null; ceQuadrant: string | null } = {
+      mo12: null, mo24: null, mo36: null,
+      ceQuadrant: quad?.quadrant ?? null,  // single source of truth for CE quadrant
+    };
+    if (econ && econ.revenueExposureMm != null && econ.halfLifeMonths != null && econ.marginStructurePct != null) {
+      const rev = econ.revenueExposureMm;
+      const margin = econ.marginStructurePct / 100;
+      const hl = Math.max(6, econ.halfLifeMonths);
+      const decay = (mo: number) => 1 - Math.pow(0.5, mo / hl);
+      evar.mo12 = Math.round(rev * margin * decay(12));
+      evar.mo24 = Math.round(rev * margin * decay(24));
+      evar.mo36 = Math.round(rev * margin * decay(36));
+    }
+
+    // Fragility — incoming edges to this cap, sum of probability * dollar impact for upstream
+    const upstreamDeps = await db.select().from(capabilityDependenciesTable).where(eq(capabilityDependenciesTable.capabilityId, capId));
+    const upstreamScores = upstreamDeps.length > 0
+      ? await db.select().from(dependencyEdgeScoresTable).where(inArray(dependencyEdgeScoresTable.dependencyId, upstreamDeps.map(d => d.id)))
+      : [];
+    const scoreByDepId = new Map(upstreamScores.map(s => [s.dependencyId, s]));
+    const pricedUpstream = upstreamDeps.filter(d => scoreByDepId.has(d.id));
+    let topUpstreamRiskMm: number | null = null;
+    let fragilityScore: number | null = null;
+    if (pricedUpstream.length > 0) {
+      let topRisk = 0;
+      for (const d of pricedUpstream) {
+        const sc = scoreByDepId.get(d.id);
+        const r = (sc?.dollarImpactMm ?? 0) * (sc?.disruptionProbability ?? 0);
+        if (r > topRisk) topRisk = r;
+      }
+      topUpstreamRiskMm = Math.round(topRisk);
+      const avgProb = pricedUpstream.reduce((s, d) => s + (scoreByDepId.get(d.id)?.disruptionProbability ?? 0), 0) / pricedUpstream.length;
+      fragilityScore = Math.round(avgProb * 100);
+    }
+
+    // Cascade downstream preview (depth 2)
+    const allDeps = await db.select().from(capabilityDependenciesTable);
+    const allEdgeScores = await db.select().from(dependencyEdgeScoresTable);
+    const allScoreMap = new Map(allEdgeScores.map(s => [s.dependencyId, s]));
+    const reverseAdj = new Map<number, Array<{ depId: number; depCapId: number }>>();
+    for (const d of allDeps) {
+      if (!allScoreMap.has(d.id)) continue;
+      const arr = reverseAdj.get(d.dependsOnId) ?? [];
+      arr.push({ depId: d.id, depCapId: d.capabilityId });
+      reverseAdj.set(d.dependsOnId, arr);
+    }
+    const allCaps = await db.select().from(capabilitiesTable);
+    const capById = new Map(allCaps.map(c => [c.id, c]));
+    const cascadeNodes: Array<{ id: number; name: string; depth: number }> = [{ id: capId, name: cap.name, depth: 0 }];
+    const cascadeEdges: Array<{ fromId: number; toId: number; dollarImpactMm: number | null; disruptionProbability: number | null }> = [];
+    const visited = new Set<number>([capId]);
+    const frontier = [{ id: capId, depth: 0 }];
+    let totalBlast = 0;
+    while (frontier.length > 0) {
+      const cur = frontier.shift()!;
+      if (cur.depth >= 2) continue;
+      const downstream = reverseAdj.get(cur.id) ?? [];
+      for (const e of downstream) {
+        const sc = allScoreMap.get(e.depId);
+        cascadeEdges.push({ fromId: cur.id, toId: e.depCapId, dollarImpactMm: sc?.dollarImpactMm ?? null, disruptionProbability: sc?.disruptionProbability ?? null });
+        totalBlast += (sc?.dollarImpactMm ?? 0) * (sc?.disruptionProbability ?? 0);
+        if (!visited.has(e.depCapId)) {
+          visited.add(e.depCapId);
+          const c = capById.get(e.depCapId);
+          if (c) {
+            cascadeNodes.push({ id: c.id, name: c.name, depth: cur.depth + 1 });
+            frontier.push({ id: c.id, depth: cur.depth + 1 });
+          }
+        }
+      }
+    }
+
+    res.json({
+      economics: econ ?? null,
+      evar,
+      fragility: { score: fragilityScore, topUpstreamRiskMm, scoredEdges: pricedUpstream.length, totalUpstreamEdges: upstreamDeps.length },
+      cascade: { nodes: cascadeNodes, edges: cascadeEdges, totalExpectedImpactMm: Math.round(totalBlast) },
+      sources: econ?.consensusSources ?? [],
+      generatedAt: econ?.generatedAt ?? null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
 });
 
