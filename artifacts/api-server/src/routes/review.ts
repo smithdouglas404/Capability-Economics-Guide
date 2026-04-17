@@ -7,7 +7,7 @@ import {
 } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { z } from "zod/v4";
-import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
+import { enqueueEnrichmentJob, getQueuePositionFor } from "../services/alpha/queue";
 import type { Request, Response, NextFunction } from "express";
 
 const router: IRouter = Router();
@@ -39,44 +39,17 @@ async function setEnrichment(capabilityId: number, status: string, stage: string
   }).where(eq(capabilitiesTable.id, capabilityId));
 }
 
-async function withLockRetry<T>(label: string, fn: () => Promise<T>, maxAttempts = 30, delayMs = 5000): Promise<{ ok: true; value: T } | { ok: false; error: string }> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      return { ok: true, value: await fn() };
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes("already in progress")) {
-        await new Promise(r => setTimeout(r, delayMs));
-        continue;
-      }
-      console.error(`[review:${label}] failed:`, msg.slice(0, 200));
-      return { ok: false, error: msg.slice(0, 300) };
-    }
-  }
-  const giveUp = `gave up after ${maxAttempts} attempts (lock held)`;
-  console.error(`[review:${label}] ${giveUp}`);
-  return { ok: false, error: giveUp };
-}
-
-async function enrichDraftBackground(capabilityId: number, industryId: number, revisionGuidance?: string) {
-  await setEnrichment(capabilityId, "running", "alpha", null);
-  const alphaRes = await withLockRetry("alpha", () => runAlphaEnrichment({ industryId, limitCapabilities: 1, limitEdges: 0 }));
-  if (!alphaRes.ok) {
-    await setEnrichment(capabilityId, "failed", "alpha", `alpha: ${alphaRes.error}`);
-    return;
-  }
-  await setEnrichment(capabilityId, "running", "detail", null);
-  const detailRes = await withLockRetry("detail", () => runDetailEnrichment({ capabilityId, force: true, revisionGuidance }));
-  if (!detailRes.ok) {
-    await setEnrichment(capabilityId, "failed", "detail", `detail: ${detailRes.error}`);
-    return;
-  }
-  const detailErrors = detailRes.value.errors ?? [];
-  if (detailRes.value.enriched === 0 && detailErrors.length > 0) {
-    await setEnrichment(capabilityId, "failed", "detail", `detail: ${detailErrors[0].slice(0, 300)}`);
-    return;
-  }
-  await setEnrichment(capabilityId, "ready", "done", null);
+async function enqueueDraftEnrichment(capabilityId: number, industryId: number, revisionGuidance?: string) {
+  await enqueueEnrichmentJob(
+    "alpha",
+    { industryId, limitCapabilities: 1, limitEdges: 0 },
+    { capabilityId, industryId },
+  );
+  await enqueueEnrichmentJob(
+    "detail",
+    { capabilityId, force: true, revisionGuidance },
+    { capabilityId, industryId },
+  );
 }
 
 const DraftBody = z.object({
@@ -109,8 +82,8 @@ router.post("/review/draft", async (req, res) => {
     enrichmentStage: "alpha",
     enrichmentUpdatedAt: new Date(),
   }).returning();
-  void enrichDraftBackground(cap.id, industryId);
-  res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment running in background (~60-90s)." });
+  await enqueueDraftEnrichment(cap.id, industryId);
+  res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment queued (~60-90s once it starts)." });
 });
 
 router.get("/review/queue", async (_req, res) => {
@@ -135,11 +108,20 @@ router.get("/review/queue", async (_req, res) => {
     .innerJoin(industriesTable, eq(industriesTable.id, capabilitiesTable.industryId))
     .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.reviewStatus, "pending_review"));
-  res.json(rows.map(r => ({
-    ...r,
-    enrichmentReady: r.summaryNarrative != null,
-    hasEconomics: r.hasEconomics != null,
-  })));
+
+  const withQueue = await Promise.all(
+    rows.map(async (r) => {
+      const pos = await getQueuePositionFor(r.id);
+      return {
+        ...r,
+        enrichmentReady: r.summaryNarrative != null,
+        hasEconomics: r.hasEconomics != null,
+        queueStatus: pos?.status ?? "idle",
+        queueAhead: pos?.ahead ?? 0,
+      };
+    }),
+  );
+  res.json(withQueue);
 });
 
 router.post("/review/:id/retry", async (req, res) => {
@@ -155,7 +137,7 @@ router.post("/review/:id/retry", async (req, res) => {
     .slice(-1)[0]?.comment;
 
   await setEnrichment(id, "running", "alpha", null);
-  void enrichDraftBackground(id, cap.industryId, lastReviewerComment);
+  await enqueueDraftEnrichment(id, cap.industryId, lastReviewerComment);
   res.status(202).json({ ok: true, status: "running", message: "Enrichment retried." });
 });
 
@@ -210,21 +192,13 @@ router.post("/review/:id/reject", async (req, res) => {
     .returning({ id: capabilitiesTable.id });
   if (updated.length === 0) { res.status(409).json({ error: "status changed concurrently" }); return; }
 
-  void (async () => {
-    const r = await withLockRetry("revision", () => runDetailEnrichment({ capabilityId: id, force: true, revisionGuidance: comment }));
-    if (!r.ok) {
-      await setEnrichment(id, "failed", "detail", `revision: ${r.error}`);
-      return;
-    }
-    const errs = r.value.errors ?? [];
-    if (r.value.enriched === 0 && errs.length > 0) {
-      await setEnrichment(id, "failed", "detail", `revision: ${errs[0].slice(0, 300)}`);
-      return;
-    }
-    await setEnrichment(id, "ready", "done", null);
-  })();
+  await enqueueEnrichmentJob(
+    "detail",
+    { capabilityId: id, force: true, revisionGuidance: comment },
+    { capabilityId: id, industryId: cap.industryId },
+  );
 
-  res.json({ ok: true, status: "revising", message: "Comment sent back to LLM. New draft will appear in queue in ~60s." });
+  res.json({ ok: true, status: "revising", message: "Comment queued. New draft will appear once the worker reaches it." });
 });
 
 router.get("/review/:id/notes", async (req, res) => {

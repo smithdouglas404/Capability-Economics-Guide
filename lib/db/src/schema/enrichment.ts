@@ -1,6 +1,30 @@
-import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 import { capabilitiesTable } from "./capabilities";
 import { industriesTable } from "./industries";
+
+export const enrichmentJobsTable = pgTable(
+  "enrichment_jobs",
+  {
+    id: serial("id").primaryKey(),
+    jobType: varchar("job_type", { length: 32 }).notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+    status: varchar("status", { length: 20 }).notNull().default("queued"),
+    capabilityId: integer("capability_id"),
+    industryId: integer("industry_id"),
+    attempts: integer("attempts").notNull().default(0),
+    error: text("error"),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    startedAt: timestamp("started_at"),
+    completedAt: timestamp("completed_at"),
+  },
+  (t) => ({
+    statusIdx: index("enrichment_jobs_status_idx").on(t.status, t.id),
+    capabilityIdx: index("enrichment_jobs_capability_idx").on(t.capabilityId),
+  }),
+);
+
+export type EnrichmentJob = typeof enrichmentJobsTable.$inferSelect;
 
 export const enrichmentRunsTable = pgTable("enrichment_runs", {
   id: serial("id").primaryKey(),

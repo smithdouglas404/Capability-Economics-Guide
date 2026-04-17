@@ -13,8 +13,6 @@ import {
 import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
 
-let alphaRunning = false;
-
 interface PerplexityResult { content: string; sources: string[]; }
 
 async function perplexity(query: string): Promise<PerplexityResult> {
@@ -302,12 +300,10 @@ export interface AlphaEnrichResult {
 }
 
 export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number; revisionGuidance?: string } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
-  if (alphaRunning) throw new Error("Alpha enrichment already in progress");
-  alphaRunning = true;
   const start = Date.now();
   const errors: string[] = [];
   let enriched = 0;
-  try {
+  {
     const limit = opts.limit ?? 6;
     const econRows = await db.select().from(capabilityEconomicsTable);
     const targets = opts.capabilityId != null
@@ -359,20 +355,16 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
       if (r.ok) enriched++; else errors.push(`[detail:${cap.name}] ${r.error}`);
     }
     return { enriched, errors, durationMs: Date.now() - start };
-  } finally {
-    alphaRunning = false;
   }
 }
 
 export async function runAlphaEnrichment(opts: { limitCapabilities?: number; limitEdges?: number; industryId?: number } = {}): Promise<AlphaEnrichResult> {
-  if (alphaRunning) throw new Error("Alpha enrichment already in progress");
-  alphaRunning = true;
   const start = Date.now();
   const errors: string[] = [];
   let capabilitiesEnriched = 0;
   let edgesEnriched = 0;
 
-  try {
+  {
     const limitCap = opts.limitCapabilities ?? 12;
     const limitEdge = opts.limitEdges ?? 15;
 
@@ -417,8 +409,6 @@ export async function runAlphaEnrichment(opts: { limitCapabilities?: number; lim
     const durationMs = Date.now() - start;
     log.info(`[Alpha] done in ${(durationMs / 1000).toFixed(1)}s: ${capabilitiesEnriched} caps, ${edgesEnriched} edges, ${errors.length} errors`);
     return { capabilitiesEnriched, edgesEnriched, errors, durationMs };
-  } finally {
-    alphaRunning = false;
   }
 }
 

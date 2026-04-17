@@ -12,7 +12,7 @@ import {
   companyCapabilityMappingsTable,
 } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
-import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
+import { enqueueEnrichmentJob } from "../services/alpha/queue";
 import { generateThesisMemo } from "../services/alpha/thesis";
 
 const router = Router();
@@ -47,12 +47,14 @@ router.post("/enrich", async (req: Request, res: Response) => {
   const limitEdges = typeof req.body?.limitEdges === "number" ? req.body.limitEdges : 15;
   const industryId = typeof req.body?.industryId === "number" ? req.body.industryId : undefined;
   try {
-    const result = await runAlphaEnrichment({ limitCapabilities, limitEdges, industryId });
-    res.json(result);
+    const job = await enqueueEnrichmentJob(
+      "alpha",
+      { limitCapabilities, limitEdges, industryId },
+      { industryId },
+    );
+    res.status(202).json({ jobId: job.id, status: job.status, message: "Alpha enrichment queued" });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Alpha enrichment failed";
-    const status = msg.includes("already in progress") ? 409 : 500;
-    res.status(status).json({ error: msg });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Alpha enqueue failed" });
   }
 });
 
@@ -69,12 +71,14 @@ router.post("/enrich-detail", async (req: Request, res: Response) => {
   const force = req.body?.force === true;
   const capabilityId = typeof req.body?.capabilityId === "number" ? req.body.capabilityId : undefined;
   try {
-    const result = await runDetailEnrichment({ limit, force, capabilityId });
-    res.json(result);
+    const job = await enqueueEnrichmentJob(
+      "detail",
+      { limit, force, capabilityId },
+      { capabilityId },
+    );
+    res.status(202).json({ jobId: job.id, status: job.status, message: "Detail enrichment queued" });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Detail enrichment failed";
-    const status = msg.includes("already in progress") ? 409 : 500;
-    res.status(status).json({ error: msg });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Detail enqueue failed" });
   }
 });
 

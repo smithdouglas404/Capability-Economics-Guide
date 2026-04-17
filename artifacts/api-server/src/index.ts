@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
 import { db, capabilitiesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { startEnrichmentWorker } from "./services/alpha/queue";
 
 const rawPort = process.env["PORT"];
 
@@ -34,4 +35,7 @@ app.listen(port, (err) => {
 
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");
+
+  startEnrichmentWorker();
+  logger.info("Enrichment job worker started");
 });
