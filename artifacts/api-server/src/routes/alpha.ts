@@ -602,9 +602,37 @@ router.get("/twin", async (req: Request, res: Response) => {
     const capsA = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, aId));
     const capsB = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, bId));
 
-    const namesA = new Map(capsA.map(c => [c.name.toLowerCase().trim(), c]));
-    const namesB = new Map(capsB.map(c => [c.name.toLowerCase().trim(), c]));
-    const sharedNames = Array.from(namesA.keys()).filter(n => namesB.has(n));
+    // Token-Jaccard fuzzy matching: capability names rarely match exactly across
+    // industries, but token sets often overlap meaningfully (e.g.
+    // "Supply Chain Management" vs "Supply Chain Optimization").
+    const STOP = new Set(["and", "the", "of", "for", "in", "to", "a", "&", "/", "-", ""]);
+    const tokenize = (s: string) => new Set(
+      s.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(t => t && !STOP.has(t) && t.length > 2)
+    );
+    const tokensA = capsA.map(c => ({ cap: c, tokens: tokenize(c.name) }));
+    const tokensB = capsB.map(c => ({ cap: c, tokens: tokenize(c.name) }));
+
+    const sharedPairs: Array<{ a: typeof capsA[number]; b: typeof capsB[number]; sim: number }> = [];
+    const matchedB = new Set<number>();
+    // Overlap coefficient = |inter| / min(|A|,|B|). At least half of the smaller
+    // name's tokens must be shared. This catches "Product Engineering & Design"
+    // ↔ "Platform Engineering" via the shared "engineering" token.
+    const SIM_THRESHOLD = 0.5;
+    for (const ta of tokensA) {
+      if (ta.tokens.size === 0) continue;
+      let best: { b: typeof capsB[number]; sim: number } | null = null;
+      for (const tb of tokensB) {
+        if (matchedB.has(tb.cap.id) || tb.tokens.size === 0) continue;
+        const inter = [...ta.tokens].filter(t => tb.tokens.has(t)).length;
+        if (inter === 0) continue;
+        const minSize = Math.min(ta.tokens.size, tb.tokens.size);
+        const sim = inter / minSize;
+        if (sim >= SIM_THRESHOLD && (!best || sim > best.sim)) best = { b: tb.cap, sim };
+      }
+      if (best) { sharedPairs.push({ a: ta.cap, b: best.b, sim: best.sim }); matchedB.add(best.b.id); }
+    }
+    const sharedAIds = new Set(sharedPairs.map(p => p.a.id));
+    const sharedBIds = new Set(sharedPairs.map(p => p.b.id));
 
     const allCapIds = [...capsA.map(c => c.id), ...capsB.map(c => c.id)];
     const inIds = allCapIds.length > 0 ? sql.join(allCapIds.map(id => sql`${id}`), sql`, `) : sql`NULL`;
@@ -619,26 +647,29 @@ router.get("/twin", async (req: Request, res: Response) => {
       return { id: c.id, name: c.name, quadrant: q?.quadrant ?? null, revenueExposureMm: e?.revenueExposureMm ?? null, halfLifeMonths: e?.halfLifeMonths ?? null };
     }
 
-    const synergies = sharedNames.map(n => {
-      const ca = namesA.get(n)!; const cb = namesB.get(n)!;
+    const synergies = sharedPairs.map(({ a: ca, b: cb, sim }) => {
       const qa = quadByCapId.get(ca.id)?.quadrant; const qb = quadByCapId.get(cb.id)?.quadrant;
       const ea = econByCapId.get(ca.id); const eb = econByCapId.get(cb.id);
       const conflict = !!(qa && qb && qa !== qb);
       const synergyMm = Math.round(Math.min(ea?.revenueExposureMm ?? 0, eb?.revenueExposureMm ?? 0) * 0.10);
-      return { capabilityName: ca.name, a: profile(ca), b: profile(cb), clash: conflict, clashType: conflict ? `${qa} vs ${qb}` : null, synergyMm };
+      // Display label: combine names if they differ, else just the shared name
+      const label = ca.name.toLowerCase() === cb.name.toLowerCase()
+        ? ca.name
+        : `${ca.name}  ↔  ${cb.name}`;
+      return { capabilityName: label, similarity: Math.round(sim * 100) / 100, a: profile(ca), b: profile(cb), clash: conflict, clashType: conflict ? `${qa} vs ${qb}` : null, synergyMm };
     }).sort((x, y) => (y.synergyMm + (y.clash ? 999999 : 0)) - (x.synergyMm + (x.clash ? 999999 : 0)));
 
-    const onlyA = capsA.filter(c => !namesB.has(c.name.toLowerCase().trim())).map(profile);
-    const onlyB = capsB.filter(c => !namesA.has(c.name.toLowerCase().trim())).map(profile);
+    const onlyA = capsA.filter(c => !sharedAIds.has(c.id)).map(profile);
+    const onlyB = capsB.filter(c => !sharedBIds.has(c.id)).map(profile);
 
-    const union = capsA.length + capsB.length - sharedNames.length;
-    const jaccard = union > 0 ? sharedNames.length / union : 0;
+    const union = capsA.length + capsB.length - sharedPairs.length;
+    const jaccard = union > 0 ? sharedPairs.length / union : 0;
     const totalSynergyMm = synergies.reduce((s, x) => s + x.synergyMm, 0);
     const clashCount = synergies.filter(s => s.clash).length;
 
     res.json({
       industryA: { id: a.id, name: a.name }, industryB: { id: b.id, name: b.name },
-      summary: { sharedCount: sharedNames.length, onlyACount: onlyA.length, onlyBCount: onlyB.length, jaccard: Math.round(jaccard * 1000) / 1000, totalSynergyMm, clashCount },
+      summary: { sharedCount: sharedPairs.length, onlyACount: onlyA.length, onlyBCount: onlyB.length, jaccard: Math.round(jaccard * 1000) / 1000, totalSynergyMm, clashCount },
       synergies, onlyA, onlyB,
     });
   } catch (err) { res.status(500).json({ error: String(err) }); }
