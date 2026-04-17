@@ -19,6 +19,7 @@ import ReviewQueue from "@/pages/review-queue";
 import VCE from "@/pages/vce";
 import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
+import Companies from "@/pages/companies";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +76,7 @@ function Router() {
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />
       <Route path="/membership" component={Membership} />
+      <Route path="/companies" component={Companies} />
       <Route component={NotFound} />
     </Switch>
   );

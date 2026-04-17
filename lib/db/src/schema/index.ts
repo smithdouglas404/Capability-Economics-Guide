@@ -18,3 +18,4 @@ export * from "./alpha";
 export * from "./membership";
 export * from "./memory-graph";
 export * from "./macro-events";
+export * from "./companies";

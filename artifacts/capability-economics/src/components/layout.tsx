@@ -14,6 +14,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/insurance-example", label: "Case Study", icon: Shield },
     { href: "/c-suite", label: "C-Suite", icon: Users },
     { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
+    { href: "/companies", label: "Companies", icon: Building2 },
     { href: "/projects", label: "Projects", icon: Layers },
     { href: "/insights", label: "Insights", icon: Lightbulb },
     { href: "/organization", label: "My Org", icon: Building2 },

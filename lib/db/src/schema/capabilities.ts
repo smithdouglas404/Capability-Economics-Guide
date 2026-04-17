@@ -24,6 +24,11 @@ export const capabilitiesTable = pgTable("capabilities", {
   enrichmentUpdatedAt: timestamp("enrichment_updated_at"),
   parentCapabilityId: integer("parent_capability_id").references((): AnyPgColumn => capabilitiesTable.id, { onDelete: "cascade" }),
   isLeaf: boolean("is_leaf").notNull().default(true),
+  valueChainStage: text("value_chain_stage"),
+  patentCount: integer("patent_count").notNull().default(0),
+  vcCapitalUsd: real("vc_capital_usd").notNull().default(0),
+  startupCount: integer("startup_count").notNull().default(0),
+  externalSignalsUpdatedAt: timestamp("external_signals_updated_at"),
 });
 
 export const capabilityMetricsTable = pgTable("capability_metrics", {
