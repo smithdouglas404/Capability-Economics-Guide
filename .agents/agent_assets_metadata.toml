@@ -23,3 +23,9 @@ id = "BkzrIGF0dvblVHPeVCN6E"
 uri = "file://docs/ce-moneyball-redesign.md"
 type = "text"
 title = "CE Moneyball Redesign — stop being a me-too"
+
+[[outputs]]
+id = "WYgu8lu6mmM-nJ66TgTff"
+uri = "file://docs/ce-language-spec.md"
+type = "text"
+title = "CE Naming & Language Spec — our own vocabulary"
