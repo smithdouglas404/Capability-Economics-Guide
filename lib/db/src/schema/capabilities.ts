@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, real, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, jsonb, boolean, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { industriesTable } from "./industries";
@@ -22,6 +22,8 @@ export const capabilitiesTable = pgTable("capabilities", {
   enrichmentStage: text("enrichment_stage"),
   enrichmentError: text("enrichment_error"),
   enrichmentUpdatedAt: timestamp("enrichment_updated_at"),
+  parentCapabilityId: integer("parent_capability_id").references((): AnyPgColumn => capabilitiesTable.id, { onDelete: "cascade" }),
+  isLeaf: boolean("is_leaf").notNull().default(true),
 });
 
 export const capabilityMetricsTable = pgTable("capability_metrics", {

@@ -3,6 +3,7 @@ import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { rotateTriangulations } from "../triangulation";
 import { computeCEI } from "../cei-engine";
+import { runWorldScanAllIndustries } from "../macro-events";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -12,6 +13,7 @@ const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
+const WORLD_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
 const URGENCY_STALE_DAYS = 10;
@@ -19,11 +21,15 @@ const URGENCY_STALE_DAYS = 10;
 let routineTimer: ReturnType<typeof setInterval> | null = null;
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
+let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
+let isScanning = false;
 let lastRunAt: Date | null = null;
 let lastRotationAt: Date | null = null;
+let lastWorldScanAt: Date | null = null;
 let lastRotationResult: { attempted: number; succeeded: number; failed: number } | null = null;
+let lastWorldScanResult: { totalInserted: number; industryCount: number } | null = null;
 let lastRunResult: Awaited<ReturnType<typeof runAgent>> | null = null;
 
 async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: string }> {
@@ -119,6 +125,58 @@ async function watchdogCheck(): Promise<void> {
   }
 }
 
+async function executeWorldScan(trigger: string): Promise<void> {
+  if (isScanning) {
+    console.log("[World Scan] Skipping — previous scan in progress");
+    return;
+  }
+  isScanning = true;
+  emitAgentEvent({ type: "phase", phase: "world_scan_started", message: `World scan (${trigger}): scanning all industries` });
+  try {
+    const result = await runWorldScanAllIndustries();
+    lastWorldScanAt = new Date();
+    lastWorldScanResult = { totalInserted: result.totalInserted, industryCount: result.perIndustry.length };
+    console.log(`[World Scan] Inserted ${result.totalInserted} events across ${result.perIndustry.length} industries`);
+    emitAgentEvent({ type: "phase", phase: "world_scan_complete", message: `World scan: ${result.totalInserted} new events ingested` });
+
+    const highSeverity = result.perIndustry
+      .filter(p => p.inserted > 0)
+      .sort((a, b) => b.inserted - a.inserted)[0];
+    if (highSeverity && highSeverity.inserted >= 1 && !isRotating) {
+      isRotating = true;
+      try {
+        emitAgentEvent({ type: "phase", phase: "scan_burst", message: `Macro event burst: ${URGENCY_BURST_SIZE} caps in ${highSeverity.industryName}` });
+        await rotateTriangulations(URGENCY_BURST_SIZE, highSeverity.industryId);
+      } finally {
+        isRotating = false;
+      }
+    }
+
+    if (result.totalInserted > 0) {
+      const cei = await computeCEI();
+      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CEI recomputed after world scan: ${cei.overallIndex}` });
+    }
+  } catch (err) {
+    console.error("[World Scan] failed:", err);
+  } finally {
+    isScanning = false;
+  }
+}
+
+export async function triggerWorldScanNow(): Promise<{ totalInserted: number; industryCount: number }> {
+  if (isScanning) throw new Error("World scan already in progress");
+  isScanning = true;
+  try {
+    const result = await runWorldScanAllIndustries();
+    lastWorldScanAt = new Date();
+    lastWorldScanResult = { totalInserted: result.totalInserted, industryCount: result.perIndustry.length };
+    if (result.totalInserted > 0) await computeCEI();
+    return lastWorldScanResult;
+  } finally {
+    isScanning = false;
+  }
+}
+
 async function executeRotation(trigger: string): Promise<void> {
   if (isRotating) {
     console.log("[Triangulation Rotation] Skipping — previous rotation in progress");
@@ -159,6 +217,7 @@ export function startScheduler(): void {
   routineTimer = setInterval(() => executeRun("routine"), ROUTINE_INTERVAL_MS);
   watchdogTimer = setInterval(() => watchdogCheck(), WATCHDOG_INTERVAL_MS);
   rotationTimer = setInterval(() => executeRotation("daily"), ROTATION_INTERVAL_MS);
+  worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_INTERVAL_MS / 60000 });
 
@@ -173,6 +232,7 @@ export function stopScheduler(): void {
   if (routineTimer) { clearInterval(routineTimer); routineTimer = null; }
   if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
+  if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   stopConsolidator();
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
@@ -205,6 +265,12 @@ export function getSchedulerStatus(): {
     lastRotationAt: string | null;
     lastRotationResult: { attempted: number; succeeded: number; failed: number } | null;
   };
+  worldScan: {
+    isScanning: boolean;
+    intervalHours: number;
+    lastScanAt: string | null;
+    lastScanResult: { totalInserted: number; industryCount: number } | null;
+  };
 } {
   return {
     active: routineTimer !== null,
@@ -212,6 +278,12 @@ export function getSchedulerStatus(): {
     intervalMinutes: ROUTINE_INTERVAL_MS / 60000,
     lastRunAt: lastRunAt?.toISOString() ?? null,
     lastRunResult,
+    worldScan: {
+      isScanning,
+      intervalHours: WORLD_SCAN_INTERVAL_MS / (60 * 60 * 1000),
+      lastScanAt: lastWorldScanAt?.toISOString() ?? null,
+      lastScanResult: lastWorldScanResult,
+    },
     rotation: {
       isRotating,
       intervalHours: ROTATION_INTERVAL_MS / (60 * 60 * 1000),

@@ -215,9 +215,11 @@ export async function getStaleCapabilities(limit: number, industryId?: number): 
   industryName: string;
   lastTriangulatedAt: Date | null;
 }>> {
-  const caps = industryId
+  const allCaps = industryId
     ? await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId))
     : await db.select().from(capabilitiesTable);
+  // Only triangulate leaf capabilities — parents are rolled up from children.
+  const caps = allCaps.filter(c => c.isLeaf);
 
   const industries = await db.select().from(industriesTable);
   const indMap = new Map(industries.map(i => [i.id, i.name]));

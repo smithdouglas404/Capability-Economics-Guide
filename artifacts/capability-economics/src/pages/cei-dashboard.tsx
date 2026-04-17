@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
-  Globe, BookOpen, Bot, Brain, Eye, SkipForward, Search, Database, Clock
+  Globe, BookOpen, Bot, Brain, Eye, SkipForward, Search, Database, Clock,
+  AlertTriangle, Plus, X, Sparkles, Trash2,
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -62,6 +63,50 @@ interface FreshnessResponse {
   formula: { marketSentiment: string; consensusScore: string; velocity: string };
   capabilities: FreshnessItem[];
 }
+
+interface MacroEvent {
+  id: number;
+  eventType: string;
+  severity: number;
+  title: string;
+  description: string;
+  affectedIndustryIds: number[];
+  affectedCapabilityIds: number[] | null;
+  sentimentDirection: "positive" | "negative" | "neutral";
+  startedAt: string;
+  decayDays: number;
+  source: string;
+  citations: string[] | null;
+}
+interface CatalogTemplate {
+  key: string;
+  title: string;
+  description: string;
+  eventType: "war" | "regulation" | "tech_shift" | "economic" | "disaster" | "other";
+  severity: number;
+  sentimentDirection: "positive" | "negative" | "neutral";
+  decayDays: number;
+  rationale: string;
+  citations?: string[];
+  affectedIndustryIds: number[];
+  affectedCapabilityIds: number[];
+  affectedIndustryNames: string[];
+  affectedCapabilityNames: string[];
+  unresolvedSlugs: string[];
+}
+interface CatalogResponse { templates: CatalogTemplate[]; total: number; }
+interface CapabilityListItem { id: number; name: string; slug: string; industryId: number; }
+interface MacroShock {
+  sentimentShock: number;
+  volatilityBoost: number;
+  contributingEvents: Array<{ id: number; title: string; severity: number; decayFactor: number; direction: string }>;
+}
+interface MacroEventsResponse {
+  active: MacroEvent[];
+  shock: MacroShock;
+  summary: { total: number; avgSeverity: number; sentimentShock: number; volatilityBoost: number };
+}
+interface IndustryListItem { id: number; name: string; slug: string; }
 
 interface AgentStatus {
   scheduler: {
@@ -261,7 +306,80 @@ export default function CEIDashboard() {
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
   const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cei/freshness`);
+  const { data: macroEvents, refetch: refetchMacroEvents } = useApi<MacroEventsResponse>(`${API_BASE}/macro-events/active`);
+  const { data: industryList } = useApi<IndustryListItem[]>(`${API_BASE}/industries`);
+  const { data: capabilityList } = useApi<CapabilityListItem[]>(`${API_BASE}/capabilities`);
+  const { data: catalogData } = useApi<CatalogResponse>(`${API_BASE}/macro-events/catalog`);
   const [showFreshness, setShowFreshness] = useState(true);
+  const [showMacroPanel, setShowMacroPanel] = useState(true);
+  const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showCatalog, setShowCatalog] = useState(false);
+  const [eventForm, setEventForm] = useState({
+    eventType: "war" as "war" | "regulation" | "tech_shift" | "economic" | "disaster" | "other",
+    severity: 7,
+    title: "",
+    description: "",
+    sentimentDirection: "negative" as "positive" | "negative" | "neutral",
+    decayDays: 14,
+    affectedIndustryIds: [] as number[],
+    affectedCapabilityIds: [] as number[],
+    source: "admin" as string,
+  });
+  const [adminKey, setAdminKey] = useState(() => localStorage.getItem("ce_admin_key") || "");
+  const [submittingEvent, setSubmittingEvent] = useState(false);
+  const [scanningWorld, setScanningWorld] = useState(false);
+
+  const submitEvent = useCallback(async () => {
+    if (!eventForm.title.trim()) { alert("Title required"); return; }
+    setSubmittingEvent(true);
+    try {
+      const res = await fetch(`${API_BASE}/macro-events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Admin-Key": adminKey },
+        body: JSON.stringify(eventForm),
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
+      setShowAddEvent(false);
+      setEventForm({ ...eventForm, title: "", description: "", affectedIndustryIds: [], affectedCapabilityIds: [], source: "admin" });
+      await Promise.all([refetchMacroEvents(), refetchCei()]);
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setSubmittingEvent(false);
+    }
+  }, [eventForm, adminKey, refetchMacroEvents, refetchCei]);
+
+  const deleteEvent = useCallback(async (id: number) => {
+    if (!confirm("Delete this macro event? CEI will recompute without its shock.")) return;
+    try {
+      const res = await fetch(`${API_BASE}/macro-events/${id}`, {
+        method: "DELETE",
+        headers: { "X-Admin-Key": adminKey },
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
+      await Promise.all([refetchMacroEvents(), refetchCei()]);
+    } catch (err) {
+      alert(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [adminKey, refetchMacroEvents, refetchCei]);
+
+  const triggerWorldScan = useCallback(async () => {
+    setScanningWorld(true);
+    try {
+      const res = await fetch(`${API_BASE}/macro-events/scan-now`, {
+        method: "POST",
+        headers: { "X-Admin-Key": adminKey },
+      });
+      if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
+      const data = await res.json();
+      await Promise.all([refetchMacroEvents(), refetchCei()]);
+      alert(`World scan complete: ${data.totalInserted} events ingested across ${data.perIndustry.length} industries.`);
+    } catch (err) {
+      alert(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setScanningWorld(false);
+    }
+  }, [adminKey, refetchMacroEvents, refetchCei]);
   const { events: agentEvents, connected: sseConnected } = useAgentEvents();
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
@@ -389,7 +507,474 @@ export default function CEIDashboard() {
       </div>
 
       <div className="container mx-auto px-4 -mt-6">
-        {freshness && (
+        {/* Macro Disruptions Panel */}
+        <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="mb-4"
+          >
+            <Card className={`rounded-none border-2 ${
+              (macroEvents?.summary.total ?? 0) > 0
+                ? "border-red-400 dark:border-red-900/60 bg-red-50/40 dark:bg-red-950/10"
+                : "border-slate-300 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-950/10"
+            }`}>
+              <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowMacroPanel(!showMacroPanel)}>
+                <CardTitle className="font-serif text-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className={`w-5 h-5 ${(macroEvents?.summary.total ?? 0) > 0 ? "text-red-600" : "text-slate-500"}`} />
+                    Active Macro Disruptions
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      (macroEvents?.summary.total ?? 0) === 0 ? "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                      : (macroEvents?.summary.avgSeverity ?? 0) >= 7 ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                      : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                    }`}>
+                      {macroEvents?.summary.total ?? 0} active
+                    </span>
+                    {macroEvents && macroEvents.summary.sentimentShock !== 0 && (
+                      <span className={`text-xs font-mono ${macroEvents.summary.sentimentShock < 0 ? "text-red-600" : "text-emerald-600"}`}>
+                        sentiment shock: {macroEvents.summary.sentimentShock > 0 ? "+" : ""}{macroEvents.summary.sentimentShock}
+                      </span>
+                    )}
+                  </div>
+                  {showMacroPanel ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </CardTitle>
+                <CardDescription>
+                  Real-world events (war, regulation, paradigm shifts) that perturb market sentiment & volatility. Each event decays linearly over its window.
+                </CardDescription>
+              </CardHeader>
+              <AnimatePresence>
+                {showMacroPanel && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <CardContent className="pt-0">
+                      <div className="flex items-center gap-2 mb-3 flex-wrap">
+                        <input
+                          type="password"
+                          placeholder="Admin key (saved locally)"
+                          value={adminKey}
+                          onChange={(e) => { setAdminKey(e.target.value); localStorage.setItem("ce_admin_key", e.target.value); }}
+                          className="px-2 py-1 text-xs border border-border rounded-sm bg-background w-48"
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowAddEvent(!showAddEvent)}
+                          className="rounded-none text-xs h-7"
+                        >
+                          {showAddEvent ? <><X className="w-3 h-3 mr-1" /> Cancel</> : <><Plus className="w-3 h-3 mr-1" /> Add Event</>}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowCatalog(!showCatalog)}
+                          className="rounded-none text-xs h-7"
+                        >
+                          {showCatalog ? <><X className="w-3 h-3 mr-1" /> Hide Catalog</> : <><BookOpen className="w-3 h-3 mr-1" /> Browse Catalog ({catalogData?.total ?? 0})</>}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={triggerWorldScan}
+                          disabled={scanningWorld}
+                          className="rounded-none text-xs h-7"
+                        >
+                          {scanningWorld ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                          {scanningWorld ? "Scanning..." : "Run World Scan Now"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => refetchMacroEvents()}
+                          className="rounded-none text-xs h-7"
+                        >
+                          <RefreshCw className="w-3 h-3 mr-1" /> Refresh
+                        </Button>
+                      </div>
+
+                      <AnimatePresence>
+                        {showCatalog && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mb-4"
+                          >
+                            <div className="p-3 border border-border rounded-sm bg-muted/20">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="text-xs font-semibold flex items-center gap-1.5">
+                                  <BookOpen className="w-3.5 h-3.5 text-primary" />
+                                  Curated Disruption Catalog
+                                  <span className="text-muted-foreground font-normal">— pre-populated severity, decay, and capability links. Click "Use" to load into the form, then adjust before saving.</span>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
+                                {catalogData?.templates.map(t => {
+                                  const sevColor = t.severity >= 8 ? "text-red-600" : t.severity >= 5 ? "text-amber-600" : "text-slate-600";
+                                  const dirColor = t.sentimentDirection === "negative" ? "text-red-600" : t.sentimentDirection === "positive" ? "text-emerald-600" : "text-slate-500";
+                                  return (
+                                    <div key={t.key} className="p-2 border border-border bg-background rounded-sm flex flex-col gap-1.5 hover:border-primary/60 transition">
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="text-xs font-semibold leading-tight">{t.title}</div>
+                                          <div className="text-[10px] text-muted-foreground capitalize mt-0.5">{t.eventType.replace("_", " ")}</div>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                          <span className={`font-mono font-bold text-xs ${sevColor}`}>{t.severity}</span>
+                                          <span className={`text-[10px] ${dirColor}`}>
+                                            {t.sentimentDirection === "negative" ? "▼" : t.sentimentDirection === "positive" ? "▲" : "—"}
+                                          </span>
+                                          <span className="text-[10px] text-muted-foreground font-mono">{t.decayDays}d</span>
+                                        </div>
+                                      </div>
+                                      <div className="text-[10px] text-muted-foreground line-clamp-2">{t.description}</div>
+                                      {t.affectedIndustryNames.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                          {t.affectedIndustryNames.map(n => (
+                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded">{n.split(" ")[0]}</span>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {t.affectedCapabilityNames.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                          {t.affectedCapabilityNames.slice(0, 6).map(n => (
+                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded">{n}</span>
+                                          ))}
+                                          {t.affectedCapabilityNames.length > 6 && (
+                                            <span className="text-[9px] text-muted-foreground">+{t.affectedCapabilityNames.length - 6}</span>
+                                          )}
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between pt-1 border-t border-border/40">
+                                        <span className="text-[9px] text-muted-foreground italic line-clamp-1" title={t.rationale}>{t.rationale}</span>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="rounded-none text-[10px] h-5 px-1.5 ml-1 shrink-0"
+                                          onClick={() => {
+                                            setEventForm({
+                                              eventType: t.eventType,
+                                              severity: t.severity,
+                                              title: t.title,
+                                              description: t.description,
+                                              sentimentDirection: t.sentimentDirection,
+                                              decayDays: t.decayDays,
+                                              affectedIndustryIds: t.affectedIndustryIds,
+                                              affectedCapabilityIds: t.affectedCapabilityIds,
+                                              source: "catalog",
+                                            });
+                                            setShowAddEvent(true);
+                                            setShowCatalog(false);
+                                          }}
+                                        >
+                                          Use →
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {(!catalogData || catalogData.templates.length === 0) && (
+                                  <div className="col-span-2 text-center py-4 text-xs text-muted-foreground">Loading catalog…</div>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      <AnimatePresence>
+                        {showAddEvent && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mb-4"
+                          >
+                            <div className="p-3 border border-border rounded-sm bg-muted/20 space-y-2">
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                <label className="text-xs">
+                                  <span className="text-muted-foreground block mb-1">Type</span>
+                                  <select
+                                    value={eventForm.eventType}
+                                    onChange={(e) => setEventForm({ ...eventForm, eventType: e.target.value as typeof eventForm.eventType })}
+                                    className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                  >
+                                    <option value="war">War / Conflict</option>
+                                    <option value="regulation">Regulation</option>
+                                    <option value="tech_shift">Tech Paradigm Shift</option>
+                                    <option value="economic">Economic</option>
+                                    <option value="disaster">Disaster</option>
+                                    <option value="other">Other</option>
+                                  </select>
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-muted-foreground block mb-1">Severity (0-10): <strong>{eventForm.severity}</strong></span>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="10"
+                                    step="1"
+                                    value={eventForm.severity}
+                                    onChange={(e) => setEventForm({ ...eventForm, severity: Number(e.target.value) })}
+                                    className="w-full"
+                                  />
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-muted-foreground block mb-1">Direction</span>
+                                  <select
+                                    value={eventForm.sentimentDirection}
+                                    onChange={(e) => setEventForm({ ...eventForm, sentimentDirection: e.target.value as typeof eventForm.sentimentDirection })}
+                                    className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                  >
+                                    <option value="negative">Negative</option>
+                                    <option value="positive">Positive</option>
+                                    <option value="neutral">Neutral</option>
+                                  </select>
+                                </label>
+                                <label className="text-xs">
+                                  <span className="text-muted-foreground block mb-1">Decay days: <strong>{eventForm.decayDays}</strong></span>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="90"
+                                    step="1"
+                                    value={eventForm.decayDays}
+                                    onChange={(e) => setEventForm({ ...eventForm, decayDays: Number(e.target.value) })}
+                                    className="w-full"
+                                  />
+                                </label>
+                              </div>
+                              <label className="text-xs block">
+                                <span className="text-muted-foreground block mb-1">Title</span>
+                                <input
+                                  type="text"
+                                  value={eventForm.title}
+                                  onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
+                                  placeholder="e.g. EU AI Act enforcement begins"
+                                  className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                />
+                              </label>
+                              <label className="text-xs block">
+                                <span className="text-muted-foreground block mb-1">Description</span>
+                                <textarea
+                                  value={eventForm.description}
+                                  onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
+                                  placeholder="What happened, why it matters for capabilities"
+                                  rows={2}
+                                  className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                />
+                              </label>
+                              <div>
+                                <span className="text-muted-foreground text-xs block mb-1">Affected industries (none = global)</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {industryList?.map(ind => {
+                                    const selected = eventForm.affectedIndustryIds.includes(ind.id);
+                                    return (
+                                      <button
+                                        key={ind.id}
+                                        onClick={() => setEventForm({
+                                          ...eventForm,
+                                          affectedIndustryIds: selected
+                                            ? eventForm.affectedIndustryIds.filter(id => id !== ind.id)
+                                            : [...eventForm.affectedIndustryIds, ind.id],
+                                        })}
+                                        className={`px-2 py-0.5 text-[10px] rounded-sm border transition ${
+                                          selected
+                                            ? "bg-primary text-primary-foreground border-primary"
+                                            : "bg-background border-border hover:bg-muted"
+                                        }`}
+                                      >
+                                        {ind.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              {(() => {
+                                const filteredCaps = (capabilityList ?? []).filter(c =>
+                                  eventForm.affectedIndustryIds.length === 0 ||
+                                  eventForm.affectedIndustryIds.includes(c.industryId) ||
+                                  eventForm.affectedCapabilityIds.includes(c.id)
+                                );
+                                return (
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-muted-foreground text-xs">
+                                        Affected capabilities ({eventForm.affectedCapabilityIds.length} selected{eventForm.affectedIndustryIds.length > 0 ? `, filtered to ${eventForm.affectedIndustryIds.length} industr${eventForm.affectedIndustryIds.length === 1 ? "y" : "ies"}` : ", all"})
+                                      </span>
+                                      {eventForm.affectedCapabilityIds.length > 0 && (
+                                        <button
+                                          onClick={() => setEventForm({ ...eventForm, affectedCapabilityIds: [] })}
+                                          className="text-[10px] text-muted-foreground hover:text-red-600"
+                                        >Clear</button>
+                                      )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1 border border-border/50 rounded-sm bg-background/40">
+                                      {filteredCaps.length === 0 && (
+                                        <span className="text-[10px] text-muted-foreground italic px-1">No capabilities available for selected industries.</span>
+                                      )}
+                                      {filteredCaps.map(c => {
+                                        const selected = eventForm.affectedCapabilityIds.includes(c.id);
+                                        return (
+                                          <button
+                                            key={c.id}
+                                            onClick={() => setEventForm({
+                                              ...eventForm,
+                                              affectedCapabilityIds: selected
+                                                ? eventForm.affectedCapabilityIds.filter(id => id !== c.id)
+                                                : [...eventForm.affectedCapabilityIds, c.id],
+                                            })}
+                                            className={`px-1.5 py-0.5 text-[10px] rounded-sm border transition ${
+                                              selected
+                                                ? "bg-violet-600 text-white border-violet-600"
+                                                : "bg-background border-border hover:bg-muted"
+                                            }`}
+                                          >
+                                            {c.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                              <div className="flex justify-end gap-2 pt-1">
+                                <Button size="sm" variant="ghost" onClick={() => setShowAddEvent(false)} className="rounded-none text-xs h-7">Cancel</Button>
+                                <Button size="sm" onClick={submitEvent} disabled={submittingEvent || !eventForm.title.trim()} className="rounded-none text-xs h-7">
+                                  {submittingEvent ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                                  Add Event
+                                </Button>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+
+                      {macroEvents && macroEvents.active.length === 0 ? (
+                        <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-border rounded-sm">
+                          No active macro disruptions. The CEI reflects only baseline capability dynamics.
+                          <br />Add an event manually or run a world scan to detect real-time disruptions.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead className="border-b text-muted-foreground">
+                              <tr className="text-left">
+                                <th className="py-1.5 pr-3 font-medium">Title</th>
+                                <th className="py-1.5 pr-3 font-medium">Type</th>
+                                <th className="py-1.5 pr-3 font-medium text-right">Severity</th>
+                                <th className="py-1.5 pr-3 font-medium text-right">Direction</th>
+                                <th className="py-1.5 pr-3 font-medium text-right">Decay Left</th>
+                                <th className="py-1.5 pr-3 font-medium">Industries</th>
+                                <th className="py-1.5 pr-3 font-medium">Linked Capabilities</th>
+                                <th className="py-1.5 pr-3 font-medium">Source</th>
+                                <th className="py-1.5 pr-3 font-medium text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {macroEvents?.active.map(ev => {
+                                const elapsedDays = (Date.now() - new Date(ev.startedAt).getTime()) / (1000 * 60 * 60 * 24);
+                                const remainingDays = Math.max(0, ev.decayDays - elapsedDays);
+                                const decayPct = (remainingDays / ev.decayDays) * 100;
+                                const affectedNames = ev.affectedIndustryIds.length === 0
+                                  ? "Global"
+                                  : ev.affectedIndustryIds.map(id => industryList?.find(i => i.id === id)?.name?.split(" ")[0] ?? `#${id}`).join(", ");
+                                return (
+                                  <tr key={ev.id} className="border-b border-border/50 hover:bg-muted/30">
+                                    <td className="py-1.5 pr-3 font-medium" title={ev.description}>{ev.title}</td>
+                                    <td className="py-1.5 pr-3 text-muted-foreground capitalize">{ev.eventType.replace("_", " ")}</td>
+                                    <td className="py-1.5 pr-3 text-right">
+                                      <span className={`font-mono font-bold ${
+                                        ev.severity >= 8 ? "text-red-600" : ev.severity >= 5 ? "text-amber-600" : "text-slate-600"
+                                      }`}>{ev.severity}</span>
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-right">
+                                      {ev.sentimentDirection === "negative" ? <span className="text-red-600">▼ neg</span>
+                                        : ev.sentimentDirection === "positive" ? <span className="text-emerald-600">▲ pos</span>
+                                        : <span className="text-slate-500">— neu</span>}
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-right font-mono">
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        <span>{remainingDays.toFixed(1)}d</span>
+                                        <div className="w-12 h-1 bg-muted rounded-full overflow-hidden">
+                                          <div className="h-full bg-amber-500" style={{ width: `${decayPct}%` }} />
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-muted-foreground text-[10px]">{affectedNames}</td>
+                                    <td className="py-1.5 pr-3">
+                                      {ev.affectedCapabilityIds && ev.affectedCapabilityIds.length > 0 ? (
+                                        <div className="flex flex-wrap gap-0.5 max-w-[260px]">
+                                          {ev.affectedCapabilityIds.slice(0, 4).map(cid => {
+                                            const cap = capabilityList?.find(c => c.id === cid);
+                                            return (
+                                              <span key={cid} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded" title={cap?.name ?? `#${cid}`}>
+                                                {cap?.name ?? `#${cid}`}
+                                              </span>
+                                            );
+                                          })}
+                                          {ev.affectedCapabilityIds.length > 4 && (
+                                            <span className="text-[9px] text-muted-foreground" title={ev.affectedCapabilityIds.slice(4).map(cid => capabilityList?.find(c => c.id === cid)?.name ?? `#${cid}`).join(", ")}>
+                                              +{ev.affectedCapabilityIds.length - 4}
+                                            </span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-muted-foreground italic">industry-wide</span>
+                                      )}
+                                    </td>
+                                    <td className="py-1.5 pr-3">
+                                      <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                                        ev.source === "world_scan" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                        : ev.source === "catalog" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                                        : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                      }`}>
+                                        {ev.source === "world_scan" ? "🌐 scan" : ev.source === "catalog" ? "📚 catalog" : "👤 admin"}
+                                      </span>
+                                    </td>
+                                    <td className="py-1.5 pr-3 text-right">
+                                      <button
+                                        onClick={() => deleteEvent(ev.id)}
+                                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-sm text-red-600 transition"
+                                        title="Delete event"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      <div className="mt-3 px-3 py-2 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
+                        <div className="flex items-start gap-2">
+                          <Info className="w-3 h-3 mt-0.5 shrink-0 text-blue-600" />
+                          <div>
+                            <span className="font-semibold text-foreground">How shocks apply:</span> each active event contributes
+                            <code className="mx-1 px-1 bg-background rounded">severity × directionSign × 0.5 × decayFactor</code> to <strong>market sentiment</strong>,
+                            and <code className="mx-1 px-1 bg-background rounded">severity × 0.005 × decayFactor</code> to <strong>volatility</strong>.
+                            decayFactor = max(0, 1 - elapsedDays / decayDays). Currently shifting sentiment by
+                            <strong className={macroEvents && macroEvents.summary.sentimentShock < 0 ? "text-red-600" : "text-emerald-600"}> {macroEvents?.summary.sentimentShock ?? 0}</strong>
+                            and volatility by <strong className="text-amber-600">+{macroEvents?.summary.volatilityBoost ?? 0}</strong>.
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Card>
+          </motion.div>
+
+          {freshness && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -548,7 +1133,7 @@ export default function CEIDashboard() {
               </AnimatePresence>
             </Card>
           </motion.div>
-        )}
+          )}
 
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -990,3 +1575,4 @@ export default function CEIDashboard() {
     </div>
   );
 }
+ 

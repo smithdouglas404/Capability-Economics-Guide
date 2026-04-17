@@ -21,6 +21,7 @@ import vceRouter from "./vce";
 import alphaRouter from "./alpha";
 import reviewRouter from "./review";
 import membershipRouter from "./membership";
+import macroEventsRouter from "./macro-events";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use("/enrichment", enrichmentRouter);
 router.use("/alpha", alphaRouter);
 router.use(reviewRouter);
 router.use(membershipRouter);
+router.use(macroEventsRouter);
 
 export default router;

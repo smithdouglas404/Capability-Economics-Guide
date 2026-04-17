@@ -8,6 +8,7 @@ import {
   ontologyRelationshipsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { computeGlobalMacroShock } from "./macro-events";
 
 const INDUSTRY_GDP_WEIGHTS: Record<string, number> = {
   "Banking & Financial Services": 0.22,
@@ -96,7 +97,13 @@ export async function computeCEI(): Promise<CEIResult> {
     let topMover = "";
     let topMoverDelta = 0;
 
-    for (const cap of caps) {
+    // Two-pass: leaves first (real measurements), then parents (rolled up from children).
+    const leafCaps = caps.filter(c => c.isLeaf);
+    const parentCaps = caps.filter(c => !c.isLeaf);
+    // Posteriors of leaves keyed by capId — used to roll parents up.
+    const leafPosterior = new Map<number, { consensusScore: number; confidence: number; velocity: number }>();
+
+    for (const cap of leafCaps) {
       const triSources = triMap.get(cap.id);
       let consensusScore: number;
       let confidence: number;
@@ -183,11 +190,66 @@ export async function computeCEI(): Promise<CEIResult> {
           sourceScores,
         });
       }
+
+      leafPosterior.set(cap.id, { consensusScore, confidence, velocity });
     }
 
-    const industryIndex = (industryWeightedSum / caps.length) * CEI_SCALE_FACTOR;
-    const avgVelocity = caps.length > 0
-      ? allVelocities.slice(-caps.length).reduce((s, v) => s + v, 0) / caps.length
+    // Pass 2: roll up parent capabilities from their children's posteriors.
+    // Parents do NOT contribute to industryWeightedSum (avoid double-count) — they're display-only aggregates.
+    for (const parent of parentCaps) {
+      const childCaps = allCapabilities.filter(c => c.parentCapabilityId === parent.id);
+      const childData = childCaps
+        .map(c => leafPosterior.get(c.id))
+        .filter((d): d is { consensusScore: number; confidence: number; velocity: number } => !!d);
+      if (childData.length === 0) continue;
+
+      const consensusScore = childData.reduce((s, d) => s + d.consensusScore, 0) / childData.length;
+      const variance = childData.reduce((s, d) => s + Math.pow(d.consensusScore - consensusScore, 2), 0) / childData.length;
+      const stddev = Math.sqrt(variance);
+      const avgChildConf = childData.reduce((s, d) => s + d.confidence, 0) / childData.length;
+      // Penalize confidence when children disagree (stddev/50 caps at 1).
+      const confidence = Math.max(0.1, avgChildConf * Math.max(0, 1 - stddev / 50));
+      const velocity = childData.reduce((s, d) => s + d.velocity, 0) / childData.length;
+      const deps = dependencyCount.get(parent.id) || 0;
+      const economicMultiplier = Math.min(MULTIPLIER_CAP, MULTIPLIER_BASE + deps * MULTIPLIER_PER_DEPENDENCY);
+
+      const sourceScores = childCaps
+        .filter(c => leafPosterior.has(c.id))
+        .map(c => {
+          const d = leafPosterior.get(c.id)!;
+          return {
+            sourceLabel: `child:${c.name}`,
+            rawScore: d.consensusScore,
+            weight: 1 / childData.length,
+            methodology: "rollup_from_children",
+            queriedAt: new Date().toISOString(),
+          };
+        });
+
+      const prevKey = `${industry.id}-${parent.id}`;
+      const prev = prevMap.get(prevKey);
+      if (prev) {
+        await db.update(ceiComponentsTable)
+          .set({ consensusScore, confidence, velocity, economicMultiplier, sourceScores, updatedAt: new Date() })
+          .where(eq(ceiComponentsTable.id, prev.id));
+      } else {
+        await db.insert(ceiComponentsTable).values({
+          capabilityId: parent.id,
+          industryId: industry.id,
+          consensusScore,
+          confidence,
+          velocity,
+          economicMultiplier,
+          sourceScores,
+        });
+      }
+    }
+
+    // Industry index uses leaf caps only (parents are aggregates, would double-count).
+    const denom = leafCaps.length || caps.length;
+    const industryIndex = (industryWeightedSum / denom) * CEI_SCALE_FACTOR;
+    const avgVelocity = denom > 0
+      ? allVelocities.slice(-denom).reduce((s, v) => s + v, 0) / denom
       : 0;
 
     industryBreakdowns[industry.slug] = {
@@ -211,12 +273,21 @@ export async function computeCEI(): Promise<CEIResult> {
   const avgVelocity = allVelocities.length > 0
     ? allVelocities.reduce((s, v) => s + v, 0) / allVelocities.length
     : 0;
-  const marketSentiment = Math.round((50 + avgVelocity * 100) * 10) / 10;
+  const baseSentiment = 50 + avgVelocity * 100;
 
   const velocityVariance = allVelocities.length > 1
     ? allVelocities.reduce((s, v) => s + Math.pow(v - avgVelocity, 2), 0) / allVelocities.length
     : 0;
-  const volatility = Math.round(Math.sqrt(velocityVariance) * 1000) / 1000;
+  const baseVolatility = Math.sqrt(velocityVariance);
+
+  let macroShock = { sentimentShock: 0, volatilityBoost: 0, contributingEvents: [] as Array<{ id: number; title: string; severity: number; decayFactor: number; direction: string }> };
+  try {
+    macroShock = await computeGlobalMacroShock();
+  } catch (err) {
+    console.warn("[CEI] macro shock unavailable:", err);
+  }
+  const marketSentiment = Math.max(0, Math.min(100, Math.round((baseSentiment + macroShock.sentimentShock) * 10) / 10));
+  const volatility = Math.round((baseVolatility + macroShock.volatilityBoost) * 1000) / 1000;
 
   const snapshot = await db.insert(ceiSnapshotsTable).values({
     overallIndex,
