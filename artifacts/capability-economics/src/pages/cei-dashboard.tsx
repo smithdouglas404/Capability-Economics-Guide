@@ -1242,9 +1242,9 @@ export default function CEIDashboard() {
                           <Info className="w-3 h-3 mt-0.5 shrink-0 text-amber-600" />
                           <div>
                             <span className="font-semibold text-foreground">Why are some caps {Math.round(((freshness.capabilities[0]?.ageHours ?? 0) / 24) * 10) / 10}d old?</span>{" "}
-                            The rotation refreshes <strong>10 caps every 24h</strong>. With <strong>{freshness.summary.total} caps total</strong>, it takes
-                            ~{Math.ceil(freshness.summary.total / 10)} days for every capability to be touched once. The "stalest" column is what's
-                            <em> next</em> in line — they'll be refreshed in the upcoming rotations. Urgency bursts can jump the queue within 5min when confidence drops below 35%.
+                            Triangulation runs only against <strong>leaf</strong> capabilities (the {freshness.summary.leaves ?? freshness.summary.total} measurable ones); the {freshness.summary.parents ?? 0} parent capabilities recompute automatically as a weighted roll-up the moment any of their children refresh.
+                            The rotation touches <strong>10 leaf caps every 24h</strong>, so it takes <strong>~{Math.ceil((freshness.summary.leaves ?? freshness.summary.total) / 10)} days</strong> for every leaf to be triangulated against fresh sources once.
+                            The "stalest" column is what's <em>next</em> in line. Urgency bursts can jump the queue within 5min when any cap's confidence drops below 35%.
                           </div>
                         </div>
                       </div>

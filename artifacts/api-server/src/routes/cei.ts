@@ -123,6 +123,7 @@ router.get("/cei/freshness", async (_req, res) => {
         capability: c.name,
         industry: indMap.get(c.industryId) ?? "Unknown",
         industryId: c.industryId,
+        isLeaf: c.isLeaf,
         lastTriangulatedAt: lastAt?.toISOString() ?? null,
         ageHours: ageHours !== null ? Math.round(ageHours * 10) / 10 : null,
         sourceCount: tri?.sources.size ?? 0,
@@ -138,8 +139,11 @@ router.get("/cei/freshness", async (_req, res) => {
       return aT - bT;
     });
 
+    const leafItems = items.filter(i => i.isLeaf);
     const summary = {
       total: items.length,
+      leaves: leafItems.length,
+      parents: items.length - leafItems.length,
       refreshedLast24h: items.filter(i => i.lastTriangulatedAt && (now - new Date(i.lastTriangulatedAt).getTime()) < DAY).length,
       refreshedLast7d: items.filter(i => i.lastTriangulatedAt && (now - new Date(i.lastTriangulatedAt).getTime()) < 7 * DAY).length,
       stale7dPlus: items.filter(i => !i.lastTriangulatedAt || (now - new Date(i.lastTriangulatedAt).getTime()) >= 7 * DAY).length,

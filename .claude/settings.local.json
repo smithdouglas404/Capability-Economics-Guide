@@ -10,7 +10,8 @@
       "Bash(pnpm --version)",
       "Bash(git push:*)",
       "Bash(git add:*)",
-      "Bash(git commit -m ':*)"
+      "Bash(git commit -m ':*)",
+      "Bash(grep:*)"
     ]
   }
 }
