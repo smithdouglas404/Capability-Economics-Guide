@@ -327,37 +327,59 @@ router.get("/moat", async (req: Request, res: Response) => {
     const industries = await db.select().from(industriesTable);
     const indById = new Map(industries.map(i => [i.id, i.name]));
 
-    const items = caps.map(c => {
-      const e = econByCapId.get(c.id);
-      const q = quadByCapId.get(c.id);
-      const halfLife = e?.halfLifeMonths ?? 24;
-      const upstream = upstreamCount.get(c.id) ?? 0;
-      const downstream = downstreamCount.get(c.id) ?? 0;
-      const economic = q?.economicImpactScore ?? 50;
-      const disruption = q?.disruptionIntensity ?? 0.5;
-      const hhi = hhiByCapId.get(c.id) ?? 0.2;
+    const items = caps
+      .filter(c => econByCapId.has(c.id) && quadByCapId.has(c.id)) // no fallback defaults — only real data
+      .map(c => {
+        const e = econByCapId.get(c.id)!;
+        const q = quadByCapId.get(c.id)!;
+        const halfLife = e.halfLifeMonths;
+        const upstream = upstreamCount.get(c.id) ?? 0;
+        const downstream = downstreamCount.get(c.id) ?? 0;
+        const economic = q.economicImpactScore;
+        const disruption = q.disruptionIntensity;
+        const hhi = hhiByCapId.get(c.id);
 
-      const halfLifeC = Math.min(100, (halfLife / 60) * 100);
-      const depthC = Math.min(100, (upstream + downstream * 0.5) * 12);
-      const economicC = Math.min(100, economic);
-      const stickinessC = Math.max(0, 100 - disruption * 100);
-      const concentrationC = Math.min(100, hhi * 100);
+        const halfLifeC = halfLife != null ? Math.min(100, (halfLife / 60) * 100) : null;
+        const depthC = Math.min(100, (upstream + downstream * 0.5) * 12);
+        const economicC = economic != null ? Math.min(100, economic) : null;
+        const stickinessC = disruption != null ? Math.max(0, 100 - disruption * 100) : null;
+        const concentrationC = hhi != null ? Math.min(100, hhi * 100) : null;
 
-      const moat = Math.round(halfLifeC * 0.30 + depthC * 0.25 + economicC * 0.20 + stickinessC * 0.15 + concentrationC * 0.10);
-      const tier = moat >= 70 ? "fortress" : moat >= 50 ? "defensible" : moat >= 30 ? "contestable" : "exposed";
+        // Reweight only across components we actually have data for, so a
+        // missing input doesn't get treated as zero.
+        const segs = [
+          { val: halfLifeC, w: 0.30 },
+          { val: depthC, w: 0.25 },
+          { val: economicC, w: 0.20 },
+          { val: stickinessC, w: 0.15 },
+          { val: concentrationC, w: 0.10 },
+        ].filter(s => s.val != null) as Array<{ val: number; w: number }>;
+        const wSum = segs.reduce((s, x) => s + x.w, 0);
+        if (wSum === 0) return null;
+        const moat = Math.round(segs.reduce((s, x) => s + x.val * (x.w / wSum), 0));
+        const tier = moat >= 70 ? "fortress" : moat >= 50 ? "defensible" : moat >= 30 ? "contestable" : "exposed";
 
-      return {
-        capabilityId: c.id, capabilityName: c.name, industryId: c.industryId, industryName: indById.get(c.industryId) ?? "",
-        moatScore: moat, tier,
-        components: {
-          halfLifeContribution: Math.round(halfLifeC), dependencyDepth: Math.round(depthC),
-          economicImpact: Math.round(economicC), stickiness: Math.round(stickinessC), supplierConcentration: Math.round(concentrationC),
-        },
-        halfLifeMonths: halfLife, upstreamDeps: upstream, downstreamDeps: downstream, hhi: Math.round(hhi * 100) / 100, enriched: !!e,
-      };
-    }).sort((a, b) => b.moatScore - a.moatScore);
+        return {
+          capabilityId: c.id, capabilityName: c.name, industryId: c.industryId, industryName: indById.get(c.industryId) ?? "",
+          moatScore: moat, tier,
+          components: {
+            halfLifeContribution: halfLifeC != null ? Math.round(halfLifeC) : null,
+            dependencyDepth: Math.round(depthC),
+            economicImpact: economicC != null ? Math.round(economicC) : null,
+            stickiness: stickinessC != null ? Math.round(stickinessC) : null,
+            supplierConcentration: concentrationC != null ? Math.round(concentrationC) : null,
+          },
+          halfLifeMonths: halfLife, upstreamDeps: upstream, downstreamDeps: downstream,
+          hhi: hhi != null ? Math.round(hhi * 100) / 100 : null,
+          rationale: q.rationale, sources: e.sources,
+          enriched: true,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .sort((a, b) => b.moatScore - a.moatScore);
 
-    res.json({ items });
+    const totalCaps = industryId ? caps.length : (await db.select().from(capabilitiesTable)).length;
+    res.json({ items, coverage: { scored: items.length, totalCapabilities: totalCaps } });
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
@@ -396,45 +418,84 @@ router.get("/fragility", async (_req: Request, res: Response) => {
       }
     }
 
-    const items = caps.map(c => {
-      const e = econByCapId.get(c.id);
-      const q = quadByCapId.get(c.id);
-      const ups = upstreamByCapId.get(c.id) ?? [];
-      const halfLife = e?.halfLifeMonths ?? 24;
-      const disruption = q?.disruptionIntensity ?? 0.5;
+    const items = caps
+      .filter(c => econByCapId.has(c.id) && quadByCapId.has(c.id)) // only enriched
+      .map(c => {
+        const e = econByCapId.get(c.id)!;
+        const q = quadByCapId.get(c.id)!;
+        const ups = upstreamByCapId.get(c.id) ?? [];
 
-      let topEdgeExpectedImpact = 0;
-      for (const u of ups) {
-        const sc = scoreByDepId.get(u.id);
-        if (sc) {
-          const exp = (sc.dollarImpactMm ?? 0) * (sc.disruptionProbability ?? 0.5);
-          if (exp > topEdgeExpectedImpact) topEdgeExpectedImpact = exp;
+        // Edge shock requires at least one scored upstream edge — skip if none.
+        let topEdgeExpectedImpact: number | null = null;
+        let scoredEdgesCount = 0;
+        for (const u of ups) {
+          const sc = scoreByDepId.get(u.id);
+          if (sc?.dollarImpactMm != null && sc.disruptionProbability != null) {
+            scoredEdgesCount++;
+            const exp = sc.dollarImpactMm * sc.disruptionProbability;
+            if (topEdgeExpectedImpact == null || exp > topEdgeExpectedImpact) topEdgeExpectedImpact = exp;
+          }
         }
-      }
-      const supplier = supplierConcByCapId.get(c.id) ?? 0.2;
+        const supplier = supplierConcByCapId.get(c.id);
+        const halfLife = e.halfLifeMonths;
+        const disruption = q.disruptionIntensity;
 
-      const decaySpeed = Math.min(100, (24 / Math.max(6, halfLife)) * 100);
-      const upstreamDepth = Math.min(100, ups.length * 18);
-      const concentration = Math.min(100, supplier * 100);
-      const edgeShock = e?.revenueExposureMm ? Math.min(100, (topEdgeExpectedImpact / e.revenueExposureMm) * 100) : 30;
-      const disruptionPressure = Math.min(100, disruption * 100);
+        const decaySpeed = halfLife != null ? Math.min(100, (24 / Math.max(6, halfLife)) * 100) : null;
+        const upstreamDepth = ups.length > 0 ? Math.min(100, ups.length * 18) : null;
+        const concentration = supplier != null ? Math.min(100, supplier * 100) : null;
+        const edgeShock = (topEdgeExpectedImpact != null && e.revenueExposureMm)
+          ? Math.min(100, (topEdgeExpectedImpact / e.revenueExposureMm) * 100)
+          : null;
+        const disruptionPressure = disruption != null ? Math.min(100, disruption * 100) : null;
 
-      const fragility = Math.round(decaySpeed * 0.25 + upstreamDepth * 0.20 + concentration * 0.15 + edgeShock * 0.25 + disruptionPressure * 0.15);
-      const severity = fragility >= 70 ? "critical" : fragility >= 50 ? "elevated" : fragility >= 30 ? "moderate" : "stable";
+        const segs = [
+          { val: decaySpeed, w: 0.25 },
+          { val: upstreamDepth, w: 0.20 },
+          { val: concentration, w: 0.15 },
+          { val: edgeShock, w: 0.25 },
+          { val: disruptionPressure, w: 0.15 },
+        ].filter(s => s.val != null) as Array<{ val: number; w: number }>;
+        const wSum = segs.reduce((s, x) => s + x.w, 0);
+        if (wSum === 0) return null;
+        const fragility = Math.round(segs.reduce((s, x) => s + x.val * (x.w / wSum), 0));
+        const severity = fragility >= 70 ? "critical" : fragility >= 50 ? "elevated" : fragility >= 30 ? "moderate" : "stable";
 
-      return {
-        capabilityId: c.id, capabilityName: c.name, industryId: c.industryId, industryName: indById.get(c.industryId) ?? "",
-        fragilityScore: fragility, severity,
-        components: { decaySpeed: Math.round(decaySpeed), upstreamDepth: Math.round(upstreamDepth), supplierConcentration: Math.round(concentration), edgeShock: Math.round(edgeShock), disruptionPressure: Math.round(disruptionPressure) },
-        topUpstreamRiskMm: Math.round(topEdgeExpectedImpact), halfLifeMonths: halfLife, upstreamDeps: ups.length, enriched: !!e,
-      };
-    }).sort((a, b) => b.fragilityScore - a.fragilityScore);
+        return {
+          capabilityId: c.id, capabilityName: c.name, industryId: c.industryId, industryName: indById.get(c.industryId) ?? "",
+          fragilityScore: fragility, severity,
+          components: {
+            decaySpeed: decaySpeed != null ? Math.round(decaySpeed) : null,
+            upstreamDepth: upstreamDepth != null ? Math.round(upstreamDepth) : null,
+            supplierConcentration: concentration != null ? Math.round(concentration) : null,
+            edgeShock: edgeShock != null ? Math.round(edgeShock) : null,
+            disruptionPressure: disruptionPressure != null ? Math.round(disruptionPressure) : null,
+          },
+          topUpstreamRiskMm: topEdgeExpectedImpact != null ? Math.round(topEdgeExpectedImpact) : null,
+          scoredEdgesCount, totalUpstreamEdges: ups.length,
+          halfLifeMonths: halfLife,
+          rationale: q.rationale, sources: e.sources, enriched: true,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .sort((a, b) => b.fragilityScore - a.fragilityScore);
 
-    res.json({ items });
+    res.json({ items, coverage: { scored: items.length, totalCapabilities: caps.length } });
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
-/* ============================= ARBITRAGE MAP ============================= */
+/* ============================= ARBITRAGE MAP =============================
+ * Compares the cash-flow value implied by the STREET (consensus) quadrant
+ * against the cash-flow value implied by the CE quadrant.
+ * Spread = ceValue - consensusValue. Positive = market is mis-pricing low → long,
+ * negative = market is over-paying → short. Direction is gated on consensus
+ * confidence (low confidence = neutral, no actionable signal).
+ *
+ * Quadrant → annual cash-flow multiple (industry-standard buckets):
+ *   hot         15× revenue (high growth, expanding margins)
+ *   emerging    10× revenue (early but accelerating)
+ *   table_stakes 4× revenue (commoditized, defensive cash flows)
+ *   declining    1× revenue (terminal, run-off)
+ */
 router.get("/arbitrage", async (_req: Request, res: Response) => {
   try {
     const econ = await db.select().from(capabilityEconomicsTable);
@@ -447,54 +508,84 @@ router.get("/arbitrage", async (_req: Request, res: Response) => {
     const industries = await db.select().from(industriesTable);
     const indById = new Map(industries.map(i => [i.id, i.name]));
     const mappings = await db.select().from(companyCapabilityMappingsTable).where(sql`${companyCapabilityMappingsTable.capabilityId} IN (${inIds})`);
-    const profiles = await db.select().from(companyCapabilityProfilesTable);
-    const profById = new Map(profiles.map(p => [p.id, p]));
+    const mappingsByCap = new Map<number, number>();
+    for (const m of mappings) mappingsByCap.set(m.capabilityId, (mappingsByCap.get(m.capabilityId) ?? 0) + 1);
     const quads = await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${inIds})`);
     const quadByCapId = new Map(quads.map(q => [q.capabilityId, q]));
 
-    const strengthW: Record<string, number> = { core: 1.0, strong: 0.7, partial: 0.4, peripheral: 0.2 };
+    const QUADRANT_MULTIPLE: Record<string, number> = {
+      hot: 15, emerging: 10, table_stakes: 4, declining: 1,
+    };
 
-    const mappingsByCap = new Map<number, typeof mappings>();
-    for (const m of mappings) {
-      const arr = mappingsByCap.get(m.capabilityId) ?? [];
-      arr.push(m);
-      mappingsByCap.set(m.capabilityId, arr);
-    }
+    const items = econ
+      .filter(e => e.consensusQuadrant && e.revenueExposureMm != null && quadByCapId.has(e.capabilityId))
+      .map(e => {
+        const cap = capById.get(e.capabilityId);
+        const q = quadByCapId.get(e.capabilityId)!;
+        const consensusM = QUADRANT_MULTIPLE[e.consensusQuadrant!];
+        const ceM = QUADRANT_MULTIPLE[q.quadrant];
+        if (consensusM == null || ceM == null) return null;
 
-    const items = econ.map(e => {
-      const cap = capById.get(e.capabilityId);
-      const q = quadByCapId.get(e.capabilityId);
-      const ms = mappingsByCap.get(e.capabilityId) ?? [];
-      let impliedRaw = 0;
-      let companies = 0;
-      for (const m of ms) {
-        const p = profById.get(m.companyId);
-        if (!p) continue;
-        impliedRaw += (p.feviScore ?? 0) * (strengthW[m.strength] ?? 0.5);
-        companies++;
-      }
-      const marketImpliedMm = Math.round(impliedRaw * 8);
-      const revenue = e.revenueExposureMm ?? e.tamUsdMm ?? 0;
-      const margin = (e.marginStructurePct ?? 40) / 100;
-      const confidence = e.consensusConfidence ?? 0.5;
-      const intrinsicMm = Math.round(revenue * margin * 3 * confidence);
-      const spreadMm = intrinsicMm - marketImpliedMm;
-      const spreadPct = marketImpliedMm > 0 ? Math.round((spreadMm / marketImpliedMm) * 100) : null;
-      const direction = spreadMm > Math.max(intrinsicMm * 0.15, 50) ? "long" : spreadMm < -Math.max(intrinsicMm * 0.15, 50) ? "short" : "neutral";
+        const revenue = e.revenueExposureMm!;
+        const margin = e.marginStructurePct != null ? e.marginStructurePct / 100 : null;
+        if (margin == null) return null;
 
-      return {
-        capabilityId: e.capabilityId, capabilityName: cap?.name ?? `#${e.capabilityId}`, industryName: indById.get(e.industryId) ?? "",
-        marketImpliedMm, intrinsicMm, spreadMm, spreadPct, direction, companies,
-        ceQuadrant: q?.quadrant ?? null, consensusQuadrant: e.consensusQuadrant, confidence, rationale: e.rationale,
-      };
-    }).sort((a, b) => Math.abs(b.spreadMm) - Math.abs(a.spreadMm));
+        // Annual margin × multiple = enterprise-value-equivalent of capability cashflow
+        const annualMarginMm = revenue * margin;
+        const consensusValueMm = Math.round(annualMarginMm * consensusM);
+        const ceValueMm = Math.round(annualMarginMm * ceM);
+        const spreadMm = ceValueMm - consensusValueMm;
+        const spreadPct = consensusValueMm > 0 ? Math.round((spreadMm / consensusValueMm) * 100) : null;
+        const conf = e.consensusConfidence ?? 0;
+
+        // Only emit a directional signal if consensus is reasonably confident;
+        // otherwise the disagreement is noise.
+        const minConfidence = 0.55;
+        const direction: "long" | "short" | "neutral" =
+          conf < minConfidence ? "neutral"
+          : spreadMm > Math.max(consensusValueMm * 0.10, 100) ? "long"
+          : spreadMm < -Math.max(consensusValueMm * 0.10, 100) ? "short"
+          : "neutral";
+
+        return {
+          capabilityId: e.capabilityId,
+          capabilityName: cap?.name ?? `#${e.capabilityId}`,
+          industryName: indById.get(e.industryId) ?? "",
+          ceQuadrant: q.quadrant,
+          ceMultiple: ceM,
+          consensusQuadrant: e.consensusQuadrant!,
+          consensusMultiple: consensusM,
+          revenueExposureMm: revenue,
+          marginPct: e.marginStructurePct,
+          consensusValueMm,
+          ceValueMm,
+          spreadMm,
+          spreadPct,
+          direction,
+          confidence: conf,
+          companies: mappingsByCap.get(e.capabilityId) ?? 0,
+          rationale: e.rationale,
+          consensusSummary: e.consensusSummary,
+          sources: e.sources,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x)
+      .sort((a, b) => Math.abs(b.spreadMm) - Math.abs(a.spreadMm));
 
     const totals = {
       longExposureMm: items.filter(i => i.direction === "long").reduce((s, i) => s + i.spreadMm, 0),
       shortExposureMm: Math.abs(items.filter(i => i.direction === "short").reduce((s, i) => s + i.spreadMm, 0)),
+      neutralCount: items.filter(i => i.direction === "neutral").length,
       pairs: items.length,
     };
-    res.json({ items, totals });
+    res.json({
+      items, totals,
+      methodology: {
+        formula: "spread = (revenueExposure × margin × ceMultiple) − (revenueExposure × margin × consensusMultiple)",
+        multiples: QUADRANT_MULTIPLE,
+        minConfidenceForSignal: 0.55,
+      },
+    });
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
@@ -509,19 +600,23 @@ router.get("/flows", async (_req: Request, res: Response) => {
     const industryBuckets = new Map<number, { id: number; name: string; totalCapitalMm: number; avgTrend: number; count: number }>();
     const links: Array<{ source: string; target: string; valueMm: number; trendPct: number }> = [];
 
-    for (const s of stages) {
-      const cap = s.capitalFlowMm ?? 0;
-      const trend = s.capitalTrendPct ?? 0;
+    // Only stages with real capital-flow data — never invent zeros.
+    const realStages = stages.filter(s => s.capitalFlowMm != null);
+    for (const s of realStages) {
+      const cap = s.capitalFlowMm!;
+      const trend = s.capitalTrendPct;
       const sb = stageBuckets.get(s.stageName) ?? { name: s.stageName, totalCapitalMm: 0, avgTrend: 0, count: 0 };
-      sb.totalCapitalMm += cap; sb.avgTrend += trend; sb.count += 1;
+      sb.totalCapitalMm += cap;
+      if (trend != null) { sb.avgTrend += trend; sb.count += 1; }
       stageBuckets.set(s.stageName, sb);
 
       const indName = indById.get(s.industryId) ?? `Industry ${s.industryId}`;
       const ib = industryBuckets.get(s.industryId) ?? { id: s.industryId, name: indName, totalCapitalMm: 0, avgTrend: 0, count: 0 };
-      ib.totalCapitalMm += cap; ib.avgTrend += trend; ib.count += 1;
+      ib.totalCapitalMm += cap;
+      if (trend != null) { ib.avgTrend += trend; ib.count += 1; }
       industryBuckets.set(s.industryId, ib);
 
-      if (cap > 0) links.push({ source: `stage:${s.stageName}`, target: `industry:${indName}`, valueMm: Math.round(cap), trendPct: Math.round(trend) });
+      if (cap > 0) links.push({ source: `stage:${s.stageName}`, target: `industry:${indName}`, valueMm: Math.round(cap), trendPct: trend != null ? Math.round(trend) : 0 });
     }
 
     const stagesOut = Array.from(stageBuckets.values()).map(s => ({ ...s, totalCapitalMm: Math.round(s.totalCapitalMm), avgTrend: s.count ? Math.round(s.avgTrend / s.count) : 0 })).sort((a, b) => b.totalCapitalMm - a.totalCapitalMm);
@@ -530,7 +625,11 @@ router.get("/flows", async (_req: Request, res: Response) => {
     const acceleratingMm = stagesOut.filter(s => s.avgTrend > 10).reduce((s, x) => s + x.totalCapitalMm, 0);
     const deceleratingMm = stagesOut.filter(s => s.avgTrend < -5).reduce((s, x) => s + x.totalCapitalMm, 0);
 
-    res.json({ stages: stagesOut, industries: industriesOut, links: links.sort((a, b) => b.valueMm - a.valueMm), totals: { totalCapitalMm, acceleratingMm, deceleratingMm } });
+    res.json({
+      stages: stagesOut, industries: industriesOut, links: links.sort((a, b) => b.valueMm - a.valueMm),
+      totals: { totalCapitalMm, acceleratingMm, deceleratingMm },
+      coverage: { stagesWithCapital: realStages.length, totalStages: stages.length },
+    });
   } catch (err) { res.status(500).json({ error: String(err) }); }
 });
 
@@ -651,20 +750,25 @@ router.get("/twin", async (req: Request, res: Response) => {
       const qa = quadByCapId.get(ca.id)?.quadrant; const qb = quadByCapId.get(cb.id)?.quadrant;
       const ea = econByCapId.get(ca.id); const eb = econByCapId.get(cb.id);
       const conflict = !!(qa && qb && qa !== qb);
-      const synergyMm = Math.round(Math.min(ea?.revenueExposureMm ?? 0, eb?.revenueExposureMm ?? 0) * 0.10);
-      // Display label: combine names if they differ, else just the shared name
-      const label = ca.name.toLowerCase() === cb.name.toLowerCase()
-        ? ca.name
-        : `${ca.name}  ↔  ${cb.name}`;
-      return { capabilityName: label, similarity: Math.round(sim * 100) / 100, a: profile(ca), b: profile(cb), clash: conflict, clashType: conflict ? `${qa} vs ${qb}` : null, synergyMm };
-    }).sort((x, y) => (y.synergyMm + (y.clash ? 999999 : 0)) - (x.synergyMm + (x.clash ? 999999 : 0)));
+      // Synergy only when BOTH sides have real revenue exposure — otherwise
+      // null (rendered as "—"), never a fake $0.
+      const synergyMm = (ea?.revenueExposureMm != null && eb?.revenueExposureMm != null)
+        ? Math.round(Math.min(ea.revenueExposureMm, eb.revenueExposureMm) * 0.10)
+        : null;
+      const label = ca.name.toLowerCase() === cb.name.toLowerCase() ? ca.name : `${ca.name}  ↔  ${cb.name}`;
+      return { capabilityName: label, similarity: Math.round(sim * 100) / 100, a: profile(ca), b: profile(cb), clash: conflict, clashType: conflict ? `${qa} vs ${qb}` : null, synergyMm, enriched: synergyMm != null };
+    }).sort((x, y) => {
+      const yScore = (y.synergyMm ?? 0) + (y.clash ? 999999 : 0);
+      const xScore = (x.synergyMm ?? 0) + (x.clash ? 999999 : 0);
+      return yScore - xScore;
+    });
 
     const onlyA = capsA.filter(c => !sharedAIds.has(c.id)).map(profile);
     const onlyB = capsB.filter(c => !sharedBIds.has(c.id)).map(profile);
 
     const union = capsA.length + capsB.length - sharedPairs.length;
     const jaccard = union > 0 ? sharedPairs.length / union : 0;
-    const totalSynergyMm = synergies.reduce((s, x) => s + x.synergyMm, 0);
+    const totalSynergyMm = synergies.reduce((s, x) => s + (x.synergyMm ?? 0), 0);
     const clashCount = synergies.filter(s => s.clash).length;
 
     res.json({

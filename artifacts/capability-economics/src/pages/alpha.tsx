@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, AlertTriangle, Shield, FileText, GitMerge } from "lucide-react";
+import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, AlertTriangle, Shield, FileText, GitMerge, BookOpen, ExternalLink, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -123,10 +125,13 @@ export default function Alpha() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <Button onClick={() => runEnrich()} disabled={enriching} size="lg">
-            {enriching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Run Alpha Enrichment
-          </Button>
+          <div className="flex gap-2">
+            <TraceabilityDialog />
+            <Button onClick={() => runEnrich(58, 30)} disabled={enriching} size="lg">
+              {enriching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+              Run Alpha Enrichment
+            </Button>
+          </div>
           {enrichMsg && <p className="text-xs text-zinc-500 max-w-xs text-right">{enrichMsg}</p>}
         </div>
       </div>
@@ -166,6 +171,141 @@ export default function Alpha() {
         <TabsContent value="thesis"><ThesisTab /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/* ============================= Traceability ============================= */
+function TraceabilityDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="lg">
+          <BookOpen className="h-4 w-4 mr-2" />Traceability
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Methodology & Source Traceability</DialogTitle>
+          <DialogDescription>
+            Every number on this page comes from one of two sources: (1) Perplexity research grounded in cited URLs, then synthesized by GLM-4.6, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 text-sm">
+          <Section title="Per-row sourcing">
+            Click the <Info className="inline h-3 w-3" /> icon next to any enriched row in Moat, Fragility, or Arbitrage to see the GLM rationale and the underlying Perplexity citation URLs for that specific capability.
+          </Section>
+          <Section title="EVaR — Expected Value at Risk">
+            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+              EVaR(t) = revenueExposure × margin × max(halfLifeDecay(t), marketErosion(t))<br/>
+              halfLifeDecay(t) = 1 − 0.5^(t / halfLifeMonths)<br/>
+              marketErosion(t) = 1 − (1 − velocity × (0.6 + 0.8 × disruptionIntensity))^(t / 12)
+            </code>
+            Inputs: <code>revenueExposure</code>, <code>margin</code>, <code>halfLifeMonths</code>, <code>commoditizationVelocity</code>, <code>disruptionIntensity</code> — all from Perplexity-cited research, parsed by GLM into a typed JSON object stored in <code>capability_economics</code>.
+          </Section>
+          <Section title="Moat Score">
+            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+              moat = 0.30·halfLifeC + 0.25·depthC + 0.20·economicImpactC + 0.15·stickinessC + 0.10·concentrationC
+            </code>
+            Components missing in the data are dropped and the remaining weights are renormalized — no zero defaults. Tier: ≥70 fortress, ≥50 defensible, ≥30 contestable, else exposed.
+          </Section>
+          <Section title="Fragility Score">
+            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+              fragility = 0.25·decaySpeed + 0.20·upstreamDepth + 0.15·supplierConc + 0.25·edgeShock + 0.15·disruptionPressure<br/>
+              edgeShock = min(100, max(expectedImpact / revenueExposure) × 100)<br/>
+              expectedImpact = dollarImpactMm × disruptionProbability   (per upstream edge, GLM-scored)
+            </code>
+            Edge shock is null when no upstream edge has been GLM-priced for that capability — it does not silently become 0.
+          </Section>
+          <Section title="Arbitrage — long/short signal">
+            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+              ceValue   = revenueExposure × margin × QUADRANT_MULTIPLE[ceQuadrant]<br/>
+              consensus = revenueExposure × margin × QUADRANT_MULTIPLE[consensusQuadrant]<br/>
+              spread    = ceValue − consensus<br/>
+              <br/>
+              Multiples (annual margin → enterprise-value-equivalent):<br/>
+              {"  hot=15×   emerging=10×   table_stakes=4×   declining=1×"}<br/>
+              <br/>
+              direction = spread &gt; 10% &amp; conf ≥ 0.55 → long<br/>
+              direction = spread &lt; −10% &amp; conf ≥ 0.55 → short<br/>
+              else → neutral (low-confidence street view, no actionable disagreement)
+            </code>
+            Replaces an earlier arbitrary <code>$8M × FEVI × strength</code> proxy. The new formula compares two quadrant-implied valuations of the same cash-flow stream — when CE and street disagree on quadrant, that disagreement gets dollar-priced.
+          </Section>
+          <Section title="Capital Flows">
+            Sums <code>capital_flow_mm</code> over only the value-chain stages where it is non-null. Stages without a cited capital figure are excluded from totals — never coerced to 0.
+          </Section>
+          <Section title="Talent Chain">
+            Per capability: <code>bottleneckScore = min(100, companies × 4) × (1 − coreCount/companies)</code>. Built from <code>company_capability_mappings</code> — only counts real mappings; capabilities without any mappings simply don't appear.
+          </Section>
+          <Section title="M&amp;A Twin">
+            Capability names matched across two industries via token overlap coefficient ≥ 0.5. Synergy = 10% of the smaller side's revenue exposure — but only when BOTH sides have GLM-enriched revenue figures. Otherwise the row appears with synergy = "—" and a clash flag if the two industries' quadrants for that capability disagree.
+          </Section>
+          <Section title="Thesis Memo">
+            7-section investment memo synthesized by GLM-4.6 (zai-org/GLM-4.6 via OpenRouter) from the capability's full Alpha record (economics + quadrant + dependencies + edge scores + cited sources). Markdown rendered as-is, no post-processing.
+          </Section>
+          <Section title="Data sources">
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong>Perplexity sonar</strong> — grounded research with citation URLs, captured into <code>capability_economics.sources</code> jsonb.</li>
+              <li><strong>GLM-4.6 (OpenRouter)</strong> — strict-JSON synthesis of Perplexity prose into typed numeric fields with rationale.</li>
+              <li><strong>Internal graph</strong> — <code>capabilities</code>, <code>capability_dependencies</code>, <code>company_capability_mappings</code>, <code>value_chain_stages</code> (seeded from public registries).</li>
+            </ul>
+          </Section>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{title}</h3>
+      <div className="text-zinc-600 dark:text-zinc-400">{children}</div>
+    </div>
+  );
+}
+
+function SourcesPopover({ rationale, sources }: { rationale?: string | null; sources?: string[] | null }) {
+  if (!rationale && !(sources && sources.length)) return null;
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="text-zinc-400 hover:text-amber-600" aria-label="Show sources" onClick={e => e.stopPropagation()}>
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-96 max-h-80 overflow-y-auto text-xs">
+        {rationale && (
+          <div className="mb-2">
+            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">GLM rationale</div>
+            <p className="text-zinc-600 dark:text-zinc-400 italic">{rationale}</p>
+          </div>
+        )}
+        {sources && sources.length > 0 && (
+          <div>
+            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Perplexity sources</div>
+            <ul className="space-y-1">
+              {sources.slice(0, 12).map((s, i) => (
+                <li key={i}>
+                  <a href={s} target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:underline inline-flex items-center gap-1 break-all">
+                    <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    <span className="truncate">{s.replace(/^https?:\/\//, "")}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function CoverageBadge({ scored, total, unit = "capabilities" }: { scored: number; total: number; unit?: string }) {
+  const pct = total > 0 ? Math.round((scored / total) * 100) : 0;
+  return (
+    <Badge variant="outline" className="text-xs font-normal">
+      {scored} of {total} {unit} enriched ({pct}%)
+    </Badge>
   );
 }
 
@@ -612,7 +752,16 @@ function EmptyPrompt({ title, msg }: { title: string; msg: string }) {
 }
 
 /* ============================= Moat Score Tab ============================= */
-type MoatItem = { capabilityId: number; capabilityName: string; industryName: string; moatScore: number; tier: string; components: { halfLifeContribution: number; dependencyDepth: number; economicImpact: number; stickiness: number; supplierConcentration: number }; halfLifeMonths: number; upstreamDeps: number; downstreamDeps: number; hhi: number; enriched: boolean };
+type MoatItem = {
+  capabilityId: number; capabilityName: string; industryName: string; moatScore: number; tier: string;
+  components: {
+    halfLifeContribution: number | null; dependencyDepth: number | null;
+    economicImpact: number | null; stickiness: number | null; supplierConcentration: number | null;
+  };
+  halfLifeMonths: number | null; upstreamDeps: number; downstreamDeps: number; hhi: number | null;
+  rationale: string | null; sources: string[] | null; enriched: boolean;
+};
+type MoatResp = { items: MoatItem[]; coverage: { scored: number; totalCapabilities: number } };
 
 function tierBadge(tier: string) {
   const map: Record<string, string> = {
@@ -625,16 +774,15 @@ function tierBadge(tier: string) {
 }
 
 function MoatTab() {
-  const [items, setItems] = useState<MoatItem[] | null>(null);
+  const [data, setData] = useState<MoatResp | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showOnlyEnriched, setShowOnlyEnriched] = useState(false);
   useEffect(() => { (async () => {
-    try { const r = await fetch(`${apiBase}/api/alpha/moat`); if (r.ok) { const d = await r.json(); setItems(d.items); } } finally { setLoading(false); }
+    try { const r = await fetch(`${apiBase}/api/alpha/moat`); if (r.ok) setData(await r.json()); } finally { setLoading(false); }
   })(); }, []);
   if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing moat scores…</div>;
-  if (!items || items.length === 0) return <EmptyPrompt title="No capability data" msg="Add capabilities to see moat scores." />;
+  if (!data || data.items.length === 0) return <EmptyPrompt title="No enriched capabilities yet" msg="Run Alpha Enrichment — Moat scores require Perplexity-cited half-life and quadrant data per capability." />;
 
-  const filtered = showOnlyEnriched ? items.filter(i => i.enriched) : items;
+  const items = data.items;
   const tierCounts = items.reduce((acc, i) => { acc[i.tier] = (acc[i.tier] ?? 0) + 1; return acc; }, {} as Record<string, number>);
 
   return (
@@ -649,10 +797,11 @@ function MoatTab() {
       </div>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Moat Score = how hard to replicate this capability</CardTitle>
-          <Button variant="outline" size="sm" onClick={() => setShowOnlyEnriched(v => !v)}>
-            {showOnlyEnriched ? "Show all" : "Only enriched"}
-          </Button>
+          <div>
+            <CardTitle className="text-base">Moat Score = how hard to replicate this capability</CardTitle>
+            <p className="text-xs text-zinc-500 mt-1">Enriched capabilities only. Capabilities without GLM-cited economics are excluded — never shown with placeholder values.</p>
+          </div>
+          <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
@@ -666,18 +815,20 @@ function MoatTab() {
                   <th className="py-2 px-2 text-right">Half-life</th>
                   <th className="py-2 px-2 text-right">Deps</th>
                   <th className="py-2 px-2">Composition</th>
+                  <th className="py-2 px-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(it => (
+                {items.map(it => (
                   <tr key={it.capabilityId} className="border-b">
-                    <td className="py-2 px-3 font-medium">{it.capabilityName}{it.enriched && <span className="ml-1 text-[9px] text-emerald-600">●</span>}</td>
+                    <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
                     <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
                     <td className="py-2 px-2 text-right tabular-nums font-bold">{it.moatScore}</td>
                     <td className="py-2 px-2"><Badge variant="outline" className={`${tierBadge(it.tier)} border text-xs capitalize`}>{it.tier}</Badge></td>
-                    <td className="py-2 px-2 text-right tabular-nums text-xs">{Math.round(it.halfLifeMonths)}mo</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{it.halfLifeMonths != null ? `${Math.round(it.halfLifeMonths)}mo` : "—"}</td>
                     <td className="py-2 px-2 text-right tabular-nums text-xs">{it.upstreamDeps}↑ {it.downstreamDeps}↓</td>
                     <td className="py-2 px-2 w-48"><MoatBar c={it.components} /></td>
+                    <td className="py-2 px-2 text-right"><SourcesPopover rationale={it.rationale} sources={it.sources} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -690,23 +841,33 @@ function MoatTab() {
 }
 
 function MoatBar({ c }: { c: MoatItem["components"] }) {
-  const segs: Array<{ label: string; val: number; color: string }> = [
-    { label: "Half-life", val: c.halfLifeContribution * 0.30, color: "bg-emerald-500" },
-    { label: "Depth", val: c.dependencyDepth * 0.25, color: "bg-blue-500" },
-    { label: "Impact", val: c.economicImpact * 0.20, color: "bg-purple-500" },
-    { label: "Sticky", val: c.stickiness * 0.15, color: "bg-amber-500" },
-    { label: "Conc.", val: c.supplierConcentration * 0.10, color: "bg-pink-500" },
+  const segs: Array<{ label: string; val: number | null; color: string; w: number }> = [
+    { label: "Half-life", val: c.halfLifeContribution, color: "bg-emerald-500", w: 0.30 },
+    { label: "Depth", val: c.dependencyDepth, color: "bg-blue-500", w: 0.25 },
+    { label: "Impact", val: c.economicImpact, color: "bg-purple-500", w: 0.20 },
+    { label: "Sticky", val: c.stickiness, color: "bg-amber-500", w: 0.15 },
+    { label: "Conc.", val: c.supplierConcentration, color: "bg-pink-500", w: 0.10 },
   ];
-  const total = segs.reduce((s, x) => s + x.val, 0) || 1;
+  const present = segs.filter(s => s.val != null) as Array<{ label: string; val: number; color: string; w: number }>;
+  const wSum = present.reduce((s, x) => s + x.w, 0) || 1;
   return (
-    <div className="flex h-2 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800" title={segs.map(s => `${s.label}: ${s.val.toFixed(0)}`).join(" • ")}>
-      {segs.map((s, i) => <div key={i} className={s.color} style={{ width: `${(s.val / total) * 100}%` }} />)}
+    <div className="flex h-2 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800" title={present.map(s => `${s.label}: ${s.val.toFixed(0)}`).join(" • ")}>
+      {present.map((s, i) => <div key={i} className={s.color} style={{ width: `${(s.val * s.w / wSum)}%` }} />)}
     </div>
   );
 }
 
 /* ============================= Fragility Tab ============================= */
-type FragilityItem = { capabilityId: number; capabilityName: string; industryName: string; fragilityScore: number; severity: string; components: { decaySpeed: number; upstreamDepth: number; supplierConcentration: number; edgeShock: number; disruptionPressure: number }; topUpstreamRiskMm: number; halfLifeMonths: number; upstreamDeps: number; enriched: boolean };
+type FragilityItem = {
+  capabilityId: number; capabilityName: string; industryName: string; fragilityScore: number; severity: string;
+  components: {
+    decaySpeed: number | null; upstreamDepth: number | null; supplierConcentration: number | null;
+    edgeShock: number | null; disruptionPressure: number | null;
+  };
+  topUpstreamRiskMm: number | null; scoredEdgesCount: number; totalUpstreamEdges: number;
+  halfLifeMonths: number | null; rationale: string | null; sources: string[] | null; enriched: boolean;
+};
+type FragilityResp = { items: FragilityItem[]; coverage: { scored: number; totalCapabilities: number } };
 
 function severityColor(s: string) {
   return s === "critical" ? "bg-red-500/15 text-red-700 border-red-500/40"
@@ -716,12 +877,13 @@ function severityColor(s: string) {
 }
 
 function FragilityTab() {
-  const [items, setItems] = useState<FragilityItem[] | null>(null);
+  const [data, setData] = useState<FragilityResp | null>(null);
   const [loading, setLoading] = useState(true);
-  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/fragility`); if (r.ok) { const d = await r.json(); setItems(d.items); } } finally { setLoading(false); } })(); }, []);
+  useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/fragility`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
   if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing fragility…</div>;
-  if (!items || items.length === 0) return <EmptyPrompt title="No fragility data" msg="Add capabilities + dependencies first." />;
+  if (!data || data.items.length === 0) return <EmptyPrompt title="No enriched capabilities yet" msg="Run Alpha Enrichment to compute fragility from real half-life + edge-shock data." />;
 
+  const items = data.items;
   const counts = items.reduce((acc, i) => { acc[i.severity] = (acc[i.severity] ?? 0) + 1; return acc; }, {} as Record<string, number>);
 
   return (
@@ -735,7 +897,13 @@ function FragilityTab() {
         ))}
       </div>
       <Card>
-        <CardHeader><CardTitle className="text-base">Capabilities ranked by fragility (higher = more vulnerable)</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base">Capabilities ranked by fragility (higher = more vulnerable)</CardTitle>
+            <p className="text-xs text-zinc-500 mt-1">Components are renormalized over only the inputs that exist — missing data never silently becomes 0.</p>
+          </div>
+          <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
+        </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
@@ -748,24 +916,31 @@ function FragilityTab() {
                   <th className="py-2 px-2 text-right">Top upstream risk</th>
                   <th className="py-2 px-2 text-right">½-life</th>
                   <th className="py-2 px-2">Vector</th>
+                  <th className="py-2 px-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
-                {items.slice(0, 50).map(it => (
+                {items.map(it => (
                   <tr key={it.capabilityId} className="border-b">
-                    <td className="py-2 px-3 font-medium">{it.capabilityName}{it.enriched && <span className="ml-1 text-[9px] text-emerald-600">●</span>}</td>
+                    <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
                     <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
                     <td className="py-2 px-2 text-right tabular-nums font-bold text-red-600">{it.fragilityScore}</td>
                     <td className="py-2 px-2"><Badge variant="outline" className={`${severityColor(it.severity)} border text-xs capitalize`}>{it.severity}</Badge></td>
-                    <td className="py-2 px-2 text-right tabular-nums text-xs">{it.topUpstreamRiskMm > 0 ? fmtMoney(it.topUpstreamRiskMm) : "—"}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-xs">{Math.round(it.halfLifeMonths)}mo</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs" title={`${it.scoredEdgesCount} of ${it.totalUpstreamEdges} upstream edges priced`}>
+                      {it.topUpstreamRiskMm != null ? fmtMoney(it.topUpstreamRiskMm) : <span className="text-zinc-400">— ({it.scoredEdgesCount}/{it.totalUpstreamEdges} priced)</span>}
+                    </td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{it.halfLifeMonths != null ? `${Math.round(it.halfLifeMonths)}mo` : "—"}</td>
                     <td className="py-2 px-2 w-44">
                       <div className="flex gap-0.5 items-end h-6">
-                        {(["decaySpeed", "upstreamDepth", "supplierConcentration", "edgeShock", "disruptionPressure"] as const).map(k => (
-                          <div key={k} title={`${k}: ${it.components[k]}`} className="bg-red-500/60 w-full rounded-sm" style={{ height: `${Math.max(4, it.components[k])}%` }} />
-                        ))}
+                        {(["decaySpeed", "upstreamDepth", "supplierConcentration", "edgeShock", "disruptionPressure"] as const).map(k => {
+                          const v = it.components[k];
+                          return v == null
+                            ? <div key={k} className="w-full rounded-sm border border-dashed border-zinc-300 dark:border-zinc-700" style={{ height: "100%" }} title={`${k}: not enriched`} />
+                            : <div key={k} title={`${k}: ${v}`} className="bg-red-500/60 w-full rounded-sm" style={{ height: `${Math.max(4, v)}%` }} />;
+                        })}
                       </div>
                     </td>
+                    <td className="py-2 px-2 text-right"><SourcesPopover rationale={it.rationale} sources={it.sources} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -778,25 +953,44 @@ function FragilityTab() {
 }
 
 /* ============================= Arbitrage Tab ============================= */
-type ArbitrageItem = { capabilityId: number; capabilityName: string; industryName: string; marketImpliedMm: number; intrinsicMm: number; spreadMm: number; spreadPct: number | null; direction: "long" | "short" | "neutral"; companies: number; ceQuadrant: string | null; consensusQuadrant: string | null; confidence: number; rationale: string | null };
+type ArbitrageItem = {
+  capabilityId: number; capabilityName: string; industryName: string;
+  ceQuadrant: string; ceMultiple: number; consensusQuadrant: string; consensusMultiple: number;
+  revenueExposureMm: number; marginPct: number | null;
+  consensusValueMm: number; ceValueMm: number; spreadMm: number; spreadPct: number | null;
+  direction: "long" | "short" | "neutral"; confidence: number; companies: number;
+  rationale: string | null; consensusSummary: string | null; sources: string[] | null;
+};
+type ArbitrageResp = {
+  items: ArbitrageItem[];
+  totals: { longExposureMm: number; shortExposureMm: number; neutralCount: number; pairs: number };
+  methodology: { formula: string; multiples: Record<string, number>; minConfidenceForSignal: number };
+};
 
 function ArbitrageTab() {
-  const [data, setData] = useState<{ items: ArbitrageItem[]; totals: { longExposureMm: number; shortExposureMm: number; pairs: number } } | null>(null);
+  const [data, setData] = useState<ArbitrageResp | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/arbitrage`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
 
   if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping arbitrage spreads…</div>;
-  if (!data || data.items.length === 0) return <EmptyPrompt title="No arbitrage spreads yet" msg="Run Alpha Enrichment to compute intrinsic vs market-implied values." />;
+  if (!data || data.items.length === 0) return <EmptyPrompt title="No arbitrage spreads yet" msg="Run Alpha Enrichment — needs CE quadrant, consensus quadrant, revenue exposure, and margin per capability." />;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Long exposure</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.longExposureMm)}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Short exposure</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.shortExposureMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Neutral (low conf.)</div><div className="text-xl font-bold mt-1 text-zinc-500">{data.totals.neutralCount}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Pairs scored</div><div className="text-xl font-bold mt-1">{data.totals.pairs}</div></CardContent></Card>
       </div>
       <Card>
-        <CardHeader><CardTitle className="text-base">Intrinsic value vs market-implied (FEVI-weighted)</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-base">CE quadrant valuation vs street consensus valuation</CardTitle>
+          <p className="text-xs text-zinc-500 mt-1">
+            Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). Multiples: hot 15×, emerging 10×, table-stakes 4×, declining 1×.
+            Direction requires consensus confidence ≥ {data.methodology.minConfidenceForSignal} — otherwise neutral.
+          </p>
+        </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-auto">
             <table className="w-full text-sm">
@@ -804,11 +998,14 @@ function ArbitrageTab() {
                 <tr className="text-left text-xs uppercase text-zinc-500">
                   <th className="py-2 px-3">Capability</th>
                   <th className="py-2 px-2">Industry</th>
-                  <th className="py-2 px-2 text-right">Intrinsic</th>
-                  <th className="py-2 px-2 text-right">Market</th>
+                  <th className="py-2 px-2">CE quadrant</th>
+                  <th className="py-2 px-2">Street quadrant</th>
+                  <th className="py-2 px-2 text-right">CE value</th>
+                  <th className="py-2 px-2 text-right">Street value</th>
                   <th className="py-2 px-2 text-right">Spread</th>
                   <th className="py-2 px-2">Direction</th>
-                  <th className="py-2 px-2 text-center">Companies</th>
+                  <th className="py-2 px-2 text-right">Conf.</th>
+                  <th className="py-2 px-2 w-8"></th>
                 </tr>
               </thead>
               <tbody>
@@ -816,11 +1013,17 @@ function ArbitrageTab() {
                   <tr key={it.capabilityId} className="border-b">
                     <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
                     <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
-                    <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.intrinsicMm)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{fmtMoney(it.marketImpliedMm)}</td>
-                    <td className={`py-2 px-2 text-right tabular-nums font-bold ${it.spreadMm > 0 ? "text-emerald-600" : it.spreadMm < 0 ? "text-red-600" : ""}`}>{it.spreadMm > 0 ? "+" : ""}{fmtMoney(it.spreadMm)}{it.spreadPct != null && <span className="ml-1 text-[10px] text-zinc-500">({it.spreadPct > 0 ? "+" : ""}{it.spreadPct}%)</span>}</td>
+                    <td className="py-2 px-2"><QuadrantChip q={it.ceQuadrant} /><span className="ml-1 text-[10px] text-zinc-500">{it.ceMultiple}×</span></td>
+                    <td className="py-2 px-2"><QuadrantChip q={it.consensusQuadrant} /><span className="ml-1 text-[10px] text-zinc-500">{it.consensusMultiple}×</span></td>
+                    <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.ceValueMm)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{fmtMoney(it.consensusValueMm)}</td>
+                    <td className={`py-2 px-2 text-right tabular-nums font-bold ${it.spreadMm > 0 ? "text-emerald-600" : it.spreadMm < 0 ? "text-red-600" : ""}`}>
+                      {it.spreadMm > 0 ? "+" : ""}{fmtMoney(it.spreadMm)}
+                      {it.spreadPct != null && <span className="ml-1 text-[10px] text-zinc-500">({it.spreadPct > 0 ? "+" : ""}{it.spreadPct}%)</span>}
+                    </td>
                     <td className="py-2 px-2"><Badge variant="outline" className={`text-xs capitalize ${it.direction === "long" ? "text-emerald-600 border-emerald-500/40" : it.direction === "short" ? "text-red-600 border-red-500/40" : "text-zinc-500"}`}>{it.direction}</Badge></td>
-                    <td className="py-2 px-2 text-center text-xs">{it.companies}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-xs">{(it.confidence * 100).toFixed(0)}%</td>
+                    <td className="py-2 px-2 text-right"><SourcesPopover rationale={it.rationale} sources={it.sources} /></td>
                   </tr>
                 ))}
               </tbody>
