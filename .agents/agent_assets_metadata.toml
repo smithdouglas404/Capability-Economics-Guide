@@ -17,3 +17,9 @@ id = "zupUrw7ki0om6KT6921JK"
 uri = "file://docs/ce-residential-solar-deep-dive.md"
 type = "text"
 title = "CE Residential Solar + Storage Deep Dive — client deliverable"
+
+[[outputs]]
+id = "BkzrIGF0dvblVHPeVCN6E"
+uri = "file://docs/ce-moneyball-redesign.md"
+type = "text"
+title = "CE Moneyball Redesign — stop being a me-too"
