@@ -332,7 +332,7 @@ export default function KnowledgeGraph() {
                 <div className="flex items-start gap-3">
                   <Sparkles className="w-5 h-5 text-violet-600 mt-0.5 shrink-0" />
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wider text-violet-700 mb-1">How GenAI reshapes this capability</div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-violet-700 mb-1">How AI &amp; other innovative ideas reshape this capability</div>
                     <p className="text-sm text-foreground leading-relaxed">{econ.aiNarrative}</p>
                   </div>
                 </div>

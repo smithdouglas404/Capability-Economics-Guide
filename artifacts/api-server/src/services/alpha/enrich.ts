@@ -18,20 +18,25 @@ interface PerplexityResult { content: string; sources: string[]; }
 async function perplexity(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
-  const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "sonar",
-      messages: [
-        { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
-        { role: "user", content: query },
-      ],
-    }),
-  });
-  if (!resp.ok) throw new Error(`Perplexity ${resp.status}: ${await resp.text()}`);
-  const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-  return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 60000);
+  try {
+    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "sonar",
+        messages: [
+          { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
+          { role: "user", content: query },
+        ],
+      }),
+      signal: controller.signal,
+    });
+    if (!resp.ok) throw new Error(`Perplexity ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
+    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+    return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
+  } finally { clearTimeout(timeout); }
 }
 
 async function glmJson(prompt: string, maxTokens = 2000): Promise<string> {
@@ -209,8 +214,8 @@ async function enrichOneCapabilityDetail(
   try {
     const research = await perplexity(
       `For the enterprise capability "${cap.name}" in ${industryName} (2024-2026): ` +
-      `(1) How is generative AI / LLMs disrupting or augmenting this capability? Which AI vendors or open models are credible substitutes? ` +
-      `(2) What % of incumbent revenue is at risk from AI substitution within 36 months? ` +
+      `(1) How is the broader wave of innovation — AI (generative LLMs, classical ML, agents, automation), plus adjacent innovative ideas (open data ecosystems, embedded fintech / embedded insurance / embedded health rails, low-code / no-code, decentralized infra, digital twins, IoT / edge sensors, synthetic data, robotic process automation, regulatory sandboxes, marketplace / API-first business models, vertical SaaS bundling, novel pricing models like outcome-based or usage-based, etc.) — disrupting or augmenting this capability? Be specific about WHICH innovations apply (don't list ones that don't). Name credible vendors, open-source projects, regulators, or new entrants. ` +
+      `(2) What % of incumbent revenue is at risk from AI + adjacent-innovation substitution within 36 months? ` +
       `(3) Why is the conventional / "checklist" view of this capability ("${cap.traditionalView ?? "treated as IT"}") economically wrong? ` +
       `(4) What is the actual dollar consequence of treating it as a real economic capability? ` +
       `(5) For each of these metrics, what does a top-quartile vs bottom-quartile reading actually mean in dollars or risk: ${metrics.map(m => `"${m.name}"`).join(", ") || "n/a"}. ` +
@@ -245,10 +250,10 @@ async function enrichOneCapabilityDetail(
       `"role_consequences" (array of {roleTitle: string, consequence: string} — 1-2 sentences naming what this exec must do or explain this quarter; one per role), ` +
       `"playbook" (array of exactly 3 strings — concrete actions a buyer should take this week, ≤ 18 words each, no fluff), ` +
       `"benchmark_interpretation" (string, 1-2 sentences telling the user what their benchmark score means in dollars vs the median), ` +
-      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI substitution within 36 months), ` +
+      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months), ` +
       `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
-      `"ai_substitutes" (array of 2-6 strings — real AI vendor / model names that credibly substitute or augment this capability), ` +
-      `"ai_narrative" (string, 2-3 sentences on how GenAI specifically reshapes this capability, name vendors and a probability or $ figure)\n\n` +
+      `"ai_substitutes" (array of 2-6 strings — real vendor, open-source project, regulator, or new-entrant names that credibly substitute or augment this capability; can include AI vendors, embedded-finance rails, vertical SaaS, marketplaces, RPA tools, IoT/edge platforms, etc., not only LLM vendors), ` +
+      `"ai_narrative" (string, 3-4 sentences on how AI AND OTHER INNOVATIVE IDEAS reshape this capability. Cover (a) which AI techniques apply (GenAI/LLMs, classical ML, agents, automation) AND (b) which adjacent innovations apply — only the ones that genuinely matter for this capability (e.g., embedded finance, open banking, low-code, IoT/edge, digital twins, synthetic data, vertical SaaS, marketplace models, outcome-based pricing, regulatory sandboxes). Name 2-3 specific real vendors/projects/regulators and at least one probability or $ figure. Do NOT shoehorn innovations that aren't relevant.)\n\n` +
       (revisionGuidance ? `\n\nREVIEWER FEEDBACK ON PRIOR DRAFT (must address): "${revisionGuidance}"\n` : "") +
       `Output strict JSON only, no prose.`,
       4000,
@@ -356,6 +361,106 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
     }
     return { enriched, errors, durationMs: Date.now() - start };
   }
+}
+
+async function regenerateOneAiSection(
+  cap: { id: number; name: string; industryId: number; traditionalView: string | null },
+  industryName: string,
+  econRowId: number,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const research = await perplexity(
+      `For the enterprise capability "${cap.name}" in ${industryName} (2024-2026): ` +
+      `How is the broader wave of innovation — AI (generative LLMs, classical ML, agents, automation), ` +
+      `plus adjacent innovative ideas (open data ecosystems, embedded fintech / embedded insurance / embedded health rails, ` +
+      `low-code / no-code, decentralized infrastructure, digital twins, IoT / edge sensors, synthetic data, ` +
+      `robotic process automation, regulatory sandboxes, marketplace / API-first business models, vertical SaaS bundling, ` +
+      `outcome-based or usage-based pricing) — disrupting or augmenting this capability? ` +
+      `Be specific about WHICH innovations apply and which DON'T. Name credible vendors, open-source projects, ` +
+      `regulators, or new entrants. Provide: ` +
+      `(a) % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months, ` +
+      `(b) months until ≥50% of revenue is at risk, ` +
+      `(c) 2-6 named real substitutes/augmentors, ` +
+      `(d) at least one $ figure or probability tied to a real company. Cite sources.`
+    );
+    if (!research.content) return { ok: false, error: "empty research" };
+
+    const glmText = await glmJson(
+      `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
+      `Return ONLY a JSON object with these keys:\n` +
+      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months), ` +
+      `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
+      `"ai_substitutes" (array of 2-6 strings — real vendor, open-source project, regulator, or new-entrant names that credibly substitute or augment this capability; can include AI vendors, embedded-finance rails, vertical SaaS, marketplaces, RPA tools, IoT/edge platforms, etc., not only LLM vendors), ` +
+      `"ai_narrative" (string, 3-4 sentences on how AI AND OTHER INNOVATIVE IDEAS reshape this capability. Cover (a) which AI techniques apply (GenAI/LLMs, classical ML, agents, automation) AND (b) which adjacent innovations apply — only the ones that genuinely matter for this capability (e.g., embedded finance, open banking, low-code, IoT/edge, digital twins, synthetic data, vertical SaaS, marketplace models, outcome-based pricing, regulatory sandboxes). Name 2-3 specific real vendors/projects/regulators and at least one probability or $ figure. Do NOT shoehorn innovations that aren't relevant to this capability.)\n` +
+      `Output strict JSON only, no prose.`,
+      2000,
+    );
+
+    const parsed = extractJson(glmText) as {
+      ai_exposure_score?: number;
+      ai_time_to_displacement_months?: number;
+      ai_substitutes?: string[];
+      ai_narrative?: string;
+    };
+    if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad JSON" };
+    if (!parsed.ai_narrative || parsed.ai_narrative.length < 50) return { ok: false, error: "narrative too short" };
+
+    await db.update(capabilityEconomicsTable).set({
+      aiExposureScore: parsed.ai_exposure_score != null ? Math.min(100, Math.max(0, parsed.ai_exposure_score)) : null,
+      aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
+      aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
+      aiNarrative: parsed.ai_narrative,
+    }).where(eq(capabilityEconomicsTable.id, econRowId));
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e).substring(0, 200) };
+  }
+}
+
+export async function backfillAiNarratives(opts: { limit?: number; capabilityIds?: number[]; concurrency?: number } = {}): Promise<{ updated: number; failed: number; errors: string[]; durationMs: number }> {
+  const start = Date.now();
+  const errors: string[] = [];
+  let updated = 0;
+  let failed = 0;
+
+  const econRows = await db.select().from(capabilityEconomicsTable);
+  let targets = opts.capabilityIds && opts.capabilityIds.length > 0
+    ? econRows.filter(r => opts.capabilityIds!.includes(r.capabilityId))
+    : econRows;
+  if (opts.limit != null) targets = targets.slice(0, opts.limit);
+
+  const caps = await db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, targets.map(t => t.capabilityId)));
+  const capById = new Map(caps.map(c => [c.id, c]));
+  const industries = await db.select().from(industriesTable);
+  const indById = new Map(industries.map(i => [i.id, i.name]));
+
+  log.info(`[AiBackfill] regenerating ai_narrative for ${targets.length} capabilities`);
+
+  const concurrency = Math.max(1, Math.min(4, opts.concurrency ?? 2));
+  let cursor = 0;
+  async function worker() {
+    while (cursor < targets.length) {
+      const idx = cursor++;
+      const econRow = targets[idx];
+      const cap = capById.get(econRow.capabilityId);
+      if (!cap) { failed++; errors.push(`[ai:cap${econRow.capabilityId}] missing cap`); continue; }
+      const indName = indById.get(cap.industryId) ?? "Unknown";
+      const r = await regenerateOneAiSection(cap, indName, econRow.id);
+      if (r.ok) {
+        updated++;
+        log.info(`[AiBackfill] ${updated}/${targets.length} ✓ ${cap.name}`);
+      } else {
+        failed++;
+        errors.push(`[ai:${cap.name}] ${r.error}`);
+        log.warn(`[AiBackfill] ✗ ${cap.name}: ${r.error}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const durationMs = Date.now() - start;
+  log.info(`[AiBackfill] done in ${(durationMs / 1000).toFixed(1)}s: ${updated} updated, ${failed} failed`);
+  return { updated, failed, errors: errors.slice(0, 20), durationMs };
 }
 
 export async function runAlphaEnrichment(opts: { limitCapabilities?: number; limitEdges?: number; industryId?: number } = {}): Promise<AlphaEnrichResult> {

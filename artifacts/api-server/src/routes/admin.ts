@@ -14,8 +14,14 @@ import {
 } from "@workspace/db";
 import { desc, count, gte, sql, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { backfillAiNarratives } from "../services/alpha/enrich";
+import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
+
+let aiBackfillState: { running: boolean; updated: number; failed: number; total: number; startedAt: string | null; finishedAt: string | null; lastError: string | null } = {
+  running: false, updated: 0, failed: 0, total: 0, startedAt: null, finishedAt: null, lastError: null,
+};
 
 router.use("/admin", requireAdmin);
 
@@ -174,6 +180,43 @@ router.post("/admin/trigger/:tool", async (req, res) => {
   const endpoint = endpointMap[tool];
   res.json({ triggered: true, tool, industrySlug, endpoint });
   fetch(`http://localhost:${process.env.PORT ?? 8080}${endpoint}`, { method: "POST" }).catch(() => null);
+});
+
+router.post("/admin/backfill-ai-narratives", async (req, res) => {
+  if (aiBackfillState.running) {
+    res.status(409).json({ error: "already running", state: aiBackfillState });
+    return;
+  }
+  const { limit, capabilityIds } = req.body as { limit?: number; capabilityIds?: number[] };
+  aiBackfillState = { running: true, updated: 0, failed: 0, total: 0, startedAt: new Date().toISOString(), finishedAt: null, lastError: null };
+  res.json({ started: true, state: aiBackfillState });
+  (async () => {
+    try {
+      const result = await backfillAiNarratives({ limit, capabilityIds, concurrency: 2 });
+      aiBackfillState = {
+        running: false,
+        updated: result.updated,
+        failed: result.failed,
+        total: result.updated + result.failed,
+        startedAt: aiBackfillState.startedAt,
+        finishedAt: new Date().toISOString(),
+        lastError: result.errors[0] ?? null,
+      };
+      log.info(`[AiBackfill] route done: ${result.updated} updated, ${result.failed} failed in ${(result.durationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      aiBackfillState = {
+        ...aiBackfillState,
+        running: false,
+        finishedAt: new Date().toISOString(),
+        lastError: String(e).substring(0, 300),
+      };
+      log.error(`[AiBackfill] route failed: ${e}`);
+    }
+  })();
+});
+
+router.get("/admin/backfill-ai-narratives/status", (_req, res) => {
+  res.json(aiBackfillState);
 });
 
 router.get("/admin/models", (_req, res) => {
