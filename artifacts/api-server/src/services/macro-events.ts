@@ -164,11 +164,22 @@ export async function runWorldScanForIndustry(industryName: string, industryId: 
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) return { inserted: 0, events: [], errors: ["PERPLEXITY_API_KEY not set"] };
 
+  // Pull the actual capability menu for this industry so the LLM can name-tag events to specific caps.
+  const industryCaps = await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name })
+    .from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId));
+  const capNameById = new Map(industryCaps.map(c => [c.id, c.name]));
+  const capMenu = industryCaps.map(c => `- ${c.name}`).join("\n");
+
   const systemPrompt = `You are a macro analyst tracking real-world events that disrupt enterprise capabilities.
 Identify ONLY major events (severity >= 5) from the past 24 hours. Examples: wars, regulatory rulings, central bank decisions, major outages, paradigm shifts (e.g. new AI model launch), trade restrictions.
+You MUST tag each event with the specific capabilities it touches, chosen verbatim from the provided capability menu.
 Return ONLY a valid JSON array, no markdown. Empty array [] if nothing material.`;
 
   const userPrompt = `What major macro events in the past 24 hours could disrupt the ${industryName} industry?
+
+Capability menu for ${industryName} (use EXACT names from this list in affected_capabilities):
+${capMenu}
+
 Return JSON array (max 5 entries):
 [{
   "title": "<short headline>",
@@ -176,8 +187,10 @@ Return JSON array (max 5 entries):
   "severity": <0-10 integer>,
   "sentiment_direction": "positive|negative|neutral",
   "decay_days": <expected days the impact persists, 1-90>,
-  "rationale": "<1-2 sentence why this disrupts ${industryName}>"
-}]`;
+  "rationale": "<1-2 sentence why this disrupts ${industryName}>",
+  "affected_capabilities": ["<exact name from menu>", "..."]
+}]
+Tag 1-4 capabilities per event. Skip the field only if no capability in the menu is materially affected.`;
 
   try {
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -200,14 +213,36 @@ Return JSON array (max 5 entries):
     const parsed = JSON.parse(cleaned.substring(start, end + 1)) as ScannedEvent[];
 
     const inserted: MacroEvent[] = [];
+    // Build a lower-case index of the industry's capability names for fuzzy resolution
+    // when the LLM uses near-matches instead of verbatim menu entries.
+    const capByLower = new Map(industryCaps.map(c => [c.name.toLowerCase(), c.id]));
     for (const ev of parsed) {
       if (!ev?.title || ev.severity < 5) continue;
+      const tagged: number[] = [];
+      const named = Array.isArray((ev as ScannedEvent & { affected_capabilities?: unknown }).affected_capabilities)
+        ? ((ev as ScannedEvent & { affected_capabilities: unknown[] }).affected_capabilities as unknown[])
+        : [];
+      for (const n of named) {
+        if (typeof n !== "string") continue;
+        const id = capByLower.get(n.toLowerCase());
+        if (id) tagged.push(id);
+      }
+      // Fallback fuzzy match against event title + rationale for caps not explicitly tagged.
+      if (tagged.length === 0) {
+        const hay = (`${ev.title} ${ev.rationale ?? ""}`).toLowerCase();
+        for (const cap of industryCaps) {
+          const tokens = cap.name.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length >= 4);
+          if (tokens.length && tokens.every(t => hay.includes(t))) tagged.push(cap.id);
+        }
+      }
+      const dedupedCapIds = Array.from(new Set(tagged));
       const created = await createMacroEvent({
         eventType: ev.type,
         severity: ev.severity,
         title: ev.title,
         description: ev.rationale ?? "",
         affectedIndustryIds: [industryId],
+        affectedCapabilityIds: dedupedCapIds,
         sentimentDirection: ev.sentiment_direction ?? "negative",
         decayDays: Math.max(1, Math.min(90, ev.decay_days ?? 14)),
         source: "world_scan",
@@ -215,6 +250,11 @@ Return JSON array (max 5 entries):
         createdBy: "world_scan",
       });
       inserted.push(created);
+      if (dedupedCapIds.length) {
+        console.log(`[world-scan] tagged "${ev.title.substring(0, 60)}" → ${dedupedCapIds.length} caps: ${dedupedCapIds.map(id => capNameById.get(id)).join(", ")}`);
+      } else {
+        console.log(`[world-scan] no cap match for "${ev.title.substring(0, 60)}" (industry-only shock)`);
+      }
     }
     return { inserted: inserted.length, events: inserted, errors: [] };
   } catch (err) {
