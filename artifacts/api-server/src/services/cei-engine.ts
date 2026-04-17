@@ -8,7 +8,7 @@ import {
   ontologyRelationshipsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { computeGlobalMacroShock } from "./macro-events";
+import { computeGlobalMacroShock, listActiveEvents, expandAffectedCapabilityIds } from "./macro-events";
 
 const INDUSTRY_GDP_WEIGHTS: Record<string, number> = {
   "Banking & Financial Services": 0.22,
@@ -87,6 +87,25 @@ export async function computeCEI(): Promise<CEIResult> {
   let overallWeightSum = 0;
   const allVelocities: number[] = [];
 
+  // Bidirectional macro-event capability shocks: build a per-capability shock map.
+  // For each active event with explicit affectedCapabilityIds, expand to include parents+children
+  // and apply (severity × directionSign × decay) as a direct score perturbation in the leaf loop below.
+  const capShockMap = new Map<number, number>();
+  const activeEvents = await listActiveEvents();
+  for (const evt of activeEvents) {
+    const explicit = (evt.affectedCapabilityIds ?? []) as number[];
+    if (!explicit.length) continue;
+    const expanded = await expandAffectedCapabilityIds(explicit);
+    const elapsedDays = (Date.now() - new Date(evt.startedAt).getTime()) / (1000 * 60 * 60 * 24);
+    const decayFactor = Math.max(0, 1 - elapsedDays / Math.max(0.1, evt.decayDays));
+    if (decayFactor <= 0) continue;
+    const sign = evt.sentimentDirection === "positive" ? 1 : evt.sentimentDirection === "negative" ? -1 : 0;
+    const shock = evt.severity * sign * decayFactor; // points (out of 100); ±0..10 typical
+    for (const id of expanded) {
+      capShockMap.set(id, (capShockMap.get(id) ?? 0) + shock);
+    }
+  }
+
   for (const industry of industries) {
     const caps = allCapabilities.filter(c => c.industryId === industry.id);
     if (caps.length === 0) continue;
@@ -129,6 +148,12 @@ export async function computeCEI(): Promise<CEIResult> {
       } else {
         consensusScore = cap.benchmarkScore;
         confidence = 0.5;
+      }
+
+      // Apply per-capability macro-event shock (bidirectional: parents↔children resolved via expandAffectedCapabilityIds).
+      const capShock = capShockMap.get(cap.id);
+      if (capShock) {
+        consensusScore = Math.max(0, Math.min(100, consensusScore + capShock));
       }
 
       const prevKey = `${industry.id}-${cap.id}`;

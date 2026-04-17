@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { macroEventsTable, industriesTable, type MacroEvent } from "@workspace/db";
-import { gte, desc } from "drizzle-orm";
+import { macroEventsTable, industriesTable, capabilitiesTable, type MacroEvent } from "@workspace/db";
+import { desc } from "drizzle-orm";
 
 export type EventType = "war" | "regulation" | "tech_shift" | "economic" | "disaster" | "other";
 export type SentimentDirection = "positive" | "negative" | "neutral";
@@ -36,6 +36,43 @@ export async function getActiveEventsForIndustry(industryId: number): Promise<Ma
     const ids = (e.affectedIndustryIds ?? []) as number[];
     return ids.length === 0 || ids.includes(industryId);
   });
+}
+
+/**
+ * Bidirectional capability scope: when a macro event names a parent capability,
+ * its children are also affected (and vice-versa — a child shock signals the parent).
+ * Returns the union of explicitly-named cap IDs + any parents/children connected to them.
+ */
+export async function expandAffectedCapabilityIds(ids: number[]): Promise<number[]> {
+  if (!ids?.length) return [];
+  const all = await db.select().from(capabilitiesTable);
+  const byId = new Map(all.map(c => [c.id, c]));
+  const out = new Set<number>(ids);
+  for (const id of ids) {
+    const cap = byId.get(id);
+    if (!cap) continue;
+    // Down: include all children if this is a parent.
+    for (const c of all) if (c.parentCapabilityId === id) out.add(c.id);
+    // Up: include the parent if this is a child.
+    if (cap.parentCapabilityId) out.add(cap.parentCapabilityId);
+  }
+  return [...out];
+}
+
+/**
+ * Get all capability IDs (parents+children) currently subject to active macro events.
+ * Used by the engine to apply event-driven shocks correctly across the parent/child tree.
+ */
+export async function getAffectedCapabilityIdsFromActiveEvents(): Promise<Set<number>> {
+  const active = await listActiveEvents();
+  const explicit: number[] = [];
+  for (const e of active) {
+    const ids = (e.affectedCapabilityIds ?? []) as number[];
+    explicit.push(...ids);
+  }
+  if (!explicit.length) return new Set();
+  const expanded = await expandAffectedCapabilityIds(explicit);
+  return new Set(expanded);
 }
 
 export async function computeMacroShockForIndustry(industryId: number): Promise<MacroShock> {

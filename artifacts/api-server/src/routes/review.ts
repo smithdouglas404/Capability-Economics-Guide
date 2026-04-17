@@ -9,6 +9,7 @@ import { eq, sql, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { enqueueEnrichmentJob, getQueuePositionFor } from "../services/alpha/queue";
 import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
+import { decomposeCapability } from "../services/sub-capability-generator";
 
 const router: IRouter = Router();
 
@@ -148,7 +149,12 @@ router.post("/review/:id/approve", async (req, res) => {
     .where(and(eq(capabilitiesTable.id, id), eq(capabilitiesTable.reviewStatus, "pending_review")))
     .returning({ id: capabilitiesTable.id });
   if (updated.length === 0) { res.status(409).json({ error: "status changed concurrently" }); return; }
-  res.json({ ok: true, status: "approved" });
+  // Fire-and-forget: every approved capability auto-decomposes into 4-6 factual sub-capabilities.
+  // Children get triangulated by the next scheduler rotation (within minutes) for real scores.
+  decomposeCapability(id, { count: 5, triangulateNow: false })
+    .then(out => console.log(`[review] auto-decomposed cap ${id} → ${out.childIds.length} children`))
+    .catch(err => console.warn(`[review] auto-decompose failed for cap ${id}:`, String(err)));
+  res.json({ ok: true, status: "approved", subCapabilityDecomposition: "queued" });
 });
 
 const RejectBody = z.object({ comment: z.string().trim().max(2000).optional() });
