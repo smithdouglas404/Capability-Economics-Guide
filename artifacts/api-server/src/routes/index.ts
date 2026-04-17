@@ -20,6 +20,7 @@ import dynamicIndustriesRouter from "./dynamic-industries";
 import vceRouter from "./vce";
 import alphaRouter from "./alpha";
 import reviewRouter from "./review";
+import membershipRouter from "./membership";
 
 const router: IRouter = Router();
 
@@ -44,5 +45,6 @@ router.use(vceRouter);
 router.use("/enrichment", enrichmentRouter);
 router.use("/alpha", alphaRouter);
 router.use(reviewRouter);
+router.use(membershipRouter);
 
 export default router;

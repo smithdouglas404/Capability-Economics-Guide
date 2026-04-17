@@ -11,6 +11,7 @@ import {
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
 import EnrichmentAdmin from "@/components/enrichment-admin";
+import MembershipAdmin from "@/components/membership-admin";
 
 const API_BASE = "/api";
 
@@ -637,6 +638,7 @@ export default function AdminDashboard() {
 
       <div className="mt-6 space-y-6">
         <EnrichmentAdmin />
+        <MembershipAdmin />
         <EducationalContentAdmin />
         <CaseStudyAdmin />
       </div>

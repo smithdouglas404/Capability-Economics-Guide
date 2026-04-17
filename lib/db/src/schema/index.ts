@@ -15,3 +15,4 @@ export * from "./educational-content";
 export * from "./case-studies";
 export * from "./vce";
 export * from "./alpha";
+export * from "./membership";
