@@ -526,7 +526,7 @@ export default function CEIDashboard() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 -mt-6">
+      <div className="container mx-auto px-4 mt-6">
         {/* Macro Disruptions Panel */}
         <motion.div
             initial={{ opacity: 0, y: 20 }}
