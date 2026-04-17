@@ -103,11 +103,11 @@ export async function computeCEI(): Promise<CEIResult> {
 
       if (triSources && triSources.length > 0) {
         const priorMean = 50;
-        const priorVariance = 625;
+        const priorVariance = 1500;
         let posteriorPrecision = 1 / priorVariance;
         let weightedMeanNum = priorMean / priorVariance;
         for (const src of triSources) {
-          const obsVariance = 100 / src.weight;
+          const obsVariance = 40 / src.weight;
           const obsPrecision = 1 / obsVariance;
           posteriorPrecision += obsPrecision;
           weightedMeanNum += src.rawScore * obsPrecision;

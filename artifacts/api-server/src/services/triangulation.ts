@@ -171,13 +171,13 @@ function computeBayesianConsensus(
   sources: Array<{ rawScore: number; weight: number }>,
 ): { mean: number; variance: number; credibleInterval: [number, number]; confidence: number } {
   const priorMean = 50;
-  const priorVariance = 625;
+  const priorVariance = 1500;
 
   let posteriorPrecision = 1 / priorVariance;
   let weightedMeanNumerator = priorMean / priorVariance;
 
   for (const source of sources) {
-    const observationVariance = 100 / source.weight;
+    const observationVariance = 40 / source.weight;
     const observationPrecision = 1 / observationVariance;
     posteriorPrecision += observationPrecision;
     weightedMeanNumerator += source.rawScore * observationPrecision;
@@ -206,6 +206,78 @@ function computeBayesianConsensus(
     ],
     confidence: Math.round(confidence * 100) / 100,
   };
+}
+
+export async function getStaleCapabilities(limit: number, industryId?: number): Promise<Array<{
+  capabilityId: number;
+  capabilityName: string;
+  industryId: number;
+  industryName: string;
+  lastTriangulatedAt: Date | null;
+}>> {
+  const caps = industryId
+    ? await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId))
+    : await db.select().from(capabilitiesTable);
+
+  const industries = await db.select().from(industriesTable);
+  const indMap = new Map(industries.map(i => [i.id, i.name]));
+
+  const lastByCap = new Map<number, Date>();
+  const allTris = await db.select().from(sourceTriangulationsTable);
+  for (const t of allTris) {
+    const prev = lastByCap.get(t.capabilityId);
+    if (!prev || t.queriedAt > prev) lastByCap.set(t.capabilityId, t.queriedAt);
+  }
+
+  const ranked = caps.map(c => ({
+    capabilityId: c.id,
+    capabilityName: c.name,
+    industryId: c.industryId,
+    industryName: indMap.get(c.industryId) || "Unknown",
+    lastTriangulatedAt: lastByCap.get(c.id) || null,
+  }));
+
+  ranked.sort((a, b) => {
+    const aT = a.lastTriangulatedAt?.getTime() ?? 0;
+    const bT = b.lastTriangulatedAt?.getTime() ?? 0;
+    return aT - bT;
+  });
+
+  return ranked.slice(0, limit);
+}
+
+export async function rotateTriangulations(limit = 10, industryId?: number): Promise<{
+  attempted: number;
+  succeeded: number;
+  failed: number;
+  capabilities: string[];
+}> {
+  const stale = await getStaleCapabilities(limit, industryId);
+  const capabilities: string[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  const concurrency = 2;
+  for (let i = 0; i < stale.length; i += concurrency) {
+    const batch = stale.slice(i, i + concurrency);
+    const results = await Promise.all(
+      batch.map(async (c) => {
+        try {
+          await triangulateCapability(c.industryName, c.capabilityName, c.industryId, c.capabilityId);
+          capabilities.push(`${c.industryName}/${c.capabilityName}`);
+          return true;
+        } catch (err) {
+          console.warn(`[Triangulation Rotation] failed for ${c.capabilityName}:`, err);
+          return false;
+        }
+      }),
+    );
+    succeeded += results.filter(Boolean).length;
+    failed += results.filter(r => !r).length;
+  }
+
+  console.log(`[Triangulation Rotation] refreshed ${succeeded}/${stale.length} caps (${failed} failed)`);
+  return { attempted: stale.length, succeeded, failed, capabilities };
 }
 
 export async function triangulateIndustry(

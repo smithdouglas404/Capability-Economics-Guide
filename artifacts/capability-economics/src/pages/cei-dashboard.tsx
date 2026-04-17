@@ -38,6 +38,31 @@ interface CEIHistory {
   timestamp: string;
 }
 
+interface FreshnessSummary {
+  total: number;
+  refreshedLast24h: number;
+  refreshedLast7d: number;
+  stale7dPlus: number;
+  neverRefreshed: number;
+}
+interface FreshnessItem {
+  capabilityId: number;
+  capability: string;
+  industry: string;
+  industryId: number;
+  lastTriangulatedAt: string | null;
+  ageHours: number | null;
+  sourceCount: number;
+  consensusScore: number | null;
+  confidence: number | null;
+  velocity: number | null;
+}
+interface FreshnessResponse {
+  summary: FreshnessSummary;
+  formula: { marketSentiment: string; consensusScore: string; velocity: string };
+  capabilities: FreshnessItem[];
+}
+
 interface AgentStatus {
   scheduler: {
     active: boolean;
@@ -112,12 +137,14 @@ function useAgentEvents() {
 function useApi<T>(url: string) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasDataRef = useRef(false);
   const refetch = useCallback(async () => {
-    setLoading(true);
+    if (!hasDataRef.current) setLoading(true);
     try {
       const res = await fetch(url);
       const json = await res.json();
       setData(json);
+      hasDataRef.current = true;
     } catch (e) {
       console.error("API error:", e);
     } finally {
@@ -233,6 +260,8 @@ export default function CEIDashboard() {
   const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cei/current`);
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
+  const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cei/freshness`);
+  const [showFreshness, setShowFreshness] = useState(true);
   const { events: agentEvents, connected: sseConnected } = useAgentEvents();
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
@@ -246,7 +275,7 @@ export default function CEIDashboard() {
     }
   }, [agentEvents, refetchCei, refetchAgent]);
 
-  if (loadingCei) {
+  if (loadingCei && !cei) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
@@ -328,6 +357,9 @@ export default function CEIDashboard() {
                 <div className="text-center">
                   <div className="text-xs text-slate-500 uppercase tracking-wider mb-1">Market Sentiment</div>
                   <div className="text-sm text-slate-300">Based on aggregate capability velocity across all industries</div>
+                  <div className="text-[10px] text-slate-500 mt-1 font-mono">
+                    sentiment = 50 + avgVelocity × 100
+                  </div>
                 </div>
               </div>
 
@@ -357,6 +389,126 @@ export default function CEIDashboard() {
       </div>
 
       <div className="container mx-auto px-4 -mt-6">
+        {freshness && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-4"
+          >
+            <Card className="rounded-none border-2 border-amber-300 dark:border-amber-900/50 bg-amber-50/40 dark:bg-amber-950/10">
+              <CardHeader className="pb-2 cursor-pointer" onClick={() => setShowFreshness(!showFreshness)}>
+                <CardTitle className="font-serif text-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-5 h-5 text-amber-600" />
+                    Data Freshness & Methodology
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                      freshness.summary.refreshedLast24h >= 5 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                      : freshness.summary.refreshedLast7d >= 10 ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                      : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                    }`}>
+                      {freshness.summary.refreshedLast24h >= 5 ? "Fresh" : freshness.summary.refreshedLast7d >= 10 ? "Aging" : "Stale"}
+                    </span>
+                  </div>
+                  {showFreshness ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                </CardTitle>
+                <CardDescription>Audit trail — when each capability was last triangulated against live sources, and what the headline numbers actually mean</CardDescription>
+              </CardHeader>
+              <AnimatePresence>
+                {showFreshness && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div className="bg-background rounded-sm p-3 border">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Refreshed &lt; 24h</div>
+                          <div className="text-2xl font-mono font-bold text-emerald-600">{freshness.summary.refreshedLast24h}</div>
+                          <div className="text-[10px] text-muted-foreground">of {freshness.summary.total} caps</div>
+                        </div>
+                        <div className="bg-background rounded-sm p-3 border">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Refreshed &lt; 7d</div>
+                          <div className="text-2xl font-mono font-bold text-amber-600">{freshness.summary.refreshedLast7d}</div>
+                          <div className="text-[10px] text-muted-foreground">of {freshness.summary.total} caps</div>
+                        </div>
+                        <div className="bg-background rounded-sm p-3 border">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Stale ≥ 7d</div>
+                          <div className="text-2xl font-mono font-bold text-red-600">{freshness.summary.stale7dPlus}</div>
+                          <div className="text-[10px] text-muted-foreground">includes never-refreshed</div>
+                        </div>
+                        <div className="bg-background rounded-sm p-3 border">
+                          <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Never Refreshed</div>
+                          <div className="text-2xl font-mono font-bold text-slate-600">{freshness.summary.neverRefreshed}</div>
+                          <div className="text-[10px] text-muted-foreground">no triangulation yet</div>
+                        </div>
+                      </div>
+
+                      <div className="bg-background rounded-sm p-3 border mb-4">
+                        <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <Info className="w-3 h-3" /> What the numbers mean
+                        </div>
+                        <div className="space-y-1.5 text-xs font-mono text-foreground">
+                          <div><span className="text-amber-700 dark:text-amber-400">Market Sentiment:</span> {freshness.formula.marketSentiment}</div>
+                          <div><span className="text-amber-700 dark:text-amber-400">Consensus Score:</span> {freshness.formula.consensusScore}</div>
+                          <div><span className="text-amber-700 dark:text-amber-400">Velocity:</span> {freshness.formula.velocity}</div>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2">
+                        10 Stalest Capabilities (next in rotation queue)
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead className="border-b text-muted-foreground">
+                            <tr className="text-left">
+                              <th className="py-1.5 pr-3 font-medium">Capability</th>
+                              <th className="py-1.5 pr-3 font-medium">Industry</th>
+                              <th className="py-1.5 pr-3 font-medium text-right">Last Refreshed</th>
+                              <th className="py-1.5 pr-3 font-medium text-right">Sources</th>
+                              <th className="py-1.5 pr-3 font-medium text-right">Score</th>
+                              <th className="py-1.5 pr-3 font-medium text-right">Confidence</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {freshness.capabilities.slice(0, 10).map(item => (
+                              <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
+                                <td className="py-1.5 pr-3 font-medium">{item.capability}</td>
+                                <td className="py-1.5 pr-3 text-muted-foreground">{item.industry}</td>
+                                <td className="py-1.5 pr-3 text-right font-mono">
+                                  {item.lastTriangulatedAt
+                                    ? `${item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago`
+                                    : <span className="text-red-600">never</span>}
+                                </td>
+                                <td className="py-1.5 pr-3 text-right font-mono">{item.sourceCount}/4</td>
+                                <td className="py-1.5 pr-3 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
+                                <td className="py-1.5 pr-3 text-right font-mono">{item.confidence !== null ? `${(item.confidence * 100).toFixed(0)}%` : "—"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>Rotation runs every 24h, refreshing the 10 oldest caps. Urgency burst triggers within 5min when confidence drops.</span>
+                        <button
+                          onClick={() => refetchFreshness()}
+                          className="flex items-center gap-1 px-2 py-1 hover:text-foreground hover:bg-muted/50 rounded-sm transition"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Refresh
+                        </button>
+                      </div>
+                    </CardContent>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </Card>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
