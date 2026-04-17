@@ -7,7 +7,7 @@ import {
   Users,
   Swords, FlaskConical, Target, Rocket, BarChart3, PieChart,
   Lightbulb, MessageSquare,
-  DollarSign, Settings2, ChevronDown, CreditCard, LogOut,
+  Settings2, ChevronDown, CreditCard, LogOut,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -166,19 +166,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
           {/* Utility cluster — top-right */}
           <div className="hidden md:flex items-center gap-1 shrink-0">
-            <Link href="/usage">
-              <button
-                data-testid="nav-usage"
-                title="LLM Usage & Spend"
-                className={`px-2.5 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-1 hover:bg-muted ${
-                  location === "/usage" ? "text-primary bg-primary/10" : "text-muted-foreground"
-                }`}
-              >
-                <DollarSign className="w-3.5 h-3.5" />
-                Usage
-              </button>
-            </Link>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

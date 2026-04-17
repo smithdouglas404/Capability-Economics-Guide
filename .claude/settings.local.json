@@ -12,7 +12,8 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(grep:*)",
-      "Bash(pnpm --filter @workspace/capability-economics run build)"
+      "Bash(pnpm --filter @workspace/capability-economics run build)",
+      "Bash(npx drizzle-kit:*)"
     ]
   }
 }
