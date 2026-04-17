@@ -13,6 +13,10 @@ export const capabilitiesTable = pgTable("capabilities", {
   economicView: text("economic_view").notNull(),
   benchmarkScore: real("benchmark_score").notNull().default(50),
   sourceIds: jsonb("source_ids").$type<number[]>(),
+  reviewStatus: text("review_status").notNull().default("approved"),
+  reviewNotes: jsonb("review_notes").$type<Array<{ role: "reviewer" | "system"; comment: string; ts: string }>>().default([]),
+  revisionCount: integer("revision_count").notNull().default(0),
+  submittedBy: text("submitted_by").default("seed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

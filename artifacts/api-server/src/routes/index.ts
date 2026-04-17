@@ -19,6 +19,7 @@ import caseStudiesRouter from "./case-studies";
 import dynamicIndustriesRouter from "./dynamic-industries";
 import vceRouter from "./vce";
 import alphaRouter from "./alpha";
+import reviewRouter from "./review";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use(caseStudiesRouter);
 router.use(vceRouter);
 router.use("/enrichment", enrichmentRouter);
 router.use("/alpha", alphaRouter);
+router.use(reviewRouter);
 
 export default router;

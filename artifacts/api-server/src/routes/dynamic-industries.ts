@@ -217,8 +217,25 @@ Output ONLY the JSON array. No markdown, no commentary.`;
           economicView: c.economicView,
           benchmarkScore: Math.max(0, Math.min(100, c.benchmarkScore)),
           sourceIds,
+          reviewStatus: "pending_review",
+          submittedBy: "discovery_agent",
         })
         .returning();
+      void (async () => {
+        const { runDetailEnrichment } = await import("../services/alpha/enrich");
+        for (let i = 0; i < 30; i++) {
+          try { await runDetailEnrichment({ capabilityId: cap.id, force: true }); return; }
+          catch (e) {
+            const msg = String(e);
+            if (!msg.includes("already in progress")) {
+              console.error("[discovery_agent] detail enrich failed:", msg.slice(0, 200));
+              return;
+            }
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        }
+        console.error("[discovery_agent] detail enrich gave up after 30 lock attempts");
+      })();
       await db.insert(capabilityThresholdsTable).values({
         capabilityId: cap.id,
         greenMin: Math.max(0, Math.min(100, c.greenMin)),

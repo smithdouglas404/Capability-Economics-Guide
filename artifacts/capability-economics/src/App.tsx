@@ -14,6 +14,7 @@ import InsightsPage from "@/pages/insights";
 import CEIDashboard from "@/pages/cei-dashboard";
 import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
+import ReviewQueue from "@/pages/review-queue";
 import VCE from "@/pages/vce";
 import Alpha from "@/pages/alpha";
 
@@ -33,6 +34,7 @@ function Router() {
       <Route path="/organization" component={OrganizationSetup} />
       <Route path="/assess" component={Assess} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />
       <Route component={NotFound} />
     </Switch>

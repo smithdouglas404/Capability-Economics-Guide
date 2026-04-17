@@ -206,6 +206,7 @@ async function enrichOneCapabilityDetail(
   metrics: Array<{ name: string; description: string | null; benchmarkValue: number | null; unit: string | null }>,
   deps: Array<{ dependsOnName: string; strength: string | null }>,
   roles: Array<{ roleTitle: string; roleName: string; relevance: string | null }>,
+  revisionGuidance?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const research = await perplexity(
@@ -250,6 +251,7 @@ async function enrichOneCapabilityDetail(
       `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
       `"ai_substitutes" (array of 2-6 strings — real AI vendor / model names that credibly substitute or augment this capability), ` +
       `"ai_narrative" (string, 2-3 sentences on how GenAI specifically reshapes this capability, name vendors and a probability or $ figure)\n\n` +
+      (revisionGuidance ? `\n\nREVIEWER FEEDBACK ON PRIOR DRAFT (must address): "${revisionGuidance}"\n` : "") +
       `Output strict JSON only, no prose.`,
       4000,
     );
@@ -299,7 +301,7 @@ export interface AlphaEnrichResult {
   durationMs: number;
 }
 
-export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
+export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number; revisionGuidance?: string } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
   if (alphaRunning) throw new Error("Alpha enrichment already in progress");
   alphaRunning = true;
   const start = Date.now();
@@ -353,7 +355,7 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
         halfLifeMonths: econRow.halfLifeMonths,
         marginStructurePct: econRow.marginStructurePct,
         revenueExposureMm: econRow.revenueExposureMm,
-      }, metrics, deps, roles);
+      }, metrics, deps, roles, opts.revisionGuidance);
       if (r.ok) enriched++; else errors.push(`[detail:${cap.name}] ${r.error}`);
     }
     return { enriched, errors, durationMs: Date.now() - start };

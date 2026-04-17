@@ -7,7 +7,7 @@ import {
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
 
 const router: IRouter = Router();
@@ -21,11 +21,15 @@ router.get("/capabilities", async (req, res) => {
 
   const { industryId } = parsed.data;
 
+  const includePending = req.query.includePending === "1" || req.query.includePending === "true";
   let query = db.select().from(capabilitiesTable);
-  if (industryId !== undefined) {
+  if (industryId !== undefined && !includePending) {
+    query = query.where(and(eq(capabilitiesTable.industryId, industryId), eq(capabilitiesTable.reviewStatus, "approved"))) as typeof query;
+  } else if (industryId !== undefined) {
     query = query.where(eq(capabilitiesTable.industryId, industryId)) as typeof query;
+  } else if (!includePending) {
+    query = query.where(eq(capabilitiesTable.reviewStatus, "approved")) as typeof query;
   }
-
   const capabilities = await query;
   res.json(capabilities);
 });
