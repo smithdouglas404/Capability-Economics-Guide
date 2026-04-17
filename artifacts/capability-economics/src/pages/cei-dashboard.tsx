@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { HelpCircle } from "lucide-react";
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
@@ -192,6 +194,72 @@ function useAgentEvents() {
   }, []);
 
   return { events, connected };
+}
+
+function MetricHelp({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <HoverCard openDelay={150} closeDelay={100}>
+      <HoverCardTrigger asChild>
+        <button type="button" className={`inline-flex items-center justify-center text-muted-foreground/60 hover:text-foreground transition-colors ${className}`} onClick={(e) => e.stopPropagation()}>
+          <HelpCircle className="w-3 h-3" />
+        </button>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-80 text-xs leading-relaxed" side="top">
+        {children}
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+function DeltaInterpreter({ delta, childScore, parentScore, childName }: { delta: number; childScore: number; parentScore: number; childName: string }) {
+  const absDelta = Math.abs(delta);
+  const tier = childScore >= 75 ? "high" : childScore >= 50 ? "mid" : "low";
+  const isRed = delta < 0;
+  let label = "";
+  let interpretation = "";
+  if (isRed) {
+    if (tier === "high") {
+      label = "Strong, but the weakest of a strong cohort";
+      interpretation = `${childName} is performing well in absolute terms (${childScore.toFixed(1)}/100) — but it's the relative laggard inside this parent. Not a problem; this is where marginal investment yields the smallest return.`;
+    } else if (tier === "mid") {
+      label = "Capability gap";
+      interpretation = `${childName} is mid-tier (${childScore.toFixed(1)}/100) and below its parent average. The org has invested elsewhere in this domain but under-invested here. A typical area for focused improvement.`;
+    } else {
+      label = "Blind spot";
+      interpretation = `${childName} is materially weak (${childScore.toFixed(1)}/100) and ${absDelta.toFixed(1)} points below the parent. Either the org is unaware this matters, or aware and failing to execute. Often the highest-leverage area to address.`;
+    }
+  } else {
+    if (tier === "high") {
+      label = "Center of excellence";
+      interpretation = `${childName} (${childScore.toFixed(1)}/100) is materially above its parent and pulling the rollup up. This is what the rest of the parent should look like.`;
+    } else {
+      label = "Best of a weak cohort";
+      interpretation = `${childName} is above its parent (${parentScore.toFixed(1)}) but the parent itself is mid/weak. Don't celebrate — strength is relative to a low bar.`;
+    }
+  }
+  return (
+    <HoverCard openDelay={120} closeDelay={80}>
+      <HoverCardTrigger asChild>
+        <span className={`text-[9px] font-mono ml-1 px-1 rounded shrink-0 cursor-help ${
+          delta > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+          : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+        }`}>
+          {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs parent
+        </span>
+      </HoverCardTrigger>
+      <HoverCardContent className="w-80 text-xs leading-relaxed" side="top">
+        <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isRed ? "text-red-600" : "text-emerald-600"}`}>
+          {label}
+        </div>
+        <div className="text-muted-foreground mb-2">{interpretation}</div>
+        <div className="pt-2 border-t border-border/50 space-y-0.5 font-mono text-[10.5px]">
+          <div className="flex justify-between"><span className="text-muted-foreground">Child score</span><span className="font-semibold">{childScore.toFixed(1)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Parent rollup</span><span className="font-semibold">{parentScore.toFixed(1)}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Δ</span><span className={`font-semibold ${isRed ? "text-red-600" : "text-emerald-600"}`}>{delta > 0 ? "+" : ""}{delta.toFixed(1)} pt</span></div>
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
 }
 
 function useApi<T>(url: string | null) {
@@ -1315,11 +1383,45 @@ export default function CEIDashboard() {
                           </div>
                           {capabilityTree && capabilityTree.roots.length > 0 ? (
                             <div className="border border-border/60 rounded-sm overflow-hidden">
-                              <div className="bg-muted/40 px-2 py-1 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[10px] font-semibold text-muted-foreground uppercase">
-                                <div>Capability</div>
-                                <div className="text-right">Score</div>
-                                <div className="text-right">Conf</div>
-                                <div className="text-right w-12">Velocity</div>
+                              <div className="bg-muted/40 px-2 py-1 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[10px] font-semibold text-muted-foreground uppercase items-center">
+                                <div className="flex items-center gap-1">
+                                  Capability
+                                  <MetricHelp>
+                                    <div className="font-bold text-foreground mb-1">Capability hierarchy</div>
+                                    <div className="text-muted-foreground mb-2">Parents (with chevron) roll up the weighted average of their children. Click to expand. The "<span className="font-mono">N sub · σ Xpt</span>" badge shows how many children there are and the spread between the strongest and weakest — high σ means the parent's single number is hiding internal divergence worth investigating.</div>
+                                  </MetricHelp>
+                                </div>
+                                <div className="text-right flex items-center justify-end gap-1">
+                                  Score
+                                  <MetricHelp>
+                                    <div className="font-bold text-foreground mb-1">Consensus Score (0–100)</div>
+                                    <div className="text-muted-foreground mb-2">Bayesian posterior of 4 independent perspectives — consulting (McKinsey/BCG-style), market data (analyst reports), academic (research), and practitioner (industry insiders). Each perspective scores the capability and they're combined into a single posterior with a 95% credible interval.</div>
+                                    <div className="font-mono text-[10.5px] space-y-0.5 pt-1 border-t border-border/50">
+                                      <div><span className="font-semibold text-emerald-600">75+</span> — leading practice</div>
+                                      <div><span className="font-semibold text-amber-600">50–74</span> — mid-tier, common practice</div>
+                                      <div><span className="font-semibold text-red-600">&lt;50</span> — material weakness</div>
+                                    </div>
+                                  </MetricHelp>
+                                </div>
+                                <div className="text-right flex items-center justify-end gap-1">
+                                  Conf
+                                  <MetricHelp>
+                                    <div className="font-bold text-foreground mb-1">Confidence (%)</div>
+                                    <div className="text-muted-foreground mb-2">How tightly the 4 source perspectives agree. High confidence (85%+) means all sources converged on a similar number — trust the score. Low confidence (&lt;60%) means the sources disagree materially — the capability is contested or has limited evidence; treat the score as provisional and prioritize fresh research.</div>
+                                  </MetricHelp>
+                                </div>
+                                <div className="text-right w-16 flex items-center justify-end gap-1">
+                                  Velocity
+                                  <MetricHelp>
+                                    <div className="font-bold text-foreground mb-1">Velocity (% per cycle)</div>
+                                    <div className="text-muted-foreground mb-2">Exponential moving average of score change between triangulation cycles (α=0.7). Captures momentum: is this capability getting better or worse over time, and how fast?</div>
+                                    <div className="font-mono text-[10.5px] space-y-0.5 pt-1 border-t border-border/50">
+                                      <div><span className="text-emerald-600">+ green</span> — improving</div>
+                                      <div><span className="text-red-600">− red</span> — declining</div>
+                                      <div><span className="text-muted-foreground">±0</span> — stable / no fresh signal</div>
+                                    </div>
+                                  </MetricHelp>
+                                </div>
                               </div>
                               <div className="divide-y divide-border/40 max-h-[360px] overflow-y-auto">
                                 {capabilityTree.roots.map(root => {
@@ -1385,13 +1487,13 @@ export default function CEIDashboard() {
                                                   <div className="flex items-center gap-1 min-w-0 pl-5">
                                                     <span className="text-muted-foreground/60 shrink-0">└</span>
                                                     <span className="truncate">{child.name}</span>
-                                                    {delta !== null && Math.abs(delta) >= 0.1 && (
-                                                      <span className={`text-[9px] font-mono ml-1 px-1 rounded shrink-0 ${
-                                                        delta > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
-                                                        : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                                                      }`}>
-                                                        {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs parent
-                                                      </span>
+                                                    {delta !== null && Math.abs(delta) >= 0.1 && child.score !== null && root.score !== null && (
+                                                      <DeltaInterpreter
+                                                        delta={delta}
+                                                        childScore={child.score}
+                                                        parentScore={root.score}
+                                                        childName={child.name}
+                                                      />
                                                     )}
                                                   </div>
                                                   <div className="text-right font-mono font-semibold tabular-nums">
