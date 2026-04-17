@@ -1,6 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
+import { db, capabilitiesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const rawPort = process.env["PORT"];
 
@@ -23,6 +25,12 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  void db.update(capabilitiesTable)
+    .set({ enrichmentStatus: "failed", enrichmentError: "interrupted by server restart", enrichmentUpdatedAt: new Date() })
+    .where(eq(capabilitiesTable.enrichmentStatus, "running"))
+    .then(() => logger.info("Reset stale running enrichment rows on boot"))
+    .catch(e => logger.error({ err: e }, "Failed to reset stale enrichment rows"));
 
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");

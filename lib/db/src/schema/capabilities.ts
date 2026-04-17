@@ -18,6 +18,10 @@ export const capabilitiesTable = pgTable("capabilities", {
   revisionCount: integer("revision_count").notNull().default(0),
   submittedBy: text("submitted_by").default("seed"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  enrichmentStatus: text("enrichment_status").notNull().default("pending"),
+  enrichmentStage: text("enrichment_stage"),
+  enrichmentError: text("enrichment_error"),
+  enrichmentUpdatedAt: timestamp("enrichment_updated_at"),
 });
 
 export const capabilityMetricsTable = pgTable("capability_metrics", {

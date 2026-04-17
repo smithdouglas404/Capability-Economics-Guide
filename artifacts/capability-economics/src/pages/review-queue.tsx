@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, XCircle, RefreshCw, Plus, Loader2, MessageSquare, Eye, AlertTriangle, History } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Plus, Loader2, MessageSquare, Eye, AlertTriangle, History, AlertCircle, RotateCcw } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -17,6 +17,10 @@ type QueueItem = {
   summaryNarrative: string | null;
   hasEconomics: boolean;
   enrichmentReady: boolean;
+  enrichmentStatus: "pending" | "running" | "ready" | "failed" | string;
+  enrichmentStage: string | null;
+  enrichmentError: string | null;
+  enrichmentUpdatedAt: string | null;
 };
 
 type Industry = { id: number; name: string; slug: string };
@@ -199,8 +203,18 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   const [expanded, setExpanded] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [comment, setComment] = useState("");
-  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [busy, setBusy] = useState<"approve" | "reject" | "retry" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  const retry = async () => {
+    setBusy("retry"); setMsg(null);
+    try {
+      const r = await fetch(`${API_BASE}/review/${item.id}/retry`, { method: "POST" });
+      const b = await r.json();
+      if (!r.ok) setMsg(b.error ?? "failed");
+      else { setMsg(b.message ?? "Retrying enrichment…"); onAction(); }
+    } finally { setBusy(null); }
+  };
 
   const approve = async () => {
     setBusy("approve"); setMsg(null);
@@ -242,7 +256,27 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
                 <History className="w-3 h-3" /> rev {item.revisionCount}
               </span>
             )}
-            {!item.enrichmentReady && (
+            {item.enrichmentStatus === "running" && (
+              <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 flex items-center gap-1">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {item.enrichmentStage === "alpha"
+                  ? "running alpha…"
+                  : item.enrichmentStage === "detail"
+                    ? "alpha done · narrative running…"
+                    : "enriching…"}
+              </span>
+            )}
+            {item.enrichmentStatus === "failed" && (
+              <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-700 flex items-center gap-1">
+                <AlertCircle className="w-3 h-3" /> failed{item.enrichmentStage ? ` at ${item.enrichmentStage}` : ""}
+              </span>
+            )}
+            {item.enrichmentStatus === "ready" && (
+              <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-700 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3" /> enrichment ready
+              </span>
+            )}
+            {item.enrichmentStatus !== "running" && item.enrichmentStatus !== "failed" && item.enrichmentStatus !== "ready" && !item.enrichmentReady && (
               <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> enriching…
               </span>
@@ -254,6 +288,19 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
           <Button size="sm" variant="ghost" onClick={() => setExpanded(x => !x)} className="gap-1.5">
             <Eye className="w-3.5 h-3.5" /> {expanded ? "Hide" : "Preview"}
           </Button>
+          {(item.enrichmentStatus === "failed" || item.enrichmentStatus === "running") && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={retry}
+              disabled={!!busy || item.enrichmentStatus === "running"}
+              className="gap-1.5"
+              title={item.enrichmentStatus === "running" ? "Already running" : "Re-fire enrichment job"}
+            >
+              {busy === "retry" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+              Retry enrichment
+            </Button>
+          )}
           <Button size="sm" variant="default" onClick={approve} disabled={!item.enrichmentReady || !!busy} className="gap-1.5">
             {busy === "approve" ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Approve
           </Button>
@@ -262,6 +309,18 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
           </Button>
         </div>
       </div>
+
+      {item.enrichmentStatus === "failed" && item.enrichmentError && (
+        <div className="px-3 py-2 border-t bg-red-500/5 text-xs text-red-800 flex items-start gap-2">
+          <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <div>
+            <b>Last error:</b> <span className="font-mono">{item.enrichmentError}</span>
+            {item.enrichmentUpdatedAt && (
+              <span className="text-muted-foreground"> · {timeAgo(item.enrichmentUpdatedAt)}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {showReject && (
         <div className="p-3 border-t bg-amber-500/5 space-y-2">
