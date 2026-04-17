@@ -1,7 +1,59 @@
-import { db, enrichmentJobsTable, capabilitiesTable, type EnrichmentJob } from "@workspace/db";
-import { eq, and, lt, inArray, sql } from "drizzle-orm";
+import { db, capabilitiesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { Queue, Worker, type Job } from "bullmq";
 import { logger as log } from "../../lib/logger";
 import { runAlphaEnrichment, runDetailEnrichment } from "./enrich";
+import { getRedis, isRedisConfigured } from "./redis";
+
+const QUEUE_NAME = "enrichment";
+
+export type EnrichmentJobType = "alpha" | "detail";
+
+export interface AlphaPayload {
+  industryId?: number;
+  limitCapabilities?: number;
+  limitEdges?: number;
+}
+
+export interface DetailPayload {
+  capabilityId?: number;
+  limit?: number;
+  force?: boolean;
+  revisionGuidance?: string;
+}
+
+export interface EnrichmentJobData {
+  jobType: EnrichmentJobType;
+  payload: AlphaPayload | DetailPayload;
+  capabilityId: number | null;
+  industryId: number | null;
+}
+
+export interface EnrichmentJobResult {
+  id: number;
+  jobType: EnrichmentJobType;
+  payload: AlphaPayload | DetailPayload;
+  status: string;
+  capabilityId: number | null;
+  industryId: number | null;
+}
+
+let queueInstance: Queue<EnrichmentJobData> | null = null;
+let workerInstance: Worker<EnrichmentJobData> | null = null;
+
+function getQueueInternal(): Queue<EnrichmentJobData> {
+  if (queueInstance) return queueInstance;
+  queueInstance = new Queue<EnrichmentJobData>(QUEUE_NAME, {
+    connection: getRedis(),
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 5000 },
+      removeOnComplete: { age: 24 * 60 * 60, count: 1000 },
+      removeOnFail: { age: 7 * 24 * 60 * 60 },
+    },
+  });
+  return queueInstance;
+}
 
 async function setCapabilityEnrichment(
   capabilityId: number,
@@ -24,258 +76,156 @@ async function setCapabilityEnrichment(
   }
 }
 
-export type EnrichmentJobType = "alpha" | "detail";
-
-export interface AlphaPayload {
-  industryId?: number;
-  limitCapabilities?: number;
-  limitEdges?: number;
-}
-
-export interface DetailPayload {
-  capabilityId?: number;
-  limit?: number;
-  force?: boolean;
-  revisionGuidance?: string;
-}
-
 export async function enqueueEnrichmentJob(
   jobType: EnrichmentJobType,
   payload: AlphaPayload | DetailPayload,
   opts: { capabilityId?: number; industryId?: number } = {},
-): Promise<EnrichmentJob> {
-  const [row] = await db
-    .insert(enrichmentJobsTable)
-    .values({
-      jobType,
-      payload: payload as Record<string, unknown>,
-      capabilityId: opts.capabilityId ?? null,
-      industryId: opts.industryId ?? null,
-      status: "queued",
-    })
-    .returning();
+): Promise<EnrichmentJobResult> {
+  if (!isRedisConfigured()) {
+    throw new Error("REDIS_URL is not configured. Cannot enqueue enrichment job.");
+  }
+  const data: EnrichmentJobData = {
+    jobType,
+    payload,
+    capabilityId: opts.capabilityId ?? null,
+    industryId: opts.industryId ?? null,
+  };
+  const job = await getQueueInternal().add(jobType, data);
+  const numericId = job.id ? Number(job.id) : Date.now();
   log.info(
-    { jobId: row.id, jobType, capabilityId: opts.capabilityId ?? null },
+    { jobId: numericId, jobType, capabilityId: opts.capabilityId ?? null },
     "[queue] job enqueued",
   );
-  notifyWorker();
-  return row;
+  return {
+    id: numericId,
+    jobType,
+    payload,
+    status: "queued",
+    capabilityId: data.capabilityId,
+    industryId: data.industryId,
+  };
 }
 
 export async function getQueuePositionFor(
   capabilityId: number,
 ): Promise<{ jobId: number; status: string; ahead: number } | null> {
-  const [job] = await db
-    .select()
-    .from(enrichmentJobsTable)
-    .where(
-      and(
-        eq(enrichmentJobsTable.capabilityId, capabilityId),
-        inArray(enrichmentJobsTable.status, ["queued", "running"]),
-      ),
-    )
-    .orderBy(enrichmentJobsTable.id)
-    .limit(1);
-  if (!job) return null;
-  if (job.status === "running") {
-    return { jobId: job.id, status: "running", ahead: 0 };
+  if (!isRedisConfigured()) return null;
+  const q = getQueueInternal();
+  const [active, waiting, delayed] = await Promise.all([
+    q.getJobs(["active"], 0, 200, true),
+    q.getJobs(["waiting", "waiting-children", "paused"], 0, 500, true),
+    q.getJobs(["delayed"], 0, 500, true),
+  ]);
+  const matchInActive = active.find((j) => j.data?.capabilityId === capabilityId);
+  if (matchInActive) {
+    return { jobId: Number(matchInActive.id ?? 0), status: "running", ahead: 0 };
   }
-  const [{ count }] = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(enrichmentJobsTable)
-    .where(
-      and(
-        inArray(enrichmentJobsTable.status, ["queued", "running"]),
-        lt(enrichmentJobsTable.id, job.id),
-      ),
-    );
-  return { jobId: job.id, status: "queued", ahead: Number(count) };
+  const queue = [...waiting, ...delayed];
+  const idx = queue.findIndex((j) => j.data?.capabilityId === capabilityId);
+  if (idx === -1) return null;
+  return { jobId: Number(queue[idx].id ?? 0), status: "queued", ahead: idx };
 }
 
-let workerStarted = false;
-let workerWake: (() => void) | null = null;
-
-function notifyWorker(): void {
-  if (workerWake) workerWake();
-}
-
-interface RawJobRow {
-  id: number;
-  job_type: string;
-  payload: Record<string, unknown> | null;
-  status: string;
-  capability_id: number | null;
-  industry_id: number | null;
-  attempts: number;
-  error: string | null;
-  result: Record<string, unknown> | null;
-  created_at: Date;
-  started_at: Date | null;
-  completed_at: Date | null;
-}
-
-function mapRawJob(row: RawJobRow): EnrichmentJob {
-  return {
-    id: row.id,
-    jobType: row.job_type,
-    payload: row.payload ?? {},
-    status: row.status,
-    capabilityId: row.capability_id,
-    industryId: row.industry_id,
-    attempts: row.attempts,
-    error: row.error,
-    result: row.result,
-    createdAt: row.created_at,
-    startedAt: row.started_at,
-    completedAt: row.completed_at,
-  } as EnrichmentJob;
-}
-
-async function claimNextJob(): Promise<EnrichmentJob | null> {
-  // Atomically grab the oldest queued job. Using FOR UPDATE SKIP LOCKED so
-  // multiple worker processes (if ever scaled out) won't double-claim.
-  const result = await db.execute(sql`
-    UPDATE enrichment_jobs
-       SET status = 'running',
-           started_at = now(),
-           attempts = attempts + 1
-     WHERE id = (
-       SELECT id FROM enrichment_jobs
-        WHERE status = 'queued'
-        ORDER BY id ASC
-        LIMIT 1
-        FOR UPDATE SKIP LOCKED
-     )
-    RETURNING *
-  `);
-  const rows = ((result as unknown as { rows: RawJobRow[] }).rows ?? []);
-  return rows.length > 0 ? mapRawJob(rows[0]) : null;
-}
-
-async function runJob(job: EnrichmentJob): Promise<void> {
+async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, unknown>> {
   const start = Date.now();
-  log.info({ jobId: job.id, jobType: job.jobType }, "[queue] job starting");
-  const stage = job.jobType === "alpha" ? "alpha" : "detail";
-  if (job.capabilityId != null) {
-    await setCapabilityEnrichment(job.capabilityId, "running", stage, null);
+  const { jobType, payload, capabilityId } = job.data;
+  log.info({ jobId: job.id, jobType, attempt: job.attemptsMade + 1 }, "[queue] job starting");
+  const stage = jobType === "alpha" ? "alpha" : "detail";
+  if (capabilityId != null) {
+    await setCapabilityEnrichment(capabilityId, "running", stage, null);
   }
   try {
-    let result: Record<string, unknown>;
-    if (job.jobType === "alpha") {
-      const p = (job.payload ?? {}) as AlphaPayload;
+    if (jobType === "alpha") {
+      const p = payload as AlphaPayload;
       const r = await runAlphaEnrichment({
         industryId: p.industryId,
         limitCapabilities: p.limitCapabilities,
         limitEdges: p.limitEdges,
       });
-      result = r as unknown as Record<string, unknown>;
-      if (job.capabilityId != null) {
+      if (capabilityId != null) {
         const errs = (r.errors ?? []) as string[];
         if (r.capabilitiesEnriched === 0 && errs.length > 0) {
-          await setCapabilityEnrichment(job.capabilityId, "failed", "alpha", `alpha: ${errs[0].slice(0, 300)}`);
+          await setCapabilityEnrichment(capabilityId, "failed", "alpha", `alpha: ${errs[0].slice(0, 300)}`);
         }
-        // Otherwise leave as 'running' — the queued detail job will advance the status.
       }
-    } else if (job.jobType === "detail") {
-      const p = (job.payload ?? {}) as DetailPayload;
+      log.info({ jobId: job.id, durationMs: Date.now() - start }, "[queue] job completed");
+      return r as unknown as Record<string, unknown>;
+    } else if (jobType === "detail") {
+      const p = payload as DetailPayload;
       const r = await runDetailEnrichment({
         capabilityId: p.capabilityId,
         limit: p.limit,
         force: p.force,
         revisionGuidance: p.revisionGuidance,
       });
-      result = r as unknown as Record<string, unknown>;
-      if (job.capabilityId != null) {
+      if (capabilityId != null) {
         const errs = (r.errors ?? []) as string[];
         if (r.enriched === 0 && errs.length > 0) {
-          await setCapabilityEnrichment(job.capabilityId, "failed", "detail", `detail: ${errs[0].slice(0, 300)}`);
+          await setCapabilityEnrichment(capabilityId, "failed", "detail", `detail: ${errs[0].slice(0, 300)}`);
         } else {
-          await setCapabilityEnrichment(job.capabilityId, "ready", "done", null);
+          await setCapabilityEnrichment(capabilityId, "ready", "done", null);
         }
       }
+      log.info({ jobId: job.id, durationMs: Date.now() - start }, "[queue] job completed");
+      return r as unknown as Record<string, unknown>;
     } else {
-      throw new Error(`Unknown jobType: ${job.jobType}`);
+      throw new Error(`Unknown jobType: ${jobType}`);
     }
-    await db
-      .update(enrichmentJobsTable)
-      .set({ status: "completed", completedAt: new Date(), result })
-      .where(eq(enrichmentJobsTable.id, job.id));
-    log.info(
-      { jobId: job.id, durationMs: Date.now() - start },
-      "[queue] job completed",
-    );
   } catch (err) {
     const message = String(err).slice(0, 1000);
-    await db
-      .update(enrichmentJobsTable)
-      .set({
-        status: "failed",
-        completedAt: new Date(),
-        error: message,
-      })
-      .where(eq(enrichmentJobsTable.id, job.id));
-    if (job.capabilityId != null) {
-      await setCapabilityEnrichment(job.capabilityId, "failed", stage, `${stage}: ${message.slice(0, 300)}`);
+    if (capabilityId != null) {
+      await setCapabilityEnrichment(capabilityId, "failed", stage, `${stage}: ${message.slice(0, 300)}`);
     }
-    log.error(
-      { jobId: job.id, err: message, durationMs: Date.now() - start },
-      "[queue] job failed",
-    );
-  }
-}
-
-async function workerLoop(): Promise<void> {
-  log.info("[queue] worker loop started");
-  // On boot, requeue any 'running' jobs that were abandoned by a crashed
-  // process. We're a single-worker process, so anything still 'running' must
-  // be a leftover from a prior invocation.
-  try {
-    const requeued = await db
-      .update(enrichmentJobsTable)
-      .set({ status: "queued", startedAt: null })
-      .where(eq(enrichmentJobsTable.status, "running"))
-      .returning({ id: enrichmentJobsTable.id });
-    if (requeued.length > 0) {
-      log.warn(
-        { count: requeued.length, ids: requeued.map((r) => r.id) },
-        "[queue] requeued abandoned 'running' jobs from prior process",
-      );
-    }
-  } catch (err) {
-    log.error({ err: String(err) }, "[queue] failed to requeue abandoned jobs");
-  }
-
-  // Forever: drain queue, then sleep until notified or 30s timeout.
-  while (true) {
-    let job: EnrichmentJob | null = null;
-    try {
-      job = await claimNextJob();
-    } catch (err) {
-      log.error({ err: String(err) }, "[queue] claimNextJob failed");
-    }
-    if (job) {
-      await runJob(job);
-      continue;
-    }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => {
-        workerWake = null;
-        resolve();
-      }, 30_000);
-      workerWake = () => {
-        clearTimeout(timer);
-        workerWake = null;
-        resolve();
-      };
-    });
+    log.error({ jobId: job.id, err: message, durationMs: Date.now() - start }, "[queue] job failed");
+    throw err;
   }
 }
 
 export function startEnrichmentWorker(): void {
-  if (workerStarted) return;
-  workerStarted = true;
-  workerLoop().catch((err) => {
-    log.error({ err: String(err) }, "[queue] worker loop crashed");
-    workerStarted = false;
+  if (workerInstance) return;
+  if (!isRedisConfigured()) {
+    log.warn("[queue] REDIS_URL not configured — enrichment worker NOT started");
+    return;
+  }
+  workerInstance = new Worker<EnrichmentJobData>(
+    QUEUE_NAME,
+    processJob,
+    {
+      connection: getRedis(),
+      concurrency: 1,
+      lockDuration: 5 * 60 * 1000,
+    },
+  );
+  workerInstance.on("ready", () => log.info("[queue] BullMQ worker ready"));
+  workerInstance.on("failed", (job, err) => {
+    log.warn(
+      { jobId: job?.id, attempts: job?.attemptsMade, willRetry: (job?.attemptsMade ?? 0) < (job?.opts?.attempts ?? 1), err: String(err).slice(0, 300) },
+      "[queue] job attempt failed",
+    );
   });
+  workerInstance.on("error", (err) => log.error({ err: String(err) }, "[queue] worker error"));
+  log.info("[queue] BullMQ worker started (Redis-backed, concurrency=1)");
+}
+
+export interface QueueStats {
+  waiting: number;
+  active: number;
+  delayed: number;
+  failed: number;
+  completed: number;
+}
+
+export async function getQueueStats(): Promise<QueueStats> {
+  if (!isRedisConfigured()) {
+    return { waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 };
+  }
+  const q = getQueueInternal();
+  const counts = await q.getJobCounts("waiting", "active", "delayed", "failed", "completed");
+  return {
+    waiting: Number(counts.waiting ?? 0),
+    active: Number(counts.active ?? 0),
+    delayed: Number(counts.delayed ?? 0),
+    failed: Number(counts.failed ?? 0),
+    completed: Number(counts.completed ?? 0),
+  };
 }
