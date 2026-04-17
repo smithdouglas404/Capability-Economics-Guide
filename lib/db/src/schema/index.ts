@@ -20,3 +20,4 @@ export * from "./memory-graph";
 export * from "./macro-events";
 export * from "./companies";
 export * from "./llm-usage";
+export * from "./innovation";

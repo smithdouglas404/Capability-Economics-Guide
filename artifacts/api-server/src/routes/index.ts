@@ -24,6 +24,16 @@ import membershipRouter from "./membership";
 import macroEventsRouter from "./macro-events";
 import companiesRouter from "./companies";
 import usageRouter from "./usage";
+import simulationRouter from "./simulation";
+import warRoomRouter from "./war-room";
+import tradeSignalsRouter from "./trade-signals";
+import innovationPipelineRouter from "./innovation-pipeline";
+import watchlistRouter from "./watchlist";
+import benchmarkingRouter from "./benchmarking";
+import roiRouter from "./roi";
+import nlQueryRouter from "./nl-query";
+import regulationsRouter from "./regulations";
+import collaborationRouter from "./collaboration";
 
 const router: IRouter = Router();
 
@@ -52,5 +62,15 @@ router.use(membershipRouter);
 router.use(macroEventsRouter);
 router.use(companiesRouter);
 router.use(usageRouter);
+router.use(simulationRouter);
+router.use(warRoomRouter);
+router.use(tradeSignalsRouter);
+router.use(innovationPipelineRouter);
+router.use(watchlistRouter);
+router.use(benchmarkingRouter);
+router.use(roiRouter);
+router.use(nlQueryRouter);
+router.use(regulationsRouter);
+router.use(collaborationRouter);
 
 export default router;

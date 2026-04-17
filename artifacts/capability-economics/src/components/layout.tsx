@@ -1,6 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
-import { Briefcase, Shield, Users, Network, Building2, Layers, Lightbulb, Activity, ScanSearch, Settings2, Sparkles, Zap, Inbox, CreditCard, DollarSign } from "lucide-react";
+import { Briefcase, Shield, Users, Network, Building2, Layers, Lightbulb, Activity, ScanSearch, Settings2, Sparkles, Zap, Inbox, CreditCard, DollarSign, FlaskConical, Swords, Target, Rocket, Bell, BarChart3, PieChart, MessageSquare, Scale, MessageCircle } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();

@@ -21,6 +21,16 @@ import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
 import Companies from "@/pages/companies";
 import Usage from "@/pages/usage";
+import Simulation from "@/pages/simulation";
+import WarRoom from "@/pages/war-room";
+import TradeSignalsPage from "@/pages/trade-signals";
+import InnovationPipeline from "@/pages/innovation-pipeline";
+import WatchlistPage from "@/pages/watchlist";
+import BenchmarkingPage from "@/pages/benchmarking";
+import RoiTracker from "@/pages/roi-tracker";
+import NLQueryPage from "@/pages/nl-query";
+import RegulationsPage from "@/pages/regulations";
+import CollaborationPage from "@/pages/collaboration";
 
 const queryClient = new QueryClient();
 
@@ -79,6 +89,16 @@ function Router() {
       <Route path="/membership" component={Membership} />
       <Route path="/companies" component={Companies} />
       <Route path="/usage" component={Usage} />
+      <Route path="/simulation" component={Simulation} />
+      <Route path="/war-room" component={WarRoom} />
+      <Route path="/trade-signals" component={TradeSignalsPage} />
+      <Route path="/innovation" component={InnovationPipeline} />
+      <Route path="/watchlist" component={WatchlistPage} />
+      <Route path="/benchmarking" component={BenchmarkingPage} />
+      <Route path="/roi" component={RoiTracker} />
+      <Route path="/ask" component={NLQueryPage} />
+      <Route path="/regulations" component={RegulationsPage} />
+      <Route path="/collaborate" component={CollaborationPage} />
       <Route component={NotFound} />
     </Switch>
   );
