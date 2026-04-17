@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,8 +152,7 @@ export default function Companies() {
   }, [quad]);
 
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
             <Badge className="mb-2">Workbench</Badge>
@@ -363,7 +361,6 @@ export default function Companies() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+    </div>
   );
 }

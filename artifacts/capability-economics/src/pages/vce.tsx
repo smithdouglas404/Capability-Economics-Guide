@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { Layout } from "@/components/layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -126,8 +125,7 @@ export default function VCEPage() {
   const inboxTotal = inbox.counts.findings + inbox.counts.questions;
 
   return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8 max-w-7xl">
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -199,8 +197,7 @@ export default function VCEPage() {
             <SinglePaneInbox inbox={inbox} onChanged={loadAll} />
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+    </div>
   );
 }
 
