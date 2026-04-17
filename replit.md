@@ -106,8 +106,11 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
 ## Admin-Protected API Routes
 
 All admin endpoints share one middleware (`artifacts/api-server/src/middlewares/requireAdmin.ts`).
-Outside production it's a no-op; in production, the request must include the
-header `x-admin-key: <ADMIN_API_KEY>`. Routes behind the middleware:
+By default, in every environment, the request must include the header
+`x-admin-key: <ADMIN_API_KEY>` matching the server's `ADMIN_API_KEY`. To opt out
+(e.g. for local reviewer laptops) set `ADMIN_AUTH_BYPASS=1`; this disables the
+check entirely and should never be set in production or on shared/staging
+servers. Routes behind the middleware:
 
 - `POST /api/review/draft`, `GET /api/review/queue`, `POST /api/review/:id/retry`,
   `POST /api/review/:id/approve`, `POST /api/review/:id/reject`,
