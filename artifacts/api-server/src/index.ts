@@ -33,8 +33,12 @@ app.listen(port, (err) => {
     .then(() => logger.info("Reset stale running enrichment rows on boot"))
     .catch(e => logger.error({ err: e }, "Failed to reset stale enrichment rows"));
 
-  startScheduler();
-  logger.info("Agent scheduler started (30min interval)");
+  if (process.env.AGENT_SCHEDULER_AUTOSTART === "true") {
+    startScheduler();
+    logger.info("Agent scheduler started (autostart enabled)");
+  } else {
+    logger.info("Agent scheduler NOT autostarted — set AGENT_SCHEDULER_AUTOSTART=true or POST /api/agent/scheduler/start to enable");
+  }
 
   startEnrichmentWorker();
   logger.info("Enrichment job worker started");

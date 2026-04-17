@@ -384,26 +384,34 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     }
   }
 
+  const researchCount = state.decisions.filter(d => d.action === "research").length;
   const skipCount = state.decisions.filter(d => d.action === "skip").length;
   const memoryCount = state.decisions.filter(d => d.action === "use_memory").length;
-  if (skipCount > 0 || memoryCount > 0) {
+
+  // Only record a decision-summary memory when the cycle actually did something
+  // useful (research happened, or memory was meaningfully consulted). Empty
+  // skip-only cycles produce no signal and just pollute Mem0.
+  if (researchCount > 0 || memoryCount > 0) {
     const decResult = await storeMemoryTool.invoke({
       type: "decision_context",
-      content: `Decision summary: ${state.decisions.filter(d => d.action === "research").length} researched, ` +
+      content: `Decision summary: ${researchCount} researched, ` +
         `${skipCount} skipped, ${memoryCount} used memory. Trigger: ${state.trigger}.`,
-      metadata: { trigger: state.trigger, skipCount, memoryCount },
+      metadata: { trigger: state.trigger, researchCount, skipCount, memoryCount },
     });
     const decData = JSON.parse(decResult);
     if (decData.success) stored++;
   }
 
-  try {
-    const cycleSummary = `Researched ${state.researchResults.length} capabilities, ` +
-      `recalled ${state.memoriesRecalled} memories, stored ${stored} new memories. ` +
-      `CEI: ${state.ceiBeforeIndex} → ${state.ceiAfterIndex}. Trigger: ${state.trigger}.`;
-    await lettaRecordCycle(cycleSummary);
-  } catch (err) {
-    console.log("[Letta] Cycle record skipped:", err instanceof Error ? err.message : err);
+  // Same rule for Letta — only record cycles where real work happened.
+  if (researchCount > 0 || state.researchResults.length > 0) {
+    try {
+      const cycleSummary = `Researched ${state.researchResults.length} capabilities, ` +
+        `recalled ${state.memoriesRecalled} memories, stored ${stored} new memories. ` +
+        `CEI: ${state.ceiBeforeIndex} → ${state.ceiAfterIndex}. Trigger: ${state.trigger}.`;
+      await lettaRecordCycle(cycleSummary);
+    } catch (err) {
+      console.log("[Letta] Cycle record skipped:", err instanceof Error ? err.message : err);
+    }
   }
 
   emitAgentEvent({
