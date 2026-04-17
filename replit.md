@@ -102,3 +102,29 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
 - **ORM**: Drizzle ORM
 - **Validation**: Zod
 - **API Codegen**: Orval
+
+## Admin-Protected API Routes
+
+All admin endpoints share one middleware (`artifacts/api-server/src/middlewares/requireAdmin.ts`).
+Outside production it's a no-op; in production, the request must include the
+header `x-admin-key: <ADMIN_API_KEY>`. Routes behind the middleware:
+
+- `POST /api/review/draft`, `GET /api/review/queue`, `POST /api/review/:id/retry`,
+  `POST /api/review/:id/approve`, `POST /api/review/:id/reject`,
+  `GET /api/review/:id/notes`
+- `GET /api/admin/overview`, `GET /api/admin/assessments`, `GET /api/admin/content`,
+  `GET /api/admin/agent-runs`, `POST /api/admin/trigger/:tool`, `GET /api/admin/models`
+- `POST /api/enrichment/run`
+- `POST /api/alpha/enrich`, `POST /api/alpha/enrich-detail`, `POST /api/alpha/thesis`
+- `POST /api/agent/scheduler/start`, `POST /api/agent/scheduler/stop`,
+  `POST /api/agent/run-ontology`
+- `POST /api/cei/refresh`
+- `POST /api/insights/generate`, `POST /api/research`
+- `PATCH /api/membership/tiers/:id`
+- `POST /api/industries`, `POST /api/projects/generate`
+- `DELETE /api/admin/case-studies/:id`, `POST /api/case-studies/generate`
+- `GET/POST/PATCH/DELETE /api/admin/educational-content[/:id]`
+
+Public read-only endpoints (catalog browsing, capability detail, EVaR, moat,
+fragility, arbitrage, flows, talent, twin, status, graph, public educational
+content, etc.) remain open.

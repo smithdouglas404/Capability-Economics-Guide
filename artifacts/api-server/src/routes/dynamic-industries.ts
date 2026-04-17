@@ -11,15 +11,9 @@ import {
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { enqueueEnrichmentJob } from "../services/alpha/queue";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
-
-function requireAdmin(req: { headers: Record<string, string | string[] | undefined> }): boolean {
-  const token = req.headers["x-admin-token"];
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) return true;
-  return typeof token === "string" && token === expected;
-}
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
@@ -100,11 +94,7 @@ const CreateIndustryBody = z.object({
   icon: z.string().max(40).optional(),
 });
 
-router.post("/industries", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/industries", requireAdmin, async (req, res) => {
   const parsed = CreateIndustryBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -249,11 +239,7 @@ const GenerateProjectsBody = z.object({
   count: z.number().int().min(2).max(8).optional(),
 });
 
-router.post("/projects/generate", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/projects/generate", requireAdmin, async (req, res) => {
   const parsed = GenerateProjectsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });

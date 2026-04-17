@@ -22,6 +22,7 @@ import {
   GenerateInsightsBody,
   ResearchCapabilityBody,
 } from "@workspace/api-zod";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -207,7 +208,7 @@ router.get("/ontology", async (req, res) => {
   res.json({ relationships: filtered, adapters });
 });
 
-router.post("/insights/generate", async (req, res) => {
+router.post("/insights/generate", requireAdmin, async (req, res) => {
   const parsed = GenerateInsightsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -332,7 +333,7 @@ const researchRateLimit = new Map<string, { count: number; resetAt: number }>();
 const RESEARCH_RATE_LIMIT = 10;
 const RESEARCH_RATE_WINDOW_MS = 60 * 60 * 1000;
 
-router.post("/research", async (req, res) => {
+router.post("/research", requireAdmin, async (req, res) => {
   const clientIp = req.ip || "unknown";
   const now = Date.now();
   const entry = researchRateLimit.get(clientIp);

@@ -14,6 +14,7 @@ import {
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { enqueueEnrichmentJob } from "../services/alpha/queue";
 import { generateThesisMemo } from "../services/alpha/thesis";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
@@ -34,15 +35,7 @@ router.get("/status", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/enrich", async (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    const expected = process.env.ADMIN_API_KEY;
-    const provided = req.headers["x-admin-key"];
-    if (!expected || typeof provided !== "string" || provided !== expected) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-  }
+router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
   const limitCapabilities = typeof req.body?.limitCapabilities === "number" ? req.body.limitCapabilities : 12;
   const limitEdges = typeof req.body?.limitEdges === "number" ? req.body.limitEdges : 15;
   const industryId = typeof req.body?.industryId === "number" ? req.body.industryId : undefined;
@@ -58,15 +51,7 @@ router.post("/enrich", async (req: Request, res: Response) => {
   }
 });
 
-router.post("/enrich-detail", async (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    const expected = process.env.ADMIN_API_KEY;
-    const provided = req.headers["x-admin-key"];
-    if (!expected || typeof provided !== "string" || provided !== expected) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-  }
+router.post("/enrich-detail", requireAdmin, async (req: Request, res: Response) => {
   const limit = typeof req.body?.limit === "number" ? req.body.limit : 6;
   const force = req.body?.force === true;
   const capabilityId = typeof req.body?.capabilityId === "number" ? req.body.capabilityId : undefined;
@@ -904,15 +889,7 @@ router.get("/twin", async (req: Request, res: Response) => {
 });
 
 /* ============================= THESIS MEMO ============================= */
-router.post("/thesis", async (req: Request, res: Response) => {
-  if (process.env.NODE_ENV === "production") {
-    const expected = process.env.ADMIN_API_KEY;
-    const provided = req.headers["x-admin-key"];
-    if (!expected || typeof provided !== "string" || provided !== expected) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
-    }
-  }
+router.post("/thesis", requireAdmin, async (req: Request, res: Response) => {
   try {
     const capabilityId = parseInt(req.body?.capabilityId);
     if (isNaN(capabilityId)) { res.status(400).json({ error: "capabilityId required" }); return; }

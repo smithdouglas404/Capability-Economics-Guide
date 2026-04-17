@@ -4,6 +4,7 @@ import { triangulateCapability } from "../services/triangulation";
 import { db } from "@workspace/db";
 import { industriesTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -36,7 +37,7 @@ router.get("/cei/history", async (req, res) => {
   }
 });
 
-router.post("/cei/refresh", async (req, res) => {
+router.post("/cei/refresh", requireAdmin, async (req, res) => {
   const clientIp = req.ip || "unknown";
   const lastRefresh = refreshRateLimit.get(clientIp);
   if (lastRefresh && Date.now() - lastRefresh < REFRESH_COOLDOWN_MS) {

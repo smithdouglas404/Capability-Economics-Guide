@@ -13,15 +13,11 @@ import {
 } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
 import { runEnrichment } from "../services/enrichment/index";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
-router.post("/run", async (req: Request, res: Response) => {
-  const adminKey = req.headers["x-admin-key"];
-  if (process.env.NODE_ENV === "production" && adminKey !== process.env.ADMIN_API_KEY) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+router.post("/run", requireAdmin, async (req: Request, res: Response) => {
   try {
     const result = await runEnrichment();
     res.json(result);

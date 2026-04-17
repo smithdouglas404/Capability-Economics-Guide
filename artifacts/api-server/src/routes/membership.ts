@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { membershipTiersTable } from "@workspace/db";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -112,7 +113,7 @@ const PatchBody = z.object({
   displayOrder: z.number().int().min(0).max(99).optional(),
 });
 
-router.patch("/membership/tiers/:id", async (req, res) => {
+router.patch("/membership/tiers/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
   const parsed = PatchBody.safeParse(req.body);

@@ -8,20 +8,9 @@ import {
 import { eq, sql, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { enqueueEnrichmentJob, getQueuePositionFor } from "../services/alpha/queue";
-import type { Request, Response, NextFunction } from "express";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
-
-function requireAdmin(req: Request, res: Response, next: NextFunction): void {
-  if (process.env.NODE_ENV !== "production") { next(); return; }
-  const expected = process.env.ADMIN_API_KEY;
-  const provided = req.headers["x-admin-key"];
-  if (!expected || typeof provided !== "string" || provided !== expected) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  next();
-}
 
 router.use(requireAdmin);
 

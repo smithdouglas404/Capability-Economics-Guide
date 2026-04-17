@@ -13,8 +13,11 @@ import {
   agentMemoriesTable,
 } from "@workspace/db";
 import { desc, count, gte, sql, eq } from "drizzle-orm";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
+
+router.use(requireAdmin);
 
 router.get("/admin/overview", async (_req, res) => {
   const now = new Date();

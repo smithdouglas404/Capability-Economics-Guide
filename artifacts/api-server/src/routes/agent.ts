@@ -14,6 +14,7 @@ import {
   getLettaStatus,
 } from "../services/agent";
 import { generateOntologyTool } from "../services/agent/tools";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -52,12 +53,12 @@ router.get("/agent/status", async (_req, res) => {
   }
 });
 
-router.post("/agent/scheduler/start", async (_req, res) => {
+router.post("/agent/scheduler/start", requireAdmin, async (_req, res) => {
   startScheduler();
   res.json({ status: "started" });
 });
 
-router.post("/agent/scheduler/stop", async (_req, res) => {
+router.post("/agent/scheduler/stop", requireAdmin, async (_req, res) => {
   stopScheduler();
   res.json({ status: "stopped" });
 });
@@ -117,7 +118,7 @@ router.get("/agent/memories", async (req, res) => {
   }
 });
 
-router.post("/agent/run-ontology", async (_req, res) => {
+router.post("/agent/run-ontology", requireAdmin, async (_req, res) => {
   try {
     const { db: dbConn, industriesTable } = await import("@workspace/db");
     const industries = await dbConn.select({ slug: industriesTable.slug, name: industriesTable.name }).from(industriesTable);

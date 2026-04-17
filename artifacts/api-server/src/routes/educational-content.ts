@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { educationalContentTable, EDUCATIONAL_CATEGORIES } from "@workspace/db";
 import { eq, asc } from "drizzle-orm";
 import { z } from "zod";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -26,13 +27,6 @@ const ContentBodySchema = z.object({
 
 const ContentPatchSchema = ContentBodySchema.partial();
 
-function requireAdmin(req: { headers: Record<string, string | string[] | undefined> }): boolean {
-  const token = req.headers["x-admin-token"];
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) return true;
-  return typeof token === "string" && token === expected;
-}
-
 router.get("/educational-content", async (_req, res) => {
   const rows = await db
     .select()
@@ -54,11 +48,7 @@ router.get("/educational-content/:slug", async (req, res) => {
   res.json(row);
 });
 
-router.get("/admin/educational-content", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.get("/admin/educational-content", requireAdmin, async (req, res) => {
   const rows = await db
     .select()
     .from(educationalContentTable)
@@ -66,11 +56,7 @@ router.get("/admin/educational-content", async (req, res) => {
   res.json(rows);
 });
 
-router.post("/admin/educational-content", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/admin/educational-content", requireAdmin, async (req, res) => {
   const parsed = ContentBodySchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Validation failed", issues: parsed.error.issues });
@@ -92,11 +78,7 @@ router.post("/admin/educational-content", async (req, res) => {
   }
 });
 
-router.patch("/admin/educational-content/:id", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.patch("/admin/educational-content/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid id" });
@@ -124,11 +106,7 @@ router.patch("/admin/educational-content/:id", async (req, res) => {
   }
 });
 
-router.delete("/admin/educational-content/:id", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.delete("/admin/educational-content/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid id" });

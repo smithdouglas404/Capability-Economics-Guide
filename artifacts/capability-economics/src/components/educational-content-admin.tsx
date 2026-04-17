@@ -85,7 +85,7 @@ export default function EducationalContentAdmin() {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/admin/educational-content`, {
-        headers: adminToken ? { "x-admin-token": adminToken } : {},
+        headers: adminToken ? { "x-admin-key": adminToken } : {},
       });
       if (res.status === 401) {
         setError("Admin token required.");
@@ -161,7 +161,7 @@ export default function EducationalContentAdmin() {
         : `${API_BASE}/admin/educational-content`;
       const res = await fetch(url, {
         method: editing ? "PATCH" : "POST",
-        headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-token": adminToken } : {}) },
+        headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-key": adminToken } : {}) },
         body: JSON.stringify(payload),
       });
       const body = await res.json().catch(() => ({}));
@@ -182,7 +182,7 @@ export default function EducationalContentAdmin() {
     if (!confirm("Delete this content item?")) return;
     await fetch(`${API_BASE}/admin/educational-content/${id}`, {
       method: "DELETE",
-      headers: adminToken ? { "x-admin-token": adminToken } : {},
+      headers: adminToken ? { "x-admin-key": adminToken } : {},
     });
     fetchItems();
   };

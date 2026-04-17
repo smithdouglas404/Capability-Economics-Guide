@@ -57,7 +57,7 @@ export default function CaseStudyAdmin() {
     try {
       const res = await fetch(`${API_BASE}/case-studies/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-token": adminToken } : {}) },
+        headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-key": adminToken } : {}) },
         body: JSON.stringify({ industrySlug: pickIndustry }),
       });
       const body = await res.json().catch(() => ({}));
@@ -77,7 +77,7 @@ export default function CaseStudyAdmin() {
     if (!confirm("Delete this case study?")) return;
     await fetch(`${API_BASE}/admin/case-studies/${id}`, {
       method: "DELETE",
-      headers: adminToken ? { "x-admin-token": adminToken } : {},
+      headers: adminToken ? { "x-admin-key": adminToken } : {},
     });
     fetchAll();
   };

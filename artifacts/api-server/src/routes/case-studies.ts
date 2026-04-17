@@ -9,15 +9,9 @@ import {
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
-
-function requireAdmin(req: { headers: Record<string, string | string[] | undefined> }): boolean {
-  const token = req.headers["x-admin-token"];
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected) return true;
-  return typeof token === "string" && token === expected;
-}
 
 const GenerateBody = z.object({
   industrySlug: z.string().min(2).max(80),
@@ -64,11 +58,7 @@ router.get("/case-studies/:industrySlug", async (req, res) => {
   res.json({ industry, study: study ?? null, capabilities });
 });
 
-router.delete("/admin/case-studies/:id", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.delete("/admin/case-studies/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid id" });
@@ -78,11 +68,7 @@ router.delete("/admin/case-studies/:id", async (req, res) => {
   res.status(204).end();
 });
 
-router.post("/case-studies/generate", async (req, res) => {
-  if (!requireAdmin(req)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
+router.post("/case-studies/generate", requireAdmin, async (req, res) => {
   const parsed = GenerateBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
