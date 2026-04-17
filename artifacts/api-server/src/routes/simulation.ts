@@ -89,44 +89,48 @@ router.post("/simulation/run", async (req, res) => {
       if (!cap) continue;
 
       const capName = cap.name;
-      const halfLife = econ?.halfLifeMonths ?? 36;
-      const revenue = econ?.revenueExposureMm ?? 10;
-      const margin = econ?.marginStructurePct ? econ.marginStructurePct / 100 : 0.3;
-      const currentScore = comp?.consensusScore ?? cap.benchmarkScore ?? 50;
+      const currentScore = comp?.consensusScore ?? cap.benchmarkScore;
 
-      // Maturity improvement drives moat improvement
+      // Maturity improvement drives moat improvement — uses actual score, not fabricated
       const matDelta = inv.targetMaturityDelta;
-      const moatBefore = Math.min(100, (halfLife / 60) * 30 + currentScore * 0.25 + 20);
-      const moatAfter = Math.min(100, moatBefore + matDelta * 0.4);
-      moatChanges.push({ capabilityId: inv.capabilityId, name: capName, before: Math.round(moatBefore), after: Math.round(moatAfter) });
+      if (currentScore != null) {
+        const halfLife = econ?.halfLifeMonths;
+        const moatBefore = halfLife != null
+          ? Math.min(100, (halfLife / 60) * 30 + currentScore * 0.25 + 20)
+          : currentScore;
+        const moatAfter = Math.min(100, moatBefore + matDelta * 0.4);
+        moatChanges.push({ capabilityId: inv.capabilityId, name: capName, before: Math.round(moatBefore), after: Math.round(moatAfter) });
 
-      // Fragility decreases with investment
-      const fragBefore = Math.max(0, 100 - moatBefore);
-      const fragAfter = Math.max(0, 100 - moatAfter);
-      fragilityChanges.push({ capabilityId: inv.capabilityId, name: capName, before: Math.round(fragBefore), after: Math.round(fragAfter) });
+        // Fragility decreases with investment
+        const fragBefore = Math.max(0, 100 - moatBefore);
+        const fragAfter = Math.max(0, 100 - moatAfter);
+        fragilityChanges.push({ capabilityId: inv.capabilityId, name: capName, before: Math.round(fragBefore), after: Math.round(fragAfter) });
+      }
 
-      // EVaR reduction: improved half-life from investment
-      const newHalfLife = halfLife + matDelta * 0.5;
-      const evar12Before = revenue * margin * (1 - Math.pow(0.5, 12 / halfLife));
-      const evar12After = revenue * margin * (1 - Math.pow(0.5, 12 / newHalfLife));
-      evarReduction.push({ capabilityId: inv.capabilityId, name: capName, before12mo: Math.round(evar12Before * 10) / 10, after12mo: Math.round(evar12After * 10) / 10 });
+      // EVaR reduction — only when real economics data exists
+      if (econ?.revenueExposureMm != null && econ?.halfLifeMonths != null) {
+        const halfLife = econ.halfLifeMonths;
+        const revenue = econ.revenueExposureMm;
+        const margin = econ.marginStructurePct != null ? econ.marginStructurePct / 100 : 0.3;
+        const newHalfLife = halfLife + matDelta * 0.5;
+        const evar12Before = revenue * margin * (1 - Math.pow(0.5, 12 / halfLife));
+        const evar12After = revenue * margin * (1 - Math.pow(0.5, 12 / newHalfLife));
+        evarReduction.push({ capabilityId: inv.capabilityId, name: capName, before12mo: Math.round(evar12Before * 10) / 10, after12mo: Math.round(evar12After * 10) / 10 });
+      }
 
       totalScoreDelta += matDelta * 0.1;
 
-      // Cascade through dependencies
+      // Cascade through dependencies — only when edge scores exist
       for (const dep of deps.filter((d) => d.dependsOnId === inv.capabilityId)) {
         const downCap = capMap.get(dep.capabilityId);
         const edge = edgeMap.get(dep.id);
-        const prob = edge?.disruptionProbability ?? 0.3;
-        const impact = edge?.dollarImpactMm ?? 5;
-        const deltaImpact = -matDelta * prob * 0.1;
-        if (downCap) {
-          cascadeEffects.push({
-            fromId: inv.capabilityId, fromName: capName,
-            toId: dep.capabilityId, toName: downCap.name,
-            impactDelta: Math.round(deltaImpact * 100) / 100,
-          });
-        }
+        if (!edge || !downCap) continue;
+        const deltaImpact = -matDelta * edge.disruptionProbability * 0.1;
+        cascadeEffects.push({
+          fromId: inv.capabilityId, fromName: capName,
+          toId: dep.capabilityId, toName: downCap.name,
+          impactDelta: Math.round(deltaImpact * 100) / 100,
+        });
       }
     }
 

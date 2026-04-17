@@ -5,8 +5,9 @@ import {
   capabilityEconomicsTable,
   capabilitiesTable,
   industriesTable,
+  capabilityQuadrantsTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 
 const router = Router();
 
@@ -62,6 +63,8 @@ router.get("/trade-signals/performance", async (req, res) => {
 // Generate signals from current arbitrage data
 router.post("/trade-signals/generate", async (req, res) => {
   try {
+    // Use capability_quadrants (CE's own classification) vs capability_economics.consensusQuadrant (street/consensus)
+    // This matches the alpha/arbitrage route logic
     const economics = await db.select({
       econ: capabilityEconomicsTable,
       capName: capabilitiesTable.name,
@@ -69,17 +72,30 @@ router.post("/trade-signals/generate", async (req, res) => {
       .from(capabilityEconomicsTable)
       .leftJoin(capabilitiesTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id));
 
+    const capIds = economics.map((e) => e.econ.capabilityId);
+    const ceQuadrants = capIds.length
+      ? await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${sql.join(capIds.map(id => sql`${id}`), sql`, `)})`)
+      : [];
+    const ceQuadMap = new Map(ceQuadrants.map((q) => [q.capabilityId, q.quadrant]));
+
     const QUAD_MULTIPLES: Record<string, number> = { hot: 15, emerging: 10, table_stakes: 4, cooling: 2, declining: 1 };
     const newSignals: Array<typeof tradeSignalsTable.$inferInsert> = [];
 
     for (const row of economics) {
       const e = row.econ;
-      if (!e.consensusQuadrant || !e.revenueExposureMm) continue;
+      const ceQuadrant = ceQuadMap.get(e.capabilityId);
+      const streetQuadrant = e.consensusQuadrant;
 
-      const ceMultiple = QUAD_MULTIPLES[e.consensusQuadrant] ?? 4;
-      const streetMultiple = QUAD_MULTIPLES["table_stakes"]; // default street assumption
-      const ceValue = e.revenueExposureMm * (e.marginStructurePct ?? 30) / 100 * ceMultiple;
-      const streetValue = e.revenueExposureMm * (e.marginStructurePct ?? 30) / 100 * streetMultiple;
+      // Both quadrants must exist — no fabrication
+      if (!ceQuadrant || !streetQuadrant || !e.revenueExposureMm || !e.marginStructurePct) continue;
+      // Only generate signals when CE and street actually disagree
+      if (ceQuadrant === streetQuadrant) continue;
+
+      const ceMultiple = QUAD_MULTIPLES[ceQuadrant] ?? 4;
+      const streetMultiple = QUAD_MULTIPLES[streetQuadrant] ?? 4;
+      const margin = e.marginStructurePct / 100;
+      const ceValue = e.revenueExposureMm * margin * ceMultiple;
+      const streetValue = e.revenueExposureMm * margin * streetMultiple;
       const spread = streetValue > 0 ? ((ceValue - streetValue) / streetValue) * 100 : 0;
 
       if (Math.abs(spread) < 15) continue;
@@ -92,10 +108,10 @@ router.post("/trade-signals/generate", async (req, res) => {
         industryId: e.industryId,
         signal,
         strength,
-        ceQuadrant: e.consensusQuadrant,
-        streetQuadrant: "table_stakes",
+        ceQuadrant,
+        streetQuadrant,
         spreadPct: Math.round(spread * 10) / 10,
-        rationale: `CE values ${row.capName} as ${e.consensusQuadrant} (${ceMultiple}×) vs street assumption of table_stakes (${streetMultiple}×). Spread: ${spread > 0 ? "+" : ""}${spread.toFixed(1)}%.`,
+        rationale: `CE classifies ${row.capName} as ${ceQuadrant} (${ceMultiple}×) vs street consensus of ${streetQuadrant} (${streetMultiple}×). Spread: ${spread > 0 ? "+" : ""}${spread.toFixed(1)}%.`,
       });
     }
 

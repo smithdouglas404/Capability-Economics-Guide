@@ -62,7 +62,7 @@ router.get("/war-room/compare", async (req, res) => {
 
     const matrix = caps.filter((c) => c.isLeaf !== false).map((cap) => {
       const orgScore = orgCapMap.get(cap.id)?.maturityScore ?? null;
-      const benchmark = cap.benchmarkScore ?? 50;
+      const benchmark = cap.benchmarkScore;
       const econ = econMap.get(cap.id);
       const comp = compMap.get(cap.id);
 
@@ -71,12 +71,16 @@ router.get("/war-room/compare", async (req, res) => {
         capabilityName: cap.name,
         myScore: orgScore,
         benchmark,
-        gap: orgScore !== null ? orgScore - benchmark : null,
-        moatScore: econ ? Math.min(100, ((econ.halfLifeMonths ?? 36) / 60) * 30 + benchmark * 0.25 + 20) : null,
-        evar12mo: econ ? (econ.revenueExposureMm ?? 0) * ((econ.marginStructurePct ?? 30) / 100) * (1 - Math.pow(0.5, 12 / (econ.halfLifeMonths ?? 36))) : null,
+        gap: orgScore !== null && benchmark != null ? orgScore - benchmark : null,
+        moatScore: econ?.halfLifeMonths != null && benchmark != null
+          ? Math.min(100, (econ.halfLifeMonths / 60) * 30 + benchmark * 0.25 + 20)
+          : null,
+        evar12mo: econ?.revenueExposureMm != null && econ?.halfLifeMonths != null
+          ? econ.revenueExposureMm * ((econ.marginStructurePct ?? 30) / 100) * (1 - Math.pow(0.5, 12 / econ.halfLifeMonths))
+          : null,
         aiExposure: econ?.aiExposureScore ?? null,
-        velocity: comp?.velocity ?? 0,
-        consensusScore: comp?.consensusScore ?? benchmark,
+        velocity: comp?.velocity ?? null,
+        consensusScore: comp?.consensusScore ?? benchmark ?? null,
       };
     });
 
