@@ -5,6 +5,7 @@ import { asc, desc, eq, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
+import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
 
 const router: IRouter = Router();
 
@@ -203,6 +204,85 @@ router.post("/me/membership/request", async (req, res) => {
 
   const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
   res.status(201).json({ membership: final });
+});
+
+// ───────────────────────────── Stripe Checkout ─────────────────────────────
+
+const CheckoutBody = z.object({
+  tierId: z.number().int().positive(),
+  billing: z.enum(["monthly", "annual"]).default("annual"),
+  entityType: z.enum(["company", "individual"]).default("individual"),
+  entityName: z.string().min(1).max(200),
+  successPath: z.string().default("/membership?status=success"),
+  cancelPath: z.string().default("/membership?status=cancelled"),
+});
+
+router.post("/me/membership/checkout", async (req, res) => {
+  if (!isStripeConfigured()) { res.status(503).json({ error: "Stripe not configured" }); return; }
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const parsed = CheckoutBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
+  if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
+  const amount = parsed.data.billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
+  if (!amount || amount <= 0) { res.status(400).json({ error: "Tier has no price for the requested billing period" }); return; }
+
+  const userEmail = (req.headers["x-user-email"] as string | undefined) ?? null;
+
+  // Create the membership record up front in `pending` so the webhook can flip it once Stripe confirms payment.
+  const [membership] = await db.insert(userMembershipsTable).values({
+    userId: auth.userId,
+    userEmail,
+    userName: (req.headers["x-user-name"] as string | undefined) ?? null,
+    tierId: parsed.data.tierId,
+    entityType: parsed.data.entityType,
+    entityName: parsed.data.entityName,
+    paymentMethod: "card",
+    paymentAmountCents: amount,
+    notes: `Stripe Checkout (${parsed.data.billing})`,
+  }).returning();
+
+  const origin = (req.headers.origin as string | undefined)
+    ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+    ?? `${req.protocol}://${req.headers.host}`;
+
+  // Build URLs with the URL helper so callers can pass paths with or without an existing query string.
+  const buildUrl = (pathWithQuery: string): string => {
+    try {
+      const u = new URL(pathWithQuery, origin);
+      u.searchParams.set("membership", String(membership!.id));
+      return u.toString();
+    } catch {
+      const sep = pathWithQuery.includes("?") ? "&" : "?";
+      return `${origin}${pathWithQuery}${sep}membership=${membership!.id}`;
+    }
+  };
+
+  try {
+    const session = await createCheckoutSession({
+      membershipId: membership!.id,
+      tierName: tier.name,
+      tierSlug: tier.slug,
+      amountCents: amount,
+      billingPeriod: parsed.data.billing,
+      customerEmail: userEmail ?? undefined,
+      successUrl: buildUrl(parsed.data.successPath),
+      cancelUrl: buildUrl(parsed.data.cancelPath),
+    });
+    res.json({ checkoutUrl: session.url, sessionId: session.id, membershipId: membership!.id });
+  } catch (err) {
+    console.error("[stripe checkout] create session failed:", err);
+    // Mark as failed rather than delete so we have an audit trail if Stripe somehow
+    // created a session before the error was raised.
+    await db.update(userMembershipsTable).set({
+      paymentStatus: "failed",
+      notes: `Stripe Checkout session creation failed: ${(err as Error).message}`,
+      updatedAt: new Date(),
+    }).where(eq(userMembershipsTable.id, membership!.id));
+    res.status(500).json({ error: "Failed to create checkout session" });
+  }
 });
 
 // ───────────────────────────── Admin: payments review ─────────────────────────────

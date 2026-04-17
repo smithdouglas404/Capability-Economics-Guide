@@ -28,6 +28,7 @@
     "mem0ai": "^2.4.6",
     "pino": "^9",
     "pino-http": "^10",
+    "stripe": "^22.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {

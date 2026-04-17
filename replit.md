@@ -125,9 +125,30 @@ servers. Routes behind the middleware:
 - `POST /api/cei/refresh`
 - `POST /api/insights/generate`, `POST /api/research`
 - `PATCH /api/membership/tiers/:id`
+- `GET /api/admin/payments`, `POST /api/admin/payments/:id/approve`,
+  `POST /api/admin/payments/:id/reject`, `POST /api/admin/payments/:id/comp`
 - `POST /api/industries`, `POST /api/projects/generate`
 - `DELETE /api/admin/case-studies/:id`, `POST /api/case-studies/generate`
 - `GET/POST/PATCH/DELETE /api/admin/educational-content[/:id]`
+
+## Membership & Payments
+
+Three payment paths:
+
+1. **Card (Stripe Checkout)** — `POST /api/me/membership/checkout` creates a `pending`
+   `user_memberships` row, then a Stripe Checkout Session, and returns `checkoutUrl`.
+   The browser redirects to Stripe; on success, Stripe POSTs to
+   `POST /api/stripe/webhook` (mounted *before* `express.json()` so the raw body is
+   available for signature verification). The webhook flips `status: pending → active`
+   and `paymentStatus → paid` only when status is currently `pending` (idempotent;
+   never overrides admin rejection). `STRIPE_WEBHOOK_SECRET` is required in production
+   — without it, `verifyWebhookSignature` throws; in dev, it falls back to parsing
+   the body unverified with a loud warning.
+2. **Invoice / Crypto** — admin reviews in `/admin/payments` and approves manually.
+3. **Free tier** — auto-active on request.
+
+Stripe env: `STRIPE_SECRET_KEY` (server), `VITE_STRIPE_PUBLISHABLE_KEY` (client),
+`STRIPE_WEBHOOK_SECRET` (server, required in prod).
 
 Public read-only endpoints (catalog browsing, capability detail, EVaR, moat,
 fragility, arbitrage, flows, talent, twin, status, graph, public educational

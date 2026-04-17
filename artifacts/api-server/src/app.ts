@@ -6,6 +6,7 @@ import fs from "node:fs";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import router from "./routes";
+import stripeWebhookRouter from "./routes/stripe-webhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -32,6 +33,8 @@ app.use(
   }),
 );
 app.use(cors());
+// Stripe webhook must read raw body for signature verification — mount BEFORE express.json().
+app.use("/api", stripeWebhookRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/csv" }));

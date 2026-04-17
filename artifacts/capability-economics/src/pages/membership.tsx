@@ -58,8 +58,55 @@ function PriceBlock({ tier, billing }: { tier: Tier; billing: "monthly" | "annua
   );
 }
 
+async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise<void> {
+  const cents = billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
+  if (tier.isContactSales || cents === null || cents === 0) {
+    window.location.href = `mailto:sales@capabilityeconomics.com?subject=${encodeURIComponent(`Inquiry: ${tier.name}`)}`;
+    return;
+  }
+  const entityName = window.prompt(
+    `Checkout: ${tier.name} (${billing}).\n\nWho is this membership for? (your name or company)`,
+    "",
+  );
+  if (!entityName || !entityName.trim()) return;
+  try {
+    const res = await fetch("/api/me/membership/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tierId: tier.id,
+        billing,
+        entityType: /\b(inc|llc|corp|ltd|company|co\.)\b/i.test(entityName) ? "company" : "individual",
+        entityName: entityName.trim(),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      if (res.status === 401) {
+        alert("Please sign in to purchase a membership.");
+        return;
+      }
+      alert(`Could not start checkout: ${err.error ?? res.statusText}`);
+      return;
+    }
+    const { checkoutUrl } = await res.json();
+    if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+    } else {
+      alert("Checkout session created but no redirect URL was returned.");
+    }
+  } catch (e) {
+    alert(`Checkout failed: ${(e as Error).message}`);
+  }
+}
+
 function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual" }) {
   const [flipped, setFlipped] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const onPurchase = async () => {
+    setLoading(true);
+    try { await startCheckout(tier, billing); } finally { setLoading(false); }
+  };
   return (
     <div className="relative h-[520px] [perspective:1500px]">
       <motion.div
@@ -95,9 +142,10 @@ function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual"
                 className="w-full"
                 variant={tier.highlight ? "default" : "outline"}
                 data-testid={`button-purchase-${tier.slug}`}
-                onClick={() => alert(`Checkout for ${tier.name} not yet wired — coming soon.`)}
+                onClick={onPurchase}
+                disabled={loading}
               >
-                {tier.ctaLabel}
+                {loading ? "Redirecting…" : tier.ctaLabel}
               </Button>
               <Button
                 variant="ghost"
@@ -143,9 +191,10 @@ function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual"
               className="w-full mt-5"
               variant={tier.highlight ? "default" : "outline"}
               data-testid={`button-purchase-back-${tier.slug}`}
-              onClick={() => alert(`Checkout for ${tier.name} not yet wired — coming soon.`)}
+              onClick={onPurchase}
+              disabled={loading}
             >
-              {tier.ctaLabel}
+              {loading ? "Redirecting…" : tier.ctaLabel}
             </Button>
           </CardContent>
         </Card>
