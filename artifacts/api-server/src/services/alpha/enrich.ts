@@ -237,8 +237,9 @@ async function enrichOneCapabilityDetail(
       `- metrics: ${JSON.stringify(metricList)}\n` +
       `- dependencies: ${JSON.stringify(depList)}\n` +
       `- c-suite roles: ${JSON.stringify(roleList)}\n\n` +
-      `Return ONLY a JSON object with these keys (every narrative must be 2-3 sentences, "consequence-style", not definition-style — name a dollar amount, a regulator, a deadline, or a competitor):\n\n` +
-      `"traditional_narrative" (string, 2-3 sentences explaining WHY the conventional view is wrong with a concrete number or example), ` +
+      `Return ONLY a JSON object with these keys:\n\n` +
+      `"summary_narrative" (string, 2-3 sentences in plain English explaining what THIS capability actually does inside a ${industryName} company — name a concrete activity, a tool category, and a typical outcome a non-expert executive would recognize. Definitional, no jargon, no $ figures), ` +
+      `"traditional_narrative" (string, 2-3 sentences "consequence-style" explaining WHY the conventional view is wrong with a concrete number or example — must include a $ figure, regulator, or competitor name), ` +
       `"economic_narrative" (string, 2-3 sentences quantifying the dollar value of treating this as a real capability, include a specific multiplier or $ figure), ` +
       `"metric_interpretations" (array of {name: string, interpretation: string} — interpretation is 1-2 sentences explaining what crossing the benchmark means in money or risk; one entry per metric in input order), ` +
       `"dependency_rationales" (array of {dependsOnName: string, rationale: string} — rationale is 1-2 sentences naming the real-world risk if the upstream cap is disrupted, mention a vendor or regulation; one per dependency), ` +
@@ -254,6 +255,7 @@ async function enrichOneCapabilityDetail(
     );
 
     const parsed = extractJson(glmText) as {
+      summary_narrative?: string;
       traditional_narrative?: string;
       economic_narrative?: string;
       metric_interpretations?: Array<{ name: string; interpretation: string }>;
@@ -269,6 +271,7 @@ async function enrichOneCapabilityDetail(
     if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad detail JSON" };
 
     await db.update(capabilityEconomicsTable).set({
+      summaryNarrative: parsed.summary_narrative ?? null,
       traditionalNarrative: parsed.traditional_narrative ?? null,
       economicNarrative: parsed.economic_narrative ?? null,
       metricInterpretations: Array.isArray(parsed.metric_interpretations) ? parsed.metric_interpretations.slice(0, 12) : null,
@@ -308,7 +311,7 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
     const targets = opts.capabilityId != null
       ? econRows.filter(r => r.capabilityId === opts.capabilityId)
       : econRows
-          .filter(r => opts.force || r.traditionalNarrative == null || r.aiExposureScore == null)
+          .filter(r => opts.force || r.summaryNarrative == null || r.traditionalNarrative == null || r.aiExposureScore == null)
           .slice(0, limit);
     if (targets.length === 0) return { enriched: 0, errors: [], durationMs: Date.now() - start };
 

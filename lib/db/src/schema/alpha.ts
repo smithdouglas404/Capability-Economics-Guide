@@ -19,6 +19,7 @@ export const capabilityEconomicsTable = pgTable("capability_economics", {
   consensusSources: jsonb("consensus_sources").$type<string[]>(),
   rationale: text("rationale"),
   // Capability detail enrichments (added 2026-04)
+  summaryNarrative: text("summary_narrative"),
   aiExposureScore: real("ai_exposure_score"),
   aiTimeToDisplacementMonths: real("ai_time_to_displacement_months"),
   aiSubstitutes: jsonb("ai_substitutes").$type<string[]>(),

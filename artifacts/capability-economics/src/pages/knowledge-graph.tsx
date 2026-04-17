@@ -113,6 +113,7 @@ export default function KnowledgeGraph() {
       consensusSummary: string | null;
       consensusSources: string[] | null;
       rationale: string | null;
+      summaryNarrative: string | null;
       aiExposureScore: number | null;
       aiTimeToDisplacementMonths: number | null;
       aiSubstitutes: string[] | null;
@@ -214,6 +215,33 @@ export default function KnowledgeGraph() {
         </section>
 
         <div className="container mx-auto px-4 max-w-5xl py-8 space-y-8">
+          {/* WHAT THIS CAPABILITY IS — plain-English explainer */}
+          {econ?.summaryNarrative ? (
+            <Card className="rounded-none border-l-4 border-l-foreground/60 bg-card">
+              <CardContent className="pt-5">
+                <div className="flex items-start gap-3">
+                  <BookOpen className="w-5 h-5 text-foreground/60 mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What this capability is</div>
+                    <p className="text-base text-foreground leading-relaxed">{econ.summaryNarrative}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : alphaLoading ? null : (
+            <Card className="rounded-none border-dashed border-muted-foreground/30 bg-muted/20">
+              <CardContent className="pt-5">
+                <div className="flex items-start gap-3">
+                  <BookOpen className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What this capability is</div>
+                    <p className="text-sm text-muted-foreground">Plain-English summary is awaiting economic enrichment. Click <em>Rerun economics</em> above to generate it now.</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* TOP ALPHA STRIP: EVaR · CE-vs-Street · AI Exposure */}
           <div className="grid md:grid-cols-3 gap-4">
             {/* EVaR */}
