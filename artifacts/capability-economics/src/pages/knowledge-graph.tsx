@@ -62,6 +62,7 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
 export default function KnowledgeGraph() {
   const [selectedIndustryId, setSelectedIndustryId] = useState<number | null>(null);
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
+  const [radarParentId, setRadarParentId] = useState<number | null>(null);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [tab, setTab] = useState<"network" | "industries" | "compare">(isMobile ? "industries" : "network");
   interface GraphDataShape {
@@ -619,7 +620,24 @@ export default function KnowledgeGraph() {
   }
 
   if (selectedIndustryId && industryDetail) {
-    const radarData = industryDetail.capabilities.map((c: Capability) => ({
+    // Top-level (parent-less) capabilities are the default radar axes — much cleaner
+    // than mapping all 50+ caps after the sub-capability backfill.
+    const topLevelCaps = industryDetail.capabilities.filter(
+      (c: Capability) => (c as Capability & { parentCapabilityId: number | null }).parentCapabilityId == null,
+    );
+    const decomposedParents = topLevelCaps.filter((p: Capability) =>
+      industryDetail.capabilities.some(
+        (c: Capability) => (c as Capability & { parentCapabilityId: number | null }).parentCapabilityId === p.id,
+      ),
+    );
+    const radarParent = decomposedParents.find((p) => p.id === radarParentId) ?? null;
+    const sourceCaps = radarParent
+      ? industryDetail.capabilities.filter(
+          (c: Capability) =>
+            (c as Capability & { parentCapabilityId: number | null }).parentCapabilityId === radarParent.id,
+        )
+      : topLevelCaps;
+    const radarData = sourceCaps.map((c: Capability) => ({
       name: c.name.length > 20 ? c.name.substring(0, 18) + "..." : c.name,
       benchmark: c.benchmarkScore,
     }));
@@ -628,7 +646,7 @@ export default function KnowledgeGraph() {
       <div className="min-h-screen bg-background pb-24">
         <section className="bg-muted/30 py-8 border-b">
           <div className="container mx-auto px-4 max-w-5xl">
-            <Button variant="ghost" onClick={() => { setSelectedIndustryId(null); setSelectedCapabilityId(null); }} className="mb-4 -ml-2 text-muted-foreground hover:text-foreground">
+            <Button variant="ghost" onClick={() => { setSelectedIndustryId(null); setSelectedCapabilityId(null); setRadarParentId(null); }} className="mb-4 -ml-2 text-muted-foreground hover:text-foreground">
               <ArrowLeft className="w-4 h-4 mr-2" />
               All Industries
             </Button>
@@ -674,20 +692,62 @@ export default function KnowledgeGraph() {
             </div>
 
             <div>
-              <h2 className="text-xl font-serif mb-4 text-foreground">Industry Radar</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-serif text-foreground">
+                  {radarParent ? `${radarParent.name} — Sub-Capabilities` : "Industry Radar"}
+                </h2>
+              </div>
+              {decomposedParents.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setRadarParentId(null)}
+                    className={`text-xs rounded-sm border px-2 py-1 transition-colors ${
+                      radarParent === null
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-card text-muted-foreground border-border hover:border-primary/40"
+                    }`}
+                  >
+                    Top-level ({topLevelCaps.length})
+                  </button>
+                  {decomposedParents.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setRadarParentId(p.id)}
+                      className={`text-xs rounded-sm border px-2 py-1 transition-colors ${
+                        radarParent?.id === p.id
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-card text-muted-foreground border-border hover:border-primary/40"
+                      }`}
+                      title={`Drill into ${p.name}`}
+                    >
+                      {p.name.length > 22 ? p.name.substring(0, 20) + "…" : p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <Card className="rounded-none">
                 <CardContent className="pt-6">
                   <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
-                        <PolarGrid stroke="hsl(var(--muted-foreground)/0.2)" />
-                        <PolarAngleAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }} />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                        <Radar name="Benchmark" dataKey="benchmark" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} />
-                      </RadarChart>
-                    </ResponsiveContainer>
+                    {radarData.length >= 3 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
+                          <PolarGrid stroke="hsl(var(--muted-foreground)/0.2)" />
+                          <PolarAngleAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 9 }} />
+                          <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                          <Radar name="Benchmark" dataKey="benchmark" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} />
+                        </RadarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                        Need 3+ capabilities to render radar.
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-center text-muted-foreground mt-2">Industry benchmark maturity scores</p>
+                  <p className="text-xs text-center text-muted-foreground mt-2">
+                    {radarParent
+                      ? `${sourceCaps.length} sub-capabilities under ${radarParent.name}`
+                      : `${topLevelCaps.length} top-level capabilities · click a parent above to drill in`}
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -871,7 +931,7 @@ export default function KnowledgeGraph() {
                 return (
                   <motion.div key={industry.id} variants={item}>
                     <button
-                      onClick={() => setSelectedIndustryId(industry.id)}
+                      onClick={() => { setSelectedIndustryId(industry.id); setRadarParentId(null); }}
                       className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
                     >
                       <div className="flex items-start gap-4">
