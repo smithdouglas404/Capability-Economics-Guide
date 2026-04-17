@@ -11,6 +11,7 @@ import {
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ReferenceDot,
 } from "recharts";
 
 const API_BASE = "/api";
@@ -322,6 +323,7 @@ export default function CEIDashboard() {
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
   const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cei/freshness`);
   const { data: macroEvents, refetch: refetchMacroEvents } = useApi<MacroEventsResponse>(`${API_BASE}/macro-events/active`);
+  const { data: allMacroEvents } = useApi<{ events: MacroEvent[]; total: number }>(`${API_BASE}/macro-events`);
   const { data: industryList } = useApi<IndustryListItem[]>(`${API_BASE}/industries`);
   const { data: capabilityList } = useApi<CapabilityListItem[]>(`${API_BASE}/capabilities`);
   const { data: catalogData } = useApi<CatalogResponse>(`${API_BASE}/macro-events/catalog`);
@@ -435,8 +437,39 @@ export default function CEIDashboard() {
   const industries = Object.entries(cei.industryBreakdowns).sort((a, b) => b[1].indexValue - a[1].indexValue);
   const historyData = history ? [...history].reverse().map(h => ({
     time: new Date(h.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    timestamp: new Date(h.timestamp).getTime(),
     index: h.overallIndex,
   })) : [];
+
+  const eventAnnotations = (allMacroEvents?.events ?? []).reduce<{
+    time: string;
+    index: number;
+    title: string;
+    severity: number;
+    direction: "positive" | "negative" | "neutral";
+    eventType: string;
+  }[]>((acc, ev) => {
+    if (historyData.length === 0) return acc;
+    const evMs = new Date(ev.startedAt).getTime();
+    const earliest = historyData[0].timestamp;
+    const latest = historyData[historyData.length - 1].timestamp;
+    if (evMs < earliest - 86_400_000 || evMs > latest + 86_400_000) return acc;
+    let nearest = historyData[0];
+    let nearestDelta = Math.abs(nearest.timestamp - evMs);
+    for (const h of historyData) {
+      const d = Math.abs(h.timestamp - evMs);
+      if (d < nearestDelta) { nearest = h; nearestDelta = d; }
+    }
+    acc.push({
+      time: nearest.time,
+      index: nearest.index,
+      title: ev.title,
+      severity: ev.severity,
+      direction: ev.sentimentDirection,
+      eventType: ev.eventType,
+    });
+    return acc;
+  }, []);
 
   const radarData = industries.map(([, ind]) => ({
     industry: ind.industryName.replace("Banking & Financial Services", "Banking").replace("Manufacturing", "Mfg"),
