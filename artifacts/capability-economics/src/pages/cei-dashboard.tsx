@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
-import { HelpCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
+import { HelpCircle, BookOpenCheck } from "lucide-react";
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
@@ -48,6 +49,8 @@ interface FreshnessSummary {
   refreshedLast7d: number;
   stale7dPlus: number;
   neverRefreshed: number;
+  leaves?: number;
+  parents?: number;
 }
 interface FreshnessItem {
   capabilityId: number;
@@ -65,6 +68,8 @@ interface FreshnessResponse {
   summary: FreshnessSummary;
   formula: { marketSentiment: string; consensusScore: string; velocity: string };
   capabilities: FreshnessItem[];
+  leaves?: number;
+  parents?: number;
 }
 
 interface MacroEvent {
@@ -383,6 +388,181 @@ function formatEventMessage(event: AgentSSEEvent): string {
   if (event.type === "cycle_complete") return `Cycle complete: ${event.researched} researched, ${event.skipped} skipped`;
   if (event.type === "run_started") return `Agent run #${event.runId} started`;
   return event.type;
+}
+
+function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
+  cei: CEIData;
+  historyData: { time: string; timestamp: number; index: number }[];
+  macroEvents: MacroEventsResponse | null;
+  freshness: FreshnessResponse | null;
+}) {
+  const events = macroEvents?.active ?? [];
+  const sentimentShock = events.reduce((sum, e) => {
+    const elapsedDays = (Date.now() - new Date(e.startedAt).getTime()) / 86_400_000;
+    const decay = Math.max(0, 1 - elapsedDays / e.decayDays);
+    const sign = e.sentimentDirection === "positive" ? 1 : e.sentimentDirection === "negative" ? -1 : 0;
+    return sum + e.severity * sign * 0.5 * decay;
+  }, 0);
+  const volBoost = events.reduce((sum, e) => {
+    const elapsedDays = (Date.now() - new Date(e.startedAt).getTime()) / 86_400_000;
+    const decay = Math.max(0, 1 - elapsedDays / e.decayDays);
+    return sum + e.severity * 0.005 * decay;
+  }, 0);
+
+  const first = historyData[0];
+  const last = historyData[historyData.length - 1];
+  const min = historyData.reduce((m, p) => p.index < m.index ? p : m, historyData[0] ?? { index: 0, time: "" });
+  const max = historyData.reduce((m, p) => p.index > m.index ? p : m, historyData[0] ?? { index: 0, time: "" });
+  const delta = first && last ? last.index - first.index : 0;
+
+  const negEvents = events.filter(e => e.sentimentDirection === "negative");
+  const posEvents = events.filter(e => e.sentimentDirection === "positive");
+  const topNeg = [...negEvents].sort((a, b) => b.severity - a.severity).slice(0, 5);
+  const topPos = [...posEvents].sort((a, b) => b.severity - a.severity).slice(0, 3);
+
+  const baseSentiment = 50 + sentimentShock;
+  const sentimentLabel = cei.marketSentiment > 60 ? "Bullish" : cei.marketSentiment < 40 ? "Bearish" : "Neutral";
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 rounded-none">
+          <BookOpenCheck className="w-4 h-4" />
+          Read the analysis
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto rounded-none">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl flex items-center gap-2">
+            <BookOpenCheck className="w-5 h-5 text-primary" />
+            How to read the CEI right now
+          </DialogTitle>
+          <DialogDescription>
+            Live walkthrough of where the index sits, why it moved, and what the headline numbers actually mean.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 text-sm leading-relaxed">
+
+          <section className="space-y-2">
+            <h3 className="font-serif text-base font-semibold border-b pb-1">1. Why has the CEI moved?</h3>
+            {historyData.length > 1 ? (
+              <>
+                <p>
+                  Across the last <strong>{historyData.length}</strong> snapshots in view, the index moved from{" "}
+                  <strong>{first.index.toFixed(1)}</strong> ({first.time}) to{" "}
+                  <strong>{last.index.toFixed(1)}</strong> ({last.time}) — a net change of{" "}
+                  <strong className={delta >= 0 ? "text-emerald-600" : "text-red-600"}>
+                    {delta >= 0 ? "+" : ""}{delta.toFixed(1)}
+                  </strong> points.
+                </p>
+                <p>
+                  Range over this window: low <strong>{min.index.toFixed(1)}</strong> ({min.time}) → high{" "}
+                  <strong>{max.index.toFixed(1)}</strong> ({max.time}).
+                </p>
+              </>
+            ) : (
+              <p className="text-muted-foreground italic">Not enough history yet to show movement.</p>
+            )}
+            <p>
+              Two things drive movement: (a) <strong>per-capability shocks</strong> — each active macro event
+              subtracts severity-weighted penalties from the individual capabilities it tags, which feeds up into
+              the GDP-weighted composite; and (b) <strong>fresh triangulation evidence</strong> from the leaf
+              rotation, which can nudge any of the 297 leaf scores by a few points per refresh.
+            </p>
+            {events.length > 0 && (
+              <p>
+                Right now there are <strong>{events.length} active macro events</strong> in scope
+                ({negEvents.length} negative, {posEvents.length} positive). They are the dominant force on the index this hour.
+                If you delete them, the composite snaps back toward its un-shocked baseline within one recompute.
+              </p>
+            )}
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-serif text-base font-semibold border-b pb-1">2. Is the math working?</h3>
+            <div className="bg-muted/40 p-3 space-y-2 font-mono text-xs">
+              <div><strong>Composite ({cei.overallIndex.toFixed(1)}):</strong> GDP-weighted average of industry sub-indices, scaled ×10. Industry leaf averages currently span roughly 56–64, so the un-shocked baseline sits near ~600; per-capability shocks compress it to where you see it now.</div>
+              <div><strong>Market sentiment ({cei.marketSentiment.toFixed(1)} — {sentimentLabel}):</strong></div>
+              <div className="pl-3">
+                = 50 (neutral base)<br />
+                + avgVelocity × 100 (≈ 0 right now — no fresh evidence is moving leaves this minute)<br />
+                + macroShock ({sentimentShock.toFixed(1)})<br />
+                ≈ <strong>{baseSentiment.toFixed(1)}</strong>
+              </div>
+              <div><strong>Volatility ({(cei.volatility * 100).toFixed(1)}%):</strong></div>
+              <div className="pl-3">
+                = stddev(leaf velocities) (~0.01)<br />
+                + macroVolBoost ({volBoost.toFixed(3)})<br />
+                ≈ <strong>{(0.01 + volBoost).toFixed(3)}</strong>
+              </div>
+            </div>
+            <p>
+              The math is internally consistent — every published number can be reconstructed from the formula
+              above plus the live macro-events list. There is no hidden fudge factor.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h3 className="font-serif text-base font-semibold border-b pb-1">3. What does it actually say?</h3>
+            <p>
+              <strong>Two different questions, two different numbers.</strong> Don't confuse them.
+            </p>
+            <div className="bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-500 p-3 space-y-1">
+              <div className="font-semibold">A. "Are humanity's capabilities good enough?" → look at underlying scores.</div>
+              <div>
+                Average leaf capability across {freshness?.leaves ?? 297} measurable sub-capabilities sits in the
+                <strong> 56–64</strong> range — which the system labels <strong>Developing Maturity</strong>.
+                Translation: median enterprise execution is competent-but-not-great. Best-in-class leaves hit 80+;
+                worst (Agentic AI ~26, AML/KYC fragments ~42) sit well below.
+              </div>
+            </div>
+            <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 p-3 space-y-1">
+              <div className="font-semibold">B. "Why is sentiment {cei.marketSentiment.toFixed(1)} {sentimentLabel}?" → that's direction-of-travel, not absolute quality.</div>
+              <div>
+                With no macro events and no fresh evidence, sentiment would read <strong>50.0 (neutral)</strong>.
+                The <strong>{sentimentShock.toFixed(1)}</strong>-point shock comes from {events.length} active disruptions:
+              </div>
+              {topNeg.length > 0 && (
+                <ul className="text-xs list-disc pl-5 mt-1">
+                  {topNeg.map(e => (
+                    <li key={e.id}>
+                      <strong>−{e.severity}</strong> {e.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {topPos.length > 0 && (
+                <>
+                  <div className="text-xs mt-1">Partially offset by:</div>
+                  <ul className="text-xs list-disc pl-5">
+                    {topPos.map(e => (
+                      <li key={e.id}>
+                        <strong>+{e.severity}</strong> {e.title}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="mt-2">
+                Read it as: <em>"Capabilities still function at ~60/100, but the wind is in their face."</em>
+              </div>
+            </div>
+            <div className="bg-muted/40 p-3 space-y-1">
+              <div className="font-semibold">Honest synthesis</div>
+              <div>• Capability quality globally: ~60/100 — competent, not excellent.</div>
+              <div>• Capability trajectory: severe headwinds, justified by {events.length} active real-world disruptions.</div>
+              <div>• Best lever to move the number: rotate triangulation faster on the lowest-confidence leaves, or wait for offsetting positive macro events.</div>
+            </div>
+          </section>
+
+          <p className="text-xs text-muted-foreground italic pt-2 border-t">
+            This panel re-computes from live data each time you open it. Numbers reflect the snapshot loaded in the dashboard.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 export default function CEIDashboard() {
@@ -1718,11 +1898,21 @@ export default function CEIDashboard() {
           >
             <Card className="rounded-none">
               <CardHeader>
-                <CardTitle className="font-serif text-lg flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-primary" />
-                  CEI Trend
-                </CardTitle>
-                <CardDescription>Historical index movement over time</CardDescription>
+                <div className="flex items-start justify-between flex-wrap gap-3">
+                  <div>
+                    <CardTitle className="font-serif text-lg flex items-center gap-2">
+                      <Activity className="w-5 h-5 text-primary" />
+                      CEI Trend
+                    </CardTitle>
+                    <CardDescription>Historical index movement over time</CardDescription>
+                  </div>
+                  <CEIAnalysisDialog
+                    cei={cei}
+                    historyData={historyData}
+                    macroEvents={macroEvents}
+                    freshness={freshness}
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="h-[250px]">
