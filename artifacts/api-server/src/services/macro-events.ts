@@ -75,6 +75,69 @@ export async function getAffectedCapabilityIdsFromActiveEvents(): Promise<Set<nu
   return new Set(expanded);
 }
 
+/**
+ * Per-capability listing of active macro events impacting each cap (explicit + expanded
+ * via parent↔child propagation), with severity/direction/decay so the UI can render
+ * a "why" tooltip next to the affected capability.
+ */
+export interface AffectedCapEvent {
+  eventId: number;
+  title: string;
+  description: string;
+  severity: number;
+  sentimentDirection: SentimentDirection;
+  decayFactor: number;
+  source: string;
+  via: "explicit" | "parent" | "child";
+}
+export async function getCapabilityImpactExplanations(): Promise<Record<number, AffectedCapEvent[]>> {
+  const active = await listActiveEvents();
+  if (!active.length) return {};
+  const all = await db.select({ id: capabilitiesTable.id, parentCapabilityId: capabilitiesTable.parentCapabilityId }).from(capabilitiesTable);
+  const childrenByParent = new Map<number, number[]>();
+  const parentByChild = new Map<number, number>();
+  for (const c of all) {
+    if (c.parentCapabilityId) {
+      parentByChild.set(c.id, c.parentCapabilityId);
+      const arr = childrenByParent.get(c.parentCapabilityId) ?? [];
+      arr.push(c.id);
+      childrenByParent.set(c.parentCapabilityId, arr);
+    }
+  }
+  const result: Record<number, AffectedCapEvent[]> = {};
+  for (const e of active) {
+    const explicit = (e.affectedCapabilityIds ?? []) as number[];
+    if (!explicit.length) continue;
+    const df = decayFactor(e);
+    if (df <= 0) continue;
+    const baseEntry = (via: AffectedCapEvent["via"]): AffectedCapEvent => ({
+      eventId: e.id,
+      title: e.title,
+      description: e.description ?? "",
+      severity: e.severity,
+      sentimentDirection: e.sentimentDirection as SentimentDirection,
+      decayFactor: Math.round(df * 100) / 100,
+      source: e.source,
+      via,
+    });
+    const seen = new Map<number, AffectedCapEvent["via"]>();
+    for (const id of explicit) seen.set(id, "explicit");
+    for (const id of explicit) {
+      // Up: include parent of an explicit child
+      const parent = parentByChild.get(id);
+      if (parent && !seen.has(parent)) seen.set(parent, "child");
+      // Down: include children of an explicit parent
+      const kids = childrenByParent.get(id) ?? [];
+      for (const k of kids) if (!seen.has(k)) seen.set(k, "parent");
+    }
+    for (const [capId, via] of seen) {
+      if (!result[capId]) result[capId] = [];
+      result[capId].push(baseEntry(via));
+    }
+  }
+  return result;
+}
+
 export async function computeMacroShockForIndustry(industryId: number): Promise<MacroShock> {
   const events = await getActiveEventsForIndustry(industryId);
   return aggregateShocks(events);

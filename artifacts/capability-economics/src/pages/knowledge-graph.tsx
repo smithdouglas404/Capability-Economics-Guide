@@ -63,6 +63,16 @@ export default function KnowledgeGraph() {
   const [selectedIndustryId, setSelectedIndustryId] = useState<number | null>(null);
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
   const [radarParentId, setRadarParentId] = useState<number | null>(null);
+  interface CapImpact { eventId: number; title: string; description: string; severity: number; sentimentDirection: "positive" | "negative" | "neutral"; decayFactor: number; source: string; via: "explicit" | "parent" | "child" }
+  const [capImpacts, setCapImpacts] = useState<Record<number, CapImpact[]>>({});
+  useEffect(() => {
+    let abort = false;
+    fetch("/api/macro-events/affected-capabilities")
+      .then(r => r.ok ? r.json() : { impacts: {} })
+      .then((d: { impacts: Record<number, CapImpact[]> }) => { if (!abort) setCapImpacts(d.impacts || {}); })
+      .catch(() => { if (!abort) setCapImpacts({}); });
+    return () => { abort = true; };
+  }, [selectedIndustryId]);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [tab, setTab] = useState<"network" | "industries" | "compare">(isMobile ? "industries" : "network");
   interface GraphDataShape {
@@ -666,28 +676,71 @@ export default function KnowledgeGraph() {
             <div className="lg:col-span-2">
               <h2 className="text-xl font-serif mb-4 text-foreground">Capability Map</h2>
               <motion.div variants={container} initial="hidden" animate="show" className="space-y-3">
-                {industryDetail.capabilities.map((cap: Capability) => (
-                  <motion.div key={cap.id} variants={item}>
-                    <button
-                      onClick={() => setSelectedCapabilityId(cap.id)}
-                      className="w-full text-left bg-card border shadow-sm p-4 rounded-sm hover:border-primary/40 hover:shadow-md transition-all group cursor-pointer"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{cap.name}</h3>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{cap.description}</p>
-                        </div>
-                        <div className="flex items-center gap-3 ml-4">
-                          <div className="text-right">
-                            <div className="text-xs text-muted-foreground">Benchmark</div>
-                            <div className="font-mono font-semibold text-foreground">{cap.benchmarkScore}</div>
+                {industryDetail.capabilities.map((cap: Capability) => {
+                  const impacts = capImpacts[cap.id] || [];
+                  const hasImpact = impacts.length > 0;
+                  return (
+                    <motion.div key={cap.id} variants={item}>
+                      <button
+                        onClick={() => setSelectedCapabilityId(cap.id)}
+                        className="w-full text-left bg-card border shadow-sm p-4 rounded-sm hover:border-primary/40 hover:shadow-md transition-all group cursor-pointer"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">{cap.name}</h3>
+                              {hasImpact && (
+                                <span
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="relative inline-flex items-center group/bubble"
+                                  title=""
+                                >
+                                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full ring-2 ring-background animate-pulse cursor-help">
+                                    {impacts.length}
+                                  </span>
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-80 p-3 bg-popover border border-border shadow-xl rounded-md text-left opacity-0 group-hover/bubble:opacity-100 pointer-events-none group-hover/bubble:pointer-events-auto transition-opacity">
+                                    <div className="text-xs font-semibold text-red-600 mb-2 uppercase tracking-wide">
+                                      {impacts.length} active macro {impacts.length === 1 ? "event" : "events"}
+                                    </div>
+                                    <ul className="space-y-2">
+                                      {impacts.slice(0, 4).map((imp) => (
+                                        <li key={imp.eventId} className="text-xs">
+                                          <div className="flex items-center gap-2 mb-0.5">
+                                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${imp.sentimentDirection === "negative" ? "bg-red-500" : imp.sentimentDirection === "positive" ? "bg-emerald-500" : "bg-amber-500"}`} />
+                                            <span className="font-semibold text-foreground line-clamp-1">{imp.title}</span>
+                                          </div>
+                                          <p className="text-muted-foreground line-clamp-2 ml-3.5">{imp.description}</p>
+                                          <div className="ml-3.5 mt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+                                            <span>severity {imp.severity}/10</span>
+                                            <span>·</span>
+                                            <span>decay {Math.round(imp.decayFactor * 100)}%</span>
+                                            <span>·</span>
+                                            <span className="italic">
+                                              {imp.via === "explicit" ? "directly tagged" : imp.via === "parent" ? "via parent capability" : "via child capability"}
+                                            </span>
+                                          </div>
+                                        </li>
+                                      ))}
+                                      {impacts.length > 4 && <li className="text-[10px] text-muted-foreground italic">+ {impacts.length - 4} more…</li>}
+                                    </ul>
+                                  </div>
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{cap.description}</p>
                           </div>
-                          <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                          <div className="flex items-center gap-3 ml-4">
+                            <div className="text-right">
+                              <div className="text-xs text-muted-foreground">Benchmark</div>
+                              <div className="font-mono font-semibold text-foreground">{cap.benchmarkScore}</div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  </motion.div>
-                ))}
+                      </button>
+                    </motion.div>
+                  );
+                })}
               </motion.div>
             </div>
 

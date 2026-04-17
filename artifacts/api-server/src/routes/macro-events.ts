@@ -8,6 +8,7 @@ import {
   runWorldScanAllIndustries,
   type EventType,
   type SentimentDirection,
+  getCapabilityImpactExplanations,
 } from "../services/macro-events";
 import { getResolvedCatalog } from "../services/macro-events-catalog";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -21,6 +22,65 @@ router.get("/macro-events", async (_req, res) => {
   } catch (err) {
     console.error("macro-events list failed:", err);
     res.status(500).json({ error: "Failed to list events" });
+  }
+});
+
+// Fire-and-forget trigger that runs inside the api-server process (survives shell exits).
+// Triggers (1) world-scan replacement of stale events with cap-tagged versions, and
+// (2) backfill triangulation of all currently un-triangulated children.
+router.post("/macro-events/_trigger-backfill", async (_req, res) => {
+  const { runWorldScanAllIndustries } = await import("../services/macro-events");
+  const { triangulateCapability } = await import("../services/triangulation");
+  const { db: _db } = await import("@workspace/db");
+  const { capabilitiesTable: _caps, industriesTable: _inds, sourceTriangulationsTable: _tri } = await import("@workspace/db");
+  res.json({ started: true, ts: new Date().toISOString() });
+  // World-scan in background (refreshes events with cap tags via the new prompt)
+  setImmediate(async () => {
+    try {
+      console.log("[trigger] world-scan starting");
+      const r = await runWorldScanAllIndustries();
+      console.log("[trigger] world-scan done:", JSON.stringify(r.perIndustry));
+    } catch (err) { console.error("[trigger] world-scan error:", err); }
+  });
+  // Triangulation backfill in background (Perplexity, ~5-10 min)
+  setImmediate(async () => {
+    try {
+      console.log("[trigger] triangulation backfill starting");
+      const all = await _db.select({ id: _caps.id, name: _caps.name, industryId: _caps.industryId, parentId: _caps.parentCapabilityId }).from(_caps);
+      const inds = await _db.select().from(_inds);
+      const indMap = new Map(inds.map((i) => [i.id, i.name]));
+      const triRows = await _db.select({ capId: _tri.capabilityId }).from(_tri);
+      const haveTri = new Set(triRows.map((t) => t.capId));
+      const targets = all.filter((c) => c.parentId !== null && !haveTri.has(c.id));
+      console.log(`[trigger] ${targets.length} children to triangulate`);
+      const CONCURRENCY = 4;
+      let done = 0, failed = 0;
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const batch = targets.slice(i, i + CONCURRENCY);
+        await Promise.all(batch.map(async (cap) => {
+          const industryName = indMap.get(cap.industryId) || "Unknown";
+          try {
+            await triangulateCapability(industryName, cap.name, cap.industryId, cap.id);
+            done++;
+            if (done % 10 === 0) console.log(`[trigger] tri ${done}/${targets.length} (${failed} failed)`);
+          } catch (err) {
+            failed++;
+            console.error(`[trigger] tri fail ${industryName}/${cap.name}:`, err instanceof Error ? err.message : err);
+          }
+        }));
+      }
+      console.log(`[trigger] triangulation backfill complete: ${done} ok, ${failed} failed`);
+    } catch (err) { console.error("[trigger] triangulation error:", err); }
+  });
+});
+
+router.get("/macro-events/affected-capabilities", async (_req, res) => {
+  try {
+    const impacts = await getCapabilityImpactExplanations();
+    res.json({ impacts });
+  } catch (err) {
+    console.error("affected-capabilities failed:", err);
+    res.status(500).json({ error: "Failed to compute capability impacts" });
   }
 });
 
