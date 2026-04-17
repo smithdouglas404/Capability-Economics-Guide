@@ -10,6 +10,41 @@ const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-3.7-
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 
+export type CoreBlockLabel = "persona" | "industry_priors" | "research_strategy" | "current_focus";
+
+const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: string; limit: number }> = [
+  {
+    label: "persona",
+    value:
+      "I am the CEI Autonomous Agent — a senior capability economics analyst. I track how industry capabilities evolve over time, " +
+      "identify durable moats, flag fragile ones, and surface cross-industry analogies. I prefer evidence over speculation, " +
+      "I update my beliefs when contradicted, and I reason about second-order effects on enterprise value.",
+    description: "Identity and reasoning style for the agent.",
+    limit: 4000,
+  },
+  {
+    label: "industry_priors",
+    value: "(empty — populated by the reflect node when high-confidence patterns are detected)",
+    description: "Stable, validated beliefs about each industry's capability dynamics. Updated on contradiction or refinement.",
+    limit: 8000,
+  },
+  {
+    label: "research_strategy",
+    value:
+      "Routine cycles: prioritize stale (>7d) capabilities, low-confidence (<0.5), and high-velocity (|v|>0.1) signals. " +
+      "Always recall before deciding. Reflect: contradiction → flag; refinement → update; novel → add. " +
+      "Sleeptime consolidator runs daily to promote repeat patterns into validated_pattern category.",
+    description: "How the agent decides what to research, what to recall, and what to consolidate.",
+    limit: 4000,
+  },
+  {
+    label: "current_focus",
+    value: "(initialized — updated each cycle with the targeted industries and the reasoning trigger)",
+    description: "What the agent is currently working on this cycle.",
+    limit: 2000,
+  },
+];
+
 let lettaClient: LettaClient | null = null;
 let lettaAgentId: string | null = null;
 let lettaConnected = false;
@@ -32,6 +67,37 @@ function extractAssistantText(messages: Message[]): string {
     .join("\n");
 }
 
+async function ensureCoreBlocks(): Promise<void> {
+  if (!lettaClient || !lettaAgentId) return;
+  try {
+    const existing = lettaClient.agents.blocks.list(lettaAgentId);
+    const existingLabels = new Set<string>();
+    for await (const blk of existing) {
+      const label = (blk as unknown as { label?: string }).label;
+      if (label) existingLabels.add(label);
+    }
+    for (const block of CORE_BLOCKS) {
+      if (!existingLabels.has(block.label)) {
+        try {
+          await (lettaClient.agents.blocks as unknown as {
+            update: (label: string, params: { agentID: string; value: string; description?: string; limit?: number }) => Promise<unknown>;
+          }).update(block.label, {
+            agentID: lettaAgentId,
+            value: block.value,
+            description: block.description,
+            limit: block.limit,
+          });
+          console.log(`[Letta] Initialized core block "${block.label}"`);
+        } catch (err) {
+          console.log(`[Letta] Could not init block ${block.label}: ${err instanceof Error ? err.message : err}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.log(`[Letta] Block enumeration failed: ${err instanceof Error ? err.message : err}`);
+  }
+}
+
 async function doInit(): Promise<boolean> {
   try {
     const { default: Letta } = await import("@letta-ai/letta-client");
@@ -40,39 +106,44 @@ async function doInit(): Promise<boolean> {
       ...(LETTA_API_KEY ? { apiKey: LETTA_API_KEY } : {}),
     });
 
-    // Health check is optional — some Letta versions / Docker images don't expose it.
-    // If it fails we still attempt to reach the agents API as the real connectivity test.
     try {
       await Promise.race([
         lettaClient.health(),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 4000)),
       ]);
-    } catch {
-      // Non-fatal — continue and let the agents.list() call be the real gate.
-    }
+    } catch { /* fall through */ }
 
     const agentsList: AgentState[] = [];
     const agentsPage = await lettaClient.agents.list();
     for await (const agent of agentsPage) {
       agentsList.push(agent);
     }
-
     const existing = agentsList.find((a) => a.name === LETTA_AGENT_NAME);
 
     if (existing) {
       lettaAgentId = existing.id;
       console.log(`[Letta] Connected — found agent "${LETTA_AGENT_NAME}" (${lettaAgentId})`);
     } else {
-      const newAgent = await lettaClient.agents.create({
+      const newAgent = await (lettaClient.agents as unknown as {
+        create: (body: Record<string, unknown>) => Promise<{ id: string }>;
+      }).create({
         name: LETTA_AGENT_NAME,
-        description: "CEI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions across industries.",
+        description: "CEI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions.",
         include_base_tools: true,
         model: LETTA_MODEL,
         embedding: LETTA_EMBEDDING,
+        memory_blocks: CORE_BLOCKS.map((b) => ({
+          label: b.label,
+          value: b.value,
+          description: b.description,
+          limit: b.limit,
+        })),
       });
       lettaAgentId = newAgent.id;
-      console.log(`[Letta] Connected — created agent "${LETTA_AGENT_NAME}" (${lettaAgentId})`);
+      console.log(`[Letta] Connected — created agent "${LETTA_AGENT_NAME}" (${lettaAgentId}) with ${CORE_BLOCKS.length} blocks`);
     }
+
+    await ensureCoreBlocks();
 
     lettaConnected = true;
     emitAgentEvent({ type: "letta_connected", agentId: lettaAgentId });
@@ -89,12 +160,9 @@ async function doInit(): Promise<boolean> {
 
 async function initLettaClient(): Promise<boolean> {
   if (lettaConnected) return true;
-
   const now = Date.now();
   if (now - lastAttemptAt < RETRY_COOLDOWN_MS) return false;
-
   if (initPromise) return initPromise;
-
   lastAttemptAt = now;
   initPromise = doInit().finally(() => { initPromise = null; });
   return initPromise;
@@ -103,7 +171,6 @@ async function initLettaClient(): Promise<boolean> {
 export async function lettaSendMessage(content: string): Promise<string | null> {
   if (!lettaConnected && !await initLettaClient()) return null;
   if (!lettaClient || !lettaAgentId) return null;
-
   try {
     const response: LettaResponse = await Promise.race([
       lettaClient.agents.messages.create(lettaAgentId, {
@@ -111,15 +178,8 @@ export async function lettaSendMessage(content: string): Promise<string | null> 
       }) as Promise<LettaResponse>,
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 15000)),
     ]);
-
     const text = extractAssistantText(response.messages);
-
-    emitAgentEvent({
-      type: "letta_response",
-      agentId: lettaAgentId,
-      responseLength: text.length,
-    });
-
+    emitAgentEvent({ type: "letta_response", agentId: lettaAgentId, responseLength: text.length });
     return text || null;
   } catch (err) {
     console.error("[Letta] Message failed:", err instanceof Error ? err.message : err);
@@ -128,21 +188,93 @@ export async function lettaSendMessage(content: string): Promise<string | null> 
   }
 }
 
+export async function lettaUpdateBlock(label: CoreBlockLabel, value: string): Promise<boolean> {
+  if (!lettaConnected && !await initLettaClient()) return false;
+  if (!lettaClient || !lettaAgentId) return false;
+  try {
+    await Promise.race([
+      (lettaClient.agents.blocks as unknown as {
+        update: (label: string, params: { agentID: string; value: string }) => Promise<unknown>;
+      }).update(label, { agentID: lettaAgentId, value }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+    emitAgentEvent({ type: "letta_block_updated", block: label, length: value.length });
+    return true;
+  } catch (err) {
+    console.error(`[Letta] block update ${label} failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+export async function lettaReadBlock(label: CoreBlockLabel): Promise<string | null> {
+  if (!lettaConnected && !await initLettaClient()) return null;
+  if (!lettaClient || !lettaAgentId) return null;
+  try {
+    const block = await Promise.race([
+      (lettaClient.agents.blocks as unknown as {
+        retrieve: (label: string, params: { agentID: string }) => Promise<{ value?: string }>;
+      }).retrieve(label, { agentID: lettaAgentId }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+    return block.value ?? null;
+  } catch (err) {
+    console.error(`[Letta] block read ${label} failed:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+export async function lettaArchivalInsert(text: string): Promise<boolean> {
+  if (!lettaConnected && !await initLettaClient()) return false;
+  if (!lettaClient || !lettaAgentId) return false;
+  try {
+    await Promise.race([
+      lettaClient.agents.passages.create(lettaAgentId, { text }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+    ]);
+    emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
+    return true;
+  } catch (err) {
+    console.error("[Letta] archival insert failed:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+export async function lettaArchivalSearch(query: string, limit: number = 5): Promise<Array<{ text: string; score?: number }>> {
+  if (!lettaConnected && !await initLettaClient()) return [];
+  if (!lettaClient || !lettaAgentId) return [];
+  try {
+    const result = await Promise.race([
+      (lettaClient.agents.passages as unknown as {
+        search: (agentID: string, params: { query?: string; search?: string; limit?: number; top_k?: number }) => Promise<unknown>;
+      }).search(lettaAgentId, { query, search: query, limit, top_k: limit }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+    ]);
+    const items = Array.isArray(result) ? result : ((result as { results?: unknown[] })?.results ?? []);
+    return (items as Array<{ text?: string; content?: string; score?: number }>)
+      .map((p) => ({ text: p.text || p.content || "", score: p.score }))
+      .filter((p) => p.text);
+  } catch (err) {
+    console.error("[Letta] archival search failed:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 export async function lettaRecordCycle(summary: string): Promise<void> {
-  await lettaSendMessage(
-    `[CEI Research Cycle Complete] ${summary}\n\nPlease update your memory blocks with any notable patterns or trends from this cycle.`
-  );
+  await lettaUpdateBlock("current_focus", summary);
+  await lettaArchivalInsert(`[cycle] ${summary}`);
 }
 
 export function getLettaStatus(): {
   connected: boolean;
   agentId: string | null;
   baseUrl: string;
+  blocks: string[];
 } {
   return {
     connected: lettaConnected,
     agentId: lettaAgentId,
     baseUrl: LETTA_BASE_URL,
+    blocks: CORE_BLOCKS.map(b => b.label),
   };
 }
 

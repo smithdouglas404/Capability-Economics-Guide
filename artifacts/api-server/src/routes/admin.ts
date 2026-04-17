@@ -17,7 +17,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
-router.use(requireAdmin);
+router.use("/admin", requireAdmin);
 
 router.get("/admin/overview", async (_req, res) => {
   const now = new Date();

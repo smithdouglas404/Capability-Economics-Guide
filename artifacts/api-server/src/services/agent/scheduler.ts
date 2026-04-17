@@ -1,5 +1,6 @@
 import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
+import { startConsolidator, stopConsolidator } from "./consolidator";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -100,12 +101,15 @@ export function startScheduler(): void {
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_INTERVAL_MS / 60000 });
 
+  startConsolidator();
+
   executeRun("startup");
 }
 
 export function stopScheduler(): void {
   if (routineTimer) { clearInterval(routineTimer); routineTimer = null; }
   if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
+  stopConsolidator();
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
 }

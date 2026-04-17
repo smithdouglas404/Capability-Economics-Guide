@@ -212,16 +212,19 @@ export const computeCEITool = tool(
 );
 
 export const recallMemoriesTool = tool(
-  async ({ query, memoryType, limit }) => {
+  async ({ query, memoryType, limit, runId, category }) => {
     try {
       const memories = await recallMemories(
         query,
         memoryType as "pattern" | "observation" | "insight" | "decision_context" | undefined,
         limit,
+        { runId, category: category as "capability_signal" | "industry_trend" | "contradiction" | "validated_pattern" | "decision" | "observation" | undefined },
       );
       return JSON.stringify(memories.map(m => ({
         content: m.content,
         type: m.memoryType,
+        category: m.category,
+        runScope: m.runScope,
         relevance: m.relevanceScore,
         createdAt: m.createdAt,
         metadata: m.metadata,
@@ -237,19 +240,26 @@ export const recallMemoriesTool = tool(
       query: z.string().describe("Search query describing what memories to find"),
       memoryType: z.enum(["pattern", "observation", "insight", "decision_context"]).optional(),
       limit: z.number().default(5).describe("Max memories to return"),
+      runId: z.number().optional().describe("Restrict recall to a specific cycle (run_id) scope"),
+      category: z.enum(["capability_signal", "industry_trend", "contradiction", "validated_pattern", "decision", "observation"]).optional(),
     }),
   },
 );
 
 export const storeMemoryTool = tool(
-  async ({ type, content, metadata }) => {
+  async ({ type, content, metadata, runId, category, context }) => {
     try {
       const memory = await storeMemory(
         type as "pattern" | "observation" | "insight" | "decision_context",
         content,
         metadata || {},
+        {
+          runId,
+          category: category as "capability_signal" | "industry_trend" | "contradiction" | "validated_pattern" | "decision" | "observation" | undefined,
+          context,
+        },
       );
-      return JSON.stringify({ success: true, id: memory.id });
+      return JSON.stringify({ success: true, id: memory.id, mem0Id: memory.mem0Id, status: memory.mem0Status });
     } catch (err) {
       return JSON.stringify({ error: err instanceof Error ? err.message : "Store failed" });
     }
@@ -261,6 +271,9 @@ export const storeMemoryTool = tool(
       type: z.enum(["pattern", "observation", "insight", "decision_context"]),
       content: z.string().describe("The memory content to store"),
       metadata: z.record(z.unknown()).optional().describe("Additional structured metadata"),
+      runId: z.number().optional().describe("Cycle/run id this memory belongs to (for run_id scoping)"),
+      category: z.enum(["capability_signal", "industry_trend", "contradiction", "validated_pattern", "decision", "observation"]).optional().describe("Mem0 custom category"),
+      context: z.string().optional().describe("Optional conversational user-prompt to give Mem0 fact-extraction richer context"),
     }),
   },
 );

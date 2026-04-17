@@ -1,11 +1,18 @@
 import MemoryClient from "mem0ai";
-import type { Memory as Mem0Memory } from "mem0ai";
 import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
-import { desc, sql, and } from "drizzle-orm";
+import { desc, sql, and, eq } from "drizzle-orm";
 
 const MEM0_AGENT_ID = "cei-autonomous-agent";
-const MEM0_APP_ID = "capability-economics";
+
+export type MemoryType = "pattern" | "observation" | "insight" | "decision_context";
+export type MemoryCategory =
+  | "capability_signal"
+  | "industry_trend"
+  | "contradiction"
+  | "validated_pattern"
+  | "decision"
+  | "observation";
 
 let mem0Client: InstanceType<typeof MemoryClient> | null = null;
 
@@ -13,7 +20,7 @@ function getMem0Client(): InstanceType<typeof MemoryClient> | null {
   if (mem0Client) return mem0Client;
   const apiKey = process.env.MEM0_API_KEY;
   if (!apiKey) {
-    console.warn("[Mem0] MEM0_API_KEY not set — Mem0 Cloud disabled, using local DB fallback");
+    console.warn("[Mem0] MEM0_API_KEY not set — using local DB only");
     return null;
   }
   mem0Client = new MemoryClient({ apiKey });
@@ -24,122 +31,215 @@ function getMem0Client(): InstanceType<typeof MemoryClient> | null {
 export interface AgentMemory {
   id: string | number;
   memoryType: string;
+  category?: string | null;
+  runScope?: string | null;
+  agentRunId?: number | null;
   content: string;
   metadata: Record<string, unknown>;
   relevanceScore: number;
   accessCount: number;
   createdAt: Date;
   source: "mem0" | "local";
+  mem0Id?: string | null;
+  mem0Status?: string | null;
 }
 
-type MemoryType = "pattern" | "observation" | "insight" | "decision_context";
+export interface StoreOptions {
+  category?: MemoryCategory;
+  runId?: number | null;
+  ttlDays?: number;
+  /** Pre-built conversational context (for richer fact extraction). If omitted, a sensible default is generated. */
+  context?: string;
+}
+
+/**
+ * Build a conversational user+assistant exchange around a memory finding so Mem0's
+ * fact-extraction LLM has enough surface to mine notable facts. Single-user-message
+ * payloads with bracketed prefixes are silently dropped by Mem0 — confirmed via probe.
+ */
+function buildConversationalMessages(
+  type: MemoryType,
+  category: MemoryCategory | undefined,
+  content: string,
+  context: string | undefined,
+  metadata: Record<string, unknown>,
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const userPrompt = context
+    ? context
+    : `Logging a ${type}${category ? ` (${category})` : ""} from the latest CEI research cycle. Capture the durable facts so future cycles can recall and reason over them.`;
+
+  const metaSummary = Object.entries(metadata)
+    .filter(([k]) => !["mem0Id", "source", "category"].includes(k))
+    .slice(0, 6)
+    .map(([k, v]) => `${k}=${typeof v === "object" ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80)}`)
+    .join("; ");
+
+  const assistantBody = metaSummary
+    ? `${content}\n\nKey signals: ${metaSummary}.`
+    : content;
+
+  return [
+    { role: "user", content: userPrompt },
+    { role: "assistant", content: assistantBody },
+  ];
+}
 
 export async function storeMemory(
   type: MemoryType,
   content: string,
   metadata: Record<string, unknown> = {},
-  ttlDays: number = 90,
+  options: StoreOptions = {},
 ): Promise<AgentMemory> {
+  const { category, runId, ttlDays = 90, context } = options;
   const client = getMem0Client();
+  const expiresAt = new Date(Date.now() + ttlDays * 86400000);
+
+  let mem0Id: string | null = null;
+  let mem0EventId: string | null = null;
+  let mem0Status: string | null = null;
 
   if (client) {
     try {
-      const messages = [
-        { role: "user" as const, content: `[${type}] ${content}` },
-      ];
+      const messages = buildConversationalMessages(type, category, content, context, metadata);
       const result = await client.add(messages, {
         agent_id: MEM0_AGENT_ID,
-        app_id: MEM0_APP_ID,
-        metadata: { ...metadata, memoryType: type, ttlDays },
+        ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
+        metadata: {
+          ...metadata,
+          memoryType: type,
+          category: category ?? type,
+          runId: runId ?? null,
+          ttlDays,
+        },
       });
 
-      const memoryId = Array.isArray(result) && result[0]?.id
-        ? result[0].id
-        : `mem0-${Date.now()}`;
-
-      console.log(`[Mem0] Stored ${type} memory: ${memoryId}`);
-
-      const [localRow] = await db.insert(agentMemoriesTable).values({
-        memoryType: type,
-        content,
-        metadata: { ...metadata, mem0Id: memoryId, source: "mem0" },
-        relevanceScore: 1.0,
-        expiresAt: new Date(Date.now() + ttlDays * 86400000),
-      }).returning();
-
-      return {
-        id: memoryId,
-        memoryType: type,
-        content,
-        metadata: { ...metadata, mem0Id: memoryId },
-        relevanceScore: 1.0,
-        accessCount: 0,
-        createdAt: localRow.createdAt,
-        source: "mem0",
-      };
+      if (Array.isArray(result) && result.length > 0) {
+        const first = result[0] as { id?: string; event_id?: string; status?: string };
+        mem0Id = first.id ?? null;
+        mem0EventId = first.event_id ?? null;
+        mem0Status = first.status ?? null;
+      }
+      console.log(`[Mem0] queued ${type}/${category ?? "uncategorized"} status=${mem0Status} event=${mem0EventId?.slice(0, 8) ?? "n/a"}`);
     } catch (err) {
-      console.error("[Mem0] Store failed, falling back to local DB:", err);
+      console.error("[Mem0] add failed:", err instanceof Error ? err.message : err);
     }
   }
 
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + ttlDays);
-
   const [row] = await db.insert(agentMemoriesTable).values({
     memoryType: type,
+    category: category ?? null,
+    runScope: runId !== null && runId !== undefined ? `cycle-${runId}` : null,
+    agentRunId: runId ?? null,
     content,
-    metadata: { ...metadata, source: "local" },
+    metadata: { ...metadata, source: client ? "mem0" : "local" },
+    mem0Id,
+    mem0EventId,
+    mem0Status,
     relevanceScore: 1.0,
     expiresAt,
   }).returning();
 
   return {
-    id: row.id,
-    memoryType: row.memoryType,
-    content: row.content,
-    metadata: (row.metadata as Record<string, unknown>) || {},
-    relevanceScore: row.relevanceScore ?? 1.0,
-    accessCount: row.accessCount,
+    id: mem0Id || row.id,
+    memoryType: type,
+    category: category ?? null,
+    runScope: row.runScope,
+    agentRunId: runId ?? null,
+    content,
+    metadata: { ...metadata, mem0Id },
+    relevanceScore: 1.0,
+    accessCount: 0,
     createdAt: row.createdAt,
-    source: "local",
+    source: client ? "mem0" : "local",
+    mem0Id,
+    mem0Status,
   };
+}
+
+export async function updateMemory(memoryId: string, newContent: string): Promise<boolean> {
+  const client = getMem0Client();
+  if (!client) return false;
+  try {
+    await client.update(memoryId, newContent);
+    await db.update(agentMemoriesTable)
+      .set({ content: newContent })
+      .where(eq(agentMemoriesTable.mem0Id, memoryId));
+    console.log(`[Mem0] updated ${memoryId.slice(0, 8)}`);
+    return true;
+  } catch (err) {
+    console.error("[Mem0] update failed:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+export async function deleteMemory(memoryId: string): Promise<boolean> {
+  const client = getMem0Client();
+  if (!client) return false;
+  try {
+    await client.delete(memoryId);
+    await db.delete(agentMemoriesTable).where(eq(agentMemoriesTable.mem0Id, memoryId));
+    console.log(`[Mem0] deleted ${memoryId.slice(0, 8)}`);
+    return true;
+  } catch (err) {
+    console.error("[Mem0] delete failed:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+export async function getMemoryHistory(memoryId: string): Promise<unknown[]> {
+  const client = getMem0Client();
+  if (!client) return [];
+  try {
+    const result = await (client as unknown as { history: (id: string) => Promise<unknown[]> }).history(memoryId);
+    return Array.isArray(result) ? result : [];
+  } catch (err) {
+    console.error("[Mem0] history failed:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }
 
 export async function recallMemories(
   query: string,
   type?: MemoryType,
   limit: number = 10,
+  options: { runId?: number; category?: MemoryCategory } = {},
 ): Promise<AgentMemory[]> {
   const client = getMem0Client();
   const results: AgentMemory[] = [];
 
   if (client) {
     try {
-      const searchQuery = type ? `[${type}] ${query}` : query;
-      const mem0Results = await client.search(searchQuery, {
+      const mem0Results = await client.search(query, {
         agent_id: MEM0_AGENT_ID,
-        app_id: MEM0_APP_ID,
+        ...(options.runId ? { run_id: `cycle-${options.runId}` } : {}),
         limit,
       });
 
       for (const m of mem0Results) {
+        const meta = (m.metadata as Record<string, unknown>) || {};
+        const memType = (meta.memoryType as string) || type || "observation";
+        const memCat = meta.category as string | undefined;
+        if (type && memType !== type) continue;
+        if (options.category && memCat !== options.category) continue;
         results.push({
           id: m.id || `mem0-${Date.now()}`,
-          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || type || "observation",
+          memoryType: memType,
+          category: memCat ?? null,
+          runScope: (meta.runId as string) || null,
           content: m.memory || m.data?.memory || "",
-          metadata: (m.metadata as Record<string, unknown>) || {},
+          metadata: meta,
           relevanceScore: m.score ?? 0.8,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
           source: "mem0",
+          mem0Id: m.id ?? null,
         });
       }
 
-      console.log(`[Mem0] Recalled ${results.length} memories for query: "${query.slice(0, 50)}..."`);
-
+      console.log(`[Mem0] recalled ${results.length} for "${query.slice(0, 50)}"`);
       if (results.length >= limit) return results.slice(0, limit);
     } catch (err) {
-      console.error("[Mem0] Search failed, falling back to local DB:", err);
+      console.error("[Mem0] search failed, using local DB:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -147,12 +247,10 @@ export async function recallMemories(
   const conditions = [
     sql`(${agentMemoriesTable.expiresAt} IS NULL OR ${agentMemoriesTable.expiresAt} > ${now})`,
   ];
+  if (type) conditions.push(sql`${agentMemoriesTable.memoryType} = ${type}`);
+  if (options.category) conditions.push(sql`${agentMemoriesTable.category} = ${options.category}`);
 
-  if (type) {
-    conditions.push(sql`${agentMemoriesTable.memoryType} = ${type}`);
-  }
-
-  const allMemories = await db
+  const localMemories = await db
     .select()
     .from(agentMemoriesTable)
     .where(and(...conditions))
@@ -160,84 +258,65 @@ export async function recallMemories(
     .limit(200);
 
   const keywords = query.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-
-  const scored = allMemories.map(m => {
-    const text = m.content.toLowerCase();
-    const meta = JSON.stringify(m.metadata || {}).toLowerCase();
-    const combined = text + " " + meta;
-
+  const scored = localMemories.map(m => {
+    const text = (m.content + " " + JSON.stringify(m.metadata || {})).toLowerCase();
     let matchScore = 0;
-    for (const kw of keywords) {
-      if (combined.includes(kw)) matchScore += 1;
-    }
-    const keywordRelevance = keywords.length > 0 ? matchScore / keywords.length : 0;
-
-    const ageDays = (now.getTime() - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    const recencyBoost = Math.exp(-ageDays / 30);
-
-    const score = keywordRelevance * 0.6 + recencyBoost * 0.3 + (m.relevanceScore ?? 1.0) * 0.1;
-
+    for (const kw of keywords) if (text.includes(kw)) matchScore += 1;
+    const keywordRel = keywords.length > 0 ? matchScore / keywords.length : 0;
+    const ageDays = (now.getTime() - m.createdAt.getTime()) / 86400000;
+    const recency = Math.exp(-ageDays / 30);
+    const score = keywordRel * 0.6 + recency * 0.3 + (m.relevanceScore ?? 1.0) * 0.1;
     return { memory: m, score };
   });
 
   scored.sort((a, b) => b.score - a.score);
-
   const localResults = scored.slice(0, limit - results.length).map(r => ({
     id: r.memory.id,
     memoryType: r.memory.memoryType,
+    category: r.memory.category,
+    runScope: r.memory.runScope,
+    agentRunId: r.memory.agentRunId,
     content: r.memory.content,
     metadata: (r.memory.metadata as Record<string, unknown>) || {},
     relevanceScore: r.score,
     accessCount: r.memory.accessCount,
     createdAt: r.memory.createdAt,
     source: "local" as const,
+    mem0Id: r.memory.mem0Id,
+    mem0Status: r.memory.mem0Status,
   }));
-
-  const ids = localResults.map(r => r.id).filter((id): id is number => typeof id === "number");
-  if (ids.length > 0) {
-    await db.update(agentMemoriesTable)
-      .set({
-        accessCount: sql`${agentMemoriesTable.accessCount} + 1`,
-        lastAccessedAt: new Date(),
-      })
-      .where(sql`${agentMemoriesTable.id} IN (${sql.join(ids.map(id => sql`${id}`), sql`, `)})`);
-  }
 
   return [...results, ...localResults].slice(0, limit);
 }
 
-export async function recallMemoriesBatch(
-  type: MemoryType,
-  limit: number = 100,
-): Promise<AgentMemory[]> {
+export async function recallMemoriesBatch(type: MemoryType, limit: number = 100): Promise<AgentMemory[]> {
   const client = getMem0Client();
   const results: AgentMemory[] = [];
-
   if (client) {
     try {
-      const mem0Results = await client.search(`[${type}] capability industry trend pattern observation`, {
-        agent_id: MEM0_AGENT_ID,
-        app_id: MEM0_APP_ID,
-        limit,
-      });
-
-      for (const m of mem0Results) {
+      const mem0All = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+      for (const m of mem0All) {
+        const meta = (m.metadata as Record<string, unknown>) || {};
+        const memType = (meta.memoryType as string) || "observation";
+        if (memType !== type) continue;
         results.push({
           id: m.id || `mem0-${Date.now()}`,
-          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || type,
+          memoryType: memType,
+          category: (meta.category as string) ?? null,
+          runScope: (meta.runId as string) ?? null,
           content: m.memory || m.data?.memory || "",
-          metadata: (m.metadata as Record<string, unknown>) || {},
-          relevanceScore: m.score ?? 0.8,
+          metadata: meta,
+          relevanceScore: 0.8,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
           source: "mem0",
+          mem0Id: m.id ?? null,
         });
       }
-
-      console.log(`[Mem0] Batch recalled ${results.length} ${type} memories (1 API call)`);
+      console.log(`[Mem0] batch recalled ${results.length} ${type} memories`);
       if (results.length >= limit) return results;
     } catch (err) {
-      console.error("[Mem0] Batch search failed, falling back to local DB:", err);
+      console.error("[Mem0] getAll failed:", err instanceof Error ? err.message : err);
     }
   }
 
@@ -253,22 +332,25 @@ export async function recallMemoriesBatch(
     .limit(limit);
 
   for (const m of localMemories) {
-    const localMeta = (m.metadata as Record<string, unknown>) || {};
-    const isMem0Synced = results.some(r => typeof r.id === "string" && localMeta.mem0Id === r.id);
+    const isMem0Synced = m.mem0Id && results.some(r => r.mem0Id === m.mem0Id);
     if (!isMem0Synced) {
       results.push({
         id: m.id,
         memoryType: m.memoryType,
+        category: m.category,
+        runScope: m.runScope,
+        agentRunId: m.agentRunId,
         content: m.content,
-        metadata: localMeta,
+        metadata: (m.metadata as Record<string, unknown>) || {},
         relevanceScore: m.relevanceScore ?? 1.0,
         accessCount: m.accessCount,
         createdAt: m.createdAt,
         source: "local",
+        mem0Id: m.mem0Id,
+        mem0Status: m.mem0Status,
       });
     }
   }
-
   return results.slice(0, limit);
 }
 
@@ -280,120 +362,107 @@ export function filterMemoriesForTarget(
 ): AgentMemory[] {
   const keywords = `${industryName} ${capabilityName}`.toLowerCase().split(/\s+/).filter(w => w.length > 3);
   const now = Date.now();
-
   const scored = batch.map(m => {
     const text = (m.content + " " + JSON.stringify(m.metadata)).toLowerCase();
     let matchScore = 0;
-    for (const kw of keywords) {
-      if (text.includes(kw)) matchScore += 1;
-    }
-    const keywordRelevance = keywords.length > 0 ? matchScore / keywords.length : 0;
-    const ageDays = (now - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
-    const recencyBoost = Math.exp(-ageDays / 30);
-    return { memory: m, score: keywordRelevance * 0.7 + recencyBoost * 0.3 };
+    for (const kw of keywords) if (text.includes(kw)) matchScore += 1;
+    const keywordRel = keywords.length > 0 ? matchScore / keywords.length : 0;
+    const ageDays = (now - m.createdAt.getTime()) / 86400000;
+    const recency = Math.exp(-ageDays / 30);
+    return { memory: m, score: keywordRel * 0.7 + recency * 0.3 };
   });
-
-  return scored
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map(s => ({ ...s.memory, relevanceScore: s.score }));
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit).map(s => ({ ...s.memory, relevanceScore: s.score }));
 }
 
 export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]> {
   const client = getMem0Client();
   const results: AgentMemory[] = [];
-
   if (client) {
     try {
-      const mem0All = await client.getAll({
-        agent_id: MEM0_AGENT_ID,
-        app_id: MEM0_APP_ID,
-        page_size: limit,
-      });
-
+      const mem0All = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
       for (const m of mem0All) {
+        const meta = (m.metadata as Record<string, unknown>) || {};
         results.push({
           id: m.id || `mem0-${Date.now()}`,
-          memoryType: (m.metadata as Record<string, unknown>)?.memoryType as string || "observation",
+          memoryType: (meta.memoryType as string) || "observation",
+          category: (meta.category as string) ?? null,
+          runScope: (meta.runId as string) ?? null,
           content: m.memory || m.data?.memory || "",
-          metadata: (m.metadata as Record<string, unknown>) || {},
-          relevanceScore: m.score ?? 1.0,
+          metadata: meta,
+          relevanceScore: 1.0,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
           source: "mem0",
+          mem0Id: m.id ?? null,
         });
       }
     } catch (err) {
-      console.error("[Mem0] getAll failed:", err);
+      console.error("[Mem0] getAll failed:", err instanceof Error ? err.message : err);
     }
   }
 
-  const localMemories = await db
-    .select()
-    .from(agentMemoriesTable)
-    .orderBy(desc(agentMemoriesTable.createdAt))
-    .limit(limit);
-
+  const localMemories = await db.select().from(agentMemoriesTable).orderBy(desc(agentMemoriesTable.createdAt)).limit(limit);
   for (const m of localMemories) {
-    const localMeta = (m.metadata as Record<string, unknown>) || {};
-    const isMem0Synced = results.some(r =>
-      typeof r.id === "string" && localMeta.mem0Id === r.id
-    );
+    const isMem0Synced = m.mem0Id && results.some(r => r.mem0Id === m.mem0Id);
     if (!isMem0Synced) {
       results.push({
         id: m.id,
         memoryType: m.memoryType,
+        category: m.category,
+        runScope: m.runScope,
+        agentRunId: m.agentRunId,
         content: m.content,
         metadata: (m.metadata as Record<string, unknown>) || {},
         relevanceScore: m.relevanceScore ?? 1.0,
         accessCount: m.accessCount,
         createdAt: m.createdAt,
         source: "local",
+        mem0Id: m.mem0Id,
+        mem0Status: m.mem0Status,
       });
     }
   }
-
   return results.slice(0, limit);
 }
 
 export async function getMemoryStats(): Promise<{
   totalMemories: number;
   byType: Record<string, number>;
+  byCategory: Record<string, number>;
+  byRunScope: Record<string, number>;
+  pendingMem0Writes: number;
   avgRelevance: number;
   mem0Connected: boolean;
 }> {
   const client = getMem0Client();
   let mem0Count = 0;
-
   if (client) {
     try {
-      const mem0All = await client.getAll({
-        agent_id: MEM0_AGENT_ID,
-        app_id: MEM0_APP_ID,
-        page_size: 200,
-      });
+      const mem0All = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: 200 });
       mem0Count = mem0All.length;
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }
-
   const all = await db.select().from(agentMemoriesTable);
-
   const byType: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
+  const byRunScope: Record<string, number> = {};
   let totalRelevance = 0;
-  let localOnlyCount = 0;
-
+  let localOnly = 0;
+  let pending = 0;
   for (const m of all) {
     byType[m.memoryType] = (byType[m.memoryType] || 0) + 1;
+    if (m.category) byCategory[m.category] = (byCategory[m.category] || 0) + 1;
+    if (m.runScope) byRunScope[m.runScope] = (byRunScope[m.runScope] || 0) + 1;
+    if (m.mem0Status === "PENDING") pending++;
     totalRelevance += m.relevanceScore ?? 1.0;
-    const meta = (m.metadata as Record<string, unknown>) || {};
-    if (!meta.mem0Id) localOnlyCount++;
+    if (!m.mem0Id) localOnly++;
   }
-
   return {
-    totalMemories: mem0Count + localOnlyCount,
+    totalMemories: mem0Count + localOnly,
     byType,
+    byCategory,
+    byRunScope,
+    pendingMem0Writes: pending,
     avgRelevance: all.length > 0 ? totalRelevance / all.length : 0,
     mem0Connected: client !== null,
   };

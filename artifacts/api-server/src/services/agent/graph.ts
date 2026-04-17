@@ -8,14 +8,18 @@ import {
   agentRunsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
-import { recallMemories, storeMemory, recallMemoriesBatch, filterMemoriesForTarget } from "./memory";
+import {
+  recallMemoriesBatch,
+  filterMemoriesForTarget,
+  storeMemory,
+  type AgentMemory,
+} from "./memory";
 import { emitAgentEvent } from "./events";
-import { lettaRecordCycle } from "./letta";
+import { lettaUpdateBlock, lettaArchivalInsert } from "./letta";
+import { reflectOnFindings, type ResearchFinding } from "./reflect";
 import {
   perplexityResearchTool,
   computeCEITool,
-  recallMemoriesTool,
-  storeMemoryTool,
   generateCsuitePerspectivesTool,
   generateCaseStudyContentTool,
   generateInsightsTool,
@@ -50,8 +54,10 @@ const AgentState = Annotation.Root({
   runId: Annotation<number>,
   trigger: Annotation<string>,
   targets: Annotation<CapabilityTarget[]>,
+  recalledMemories: Annotation<AgentMemory[]>,
   decisions: Annotation<AgentDecision[]>,
-  researchResults: Annotation<Array<{ capabilityName: string; newScore: number; confidence: number }>>,
+  researchResults: Annotation<ResearchFinding[]>,
+  reflection: Annotation<{ added: number; updated: number; contradictions: number; priorsUpdated: boolean } | null>,
   memoriesRecalled: Annotation<number>,
   memoriesStored: Annotation<number>,
   perplexityCalls: Annotation<number>,
@@ -77,9 +83,7 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
     .orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(1);
 
   const compMap = new Map<string, typeof components[0]>();
-  for (const c of components) {
-    compMap.set(`${c.industryId}-${c.capabilityId}`, c);
-  }
+  for (const c of components) compMap.set(`${c.industryId}-${c.capabilityId}`, c);
 
   const now = Date.now();
   const targets: CapabilityTarget[] = [];
@@ -89,7 +93,7 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
     for (const cap of caps) {
       const comp = compMap.get(`${industry.id}-${cap.id}`);
       const updatedAt = comp?.updatedAt?.getTime() || 0;
-      const staleDays = (now - updatedAt) / (1000 * 60 * 60 * 24);
+      const staleDays = (now - updatedAt) / 86400000;
 
       let priority = 0;
       if (staleDays > STALE_THRESHOLD_DAYS) priority += staleDays / STALE_THRESHOLD_DAYS;
@@ -119,21 +123,37 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
     industriesCount: industries.length,
   });
 
-  return {
-    targets,
-    ceiBeforeIndex: latestSnapshot?.overallIndex || null,
-  };
+  return { targets, ceiBeforeIndex: latestSnapshot?.overallIndex || null };
+}
+
+async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
+  emitAgentEvent({ type: "phase", phase: "recalling", message: "Recalling institutional memory..." });
+
+  // Pull both pattern and validated_pattern memories so decide has both raw signals & consolidations
+  const patterns = await recallMemoriesBatch("pattern", 100);
+  console.log(`[Agent] Recall node: ${patterns.length} pattern memories pulled before decide`);
+
+  emitAgentEvent({
+    type: "recall_complete",
+    patternMemories: patterns.length,
+    runId: state.runId,
+  });
+
+  // Update Letta current_focus block with the upcoming cycle's intent
+  try {
+    const top = state.targets.slice(0, 8).map(t => `${t.industryName}/${t.capabilityName} (p=${t.priority.toFixed(1)})`).join(", ");
+    await lettaUpdateBlock("current_focus", `Run #${state.runId} (${state.trigger}). Top targets: ${top}.`);
+  } catch { /* non-fatal */ }
+
+  return { recalledMemories: patterns };
 }
 
 async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
-  emitAgentEvent({ type: "phase", phase: "deciding", message: `Evaluating ${state.targets.length} capabilities...` });
+  emitAgentEvent({ type: "phase", phase: "deciding", message: `Evaluating ${state.targets.length} capabilities against ${state.recalledMemories.length} recalled memories...` });
 
   const decisions: AgentDecision[] = [];
   let researchCount = 0;
-  let memoriesRecalled = 0;
-
-  const patternBatch = await recallMemoriesBatch("pattern", 100);
-  console.log(`[Agent] Batch recalled ${patternBatch.length} pattern memories for decide phase`);
+  let memoriesUsed = 0;
 
   for (const target of state.targets) {
     if (researchCount >= MAX_RESEARCH_PER_RUN) {
@@ -149,14 +169,14 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
       continue;
     }
 
-    const memories = filterMemoriesForTarget(patternBatch, target.industryName, target.capabilityName, 3);
-    const memoryCount = memories.length;
-    memoriesRecalled += memoryCount;
+    const memories = filterMemoriesForTarget(state.recalledMemories, target.industryName, target.capabilityName, 3);
+    memoriesUsed += memories.length;
 
     const hasRecentPattern = memories.some(m => {
-      const age = (Date.now() - m.createdAt.getTime()) / (1000 * 60 * 60 * 24);
+      const age = (Date.now() - m.createdAt.getTime()) / 86400000;
       return age < 14 && m.relevanceScore > 0.5;
     });
+    const hasValidatedPattern = memories.some(m => m.category === "validated_pattern");
 
     if (target.priority < 1 && target.confidence > 0.7 && !hasHighVolatility(target)) {
       decisions.push({
@@ -165,20 +185,20 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
         industryName: target.industryName,
         capabilityName: target.capabilityName,
         action: "skip",
-        reason: `Fresh data (${target.staleDays}d old), high confidence (${target.confidence}), stable velocity`,
+        reason: `Fresh data (${target.staleDays}d), high confidence (${target.confidence}), stable velocity`,
         timestamp: new Date().toISOString(),
       });
       continue;
     }
 
-    if (hasRecentPattern && target.confidence > 0.5 && target.staleDays < STALE_THRESHOLD_DAYS * 2) {
+    if ((hasRecentPattern || hasValidatedPattern) && target.confidence > 0.5 && target.staleDays < STALE_THRESHOLD_DAYS * 2) {
       decisions.push({
         capabilityId: target.capabilityId,
         industryId: target.industryId,
         industryName: target.industryName,
         capabilityName: target.capabilityName,
         action: "use_memory",
-        reason: `Recent Mem0 pattern found (${memoryCount} relevant), data only ${target.staleDays}d old`,
+        reason: `${hasValidatedPattern ? "Validated" : "Recent"} memory found (${memories.length} relevant), data only ${target.staleDays}d old`,
         timestamp: new Date().toISOString(),
       });
       continue;
@@ -196,18 +216,12 @@ async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType
     researchCount++;
   }
 
-  const researchDecisions = decisions.filter(d => d.action === "research").length;
-  const skipDecisions = decisions.filter(d => d.action === "skip").length;
-  const memoryDecisions = decisions.filter(d => d.action === "use_memory").length;
-  emitAgentEvent({
-    type: "decide_complete",
-    toResearch: researchDecisions,
-    toSkip: skipDecisions,
-    toUseMemory: memoryDecisions,
-    memoriesRecalled,
-  });
+  const r = decisions.filter(d => d.action === "research").length;
+  const s = decisions.filter(d => d.action === "skip").length;
+  const m = decisions.filter(d => d.action === "use_memory").length;
+  emitAgentEvent({ type: "decide_complete", toResearch: r, toSkip: s, toUseMemory: m, memoriesRecalled: memoriesUsed });
 
-  return { decisions, memoriesRecalled };
+  return { decisions, memoriesRecalled: memoriesUsed };
 }
 
 function hasHighVolatility(target: CapabilityTarget): boolean {
@@ -228,20 +242,15 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
   emitAgentEvent({
     type: "phase",
     phase: "researching",
-    message: `Researching ${toResearch.length} capabilities via Perplexity (LangChain tools)...`,
+    message: `Researching ${toResearch.length} capabilities via Perplexity...`,
   });
 
-  const results: Array<{ capabilityName: string; newScore: number; confidence: number }> = [];
+  const results: ResearchFinding[] = [];
   let calls = 0;
 
   for (const decision of toResearch) {
     try {
-      emitAgentEvent({
-        type: "tool_call",
-        tool: "perplexity_research",
-        capability: decision.capabilityName,
-        industry: decision.industryName,
-      });
+      emitAgentEvent({ type: "tool_call", tool: "perplexity_research", capability: decision.capabilityName, industry: decision.industryName });
 
       const resultStr = await perplexityResearchTool.invoke({
         industryName: decision.industryName,
@@ -253,7 +262,10 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
       const result = JSON.parse(resultStr);
       if (result.success) {
         results.push({
+          capabilityId: decision.capabilityId,
           capabilityName: result.capabilityName,
+          industryId: decision.industryId,
+          industryName: decision.industryName,
           newScore: result.consensusScore,
           confidence: result.confidence,
         });
@@ -266,22 +278,12 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
           sources: result.sourcesCount,
         });
       } else {
-        emitAgentEvent({
-          type: "tool_error",
-          tool: "perplexity_research",
-          capability: decision.capabilityName,
-          error: result.error,
-        });
+        emitAgentEvent({ type: "tool_error", tool: "perplexity_research", capability: decision.capabilityName, error: result.error });
       }
       calls++;
     } catch (err) {
       console.error(`Research failed for ${decision.capabilityName}:`, err);
-      emitAgentEvent({
-        type: "tool_error",
-        tool: "perplexity_research",
-        capability: decision.capabilityName,
-        error: err instanceof Error ? err.message : "unknown",
-      });
+      emitAgentEvent({ type: "tool_error", tool: "perplexity_research", capability: decision.capabilityName, error: err instanceof Error ? err.message : "unknown" });
     }
   }
 
@@ -289,22 +291,15 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
 }
 
 async function computeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
-  const researchCount = state.researchResults.length;
-  if (researchCount === 0) {
+  if (state.researchResults.length === 0) {
     emitAgentEvent({ type: "phase", phase: "skipped_compute", message: "No new research — skipping CEI recomputation" });
     return { ceiAfterIndex: state.ceiBeforeIndex };
   }
 
-  emitAgentEvent({
-    type: "tool_call",
-    tool: "compute_cei",
-    message: "Recomputing CEI index...",
-  });
-
+  emitAgentEvent({ type: "tool_call", tool: "compute_cei", message: "Recomputing CEI index..." });
   try {
     const resultStr = await computeCEITool.invoke({});
     const result = JSON.parse(resultStr);
-
     if (result.success) {
       emitAgentEvent({
         type: "tool_result",
@@ -314,99 +309,69 @@ async function computeNode(state: AgentStateType): Promise<Partial<AgentStateTyp
         delta: state.ceiBeforeIndex ? result.overallIndex - state.ceiBeforeIndex : null,
       });
       return { ceiAfterIndex: result.overallIndex };
-    } else {
-      return { error: result.error };
     }
+    return { error: result.error };
   } catch (err) {
-    console.error("CEI computation failed:", err);
     return { error: err instanceof Error ? err.message : "Computation failed" };
   }
 }
 
+async function reflectNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
+  if (state.researchResults.length === 0) {
+    return { reflection: { added: 0, updated: 0, contradictions: 0, priorsUpdated: false }, memoriesStored: 0 };
+  }
+  const result = await reflectOnFindings(state.runId, state.researchResults);
+  return {
+    reflection: { added: result.added, updated: result.updated, contradictions: result.contradictions, priorsUpdated: result.prirorsUpdated },
+    memoriesStored: result.added + result.updated + result.contradictions,
+  };
+}
+
 async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
-  emitAgentEvent({
-    type: "tool_call",
-    tool: "store_memory",
-    message: "Storing learned patterns to Mem0...",
-  });
+  emitAgentEvent({ type: "tool_call", tool: "store_memory", message: "Recording cycle summary..." });
 
-  let stored = 0;
+  let stored = state.memoriesStored;
 
-  if (state.researchResults.length > 0) {
-    const avgScore = state.researchResults.reduce((s, r) => s + r.newScore, 0) / state.researchResults.length;
-    const avgConfidence = state.researchResults.reduce((s, r) => s + r.confidence, 0) / state.researchResults.length;
+  // Cycle-level decision-context memory (one per run, scoped to runId)
+  if (state.researchResults.length > 0 || state.decisions.length > 0) {
+    const researchCount = state.decisions.filter(d => d.action === "research").length;
+    const skipCount = state.decisions.filter(d => d.action === "skip").length;
+    const memoryCount = state.decisions.filter(d => d.action === "use_memory").length;
     const industries = [...new Set(state.decisions.filter(d => d.action === "research").map(d => d.industryName))];
 
-    const obsContent = `Research cycle completed: ${state.researchResults.length} capabilities updated. ` +
-      `Average score: ${avgScore.toFixed(1)}, average confidence: ${avgConfidence.toFixed(2)}. ` +
-      `Industries: ${industries.join(", ")}. ` +
-      `CEI moved from ${state.ceiBeforeIndex} to ${state.ceiAfterIndex}.`;
+    const cycleSummary =
+      `CEI Cycle #${state.runId} (${state.trigger}): researched ${researchCount}, skipped ${skipCount}, ` +
+      `used memory for ${memoryCount}. Industries touched: ${industries.join(", ") || "none"}. ` +
+      `CEI ${state.ceiBeforeIndex?.toFixed(1) ?? "n/a"} → ${state.ceiAfterIndex?.toFixed(1) ?? "n/a"}. ` +
+      `Reflection: +${state.reflection?.added ?? 0} added, ${state.reflection?.updated ?? 0} refined, ${state.reflection?.contradictions ?? 0} contradictions.`;
 
-    const obsResult = await storeMemoryTool.invoke({
-      type: "observation",
-      content: obsContent,
-      metadata: {
-        researchCount: state.researchResults.length,
-        avgScore,
-        avgConfidence,
-        ceiDelta: (state.ceiAfterIndex || 0) - (state.ceiBeforeIndex || 0),
-        industries,
-      },
-    });
-    const obsData = JSON.parse(obsResult);
-    if (obsData.success) stored++;
-
-    emitAgentEvent({
-      type: "tool_result",
-      tool: "store_memory",
-      memoryType: "observation",
-      stored: obsData.success,
-    });
-
-    for (const result of state.researchResults) {
-      if (result.confidence > 0.8) {
-        const patResult = await storeMemoryTool.invoke({
-          type: "pattern",
-          content: `${result.capabilityName} scored ${result.newScore.toFixed(1)} with high confidence (${result.confidence.toFixed(2)})`,
-          metadata: { capabilityName: result.capabilityName, score: result.newScore, confidence: result.confidence },
-        });
-        const patData = JSON.parse(patResult);
-        if (patData.success) stored++;
-
-        emitAgentEvent({
-          type: "tool_result",
-          tool: "store_memory",
-          memoryType: "pattern",
-          capability: result.capabilityName,
-          stored: patData.success,
-        });
-      }
+    try {
+      await storeMemory(
+        "decision_context",
+        cycleSummary,
+        {
+          trigger: state.trigger,
+          researchCount,
+          skipCount,
+          memoryCount,
+          industries,
+          ceiDelta: (state.ceiAfterIndex || 0) - (state.ceiBeforeIndex || 0),
+        },
+        {
+          category: "decision",
+          runId: state.runId,
+          context: `The CEI agent just finished its #${state.runId} research cycle. Summarize the outcome in durable, queryable terms so future cycles can recall and reason about what was learned, what was skipped, and how the index moved.`,
+        },
+      );
+      stored++;
+    } catch (err) {
+      console.log("[memorize] decision_context store failed:", err instanceof Error ? err.message : err);
     }
-  }
 
-  const researchCount = state.decisions.filter(d => d.action === "research").length;
-  const skipCount = state.decisions.filter(d => d.action === "skip").length;
-  const memoryCount = state.decisions.filter(d => d.action === "use_memory").length;
-
-  // Only record a decision-summary memory when the cycle actually did something
-  {
-    const decResult = await storeMemoryTool.invoke({
-      type: "decision_context",
-      content: `Decision summary: ${researchCount} researched, ` +
-        `${skipCount} skipped, ${memoryCount} used memory. Trigger: ${state.trigger}.`,
-      metadata: { trigger: state.trigger, researchCount, skipCount, memoryCount },
-    });
-    const decData = JSON.parse(decResult);
-    if (decData.success) stored++;
-  }
-
-  try {
-    const cycleSummary = `Researched ${state.researchResults.length} capabilities, ` +
-      `recalled ${state.memoriesRecalled} memories, stored ${stored} new memories. ` +
-      `CEI: ${state.ceiBeforeIndex} → ${state.ceiAfterIndex}. Trigger: ${state.trigger}.`;
-    await lettaRecordCycle(cycleSummary);
-  } catch (err) {
-    console.log("[Letta] Cycle record skipped:", err instanceof Error ? err.message : err);
+    // Also push the cycle summary into Letta archival memory for long-term reasoning
+    try {
+      await lettaArchivalInsert(`[cycle #${state.runId}] ${cycleSummary}`);
+    } catch { /* non-fatal */ }
   }
 
   emitAgentEvent({
@@ -426,53 +391,41 @@ async function generateContentNode(_state: AgentStateType): Promise<Partial<Agen
 
   for (const slug of industrySlugs) {
     try {
-      emitAgentEvent({ type: "tool_call", tool: "generate_insights", industry: slug, message: `Generating insights for ${slug}...` });
-      const insightResult = JSON.parse(await generateInsightsTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; insightsGenerated?: number; error?: string };
-      emitAgentEvent({ type: "tool_result", tool: "generate_insights", industry: slug, success: insightResult.success, skipped: insightResult.skipped ?? false, generated: insightResult.insightsGenerated ?? 0 });
-    } catch (err) {
-      console.error(`[generateContentNode] Insights failed for ${slug}:`, err);
-    }
+      emitAgentEvent({ type: "tool_call", tool: "generate_insights", industry: slug });
+      const r = JSON.parse(await generateInsightsTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; insightsGenerated?: number };
+      emitAgentEvent({ type: "tool_result", tool: "generate_insights", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.insightsGenerated ?? 0 });
+    } catch (err) { console.error(`[generateContent] Insights ${slug}:`, err); }
 
     try {
-      emitAgentEvent({ type: "tool_call", tool: "generate_leaderboard", industry: slug, message: `Generating leaderboard for ${slug}...` });
-      const lbResult = JSON.parse(await generateLeaderboardTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; entriesGenerated?: number; error?: string };
-      emitAgentEvent({ type: "tool_result", tool: "generate_leaderboard", industry: slug, success: lbResult.success, skipped: lbResult.skipped ?? false, generated: lbResult.entriesGenerated ?? 0 });
-    } catch (err) {
-      console.error(`[generateContentNode] Leaderboard failed for ${slug}:`, err);
-    }
+      emitAgentEvent({ type: "tool_call", tool: "generate_leaderboard", industry: slug });
+      const r = JSON.parse(await generateLeaderboardTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; entriesGenerated?: number };
+      emitAgentEvent({ type: "tool_result", tool: "generate_leaderboard", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.entriesGenerated ?? 0 });
+    } catch (err) { console.error(`[generateContent] Leaderboard ${slug}:`, err); }
 
     try {
-      emitAgentEvent({ type: "tool_call", tool: "generate_white_papers", industry: slug, message: `Generating white papers for ${slug}...` });
-      const wpResult = JSON.parse(await generateWhitePapersTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; papersGenerated?: number; error?: string };
-      emitAgentEvent({ type: "tool_result", tool: "generate_white_papers", industry: slug, success: wpResult.success, skipped: wpResult.skipped ?? false, generated: wpResult.papersGenerated ?? 0 });
-    } catch (err) {
-      console.error(`[generateContentNode] White papers failed for ${slug}:`, err);
-    }
+      emitAgentEvent({ type: "tool_call", tool: "generate_white_papers", industry: slug });
+      const r = JSON.parse(await generateWhitePapersTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; papersGenerated?: number };
+      emitAgentEvent({ type: "tool_result", tool: "generate_white_papers", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.papersGenerated ?? 0 });
+    } catch (err) { console.error(`[generateContent] White papers ${slug}:`, err); }
 
     try {
-      emitAgentEvent({ type: "tool_call", tool: "generate_ontology", industry: slug, message: `Generating capability ontology for ${slug}...` });
-      const ontResult = JSON.parse(await generateOntologyTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; relationshipsGenerated?: number; error?: string };
-      emitAgentEvent({ type: "tool_result", tool: "generate_ontology", industry: slug, success: ontResult.success, skipped: ontResult.skipped ?? false, generated: ontResult.relationshipsGenerated ?? 0 });
-    } catch (err) {
-      console.error(`[generateContentNode] Ontology failed for ${slug}:`, err);
-    }
+      emitAgentEvent({ type: "tool_call", tool: "generate_ontology", industry: slug });
+      const r = JSON.parse(await generateOntologyTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; relationshipsGenerated?: number };
+      emitAgentEvent({ type: "tool_result", tool: "generate_ontology", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.relationshipsGenerated ?? 0 });
+    } catch (err) { console.error(`[generateContent] Ontology ${slug}:`, err); }
   }
 
   try {
-    emitAgentEvent({ type: "tool_call", tool: "generate_csuite_perspectives", message: "Generating executive perspectives for all roles..." });
-    const csuiteResult = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as { success: boolean; generated?: string[]; skipped?: string[] };
-    emitAgentEvent({ type: "tool_result", tool: "generate_csuite_perspectives", generated: csuiteResult.generated?.length ?? 0, skipped: csuiteResult.skipped?.length ?? 0 });
-  } catch (err) {
-    console.error("[generateContentNode] C-suite perspectives error:", err);
-  }
+    emitAgentEvent({ type: "tool_call", tool: "generate_csuite_perspectives" });
+    const r = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as { success: boolean; generated?: string[]; skipped?: string[] };
+    emitAgentEvent({ type: "tool_result", tool: "generate_csuite_perspectives", generated: r.generated?.length ?? 0, skipped: r.skipped?.length ?? 0 });
+  } catch (err) { console.error("[generateContent] C-suite:", err); }
 
   try {
-    emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance", message: "Generating insurance case study content..." });
-    const caseStudyResult = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as { success: boolean; skipped?: boolean };
-    emitAgentEvent({ type: "tool_result", tool: "generate_case_study", industry: "insurance", success: caseStudyResult.success, skipped: caseStudyResult.skipped ?? false });
-  } catch (err) {
-    console.error("[generateContentNode] Case study error:", err);
-  }
+    emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance" });
+    const r = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as { success: boolean; skipped?: boolean };
+    emitAgentEvent({ type: "tool_result", tool: "generate_case_study", industry: "insurance", success: r.success, skipped: r.skipped ?? false });
+  } catch (err) { console.error("[generateContent] Case study:", err); }
 
   return {};
 }
@@ -512,6 +465,7 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     perplexityCalls: state.perplexityCalls,
     memoriesRecalled: state.memoriesRecalled,
     memoriesStored: state.memoriesStored,
+    reflection: state.reflection,
     ceiIndex: state.ceiAfterIndex,
     mem0Connected: !!process.env.MEM0_API_KEY,
   });
@@ -520,26 +474,29 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
 }
 
 function shouldResearch(state: AgentStateType): "research" | "compute" {
-  const hasResearch = state.decisions.some(d => d.action === "research");
-  return hasResearch ? "research" : "compute";
+  return state.decisions.some(d => d.action === "research") ? "research" : "compute";
 }
 
 const workflow = new StateGraph(AgentState)
   .addNode("evaluate", evaluateNode)
+  .addNode("recall", recallNode)
   .addNode("decide", decideNode)
   .addNode("research", researchNode)
   .addNode("compute", computeNode)
+  .addNode("reflect", reflectNode)
   .addNode("memorize", memorizeNode)
   .addNode("generateContent", generateContentNode)
   .addNode("finalize", finalizeNode)
   .addEdge(START, "evaluate")
-  .addEdge("evaluate", "decide")
+  .addEdge("evaluate", "recall")
+  .addEdge("recall", "decide")
   .addConditionalEdges("decide", shouldResearch, {
     research: "research",
     compute: "compute",
   })
   .addEdge("research", "compute")
-  .addEdge("compute", "memorize")
+  .addEdge("compute", "reflect")
+  .addEdge("reflect", "memorize")
   .addEdge("memorize", "generateContent")
   .addEdge("generateContent", "finalize")
   .addEdge("finalize", END);
@@ -555,6 +512,7 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
   ceiAfterIndex: number | null;
   memoriesRecalled: number;
   memoriesStored: number;
+  reflection: { added: number; updated: number; contradictions: number; priorsUpdated: boolean } | null;
   error: string | null;
 }> {
   const [run] = await db.insert(agentRunsTable).values({
@@ -569,8 +527,10 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
       runId: run.id,
       trigger,
       targets: [],
+      recalledMemories: [],
       decisions: [],
       researchResults: [],
+      reflection: null,
       memoriesRecalled: 0,
       memoriesStored: 0,
       perplexityCalls: 0,
@@ -588,6 +548,7 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
       ceiAfterIndex: result.ceiAfterIndex,
       memoriesRecalled: result.memoriesRecalled,
       memoriesStored: result.memoriesStored,
+      reflection: result.reflection,
       error: result.error,
     };
   } catch (err) {
@@ -595,7 +556,6 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
     await db.update(agentRunsTable)
       .set({ status: "failed", errorMessage: errorMsg, completedAt: new Date() })
       .where(eq(agentRunsTable.id, run.id));
-
     emitAgentEvent({ type: "error", message: errorMsg });
     throw err;
   }

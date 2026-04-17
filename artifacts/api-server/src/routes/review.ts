@@ -12,7 +12,7 @@ import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
 
 const router: IRouter = Router();
 
-router.use(requireReviewer());
+router.use("/review", requireReviewer());
 
 function reviewerLabel(r: Reviewer | undefined): string {
   if (!r) return "reviewer";

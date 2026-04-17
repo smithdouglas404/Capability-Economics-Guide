@@ -12,6 +12,10 @@ import {
   getAllMemories,
   allTools,
   getLettaStatus,
+  getGraphStats,
+  getLastConsolidation,
+  runConsolidation,
+  lettaReadBlock,
 } from "../services/agent";
 import { generateOntologyTool } from "../services/agent/tools";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -219,11 +223,60 @@ router.get("/agent/tools", (_req, res) => {
     integrations: {
       mem0: { connected: !!process.env.MEM0_API_KEY, provider: "mem0-cloud" },
       langchain: { version: "core", tools: allTools.length },
-      langgraph: { nodes: ["evaluate", "decide", "research", "compute", "memorize", "finalize"] },
+      langgraph: { nodes: ["evaluate", "recall", "decide", "research", "compute", "reflect", "memorize", "generateContent", "finalize"] },
       perplexity: { connected: !!process.env.PERPLEXITY_API_KEY },
       letta: getLettaStatus(),
     },
   });
+});
+
+router.get("/agent/memory/stats", async (_req, res) => {
+  try {
+    const [memStats, graphStats, lastConsolidation] = await Promise.all([
+      getMemoryStats(),
+      getGraphStats(),
+      getLastConsolidation(),
+    ]);
+    let lettaBlocks: Record<string, { length: number; preview: string } | null> = {};
+    const lettaStatus = getLettaStatus();
+    if (lettaStatus.connected) {
+      for (const label of ["persona", "industry_priors", "research_strategy", "current_focus"] as const) {
+        try {
+          const v = await lettaReadBlock(label);
+          lettaBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
+        } catch {
+          lettaBlocks[label] = null;
+        }
+      }
+    }
+    res.json({
+      memory: memStats,
+      graph: graphStats,
+      lastConsolidation: lastConsolidation ? {
+        id: lastConsolidation.id,
+        startedAt: lastConsolidation.startedAt.toISOString(),
+        completedAt: lastConsolidation.completedAt?.toISOString() ?? null,
+        observationsScanned: lastConsolidation.observationsScanned,
+        patternsConsolidated: lastConsolidation.patternsConsolidated,
+        redundantDeleted: lastConsolidation.redundantDeleted,
+        archivalInserted: lastConsolidation.archivalInserted,
+        errorMessage: lastConsolidation.errorMessage,
+      } : null,
+      letta: { ...lettaStatus, blocks: lettaBlocks },
+    });
+  } catch (err) {
+    console.error("[/agent/memory/stats] error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "stats failed" });
+  }
+});
+
+router.post("/agent/memory/consolidate", requireAdmin, async (_req, res) => {
+  try {
+    const result = await runConsolidation();
+    res.json({ status: "ok", result });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "consolidate failed" });
+  }
 });
 
 export default router;
