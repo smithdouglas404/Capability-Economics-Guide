@@ -34,6 +34,8 @@ import roiRouter from "./roi";
 import nlQueryRouter from "./nl-query";
 import regulationsRouter from "./regulations";
 import collaborationRouter from "./collaboration";
+import creditsRouter from "./credits";
+import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
 
@@ -62,13 +64,25 @@ router.use(membershipRouter);
 router.use(macroEventsRouter);
 router.use(companiesRouter);
 router.use(usageRouter);
+router.use(creditsRouter);
+
+// ── Tier-gated routes (Workbench+) ──
+const workbenchGate = requireTier("workbench");
+router.use("/simulation", workbenchGate);
+router.use("/war-room", workbenchGate);
+router.use("/trade-signals", workbenchGate);
+router.use("/innovation", workbenchGate);
+router.use("/benchmarking", workbenchGate);
+router.use("/roi", workbenchGate);
+
 router.use(simulationRouter);
 router.use(warRoomRouter);
 router.use(tradeSignalsRouter);
 router.use(innovationPipelineRouter);
-router.use(watchlistRouter);
 router.use(benchmarkingRouter);
 router.use(roiRouter);
+
+// Open routes (all tiers)
 router.use(nlQueryRouter);
 router.use(regulationsRouter);
 router.use(collaborationRouter);

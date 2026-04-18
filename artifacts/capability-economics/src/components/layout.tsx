@@ -9,7 +9,7 @@ import {
   Users,
   Swords, FlaskConical, Target, Rocket, BarChart3, PieChart,
   Lightbulb, MessageSquare,
-  Settings2, ChevronDown, CreditCard, LogOut,
+  Settings2, ChevronDown, CreditCard, LogOut, Sparkles,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -101,10 +101,34 @@ function useMembershipStatus(): { loading: boolean; status: string | null } {
   return state;
 }
 
+function useCreditBalance(): { balance: number | null; tierSlug: string | null } {
+  const { isSignedIn, isLoaded } = useUser();
+  const { getToken } = useAuth();
+  const [state, setState] = useState<{ balance: number | null; tierSlug: string | null }>({ balance: null, tierSlug: null });
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch("/api/credits/balance", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setState({ balance: data.balance ?? null, tierSlug: data.tierSlug ?? null });
+      } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isSignedIn, isLoaded, getToken]);
+  return state;
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { isSignedIn, isLoaded, user } = useUser();
   const { status: membershipStatus } = useMembershipStatus();
+  const { balance: creditBalance, tierSlug } = useCreditBalance();
   const hasAccess = isSignedIn && membershipStatus === "active";
 
   const isGroupActive = (group: NavGroup) =>
@@ -243,6 +267,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </>
             ) : (
               <>
+                {/* Credit balance chip */}
+                {creditBalance !== null && (
+                  <Link href="/membership">
+                    <button
+                      data-testid="nav-credits"
+                      title={`${creditBalance.toLocaleString()} CEI credits remaining`}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-1 hover:bg-muted ${
+                        creditBalance <= 10 ? "text-destructive bg-destructive/10" : creditBalance <= 50 ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground"
+                      }`}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      {creditBalance.toLocaleString()}
+                    </button>
+                  </Link>
+                )}
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -257,6 +297,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <DropdownMenuLabel className="font-serif text-xs uppercase tracking-widest text-muted-foreground">
                       Account
                     </DropdownMenuLabel>
+                    {creditBalance !== null && (
+                      <>
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-center justify-between">
+                          <span>CEI Credits</span>
+                          <span className="font-mono font-medium">{creditBalance.toLocaleString()}</span>
+                        </div>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
                     <DropdownMenuSeparator />
                     <Link href="/organization">
                       <DropdownMenuItem data-testid="nav-link-my-org" className="cursor-pointer gap-2">

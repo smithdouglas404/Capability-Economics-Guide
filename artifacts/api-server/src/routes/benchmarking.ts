@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
+import { deductCredits } from "../middlewares/deductCredits";
 import {
   companiesTable,
   companyScoresTable,
@@ -112,7 +113,7 @@ router.get("/benchmarking/companies", async (req, res) => {
 });
 
 // Discover new companies via Perplexity when existing pool is insufficient
-router.post("/benchmarking/discover", async (req, res) => {
+router.post("/benchmarking/discover", deductCredits(4), async (req, res) => {
   try {
     const { industryId, region, capabilityIds, capabilityNames } = req.body as {
       industryId: number;

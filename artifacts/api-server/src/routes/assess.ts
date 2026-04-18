@@ -1,6 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "@workspace/db";
-import { capabilityAssessmentsTable } from "@workspace/db";
+import { capabilityAssessmentsTable, CREDIT_COSTS } from "@workspace/db";
+import { deductCredits } from "../middlewares/deductCredits";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
@@ -264,7 +265,7 @@ Return ONLY valid JSON in this format, no commentary:
   res.json({ sessionId, questions });
 });
 
-router.post("/assess/analyze", async (req: Request, res: Response) => {
+router.post("/assess/analyze", deductCredits(CREDIT_COSTS.ASSESSMENT), async (req: Request, res: Response) => {
   const { sessionId, answers } = req.body as { sessionId: string; answers: string[] };
   if (!sessionId) {
     res.status(400).json({ error: "sessionId required" });

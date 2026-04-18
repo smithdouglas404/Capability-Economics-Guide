@@ -10,9 +10,11 @@ import {
   valueChainStagesTable,
   companyCapabilityProfilesTable,
   companyCapabilityMappingsTable,
+  CREDIT_COSTS,
 } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import { enqueueEnrichmentJob } from "../services/alpha/queue";
+import { deductCredits } from "../middlewares/deductCredits";
 import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
@@ -889,7 +891,7 @@ router.get("/twin", async (req: Request, res: Response) => {
 });
 
 /* ============================= THESIS MEMO ============================= */
-router.post("/thesis", requireAdmin, async (req: Request, res: Response) => {
+router.post("/thesis", requireAdmin, deductCredits(CREDIT_COSTS.INVESTMENT_THESIS), async (req: Request, res: Response) => {
   try {
     const capabilityId = parseInt(req.body?.capabilityId);
     if (isNaN(capabilityId)) { res.status(400).json({ error: "capabilityId required" }); return; }

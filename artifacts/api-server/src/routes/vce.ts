@@ -5,9 +5,11 @@ import {
   vceCyclesTable,
   vceQuestionsTable,
   vceResearchItemsTable,
+  CREDIT_COSTS,
 } from "@workspace/db";
 import { eq, desc, asc, and, inArray, ne } from "drizzle-orm";
 import { z } from "zod";
+import { deductCredits } from "../middlewares/deductCredits";
 import {
   createCampaign,
   generateIntakeQuestions,
@@ -89,7 +91,7 @@ router.post("/vce/assessments/:id/answer", async (req: Request, res: Response) =
 });
 
 // Run the NEXT scheduled cycle for this campaign
-router.post("/vce/assessments/:id/cycles/run-next", async (req: Request, res: Response) => {
+router.post("/vce/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
@@ -99,7 +101,7 @@ router.post("/vce/assessments/:id/cycles/run-next", async (req: Request, res: Re
 });
 
 // Run a SPECIFIC cycle (e.g. retry a failed one)
-router.post("/vce/assessments/:id/cycles/:cycleId/run", async (req: Request, res: Response) => {
+router.post("/vce/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
   const id = parseInt(req.params.id);
   const cycleId = parseInt(req.params.cycleId);
   if (!Number.isInteger(id) || !Number.isInteger(cycleId)) { res.status(400).json({ error: "Invalid id" }); return; }
