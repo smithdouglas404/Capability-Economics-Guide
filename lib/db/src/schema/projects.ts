@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, real, timestamp } from "drizzle-orm/pg-core";
 import { capabilitiesTable } from "./capabilities";
 
 export const technologyProjectsTable = pgTable("technology_projects", {
@@ -12,6 +12,9 @@ export const technologyProjectsTable = pgTable("technology_projects", {
   investmentRange: text("investment_range").notNull(),
   complexityLevel: text("complexity_level").notNull(),
   icon: text("icon").notNull().default("Cpu"),
+  source: text("source").notNull().default("manual"),
+  citations: text("citations").array(),
+  researchedAt: timestamp("researched_at", { withTimezone: true }),
 });
 
 export const projectCapabilityImpactsTable = pgTable("project_capability_impacts", {

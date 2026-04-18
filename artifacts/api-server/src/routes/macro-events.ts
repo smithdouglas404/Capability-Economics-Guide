@@ -10,7 +10,6 @@ import {
   type SentimentDirection,
   getCapabilityImpactExplanations,
 } from "../services/macro-events";
-import { getResolvedCatalog } from "../services/macro-events-catalog";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
@@ -147,16 +146,6 @@ router.delete("/macro-events/:id", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("macro-events delete failed:", err);
     res.status(500).json({ error: "Failed to delete event" });
-  }
-});
-
-router.get("/macro-events/catalog", async (_req, res) => {
-  try {
-    const templates = await getResolvedCatalog();
-    res.json({ templates, total: templates.length });
-  } catch (err) {
-    console.error("macro-events catalog failed:", err);
-    res.status(500).json({ error: "Failed to load catalog" });
   }
 });
 

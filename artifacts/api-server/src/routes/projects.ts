@@ -10,8 +10,33 @@ import {
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { ListProjectsQueryParams, GetProjectParams, GetProjectQueryParams } from "@workspace/api-zod";
+import { requireAdmin } from "../middlewares/requireAdmin";
+import { researchProjectsForCategories } from "../services/projects-research";
+import { z } from "zod";
 
 const router: IRouter = Router();
+
+const ResearchBody = z.object({
+  categories: z.array(z.string().min(2).max(80)).min(1).max(12),
+});
+
+router.post("/projects/research", requireAdmin, async (req, res) => {
+  const parsed = ResearchBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
+    return;
+  }
+  try {
+    const results = await researchProjectsForCategories(parsed.data.categories);
+    res.json({
+      results,
+      totalIngested: results.reduce((n, r) => n + r.projectsIngested, 0),
+    });
+  } catch (err) {
+    console.error("projects research failed:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed" });
+  }
+});
 
 router.get("/projects", async (req, res) => {
   const parsed = ListProjectsQueryParams.safeParse(req.query);
