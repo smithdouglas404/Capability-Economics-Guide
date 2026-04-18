@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
-import { userMembershipsTable, membershipTiersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { userMembershipsTable, membershipTiersTable, kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
+import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 
 const TIER_RANK: Record<string, number> = {
@@ -9,6 +9,13 @@ const TIER_RANK: Record<string, number> = {
   briefing: 1,
   workbench: 2,
   platform: 3,
+};
+
+const KYC_RANK: Record<string, number> = {
+  email: 0,
+  identity: 1,
+  biometric: 2,
+  full: 3,
 };
 
 /**
@@ -58,6 +65,33 @@ export function requireTier(minimumTier: string) {
         message: `This feature requires the ${minimumTier.charAt(0).toUpperCase() + minimumTier.slice(1)} tier or higher.`,
       });
       return;
+    }
+
+    // KYC enforcement: ensure the user has an approved verification at or above
+    // the level required by the minimum tier. Discovery requires only email-level KYC.
+    const requiredKycLevel = KYC_LEVELS_BY_TIER[minimumTier];
+    if (requiredKycLevel) {
+      const requiredKycRank = KYC_RANK[requiredKycLevel] ?? 0;
+      const approvedKycs = await db.select()
+        .from(kycVerificationsTable)
+        .where(and(
+          eq(kycVerificationsTable.userId, userId),
+          eq(kycVerificationsTable.status, "approved"),
+        ))
+        .orderBy(desc(kycVerificationsTable.createdAt));
+
+      const sufficient = approvedKycs.find((v) => (KYC_RANK[v.kycLevel] ?? -1) >= requiredKycRank);
+      if (!sufficient) {
+        res.status(403).json({
+          error: "KYC required",
+          currentTier: userTier,
+          requiredTier: minimumTier,
+          requiredKycLevel,
+          message: `This feature requires identity verification (${requiredKycLevel} level). Complete verification at /kyc.`,
+          redirectTo: `/kyc?tierSlug=${minimumTier}`,
+        });
+        return;
+      }
     }
 
     // Attach tier info to request for downstream use

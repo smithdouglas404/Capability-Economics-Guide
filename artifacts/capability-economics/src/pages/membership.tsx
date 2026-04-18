@@ -69,6 +69,37 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise
     return;
   }
 
+  // KYC pre-flight: ensure user has the right level of identity verification for this tier.
+  try {
+    const kycRes = await fetch("/api/kyc/status");
+    if (kycRes.ok) {
+      const kyc = await kycRes.json() as {
+        verified: boolean; kycLevel: string | null; configured: boolean;
+        levels: Record<string, string>;
+      };
+      const requiredLevel = kyc.levels?.[tier.slug];
+      const rank: Record<string, number> = { email: 0, identity: 1, biometric: 2, full: 3 };
+      const hasLevel = kyc.verified && kyc.kycLevel ? (rank[kyc.kycLevel] ?? -1) >= (rank[requiredLevel ?? "email"] ?? 0) : false;
+      if (requiredLevel && !hasLevel) {
+        if (!kyc.configured) {
+          alert("Identity verification service is not configured yet. Please contact support to activate this tier.");
+          return;
+        }
+        const proceed = window.confirm(
+          `The ${tier.name} tier requires identity verification (${requiredLevel} level). Continue to verification?`,
+        );
+        if (!proceed) return;
+        window.location.href = `/kyc?tierSlug=${encodeURIComponent(tier.slug)}&returnTo=${encodeURIComponent("/membership")}`;
+        return;
+      }
+    } else if (kycRes.status === 401) {
+      alert("Please sign in to start this tier.");
+      return;
+    }
+  } catch {
+    // If KYC status check fails, fall through — server-side requireTier will block protected features anyway.
+  }
+
   const promptMsg = isFree
     ? `Activate ${tier.name} membership.\n\nWho is this membership for? (your name or company)`
     : `Checkout: ${tier.name} (${billing}).\n\nWho is this membership for? (your name or company)`;
