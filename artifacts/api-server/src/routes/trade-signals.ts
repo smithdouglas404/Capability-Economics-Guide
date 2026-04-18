@@ -91,8 +91,9 @@ router.post("/trade-signals/generate", async (req, res) => {
       // Only generate signals when CE and street actually disagree
       if (ceQuadrant === streetQuadrant) continue;
 
-      const ceMultiple = QUAD_MULTIPLES[ceQuadrant] ?? 4;
-      const streetMultiple = QUAD_MULTIPLES[streetQuadrant] ?? 4;
+      const ceMultiple = QUAD_MULTIPLES[ceQuadrant];
+      const streetMultiple = QUAD_MULTIPLES[streetQuadrant];
+      if (ceMultiple === undefined || streetMultiple === undefined) continue;
       const margin = e.marginStructurePct / 100;
       const ceValue = e.revenueExposureMm * margin * ceMultiple;
       const streetValue = e.revenueExposureMm * margin * streetMultiple;

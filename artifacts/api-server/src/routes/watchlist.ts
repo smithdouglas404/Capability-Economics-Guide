@@ -107,18 +107,22 @@ router.post("/watchlist/check", async (req, res) => {
       switch (item.thresholdType) {
         case "half_life_below": currentValue = econ?.halfLifeMonths ?? null; break;
         case "fragility_above": {
-          const moat = econ ? Math.min(100, ((econ.halfLifeMonths ?? 36) / 60) * 30 + (comp?.consensusScore ?? 50) * 0.25 + 20) : null;
-          currentValue = moat !== null ? 100 - moat : null;
+          if (econ?.halfLifeMonths != null && comp?.consensusScore != null) {
+            const moat = Math.min(100, (econ.halfLifeMonths / 60) * 30 + comp.consensusScore * 0.25 + 20);
+            currentValue = 100 - moat;
+          }
           break;
         }
         case "moat_below": {
-          currentValue = econ ? Math.min(100, ((econ.halfLifeMonths ?? 36) / 60) * 30 + (comp?.consensusScore ?? 50) * 0.25 + 20) : null;
+          if (econ?.halfLifeMonths != null && comp?.consensusScore != null) {
+            currentValue = Math.min(100, (econ.halfLifeMonths / 60) * 30 + comp.consensusScore * 0.25 + 20);
+          }
           break;
         }
         case "score_below": currentValue = comp?.consensusScore ?? null; break;
         case "evar_above": {
-          if (econ && econ.revenueExposureMm && econ.halfLifeMonths) {
-            currentValue = econ.revenueExposureMm * ((econ.marginStructurePct ?? 30) / 100) * (1 - Math.pow(0.5, 12 / econ.halfLifeMonths));
+          if (econ?.revenueExposureMm != null && econ?.halfLifeMonths != null && econ?.marginStructurePct != null) {
+            currentValue = econ.revenueExposureMm * (econ.marginStructurePct / 100) * (1 - Math.pow(0.5, 12 / econ.halfLifeMonths));
           }
           break;
         }

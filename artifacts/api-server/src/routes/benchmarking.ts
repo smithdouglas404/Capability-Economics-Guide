@@ -341,7 +341,7 @@ router.post("/benchmarking/run", async (req, res) => {
 
     // Get your org's scores
     let myScores = new Map<number, number>();
-    let myOrgName = "Your Organization";
+    let myOrgName: string | null = null;
     if (sessionToken) {
       const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
       if (org) {

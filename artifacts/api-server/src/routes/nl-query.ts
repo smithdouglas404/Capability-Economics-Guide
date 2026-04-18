@@ -99,15 +99,19 @@ router.post("/nl-query", async (req, res) => {
         .orderBy(sql`${capabilityEconomicsTable.revenueExposureMm} desc nulls last`)
         .limit(10);
 
-      data = rows.map((r) => {
-        const hl = r.halfLife ?? 36;
-        const rev = r.revenue ?? 0;
-        const m = (r.margin ?? 30) / 100;
-        return { ...r, evar12: rev * m * (1 - Math.pow(0.5, 12 / hl)), evar36: rev * m * (1 - Math.pow(0.5, 36 / hl)) };
-      });
-      response = `Top 10 capabilities by Enterprise Value at Risk:\n\n${(data as any[]).map((r: any, i: number) =>
-        `${i + 1}. **${r.name}** (${r.industry}) — 12mo EVaR: $${r.evar12.toFixed(1)}M, 36mo EVaR: $${r.evar36.toFixed(1)}M`
-      ).join("\n")}`;
+      data = rows
+        .filter((r) => r.halfLife != null && r.revenue != null && r.margin != null)
+        .map((r) => {
+          const hl = r.halfLife!;
+          const rev = r.revenue!;
+          const m = r.margin! / 100;
+          return { ...r, evar12: rev * m * (1 - Math.pow(0.5, 12 / hl)), evar36: rev * m * (1 - Math.pow(0.5, 36 / hl)) };
+        });
+      response = data.length
+        ? `Top capabilities by Enterprise Value at Risk:\n\n${(data as any[]).map((r: any, i: number) =>
+            `${i + 1}. **${r.name}** (${r.industry}) — 12mo EVaR: $${r.evar12.toFixed(1)}M, 36mo EVaR: $${r.evar36.toFixed(1)}M`
+      ).join("\n")}`
+        : "No capabilities have complete EVaR data (revenue, margin, and half-life all required).";
 
     } else if (lowerQ.match(/\b(banking|insurance|healthcare|manufacturing|technology|retail)\b/)) {
       const industryName = lowerQ.match(/\b(banking|insurance|healthcare|manufacturing|technology|retail)\b/)![1];

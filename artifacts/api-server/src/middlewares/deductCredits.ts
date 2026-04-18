@@ -35,8 +35,12 @@ export function deductCredits(amount: number) {
     let [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
 
     if (!account) {
-      const tierSlug = (req as any).userTier ?? "discovery";
-      const allocation = TIER_ALLOCATIONS[tierSlug] ?? 50;
+      const tierSlug: string = (req as any).userTier;
+      if (!tierSlug || !(tierSlug in TIER_ALLOCATIONS)) {
+        res.status(403).json({ error: "No membership tier found. Sign up first." });
+        return;
+      }
+      const allocation = TIER_ALLOCATIONS[tierSlug];
       [account] = await db.insert(creditAccountsTable).values({
         userId,
         balance: allocation,
@@ -56,11 +60,16 @@ export function deductCredits(amount: number) {
 
     // Check balance
     if (account.balance < amount) {
+      const canPurchase = account.tierSlug !== "discovery";
       res.status(402).json({
         error: "Insufficient credits",
         balance: account.balance,
         required: amount,
-        message: `This operation costs ${amount} credits. You have ${account.balance}. Purchase more credits or upgrade your tier.`,
+        tierSlug: account.tierSlug,
+        canPurchase,
+        message: canPurchase
+          ? `This operation costs ${amount} credits. You have ${account.balance}. Purchase more credits to continue.`
+          : `This operation costs ${amount} credits. You have ${account.balance}. Upgrade from Discovery to purchase additional credits.`,
       });
       return;
     }

@@ -35,6 +35,7 @@ import nlQueryRouter from "./nl-query";
 import regulationsRouter from "./regulations";
 import collaborationRouter from "./collaboration";
 import creditsRouter from "./credits";
+import kycRouter from "./kyc";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -65,6 +66,7 @@ router.use(macroEventsRouter);
 router.use(companiesRouter);
 router.use(usageRouter);
 router.use(creditsRouter);
+router.use(kycRouter);
 
 // ── Tier-gated routes (Workbench+) ──
 const workbenchGate = requireTier("workbench");

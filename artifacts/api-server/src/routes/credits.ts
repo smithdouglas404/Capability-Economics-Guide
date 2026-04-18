@@ -11,8 +11,9 @@ import {
   CEI_CREDIT_BLOCK_PRICE_CENTS,
   CREDIT_COSTS,
 } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
 
 const router = Router();
 
@@ -23,7 +24,6 @@ router.get("/credits/balance", async (req, res) => {
     const userId = auth?.userId;
 
     if (!userId) {
-      // Return anonymous defaults
       res.json({
         balance: 0,
         monthlyAllocation: 50,
@@ -31,6 +31,7 @@ router.get("/credits/balance", async (req, res) => {
         creditCosts: CREDIT_COSTS,
         blockSize: CEI_CREDIT_BLOCK_SIZE,
         blockPriceCents: CEI_CREDIT_BLOCK_PRICE_CENTS,
+        canPurchase: false,
       });
       return;
     }
@@ -38,7 +39,6 @@ router.get("/credits/balance", async (req, res) => {
     let [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
 
     if (!account) {
-      // Determine tier from membership
       const [membership] = await db.select({ tierSlug: membershipTiersTable.slug })
         .from(userMembershipsTable)
         .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
@@ -46,7 +46,8 @@ router.get("/credits/balance", async (req, res) => {
         .limit(1);
 
       const tierSlug = membership?.tierSlug ?? "discovery";
-      const allocation = TIER_ALLOCATIONS[tierSlug] ?? 50;
+      const allocation = TIER_ALLOCATIONS[tierSlug];
+      if (allocation === undefined) { res.status(500).json({ error: `Unknown tier: ${tierSlug}` }); return; }
 
       [account] = await db.insert(creditAccountsTable).values({
         userId,
@@ -72,6 +73,8 @@ router.get("/credits/balance", async (req, res) => {
       creditCosts: CREDIT_COSTS,
       blockSize: CEI_CREDIT_BLOCK_SIZE,
       blockPriceCents: CEI_CREDIT_BLOCK_PRICE_CENTS,
+      canPurchase: account.tierSlug !== "discovery",
+      lowBalance: account.balance <= 10,
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
@@ -100,7 +103,7 @@ router.get("/credits/transactions", async (req, res) => {
   }
 });
 
-// Purchase credit block
+// Purchase credit blocks via Stripe checkout
 router.post("/credits/purchase", async (req, res) => {
   try {
     const auth = getAuth(req);
@@ -111,50 +114,76 @@ router.post("/credits/purchase", async (req, res) => {
     const credits = blocks * CEI_CREDIT_BLOCK_SIZE;
     const amountCents = blocks * CEI_CREDIT_BLOCK_PRICE_CENTS;
 
-    // Check tier allows purchase (Discovery cannot)
+    // Discovery tier cannot purchase
     const [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
     if (account?.tierSlug === "discovery") {
-      res.status(403).json({ error: "Credit purchases require a paid tier. Please upgrade from Discovery." });
+      res.status(403).json({
+        error: "Credit purchases require a paid membership.",
+        message: "Free Discovery users receive 50 credits/month. Upgrade to Briefing or higher to purchase additional credits.",
+      });
       return;
     }
 
-    // Record purchase
+    // Create purchase record as pending
     const [purchase] = await db.insert(creditPurchasesTable).values({
       userId,
       creditsBought: credits,
       amountCents,
-      status: "completed", // In production, this would be "pending" until Stripe confirms
+      status: "pending",
     }).returning();
 
-    // Credit the account
-    const currentBalance = account?.balance ?? 0;
-    const newBalance = currentBalance + credits;
+    // If Stripe is configured, create a checkout session
+    if (isStripeConfigured()) {
+      const origin = `${req.protocol}://${req.get("host")}`;
+      const successUrl = `${origin}/membership?credits=success&purchase=${purchase.id}`;
+      const cancelUrl = `${origin}/membership?credits=cancelled&purchase=${purchase.id}`;
 
-    if (account) {
-      await db.update(creditAccountsTable).set({ balance: newBalance }).where(eq(creditAccountsTable.userId, userId));
-    } else {
-      await db.insert(creditAccountsTable).values({
-        userId,
-        balance: newBalance,
-        monthlyAllocation: TIER_ALLOCATIONS["briefing"],
-        tierSlug: "briefing",
+      // Get user email from membership record
+      const [membership] = await db.select({ email: userMembershipsTable.userEmail })
+        .from(userMembershipsTable)
+        .where(eq(userMembershipsTable.userId, userId))
+        .limit(1);
+
+      const session = await createCheckoutSession({
+        membershipId: purchase.id, // reusing the field for purchase ID
+        tierName: `${credits.toLocaleString()} CEI Credits`,
+        tierSlug: "credits",
+        amountCents,
+        billingPeriod: "monthly",
+        customerEmail: membership?.email ?? undefined,
+        successUrl,
+        cancelUrl,
       });
+
+      res.json({
+        purchaseId: purchase.id,
+        creditsBought: credits,
+        amountCents,
+        checkoutUrl: session.url,
+        sessionId: session.id,
+      });
+    } else {
+      // Dev mode: auto-complete without Stripe
+      await db.update(creditPurchasesTable).set({ status: "completed" }).where(eq(creditPurchasesTable.id, purchase.id));
+
+      if (!account) {
+        res.status(400).json({ error: "No credit account found. Access any feature first to initialize your account." });
+        return;
+      }
+
+      const newBalance = account.balance + credits;
+      await db.update(creditAccountsTable).set({ balance: newBalance }).where(eq(creditAccountsTable.userId, userId));
+
+      await db.insert(creditTransactionsTable).values({
+        userId,
+        amount: credits,
+        type: "purchase",
+        description: `Purchased ${credits.toLocaleString()} credits (dev mode)`,
+        balanceAfter: newBalance,
+      });
+
+      res.json({ purchaseId: purchase.id, creditsBought: credits, amountCents, newBalance });
     }
-
-    await db.insert(creditTransactionsTable).values({
-      userId,
-      amount: credits,
-      type: "purchase",
-      description: `Purchased ${credits.toLocaleString()} credits (${blocks} block${blocks > 1 ? "s" : ""})`,
-      balanceAfter: newBalance,
-    });
-
-    res.json({
-      purchaseId: purchase.id,
-      creditsBought: credits,
-      amountCents,
-      newBalance,
-    });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
@@ -169,11 +198,10 @@ router.post("/credits/allocate", async (req, res) => {
     for (const account of accounts) {
       const lastTopUp = new Date(account.lastTopUpAt);
       const daysSince = (Date.now() - lastTopUp.getTime()) / (1000 * 60 * 60 * 24);
-
-      // Only top up if at least 28 days since last allocation
       if (daysSince < 28) continue;
 
-      const allocation = TIER_ALLOCATIONS[account.tierSlug] ?? 50;
+      const allocation = TIER_ALLOCATIONS[account.tierSlug];
+      if (allocation === undefined) continue; // skip unknown tiers
       const newBalance = account.balance + allocation;
 
       await db.update(creditAccountsTable).set({

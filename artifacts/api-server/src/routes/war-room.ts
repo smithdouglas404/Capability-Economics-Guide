@@ -22,7 +22,7 @@ router.get("/war-room/compare", async (req, res) => {
 
     // Get org and its assessments
     let orgCaps: Array<{ capabilityId: number; maturityScore: number; investmentLevel: string }> = [];
-    let orgName = "My Organization";
+    let orgName: string | null = null;
     let industryId: number | null = null;
 
     if (token) {
@@ -75,8 +75,8 @@ router.get("/war-room/compare", async (req, res) => {
         moatScore: econ?.halfLifeMonths != null && benchmark != null
           ? Math.min(100, (econ.halfLifeMonths / 60) * 30 + benchmark * 0.25 + 20)
           : null,
-        evar12mo: econ?.revenueExposureMm != null && econ?.halfLifeMonths != null
-          ? econ.revenueExposureMm * ((econ.marginStructurePct ?? 30) / 100) * (1 - Math.pow(0.5, 12 / econ.halfLifeMonths))
+        evar12mo: econ?.revenueExposureMm != null && econ?.halfLifeMonths != null && econ?.marginStructurePct != null
+          ? econ.revenueExposureMm * (econ.marginStructurePct / 100) * (1 - Math.pow(0.5, 12 / econ.halfLifeMonths))
           : null,
         aiExposure: econ?.aiExposureScore ?? null,
         velocity: comp?.velocity ?? null,

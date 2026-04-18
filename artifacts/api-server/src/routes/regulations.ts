@@ -64,10 +64,11 @@ router.post("/regulations/:id/requirements", async (req, res) => {
   try {
     const regulationId = Number(req.params.id);
     const { capabilityId, requiredMaturity, priority, evidenceNotes, article } = req.body;
+    if (!capabilityId || requiredMaturity == null) { res.status(400).json({ error: "capabilityId and requiredMaturity are required" }); return; }
     const [row] = await db.insert(regulationCapabilityRequirementsTable).values({
       regulationId,
       capabilityId,
-      requiredMaturity: requiredMaturity ?? 70,
+      requiredMaturity,
       priority: priority ?? "required",
       evidenceNotes,
       article,

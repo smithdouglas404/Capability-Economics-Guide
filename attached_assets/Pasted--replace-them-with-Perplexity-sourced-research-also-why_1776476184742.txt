@@ -1,0 +1,13 @@
+ replace them with Perplexity-sourced research?     also why did this get created I have not had this issue until yoiu stated coding                                                                                  
+
+  1. scripts/src/seed-projects.ts — 6 hardcoded technology projects with:                                                                                                                    
+  - Made-up uplift percentages ("18% maturity uplift")                                                                                                                                       
+  - Fabricated investment ranges ("$2M - $8M")                                                                                                                                               
+  - Authored executive insights presented as analysis                                                                                                                                        
+  - Invented risk descriptions and mitigations                                                                                                                                               
+  - None of this is sourced from any API or research                                                                                                                                         
+                                                            
+  2. services/macro-events-catalog.ts — 15 event templates with:                                                                                                                             
+  - Editorial severity scores (4-8) with no methodology                                                                                                                                      
+  - Fabricated decay parameters (14-120 days)                                                                                                                                                
+  - Speculative scenarios referencing "Q2 2026" 

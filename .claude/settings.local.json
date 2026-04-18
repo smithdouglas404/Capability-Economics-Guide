@@ -20,7 +20,9 @@
       "Bash(node:*)",
       "Bash(npx tsx:*)",
       "Bash(node_modules/.bin/tsx:*)",
-      "Bash(pnpm exec:*)"
+      "Bash(pnpm exec:*)",
+      "Bash(xargs ls:*)",
+      "WebFetch(domain:docs.didit.me)"
     ]
   }
 }
