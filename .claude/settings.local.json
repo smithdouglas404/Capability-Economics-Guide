@@ -22,7 +22,9 @@
       "Bash(node_modules/.bin/tsx:*)",
       "Bash(pnpm exec:*)",
       "Bash(xargs ls:*)",
-      "WebFetch(domain:docs.didit.me)"
+      "WebFetch(domain:docs.didit.me)",
+      "Bash(curl -s http://localhost:8080/api/kyc/status)",
+      "Bash(curl -s http://localhost:5173/api/kyc/status)"
     ]
   }
 }

@@ -8,7 +8,7 @@ import {
   Brain, Zap, Cloud, NetworkIcon, Server, Database,
   ArrowLeft, ChevronRight, Loader2, TrendingUp, Clock,
   DollarSign, AlertTriangle, Shield, Target, Users,
-  BarChart3, CheckCircle2, XCircle
+  BarChart3, CheckCircle2, XCircle, ExternalLink, BookOpen,
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -123,6 +123,19 @@ export default function Projects() {
                   </span>
                 </div>
                 <p className="text-lg text-muted-foreground max-w-3xl">{project.description}</p>
+                {project.source && project.source !== "manual" && (
+                  <div className="mt-3 flex items-center gap-2 text-xs">
+                    <span className="inline-flex items-center gap-1 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 font-semibold">
+                      <BookOpen className="w-3 h-3" />
+                      Sourced via {project.source === "perplexity" ? "Perplexity research" : project.source}
+                    </span>
+                    {project.researchedAt && (
+                      <span className="text-muted-foreground">
+                        researched {new Date(project.researchedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-4 mt-4">
                   <div className="flex items-center gap-1.5 text-sm">
                     <Clock className="w-4 h-4 text-muted-foreground" />
@@ -198,6 +211,40 @@ export default function Projects() {
                   <p className="text-foreground leading-relaxed">{project.businessCase}</p>
                 </CardContent>
               </Card>
+
+              {project.citations && project.citations.length > 0 && (
+                <Card className="rounded-none">
+                  <CardHeader>
+                    <CardTitle className="font-serif text-lg flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" /> Sources & Citations
+                    </CardTitle>
+                    <CardDescription>
+                      Research backing this project profile
+                      {project.researchedAt && (
+                        <> — fetched {new Date(project.researchedAt).toLocaleDateString()}</>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ol className="space-y-2 text-sm">
+                      {project.citations.map((url: string, idx: number) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-muted-foreground font-mono text-xs mt-0.5">[{idx + 1}]</span>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline break-all flex items-start gap-1"
+                          >
+                            <span>{url}</span>
+                            <ExternalLink className="w-3 h-3 mt-1 shrink-0" />
+                          </a>
+                        </li>
+                      ))}
+                    </ol>
+                  </CardContent>
+                </Card>
+              )}
 
               <div className="grid lg:grid-cols-2 gap-8">
                 <Card className="rounded-none">

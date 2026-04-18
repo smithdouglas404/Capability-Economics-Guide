@@ -17,5 +17,8 @@ export interface TechnologyProject {
   investmentRange: string;
   complexityLevel: string;
   icon: string;
+  source?: string;
+  citations?: string[] | null;
+  researchedAt?: Date | null;
   impactedCapabilityCount?: number;
 }

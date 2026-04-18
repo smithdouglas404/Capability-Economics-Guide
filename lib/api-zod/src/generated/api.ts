@@ -393,6 +393,9 @@ export const ListProjectsResponseItem = zod.object({
   investmentRange: zod.string(),
   complexityLevel: zod.string(),
   icon: zod.string(),
+  source: zod.string().optional(),
+  citations: zod.array(zod.string()).nullish(),
+  researchedAt: zod.coerce.date().nullish(),
   impactedCapabilityCount: zod.number().optional(),
 });
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
@@ -420,6 +423,9 @@ export const GetProjectResponse = zod.object({
     investmentRange: zod.string(),
     complexityLevel: zod.string(),
     icon: zod.string(),
+    source: zod.string().optional(),
+    citations: zod.array(zod.string()).nullish(),
+    researchedAt: zod.coerce.date().nullish(),
     impactedCapabilityCount: zod.number().optional(),
   }),
   capabilityImpacts: zod.array(
@@ -552,10 +558,6 @@ export const ListLeaderboardResponse = zod.array(ListLeaderboardResponseItem);
  */
 export const ListWhitePapersQueryParams = zod.object({
   industryId: zod.coerce.number().optional(),
-  category: zod.string().optional(),
-  year: zod.coerce.number().optional(),
-  limit: zod.coerce.number().optional(),
-  offset: zod.coerce.number().optional(),
 });
 
 export const ListWhitePapersResponseItem = zod.object({

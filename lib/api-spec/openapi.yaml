@@ -1197,6 +1197,17 @@ components:
           type: string
         icon:
           type: string
+        source:
+          type: string
+        citations:
+          type: array
+          items:
+            type: string
+          nullable: true
+        researchedAt:
+          type: string
+          format: date-time
+          nullable: true
         impactedCapabilityCount:
           type: integer
       required: [id, slug, name, category, description, businessCase, typicalTimeline, investmentRange, complexityLevel, icon]
