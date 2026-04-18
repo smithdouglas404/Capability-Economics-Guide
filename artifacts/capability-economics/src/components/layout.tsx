@@ -1,5 +1,7 @@
 import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { SignInButton, SignOutButton, useUser, useAuth } from "@clerk/react";
 import {
   Activity, Network, Scale,
   Building2, Layers, Bell, MessageCircle,
@@ -13,6 +15,7 @@ import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
@@ -74,8 +77,35 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+function useMembershipStatus(): { loading: boolean; status: string | null } {
+  const { isSignedIn, isLoaded } = useUser();
+  const { getToken } = useAuth();
+  const [state, setState] = useState<{ loading: boolean; status: string | null }>({ loading: true, status: null });
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (!isSignedIn) { setState({ loading: false, status: null }); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch("/api/me/membership", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) { if (!cancelled) setState({ loading: false, status: null }); return; }
+        const data = await res.json();
+        if (!cancelled) setState({ loading: false, status: data.membership?.status ?? null });
+      } catch { if (!cancelled) setState({ loading: false, status: null }); }
+    })();
+    return () => { cancelled = true; };
+  }, [isSignedIn, isLoaded, getToken]);
+  return state;
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { isSignedIn, isLoaded, user } = useUser();
+  const { status: membershipStatus } = useMembershipStatus();
+  const hasAccess = isSignedIn && membershipStatus === "active";
 
   const isGroupActive = (group: NavGroup) =>
     group.matchPaths.some(p => location === p || location.startsWith(p + "/"));
@@ -98,9 +128,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </Link>
 
-          {/* Primary nav — 6 buckets */}
+          {/* Primary nav — only shown to members with active access */}
           <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
-            {navGroups.map(group => {
+            {hasAccess && navGroups.map(group => {
               const active = isGroupActive(group);
               const baseCls = `relative px-3 py-2 rounded-md text-sm font-medium transition-colors hover:text-primary cursor-pointer flex items-center gap-1 ${
                 active ? "text-primary" : "text-muted-foreground"
@@ -165,50 +195,101 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </nav>
 
           {/* Utility cluster — top-right */}
-          <div className="hidden md:flex items-center gap-1 shrink-0">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  data-testid="nav-account"
-                  title="Account"
-                  className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs font-semibold text-muted-foreground transition-colors"
-                >
-                  <Users className="w-4 h-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56 rounded-none">
-                <DropdownMenuLabel className="font-serif text-xs uppercase tracking-widest text-muted-foreground">
-                  Account
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <Link href="/organization">
-                  <DropdownMenuItem data-testid="nav-link-my-org" className="cursor-pointer gap-2">
-                    <Building2 className="w-4 h-4" /> My Organization
-                  </DropdownMenuItem>
-                </Link>
+          <div className="hidden md:flex items-center gap-2 shrink-0">
+            {!isLoaded ? null : !isSignedIn ? (
+              <>
                 <Link href="/membership">
-                  <DropdownMenuItem data-testid="nav-link-membership" className="cursor-pointer gap-2">
-                    <CreditCard className="w-4 h-4" /> Membership
-                  </DropdownMenuItem>
+                  <Button data-testid="nav-apply" variant="outline" size="sm">Apply for membership</Button>
                 </Link>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer gap-2 text-muted-foreground" disabled>
-                  <LogOut className="w-4 h-4" /> Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                <SignInButton mode="modal">
+                  <Button data-testid="nav-signin" size="sm">Sign in</Button>
+                </SignInButton>
+              </>
+            ) : !hasAccess ? (
+              <>
+                <Link href="/membership">
+                  <Button data-testid="nav-apply" size="sm">
+                    {membershipStatus === "pending" ? "Membership pending" : "Apply for membership"}
+                  </Button>
+                </Link>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      data-testid="nav-account"
+                      title={user?.primaryEmailAddress?.emailAddress ?? "Account"}
+                      className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs font-semibold text-muted-foreground transition-colors"
+                    >
+                      {user?.firstName?.[0]?.toUpperCase() ?? <Users className="w-4 h-4" />}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-none">
+                    <DropdownMenuLabel className="font-serif text-xs uppercase tracking-widest text-muted-foreground">
+                      Account
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <Link href="/membership">
+                      <DropdownMenuItem className="cursor-pointer gap-2">
+                        <CreditCard className="w-4 h-4" /> Membership
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
+                    <SignOutButton>
+                      <DropdownMenuItem className="cursor-pointer gap-2">
+                        <LogOut className="w-4 h-4" /> Sign out
+                      </DropdownMenuItem>
+                    </SignOutButton>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : (
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      data-testid="nav-account"
+                      title={user?.primaryEmailAddress?.emailAddress ?? "Account"}
+                      className="w-8 h-8 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-xs font-semibold text-muted-foreground transition-colors"
+                    >
+                      {user?.firstName?.[0]?.toUpperCase() ?? <Users className="w-4 h-4" />}
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 rounded-none">
+                    <DropdownMenuLabel className="font-serif text-xs uppercase tracking-widest text-muted-foreground">
+                      Account
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <Link href="/organization">
+                      <DropdownMenuItem data-testid="nav-link-my-org" className="cursor-pointer gap-2">
+                        <Building2 className="w-4 h-4" /> My Organization
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/membership">
+                      <DropdownMenuItem data-testid="nav-link-membership" className="cursor-pointer gap-2">
+                        <CreditCard className="w-4 h-4" /> Membership
+                      </DropdownMenuItem>
+                    </Link>
+                    <DropdownMenuSeparator />
+                    <SignOutButton>
+                      <DropdownMenuItem className="cursor-pointer gap-2">
+                        <LogOut className="w-4 h-4" /> Sign out
+                      </DropdownMenuItem>
+                    </SignOutButton>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Link href="/admin">
-              <button
-                data-testid="nav-admin"
-                title="Admin"
-                className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
-                  location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
-                }`}
-              >
-                <Settings2 className="w-4 h-4" />
-              </button>
-            </Link>
+                <Link href="/admin">
+                  <button
+                    data-testid="nav-admin"
+                    title="Admin"
+                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
+                      location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Settings2 className="w-4 h-4" />
+                  </button>
+                </Link>
+              </>
+            )}
           </div>
 
         </div>
