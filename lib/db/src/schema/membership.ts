@@ -53,3 +53,62 @@ export const insertUserMembershipSchema = createInsertSchema(userMembershipsTabl
 });
 export type InsertUserMembership = z.infer<typeof insertUserMembershipSchema>;
 export type UserMembership = typeof userMembershipsTable.$inferSelect;
+
+// ── CEI Credits System ──
+
+export const creditAccountsTable = pgTable("credit_accounts", {
+  userId: text("user_id").primaryKey(),
+  balance: integer("balance").notNull().default(0),
+  monthlyAllocation: integer("monthly_allocation").notNull().default(50),
+  tierSlug: text("tier_slug").notNull().default("discovery"),
+  lastTopUpAt: timestamp("last_top_up_at").defaultNow().notNull(),
+});
+
+export const creditTransactionsTable = pgTable("credit_transactions", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  amount: integer("amount").notNull(), // positive = credit, negative = debit
+  type: text("type").notNull(), // "allocation" | "purchase" | "debit" | "refund"
+  description: text("description").notNull(),
+  operationEndpoint: text("operation_endpoint"),
+  balanceAfter: integer("balance_after").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const creditPurchasesTable = pgTable("credit_purchases", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  creditsBought: integer("credits_bought").notNull(),
+  amountCents: integer("amount_cents").notNull(),
+  paymentRef: text("payment_ref"),
+  status: text("status").notNull().default("pending"), // "pending" | "completed" | "failed"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type CreditAccount = typeof creditAccountsTable.$inferSelect;
+export type CreditTransaction = typeof creditTransactionsTable.$inferSelect;
+export type CreditPurchase = typeof creditPurchasesTable.$inferSelect;
+
+// Credit constants
+export const CREDIT_COSTS = {
+  ASSESSMENT: 8,
+  RESEARCH_QUERY: 2,
+  TRIANGULATION: 6,
+  BENCHMARK_DISCOVERY: 4,
+  VCE_CYCLE: 50,
+  INVESTMENT_THESIS: 4,
+  NL_QUERY: 0,
+  ENRICHMENT_FULL: 10,
+  CSUITE_PERSPECTIVES: 25,
+  TRADE_SIGNAL: 0,
+} as const;
+
+export const TIER_ALLOCATIONS: Record<string, number> = {
+  discovery: 50,
+  briefing: 500,
+  workbench: 5000,
+  platform: 50000,
+};
+
+export const CEI_CREDIT_BLOCK_SIZE = 1000;
+export const CEI_CREDIT_BLOCK_PRICE_CENTS = 250; // $2.50 per 1,000 credits

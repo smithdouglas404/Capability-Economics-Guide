@@ -59,33 +59,59 @@ function PriceBlock({ tier, billing }: { tier: Tier; billing: "monthly" | "annua
 }
 
 async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise<void> {
+  const monthly = tier.monthlyPriceCents ?? 0;
+  const annual = tier.annualPriceCents ?? 0;
+  const isFree = !tier.isContactSales && monthly === 0 && annual === 0;
   const cents = billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
-  if (tier.isContactSales || cents === null || cents === 0) {
+
+  if (tier.isContactSales) {
     window.location.href = `mailto:sales@capabilityeconomics.com?subject=${encodeURIComponent(`Inquiry: ${tier.name}`)}`;
     return;
   }
-  const entityName = window.prompt(
-    `Checkout: ${tier.name} (${billing}).\n\nWho is this membership for? (your name or company)`,
-    "",
-  );
+
+  const promptMsg = isFree
+    ? `Activate ${tier.name} membership.\n\nWho is this membership for? (your name or company)`
+    : `Checkout: ${tier.name} (${billing}).\n\nWho is this membership for? (your name or company)`;
+  const entityName = window.prompt(promptMsg, "");
   if (!entityName || !entityName.trim()) return;
+  const entityType = /\b(inc|llc|corp|ltd|company|co\.)\b/i.test(entityName) ? "company" : "individual";
+
   try {
+    if (isFree) {
+      const res = await fetch("/api/me/membership/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tierId: tier.id,
+          entityType,
+          entityName: entityName.trim(),
+          paymentMethod: "card",
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 401) { alert("Please sign in to activate a membership."); return; }
+        alert(`Could not activate: ${err.error ?? res.statusText}`);
+        return;
+      }
+      alert(`${tier.name} activated. Welcome.`);
+      window.location.href = "/membership?status=success";
+      return;
+    }
+
+    if (cents === null || cents === 0) {
+      alert(`${tier.name} is not available on a ${billing} plan. Try the other billing period.`);
+      return;
+    }
+
     const res = await fetch("/api/me/membership/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tierId: tier.id,
-        billing,
-        entityType: /\b(inc|llc|corp|ltd|company|co\.)\b/i.test(entityName) ? "company" : "individual",
-        entityName: entityName.trim(),
-      }),
+      body: JSON.stringify({ tierId: tier.id, billing, entityType, entityName: entityName.trim() }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      if (res.status === 401) {
-        alert("Please sign in to purchase a membership.");
-        return;
-      }
+      if (res.status === 401) { alert("Please sign in to purchase a membership."); return; }
       alert(`Could not start checkout: ${err.error ?? res.statusText}`);
       return;
     }
