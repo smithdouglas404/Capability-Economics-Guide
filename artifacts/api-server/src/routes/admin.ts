@@ -179,7 +179,7 @@ router.post("/admin/trigger/:tool", async (req, res) => {
 
   const endpoint = endpointMap[tool];
   res.json({ triggered: true, tool, industrySlug, endpoint });
-  fetch(`http://localhost:${process.env.PORT ?? 8080}${endpoint}`, { method: "POST" }).catch(() => null);
+  fetch(`http://127.0.0.1:${process.env.PORT}${endpoint}`, { method: "POST" }).catch(() => null);
 });
 
 router.post("/admin/backfill-ai-narratives", async (req, res) => {

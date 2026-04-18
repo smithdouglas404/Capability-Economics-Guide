@@ -24,7 +24,10 @@
       "Bash(xargs ls:*)",
       "WebFetch(domain:docs.didit.me)",
       "Bash(curl -s http://localhost:8080/api/kyc/status)",
-      "Bash(curl -s http://localhost:5173/api/kyc/status)"
+      "Bash(curl -s http://localhost:5173/api/kyc/status)",
+      "Bash(xargs cat:*)",
+      "Bash(find /home/runner/workspace -name \"package.json\" -type f -exec grep -l '\"@workspace/db\"' {} \\\\;)",
+      "Bash(npm ls:*)"
     ]
   }
 }
