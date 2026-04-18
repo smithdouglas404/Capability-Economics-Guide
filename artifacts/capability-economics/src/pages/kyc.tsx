@@ -119,8 +119,8 @@ export default function KycPage() {
     })();
   }, []);
 
-  async function startVerification() {
-    if (!status?.configured) { setErr("Identity verification service is not configured. Contact support."); return; }
+  async function startVerification(): Promise<number | null> {
+    if (!status?.configured) { setErr("Identity verification service is not configured. Contact support."); return null; }
     setBusy(true); setErr(null); setInfo(null);
     try {
       const r = await fetch("/api/kyc/start", {
@@ -129,10 +129,10 @@ export default function KycPage() {
         body: JSON.stringify({ tierSlug, email: email || undefined }),
       });
       const data = await r.json();
-      if (!r.ok) { setErr(data.error || "Failed to start verification"); return; }
+      if (!r.ok) { setErr(data.error || "Failed to start verification"); return null; }
       if (data.alreadyVerified) {
         setStep("done");
-        return;
+        return null;
       }
       setVerificationId(data.verificationId);
       // If pending and ID URL exists, jump to identity step
@@ -142,15 +142,20 @@ export default function KycPage() {
       } else {
         setStep("email");
       }
+      return data.verificationId ?? null;
     } catch (e) {
       setErr((e as Error).message);
+      return null;
     } finally { setBusy(false); }
   }
 
   async function sendOtp() {
-    if (!verificationId) { await startVerification(); }
-    const id = verificationId;
-    if (!id || !email) { setErr("Email is required"); return; }
+    if (!email) { setErr("Email is required"); return; }
+    let id = verificationId;
+    if (!id) {
+      id = await startVerification();
+      if (!id) return; // startVerification already surfaced its own error
+    }
     setBusy(true); setErr(null);
     try {
       const r = await fetch(`/api/kyc/${id}/email/send`, {

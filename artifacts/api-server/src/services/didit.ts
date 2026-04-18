@@ -46,6 +46,15 @@ export interface DiditSessionResponse {
   session_token: string;
 }
 
+interface DiditRawSessionResponse {
+  session_id?: string;
+  session_token?: string;
+  url?: string;
+  // legacy / alternative field names
+  request_id?: string;
+  verification_url?: string;
+}
+
 export async function createIdVerificationSession(workflowId: string): Promise<DiditSessionResponse> {
   const resp = await fetch(`${DIDIT_BASE_URL}/v3/session/`, {
     method: "POST",
@@ -57,7 +66,14 @@ export async function createIdVerificationSession(workflowId: string): Promise<D
     const body = await resp.text().catch(() => "");
     throw new Error(`Didit session creation failed: HTTP ${resp.status} — ${body}`);
   }
-  return resp.json() as Promise<DiditSessionResponse>;
+  const raw = (await resp.json()) as DiditRawSessionResponse;
+  const session_token = raw.session_token ?? "";
+  const verification_url = raw.url ?? raw.verification_url ?? "";
+  const request_id = raw.session_id ?? raw.request_id ?? session_token;
+  if (!session_token || !verification_url) {
+    throw new Error(`Didit session response missing fields: ${JSON.stringify(raw)}`);
+  }
+  return { request_id, session_token, verification_url };
 }
 
 export interface DiditSessionResult {
