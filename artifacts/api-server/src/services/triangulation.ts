@@ -131,17 +131,24 @@ Base your score on the most recent data available (2024-2026). Be specific about
           citations,
         };
       } catch (err) {
-        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
-        console.warn(`Triangulation source ${perspective.label} failed:`, err);
-        return null;
+        const msg = err instanceof Error ? err.message : String(err);
+        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, errorMessage: msg });
+        return { __error: true as const, sourceLabel: perspective.label, message: msg };
       }
     }),
   );
 
-  const validSources = sourceResults.filter((s): s is NonNullable<typeof s> => s !== null);
+  const errored = sourceResults.filter((s): s is { __error: true; sourceLabel: string; message: string } => !!s && (s as { __error?: boolean }).__error === true);
+  const validSources = sourceResults.filter((s): s is Exclude<NonNullable<typeof s>, { __error: true }> => !!s && (s as { __error?: boolean }).__error !== true);
 
   if (validSources.length === 0) {
-    throw new Error("All triangulation sources failed");
+    const messages = errored.map(e => `${e.sourceLabel}: ${e.message}`).join("; ");
+    const has401 = errored.some(e => e.message.includes("401"));
+    const hint = has401 ? " (PERPLEXITY_API_KEY missing or invalid in this environment)" : "";
+    throw new Error(`All triangulation sources failed — ${messages}${hint}`);
+  }
+  if (errored.length > 0) {
+    console.warn(`[Triangulation] ${capabilityName}: ${errored.length}/${PERSPECTIVES.length} sources failed (${errored.map(e => e.sourceLabel).join(", ")}) — proceeding with ${validSources.length}`);
   }
 
   const totalWeight = validSources.reduce((sum, s) => sum + s.weight, 0);
@@ -276,7 +283,8 @@ export async function rotateTriangulations(limit = 10, industryId?: number): Pro
           capabilities.push(`${c.industryName}/${c.capabilityName}`);
           return true;
         } catch (err) {
-          console.warn(`[Triangulation Rotation] failed for ${c.capabilityName}:`, err);
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[Triangulation Rotation] failed for ${c.capabilityName}: ${msg}`);
           return false;
         }
       }),

@@ -5,6 +5,7 @@ import { emitAgentEvent } from "./events";
 
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
+const LETTA_ENABLED = Boolean(LETTA_API_KEY || process.env.LETTA_BASE_URL);
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
 const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-3.7-sonnet";
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
@@ -80,9 +81,9 @@ async function ensureCoreBlocks(): Promise<void> {
       if (!existingLabels.has(block.label)) {
         try {
           await (lettaClient.agents.blocks as unknown as {
-            update: (label: string, params: { agentID: string; value: string; description?: string; limit?: number }) => Promise<unknown>;
+            update: (label: string, params: { agent_id: string; value: string; description?: string; limit?: number }) => Promise<unknown>;
           }).update(block.label, {
-            agentID: lettaAgentId,
+            agent_id: lettaAgentId,
             value: block.value,
             description: block.description,
             limit: block.limit,
@@ -159,6 +160,7 @@ async function doInit(): Promise<boolean> {
 }
 
 async function initLettaClient(): Promise<boolean> {
+  if (!LETTA_ENABLED) return false;
   if (lettaConnected) return true;
   const now = Date.now();
   if (now - lastAttemptAt < RETRY_COOLDOWN_MS) return false;
@@ -182,7 +184,7 @@ export async function lettaSendMessage(content: string): Promise<string | null> 
     emitAgentEvent({ type: "letta_response", agentId: lettaAgentId, responseLength: text.length });
     return text || null;
   } catch (err) {
-    console.error("[Letta] Message failed:", err instanceof Error ? err.message : err);
+    if (LETTA_ENABLED) console.error("[Letta] Message failed:", err instanceof Error ? err.message : err);
     lettaConnected = false;
     return null;
   }
@@ -194,14 +196,14 @@ export async function lettaUpdateBlock(label: CoreBlockLabel, value: string): Pr
   try {
     await Promise.race([
       (lettaClient.agents.blocks as unknown as {
-        update: (label: string, params: { agentID: string; value: string }) => Promise<unknown>;
-      }).update(label, { agentID: lettaAgentId, value }),
+        update: (label: string, params: { agent_id: string; value: string }) => Promise<unknown>;
+      }).update(label, { agent_id: lettaAgentId, value }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
     ]);
     emitAgentEvent({ type: "letta_block_updated", block: label, length: value.length });
     return true;
   } catch (err) {
-    console.error(`[Letta] block update ${label} failed:`, err instanceof Error ? err.message : err);
+    if (LETTA_ENABLED) console.error(`[Letta] block update ${label} failed:`, err instanceof Error ? err.message : err);
     return false;
   }
 }
@@ -212,13 +214,13 @@ export async function lettaReadBlock(label: CoreBlockLabel): Promise<string | nu
   try {
     const block = await Promise.race([
       (lettaClient.agents.blocks as unknown as {
-        retrieve: (label: string, params: { agentID: string }) => Promise<{ value?: string }>;
-      }).retrieve(label, { agentID: lettaAgentId }),
+        retrieve: (label: string, params: { agent_id: string }) => Promise<{ value?: string }>;
+      }).retrieve(label, { agent_id: lettaAgentId }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
     ]);
     return block.value ?? null;
   } catch (err) {
-    console.error(`[Letta] block read ${label} failed:`, err instanceof Error ? err.message : err);
+    if (LETTA_ENABLED) console.error(`[Letta] block read ${label} failed:`, err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -234,7 +236,7 @@ export async function lettaArchivalInsert(text: string): Promise<boolean> {
     emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
     return true;
   } catch (err) {
-    console.error("[Letta] archival insert failed:", err instanceof Error ? err.message : err);
+    if (LETTA_ENABLED) console.error("[Letta] archival insert failed:", err instanceof Error ? err.message : err);
     return false;
   }
 }
@@ -254,7 +256,7 @@ export async function lettaArchivalSearch(query: string, limit: number = 5): Pro
       .map((p) => ({ text: p.text || p.content || "", score: p.score }))
       .filter((p) => p.text);
   } catch (err) {
-    console.error("[Letta] archival search failed:", err instanceof Error ? err.message : err);
+    if (LETTA_ENABLED) console.error("[Letta] archival search failed:", err instanceof Error ? err.message : err);
     return [];
   }
 }
