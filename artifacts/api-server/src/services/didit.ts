@@ -1,3 +1,5 @@
+import crypto from "node:crypto";
+
 const DIDIT_BASE_URL = "https://verification.didit.me";
 
 function getApiKey(): string {
@@ -8,6 +10,34 @@ function getApiKey(): string {
 
 export function isDiditConfigured(): boolean {
   return !!process.env.DIDIT_API_KEY;
+}
+
+/**
+ * Verify Didit webhook HMAC-SHA256 signature.
+ * Didit sends `x-signature: <hex hmac>` over the raw request body using DIDIT_WEBHOOK_SECRET.
+ * Returns false (and logs a warning) if no secret is configured — closed-by-default for security.
+ *
+ * @param rawBody The raw request body buffer (must be obtained via express.raw, NOT JSON-parsed).
+ * @param signatureHeader The value of the `x-signature` request header.
+ */
+export function verifyWebhookSignature(rawBody: Buffer, signatureHeader: string | undefined): boolean {
+  const secret = process.env.DIDIT_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn("[didit] DIDIT_WEBHOOK_SECRET not set — rejecting webhook (closed by default).");
+    return false;
+  }
+  if (!signatureHeader) return false;
+  const expected = crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  // Constant-time comparison; require equal lengths first
+  const a = Buffer.from(expected, "hex");
+  let b: Buffer;
+  try {
+    b = Buffer.from(signatureHeader.trim(), "hex");
+  } catch {
+    return false;
+  }
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 function headers(contentType = "application/json"): Record<string, string> {

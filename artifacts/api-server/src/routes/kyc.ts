@@ -23,10 +23,23 @@ router.get("/kyc/status", async (req, res) => {
     const userId = auth?.userId;
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
 
-    const [latest] = await db.select().from(kycVerificationsTable)
+    const all = await db.select().from(kycVerificationsTable)
       .where(eq(kycVerificationsTable.userId, userId))
-      .orderBy(desc(kycVerificationsTable.createdAt))
-      .limit(1);
+      .orderBy(desc(kycVerificationsTable.createdAt));
+
+    const latest = all[0] ?? null;
+
+    // Compute highest approved KYC level across ALL records, so a newer
+    // pending or declined attempt does not dead-end a user who has already
+    // satisfied a sufficient level via an older approved verification.
+    const levelRank: Record<string, number> = { email: 0, identity: 1, biometric: 2, full: 3 };
+    let highestApprovedLevel: string | null = null;
+    let highestRank = -1;
+    for (const v of all) {
+      if (v.status !== "approved") continue;
+      const r = levelRank[v.kycLevel] ?? -1;
+      if (r > highestRank) { highestRank = r; highestApprovedLevel = v.kycLevel; }
+    }
 
     if (!latest) {
       res.json({
@@ -34,6 +47,7 @@ router.get("/kyc/status", async (req, res) => {
         status: null,
         kycLevel: null,
         steps: null,
+        highestApprovedLevel: null,
         configured: isDiditConfigured(),
         levels: KYC_LEVELS_BY_TIER,
       });
@@ -41,7 +55,7 @@ router.get("/kyc/status", async (req, res) => {
     }
 
     res.json({
-      verified: latest.status === "approved",
+      verified: highestApprovedLevel !== null,
       status: latest.status,
       kycLevel: latest.kycLevel,
       tierSlug: latest.tierSlug,
@@ -55,6 +69,9 @@ router.get("/kyc/status", async (req, res) => {
       lastName: latest.lastName,
       completedAt: latest.completedAt,
       idVerificationUrl: latest.status === "pending" && latest.idStatus === "Pending" ? latest.idVerificationUrl : null,
+      // Highest approved level across all attempts — preflight should use this,
+      // not `kycLevel`/`status` (which only reflect the most recent attempt).
+      highestApprovedLevel,
       configured: isDiditConfigured(),
       levels: KYC_LEVELS_BY_TIER,
     });
@@ -456,72 +473,9 @@ router.post("/kyc/:id/aml", async (req, res) => {
   }
 });
 
-// ── Didit webhook — async ID verification results ──
-
-router.post("/kyc/webhook", async (req, res) => {
-  try {
-    const { session_token, status, user_data, workflow_results } = req.body as {
-      session_token?: string;
-      status?: string;
-      user_data?: { first_name?: string; last_name?: string; date_of_birth?: string; document_type?: string; document_number?: string; nationality?: string };
-      workflow_results?: Record<string, unknown>;
-    };
-
-    if (!session_token) { res.status(400).json({ error: "session_token required" }); return; }
-
-    const [record] = await db.select().from(kycVerificationsTable)
-      .where(eq(kycVerificationsTable.idSessionToken, session_token))
-      .limit(1);
-
-    if (!record) {
-      console.warn(`[kyc webhook] unknown session_token: ${session_token}`);
-      res.status(404).json({ error: "Unknown session" });
-      return;
-    }
-
-    if (record.idStatus !== "Pending") {
-      res.json({ received: true, already: record.idStatus });
-      return;
-    }
-
-    const idStatus = status === "Approved" ? "Approved" : "Declined";
-
-    await db.update(kycVerificationsTable).set({
-      idStatus,
-      firstName: user_data?.first_name ?? null,
-      lastName: user_data?.last_name ?? null,
-      dateOfBirth: user_data?.date_of_birth ?? null,
-      documentType: user_data?.document_type ?? null,
-      documentNumber: user_data?.document_number ?? null,
-      nationality: user_data?.nationality ?? null,
-      idWorkflowResults: workflow_results ?? null,
-      updatedAt: new Date(),
-    }).where(eq(kycVerificationsTable.id, record.id));
-
-    // If declined, mark the whole verification as declined
-    if (idStatus === "Declined") {
-      await db.update(kycVerificationsTable).set({
-        status: "declined",
-        declineReasons: ["ID verification declined"],
-        completedAt: new Date(),
-      }).where(eq(kycVerificationsTable.id, record.id));
-    }
-    // If identity-level only, approve
-    else if (record.kycLevel === "identity") {
-      await db.update(kycVerificationsTable).set({
-        status: "approved",
-        completedAt: new Date(),
-      }).where(eq(kycVerificationsTable.id, record.id));
-    }
-    // Otherwise user needs to continue with liveness/AML steps
-
-    console.log(`[kyc webhook] user ${record.userId} ID verification: ${idStatus}`);
-    res.json({ received: true, idStatus });
-  } catch (err) {
-    console.error("[kyc webhook] error:", err);
-    res.status(500).json({ error: "handler_error" });
-  }
-});
+// NOTE: The Didit webhook (/kyc/webhook) lives in routes/kyc-webhook.ts so that it can
+// read the raw request body for HMAC-SHA256 signature verification. It is mounted in
+// app.ts BEFORE the global express.json() middleware.
 
 // ── Admin: list all verifications ──
 

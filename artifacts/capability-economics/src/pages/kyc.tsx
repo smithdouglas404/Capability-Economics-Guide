@@ -12,6 +12,7 @@ type KycStatus = {
   verified: boolean;
   status: string | null;
   kycLevel: string | null;
+  highestApprovedLevel: string | null;
   tierSlug?: string;
   steps: {
     email: string | null;
@@ -111,16 +112,31 @@ export default function KycPage() {
         if (r.status === 401) { setErr("Please sign in to verify your identity."); return; }
         const data: KycStatus = await r.json();
         setStatus(data);
-        if (data.verified) setStep("done");
-        else if (data.status === "declined") setStep("declined");
+        // "Done" only if the user's highest approved KYC level meets THIS tier's
+        // required level — not just "any approved KYC". Otherwise a user with
+        // email-only approval visiting /kyc?tierSlug=workbench would land on
+        // "done" while the server-side gate still blocks checkout (dead-end loop).
+        const rank: Record<string, number> = { email: 0, identity: 1, biometric: 2, full: 3 };
+        const tierRequiredLevel = data.levels?.[tierSlug] ?? FALLBACK_LEVELS[tierSlug] ?? "email";
+        const requiredRank = rank[tierRequiredLevel] ?? 0;
+        const userRank = data.highestApprovedLevel ? (rank[data.highestApprovedLevel] ?? -1) : -1;
+        if (userRank >= requiredRank) {
+          setStep("done");
+        } else if (data.status === "declined" && data.tierSlug === tierSlug) {
+          // Only show declined state if the most recent attempt was for THIS tier
+          setStep("declined");
+        }
       } catch (e) {
         setErr(`Could not load verification status: ${(e as Error).message}`);
       }
     })();
-  }, []);
+  }, [tierSlug]);
 
   async function startVerification(): Promise<number | null> {
-    if (!status?.configured) { setErr("Identity verification service is not configured. Contact support."); return null; }
+    // Wait for status fetch — `status === null` means we haven't loaded yet.
+    // Only treat `configured: false` (loaded but disabled) as an error.
+    if (status === null) { setErr("Loading verification status…"); return null; }
+    if (!status.configured) { setErr("Identity verification service is not configured. Contact support."); return null; }
     setBusy(true); setErr(null); setInfo(null);
     try {
       const r = await fetch("/api/kyc/start", {

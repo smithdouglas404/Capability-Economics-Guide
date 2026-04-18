@@ -6,6 +6,7 @@ import { z } from "zod/v4";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
 import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
+import { checkKycForTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
 
@@ -204,6 +205,21 @@ router.post("/me/membership/request", async (req, res) => {
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
   if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
 
+  // Server-side KYC gate: even free tiers require email-level KYC. Frontend
+  // pre-flight is UX only — this is the actual security check that prevents
+  // direct API callers from bypassing identity verification.
+  const kyc = await checkKycForTier(auth.userId, tier.slug);
+  if (!kyc.ok) {
+    res.status(403).json({
+      error: "KYC required",
+      requiredKycLevel: kyc.requiredKycLevel,
+      tierSlug: tier.slug,
+      message: `This tier requires identity verification (${kyc.requiredKycLevel} level).`,
+      redirectTo: `/kyc?tierSlug=${tier.slug}`,
+    });
+    return;
+  }
+
   const isFree = !tier.monthlyPriceCents && !tier.annualPriceCents && !tier.isContactSales;
   // SECURITY: never auto-approve paid tiers based on the requested payment method alone.
   // Card requests stay pending until a verified Stripe webhook flips them (next iteration).
@@ -263,6 +279,21 @@ router.post("/me/membership/checkout", async (req, res) => {
   if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
   const amount = parsed.data.billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
   if (!amount || amount <= 0) { res.status(400).json({ error: "Tier has no price for the requested billing period" }); return; }
+
+  // Server-side KYC gate before issuing a Stripe Checkout link. Even though the
+  // frontend membership page does a pre-flight, this prevents direct API callers
+  // from creating a checkout session without satisfying the tier's KYC level.
+  const kyc = await checkKycForTier(auth.userId, tier.slug);
+  if (!kyc.ok) {
+    res.status(403).json({
+      error: "KYC required",
+      requiredKycLevel: kyc.requiredKycLevel,
+      tierSlug: tier.slug,
+      message: `This tier requires identity verification (${kyc.requiredKycLevel} level) before checkout.`,
+      redirectTo: `/kyc?tierSlug=${tier.slug}&returnTo=/membership`,
+    });
+    return;
+  }
 
   const userEmail = (req.headers["x-user-email"] as string | undefined) ?? null;
 

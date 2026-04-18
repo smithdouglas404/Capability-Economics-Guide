@@ -74,12 +74,15 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise
     const kycRes = await fetch("/api/kyc/status");
     if (kycRes.ok) {
       const kyc = await kycRes.json() as {
-        verified: boolean; kycLevel: string | null; configured: boolean;
+        verified: boolean; kycLevel: string | null; highestApprovedLevel: string | null; configured: boolean;
         levels: Record<string, string>;
       };
       const requiredLevel = kyc.levels?.[tier.slug];
       const rank: Record<string, number> = { email: 0, identity: 1, biometric: 2, full: 3 };
-      const hasLevel = kyc.verified && kyc.kycLevel ? (rank[kyc.kycLevel] ?? -1) >= (rank[requiredLevel ?? "email"] ?? 0) : false;
+      // Use highestApprovedLevel (across all attempts) so a newer pending/declined
+      // attempt does not block a user who already has a sufficient older approval.
+      const userLevel = kyc.highestApprovedLevel;
+      const hasLevel = userLevel ? (rank[userLevel] ?? -1) >= (rank[requiredLevel ?? "email"] ?? 0) : false;
       if (requiredLevel && !hasLevel) {
         if (!kyc.configured) {
           alert("Identity verification service is not configured yet. Please contact support to activate this tier.");

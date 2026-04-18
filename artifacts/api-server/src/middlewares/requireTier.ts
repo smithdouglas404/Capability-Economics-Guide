@@ -19,6 +19,35 @@ const KYC_RANK: Record<string, number> = {
 };
 
 /**
+ * Server-side check: does this user have an approved KYC at or above the level
+ * required by `tierSlug`? Returns { ok: true } when satisfied, otherwise
+ * { ok: false, requiredKycLevel } so the caller can return a structured 403
+ * with the right redirect target.
+ *
+ * Use this in any endpoint that grants/upgrades membership server-side
+ * (Stripe checkout creation, /me/membership/request, comp endpoints, etc.).
+ * Frontend pre-flight is UX only — this is the actual security gate.
+ */
+export async function checkKycForTier(
+  userId: string,
+  tierSlug: string,
+): Promise<{ ok: true } | { ok: false; requiredKycLevel: string }> {
+  const requiredKycLevel = KYC_LEVELS_BY_TIER[tierSlug];
+  if (!requiredKycLevel) return { ok: true }; // unknown tier → no KYC requirement
+  const requiredRank = KYC_RANK[requiredKycLevel] ?? 0;
+
+  const approved = await db.select()
+    .from(kycVerificationsTable)
+    .where(and(
+      eq(kycVerificationsTable.userId, userId),
+      eq(kycVerificationsTable.status, "approved"),
+    ));
+
+  const sufficient = approved.find((v) => (KYC_RANK[v.kycLevel] ?? -1) >= requiredRank);
+  return sufficient ? { ok: true } : { ok: false, requiredKycLevel };
+}
+
+/**
  * Middleware factory that requires the user to have an active membership
  * at or above a minimum tier level.
  *
