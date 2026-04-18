@@ -78,20 +78,22 @@ async function ensureCoreBlocks(): Promise<void> {
       if (label) existingLabels.add(label);
     }
     for (const block of CORE_BLOCKS) {
-      if (!existingLabels.has(block.label)) {
-        try {
-          await (lettaClient.agents.blocks as unknown as {
-            update: (label: string, params: { agent_id: string; value: string; description?: string; limit?: number }) => Promise<unknown>;
-          }).update(block.label, {
-            agent_id: lettaAgentId,
-            value: block.value,
-            description: block.description,
-            limit: block.limit,
-          });
-          console.log(`[Letta] Initialized core block "${block.label}"`);
-        } catch (err) {
-          console.log(`[Letta] Could not init block ${block.label}: ${err instanceof Error ? err.message : err}`);
-        }
+      if (existingLabels.has(block.label)) continue;
+      try {
+        const created = await (lettaClient.blocks as unknown as {
+          create: (body: { label: string; value: string; description?: string; limit?: number }) => Promise<{ id: string }>;
+        }).create({
+          label: block.label,
+          value: block.value,
+          description: block.description,
+          limit: block.limit,
+        });
+        await (lettaClient.agents.blocks as unknown as {
+          attach: (blockID: string, params: { agent_id: string }) => Promise<unknown>;
+        }).attach(created.id, { agent_id: lettaAgentId });
+        console.log(`[Letta] Created + attached core block "${block.label}" (${created.id})`);
+      } catch (err) {
+        console.log(`[Letta] Could not create block ${block.label}: ${err instanceof Error ? err.message : err}`);
       }
     }
   } catch (err) {
