@@ -136,19 +136,21 @@ export const watchlistAlertsTable = pgTable("watchlist_alerts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// ── Feature 6: Cross-Org Benchmarking ──
+// ── Feature 6: Competitive Benchmarking Sessions ──
 
-export const benchmarkNetworkTable = pgTable("benchmark_network", {
+export const benchmarkSessionsTable = pgTable("benchmark_sessions", {
   id: serial("id").primaryKey(),
-  organizationId: integer("organization_id").notNull().references(() => organizationsTable.id, { onDelete: "cascade" }),
-  capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
-  industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
-  maturityScore: real("maturity_score").notNull(),
-  orgSize: text("org_size").notNull(),
-  submittedAt: timestamp("submitted_at").defaultNow().notNull(),
-}, (table) => [
-  uniqueIndex("benchmark_network_org_cap_idx").on(table.organizationId, table.capabilityId),
-]);
+  sessionToken: text("session_token"),
+  name: text("name").notNull(),
+  industryId: integer("industry_id").references(() => industriesTable.id),
+  region: text("region"),
+  ownership: text("ownership"),
+  selectedCapabilityIds: jsonb("selected_capability_ids").$type<number[]>().notNull().default([]),
+  selectedCompanyIds: jsonb("selected_company_ids").$type<number[]>().notNull().default([]),
+  discoveredCompanyIds: jsonb("discovered_company_ids").$type<number[]>().notNull().default([]),
+  status: text("status").notNull().default("completed"), // "searching" | "completed"
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 // ── Feature 7: ROI Attribution ──
 
