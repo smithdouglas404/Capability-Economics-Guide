@@ -131,7 +131,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useIsAdmin();
   const { status: membershipStatus } = useMembershipStatus();
   const { balance: creditBalance, tierSlug } = useCreditBalance();
-  const hasAccess = isSignedIn && membershipStatus === "active";
+  // Admins always have access — they operate the platform, not consume it. The backend
+  // /api/me/membership endpoint also returns a synthetic Platform membership for them,
+  // so membershipStatus will normally be "active", but OR'ing with isAdmin handles the
+  // race window before that fetch completes.
+  const hasAccess = isSignedIn && (isAdmin || membershipStatus === "active");
 
   const isGroupActive = (group: NavGroup) =>
     group.matchPaths.some(p => location === p || location.startsWith(p + "/"));

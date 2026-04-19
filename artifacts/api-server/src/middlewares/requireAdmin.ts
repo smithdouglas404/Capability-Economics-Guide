@@ -4,7 +4,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 const adminCache = new Map<string, { isAdmin: boolean; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
 
-async function isClerkAdmin(userId: string): Promise<boolean> {
+export async function isClerkAdmin(userId: string): Promise<boolean> {
   const cached = adminCache.get(userId);
   if (cached && cached.expiresAt > Date.now()) return cached.isAdmin;
   let isAdmin = false;

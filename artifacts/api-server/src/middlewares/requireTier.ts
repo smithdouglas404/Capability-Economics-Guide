@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { userMembershipsTable, membershipTiersTable, kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
+import { isClerkAdmin } from "./requireAdmin";
 
 const TIER_RANK: Record<string, number> = {
   discovery: 0,
@@ -66,6 +67,14 @@ export function requireTier(minimumTier: string) {
 
     if (!userId) {
       res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    // Admins bypass every tier/KYC gate — they operate the platform, not consume it.
+    if (await isClerkAdmin(userId)) {
+      (req as any).userTier = "platform";
+      (req as any).userId = userId;
+      next();
       return;
     }
 

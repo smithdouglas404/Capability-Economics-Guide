@@ -8,6 +8,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import router from "./routes";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
+import nowpaymentsWebhookRouter from "./routes/nowpayments-webhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -34,9 +35,10 @@ app.use(
   }),
 );
 app.use(cors());
-// Stripe & Didit (KYC) webhooks must read the raw body for signature verification — mount BEFORE express.json().
+// Stripe, Didit (KYC) & NOWPayments (crypto) webhooks must read the raw body for signature verification — mount BEFORE express.json().
 app.use("/api", stripeWebhookRouter);
 app.use("/api", kycWebhookRouter);
+app.use("/api", nowpaymentsWebhookRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/csv" }));

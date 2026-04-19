@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import { membershipTiersTable, userMembershipsTable } from "@workspace/db";
 import { asc, desc, eq, and } from "drizzle-orm";
 import { z } from "zod/v4";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireAdmin, isClerkAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
 import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
 import { checkKycForTier } from "../middlewares/requireTier";
@@ -184,6 +184,44 @@ const RequestBody = z.object({
 router.get("/me/membership", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Admins get synthetic Platform-tier membership so every gate treats them as top-tier
+  // without requiring a row in userMembershipsTable. Actual memberships in the table
+  // (if any) are ignored in favor of this synthetic one — admins are operators, not customers.
+  if (await isClerkAdmin(auth.userId)) {
+    await ensureSeeded();
+    const [platform] = await db
+      .select()
+      .from(membershipTiersTable)
+      .where(eq(membershipTiersTable.slug, "platform"));
+    if (platform) {
+      const now = new Date();
+      res.json({
+        membership: {
+          id: -1,
+          userId: auth.userId,
+          tierId: platform.id,
+          entityType: "individual",
+          entityName: "Platform Administrator",
+          paymentMethod: "invoice",
+          paymentStatus: "comped",
+          paymentRef: "ADMIN",
+          paymentAmountCents: null,
+          status: "active",
+          notes: "Synthetic admin membership (Clerk publicMetadata.role=admin).",
+          rejectionReason: null,
+          requestedAt: now,
+          approvedAt: now,
+          approvedBy: "system",
+          updatedAt: now,
+          _synthetic: true,
+        },
+        tier: platform,
+      });
+      return;
+    }
+  }
+
   const rows = await db
     .select()
     .from(userMembershipsTable)
