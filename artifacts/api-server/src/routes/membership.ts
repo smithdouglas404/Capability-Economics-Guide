@@ -12,6 +12,7 @@ import { requireAdmin, isClerkAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
 import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
 import { checkKycForTier } from "../middlewares/requireTier";
+import { logAdminAction } from "../services/audit-log";
 
 const router: IRouter = Router();
 
@@ -169,6 +170,12 @@ router.patch("/membership/tiers/:id", requireAdmin, async (req, res) => {
   }
   await db.update(membershipTiersTable).set({ ...parsed.data, updatedAt: new Date() }).where(eq(membershipTiersTable.id, id));
   const [updated] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, id));
+  await logAdminAction(req, {
+    action: "tier.update",
+    targetType: "tier",
+    targetId: id,
+    details: { tierName: existing.name, changes: parsed.data },
+  });
   res.json(updated);
 });
 
@@ -443,6 +450,12 @@ router.post("/admin/payments/:id/approve", requireAdmin, async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(userMembershipsTable.id, id));
   const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  await logAdminAction(req, {
+    action: "membership.approve",
+    targetType: "membership",
+    targetId: id,
+    details: { userId: existing.userId, tierId: existing.tierId, paymentMethod: existing.paymentMethod },
+  });
   res.json({ membership: updated });
 });
 
@@ -459,6 +472,12 @@ router.post("/admin/payments/:id/reject", requireAdmin, async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(userMembershipsTable.id, id));
   const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  await logAdminAction(req, {
+    action: "membership.reject",
+    targetType: "membership",
+    targetId: id,
+    details: { userId: existing.userId, tierId: existing.tierId, reason },
+  });
   res.json({ membership: updated });
 });
 
@@ -495,6 +514,12 @@ router.post("/admin/payments/comp", requireAdmin, async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(userMembershipsTable.id, created!.id));
   const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
+  await logAdminAction(req, {
+    action: "membership.comp",
+    targetType: "membership",
+    targetId: created!.id,
+    details: { userId: parsed.data.userId, tierId: parsed.data.tierId, entityName: parsed.data.entityName, notes: parsed.data.notes },
+  });
   res.status(201).json({ membership: final });
 });
 
@@ -591,6 +616,12 @@ router.post("/admin/memberships/:id/change-tier", requireAdmin, async (req, res)
   }
 
   const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  await logAdminAction(req, {
+    action: "membership.change_tier",
+    targetType: "membership",
+    targetId: id,
+    details: { userId: existing.userId, fromTierId: existing.tierId, toTierId: parsed.data.tierId, toTierName: newTier.name, syncCredits: parsed.data.syncCredits },
+  });
   res.json({ membership: updated, tier: newTier });
 });
 
@@ -611,6 +642,12 @@ router.post("/admin/memberships/:id/hold", requireAdmin, async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(userMembershipsTable.id, id));
   const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  await logAdminAction(req, {
+    action: "membership.hold",
+    targetType: "membership",
+    targetId: id,
+    details: { userId: existing.userId, reason },
+  });
   res.json({ membership: updated });
 });
 
@@ -629,6 +666,12 @@ router.post("/admin/memberships/:id/reactivate", requireAdmin, async (req, res) 
     updatedAt: new Date(),
   }).where(eq(userMembershipsTable.id, id));
   const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  await logAdminAction(req, {
+    action: "membership.reactivate",
+    targetType: "membership",
+    targetId: id,
+    details: { userId: existing.userId },
+  });
   res.json({ membership: updated });
 });
 
@@ -665,6 +708,13 @@ router.post("/admin/members/:userId/credits/grant", requireAdmin, async (req, re
     type: parsed.data.amount >= 0 ? "allocation" : "debit",
     description: `[admin] ${parsed.data.description}`,
     balanceAfter: newBalance,
+  });
+
+  await logAdminAction(req, {
+    action: parsed.data.amount >= 0 ? "credits.grant" : "credits.deduct",
+    targetType: "user",
+    targetId: userId,
+    details: { amount: parsed.data.amount, description: parsed.data.description, newBalance },
   });
 
   res.json({ balance: newBalance, granted: parsed.data.amount });

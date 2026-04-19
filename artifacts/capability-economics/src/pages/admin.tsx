@@ -18,6 +18,7 @@ import KycAdmin from "@/components/kyc-admin";
 import PaymentApprovals, { usePaymentApprovalsData } from "@/components/payment-approvals";
 import ManualCompForm from "@/components/manual-comp-form";
 import MembersList from "@/components/members-list";
+import AuditLogViewer from "@/components/audit-log-viewer";
 
 const API_BASE = "/api";
 
@@ -707,6 +708,7 @@ export default function AdminDashboard() {
 
         {/* ─────────────────────── System tab ─────────────────────── */}
         <TabsContent value="system" className="space-y-6">
+          <AuditLogViewer />
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
