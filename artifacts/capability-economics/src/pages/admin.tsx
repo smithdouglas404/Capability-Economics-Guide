@@ -17,6 +17,7 @@ import MembershipAdmin from "@/components/membership-admin";
 import KycAdmin from "@/components/kyc-admin";
 import PaymentApprovals, { usePaymentApprovalsData } from "@/components/payment-approvals";
 import ManualCompForm from "@/components/manual-comp-form";
+import MembersList from "@/components/members-list";
 
 const API_BASE = "/api";
 
@@ -378,9 +379,11 @@ export default function AdminDashboard() {
 
         {/* ─────────────────────── Members tab ─────────────────────── */}
         <TabsContent value="members" className="space-y-6">
+          <MembersList onMutated={() => paymentsData.refetch()} />
           <ManualCompForm onGranted={() => paymentsData.refetch()} />
           <p className="text-xs text-muted-foreground">
-            To browse existing members, approve invoices or review rejected requests, use the <button onClick={() => setTab("approvals")} className="underline hover:text-foreground">Approvals</button> tab.
+            Click any row above to view full membership detail, change their tier, put them on hold, or grant credits.
+            For pending approval workflow (invoice / crypto requests), use the <button onClick={() => setTab("approvals")} className="underline hover:text-foreground">Approvals</button> tab.
           </p>
         </TabsContent>
 

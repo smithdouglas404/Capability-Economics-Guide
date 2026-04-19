@@ -1,6 +1,11 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { membershipTiersTable, userMembershipsTable } from "@workspace/db";
+import {
+  membershipTiersTable,
+  userMembershipsTable,
+  creditAccountsTable,
+  creditTransactionsTable,
+} from "@workspace/db";
 import { asc, desc, eq, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAdmin, isClerkAdmin } from "../middlewares/requireAdmin";
@@ -491,6 +496,178 @@ router.post("/admin/payments/comp", requireAdmin, async (req, res) => {
   }).where(eq(userMembershipsTable.id, created!.id));
   const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
   res.status(201).json({ membership: final });
+});
+
+// ───────────────────────────── Admin: member detail & management ─────────────────────────────
+
+/**
+ * Full snapshot for a single user: every membership row they've ever had, the
+ * credit account + recent transactions, and the current tier. Used by the
+ * admin "member detail" drawer.
+ */
+router.get("/admin/members/:userId", requireAdmin, async (req, res) => {
+  const userId = String(req.params.userId);
+  if (!userId) { res.status(400).json({ error: "bad userId" }); return; }
+
+  const memberships = await db
+    .select()
+    .from(userMembershipsTable)
+    .where(eq(userMembershipsTable.userId, userId))
+    .orderBy(desc(userMembershipsTable.requestedAt));
+
+  const tiers = await db.select().from(membershipTiersTable);
+  const tierMap = new Map(tiers.map(t => [t.id, t]));
+  const enrichedMemberships = memberships.map(m => ({ ...m, tier: tierMap.get(m.tierId) ?? null }));
+
+  const [creditAccount] = await db
+    .select()
+    .from(creditAccountsTable)
+    .where(eq(creditAccountsTable.userId, userId));
+
+  const transactions = await db
+    .select()
+    .from(creditTransactionsTable)
+    .where(eq(creditTransactionsTable.userId, userId))
+    .orderBy(desc(creditTransactionsTable.createdAt))
+    .limit(50);
+
+  const currentMembership = enrichedMemberships.find(m => m.status === "active") ?? enrichedMemberships[0] ?? null;
+
+  res.json({
+    userId,
+    currentMembership,
+    allMemberships: enrichedMemberships,
+    creditAccount: creditAccount ?? null,
+    transactions,
+  });
+});
+
+const ChangeTierBody = z.object({
+  tierId: z.number().int().positive(),
+  syncCredits: z.boolean().default(true),
+});
+
+/**
+ * Change the tier on an existing membership. If syncCredits is true (default)
+ * the user's credit account monthlyAllocation + tierSlug are updated to match
+ * the new tier. The first feature string on the tier is parsed for a
+ * "N CEI credits/month" pattern to derive the allocation.
+ */
+router.post("/admin/memberships/:id/change-tier", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const parsed = ChangeTierBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [existing] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "not found" }); return; }
+
+  const [newTier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
+  if (!newTier) { res.status(404).json({ error: "tier not found" }); return; }
+
+  await db.update(userMembershipsTable).set({
+    tierId: parsed.data.tierId,
+    paymentAmountCents: newTier.annualPriceCents ?? newTier.monthlyPriceCents ?? existing.paymentAmountCents,
+    notes: `${existing.notes ?? ""}\n[admin] Tier changed to ${newTier.name} at ${new Date().toISOString()}`.trim(),
+    updatedAt: new Date(),
+  }).where(eq(userMembershipsTable.id, id));
+
+  if (parsed.data.syncCredits) {
+    // Parse monthly allocation out of the tier's features. Format: "N CEI credits/month"
+    const allocationFeature = (newTier.features as string[] | null)?.find(f => /credits?\/month/i.test(f));
+    const allocationMatch = allocationFeature?.match(/([\d,]+)/);
+    const allocation = allocationMatch ? Number(allocationMatch[1].replace(/,/g, "")) : 50;
+
+    const [account] = await db
+      .select()
+      .from(creditAccountsTable)
+      .where(eq(creditAccountsTable.userId, existing.userId));
+    if (account) {
+      await db.update(creditAccountsTable).set({
+        monthlyAllocation: allocation,
+        tierSlug: newTier.slug,
+      }).where(eq(creditAccountsTable.userId, existing.userId));
+    }
+  }
+
+  const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  res.json({ membership: updated, tier: newTier });
+});
+
+/**
+ * Put a membership on hold. We reuse the existing "cancelled" status — the
+ * tier-gate middleware already treats cancelled as no-access, and we can flip
+ * it back via /reactivate.
+ */
+router.post("/admin/memberships/:id/hold", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const reason = (req.body?.reason as string | undefined) ?? "Placed on hold by admin";
+  const [existing] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "not found" }); return; }
+  await db.update(userMembershipsTable).set({
+    status: "cancelled",
+    notes: `${existing.notes ?? ""}\n[admin] On hold: ${reason} (${new Date().toISOString()})`.trim(),
+    updatedAt: new Date(),
+  }).where(eq(userMembershipsTable.id, id));
+  const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  res.json({ membership: updated });
+});
+
+router.post("/admin/memberships/:id/reactivate", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const [existing] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "not found" }); return; }
+  await db.update(userMembershipsTable).set({
+    status: "active",
+    paymentStatus: existing.paymentStatus === "rejected" ? "paid" : existing.paymentStatus,
+    approvedAt: existing.approvedAt ?? new Date(),
+    approvedBy: existing.approvedBy ?? "admin",
+    rejectionReason: null,
+    notes: `${existing.notes ?? ""}\n[admin] Reactivated at ${new Date().toISOString()}`.trim(),
+    updatedAt: new Date(),
+  }).where(eq(userMembershipsTable.id, id));
+  const [updated] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  res.json({ membership: updated });
+});
+
+const GrantCreditsBody = z.object({
+  amount: z.number().int().min(-100_000).max(1_000_000),
+  description: z.string().min(1).max(500).default("Admin grant"),
+});
+
+router.post("/admin/members/:userId/credits/grant", requireAdmin, async (req, res) => {
+  const userId = String(req.params.userId);
+  if (!userId) { res.status(400).json({ error: "bad userId" }); return; }
+  const parsed = GrantCreditsBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  // Ensure credit account exists
+  let [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
+  if (!account) {
+    [account] = await db.insert(creditAccountsTable).values({
+      userId,
+      balance: 0,
+      monthlyAllocation: 50,
+      tierSlug: "discovery",
+    }).returning();
+  }
+
+  const newBalance = (account?.balance ?? 0) + parsed.data.amount;
+  await db.update(creditAccountsTable)
+    .set({ balance: newBalance })
+    .where(eq(creditAccountsTable.userId, userId));
+
+  await db.insert(creditTransactionsTable).values({
+    userId,
+    amount: parsed.data.amount,
+    type: parsed.data.amount >= 0 ? "allocation" : "debit",
+    description: `[admin] ${parsed.data.description}`,
+    balanceAfter: newBalance,
+  });
+
+  res.json({ balance: newBalance, granted: parsed.data.amount });
 });
 
 export default router;
