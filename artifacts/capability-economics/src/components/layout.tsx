@@ -323,6 +323,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <CreditCard className="w-4 h-4" /> Membership
                       </DropdownMenuItem>
                     </Link>
+                    <Link href="/account">
+                      <DropdownMenuItem data-testid="nav-link-account" className="cursor-pointer gap-2">
+                        <Settings2 className="w-4 h-4" /> Account &amp; API keys
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuSeparator />
                     <SignOutButton>
                       <DropdownMenuItem className="cursor-pointer gap-2">

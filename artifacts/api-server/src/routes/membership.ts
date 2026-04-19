@@ -10,9 +10,19 @@ import { asc, desc, eq, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAdmin, isClerkAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
-import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
+import { createCheckoutSession, isStripeConfigured, refundPaymentIntent } from "../services/stripe";
+import { createInvoice as createNowPaymentsInvoice, isNowPaymentsConfigured } from "../services/nowpayments";
 import { checkKycForTier } from "../middlewares/requireTier";
 import { logAdminAction } from "../services/audit-log";
+import {
+  sendWelcomeEmail,
+  sendApprovalEmail,
+  sendRejectionEmail,
+  sendHoldEmail,
+  sendReactivatedEmail,
+  sendCompEmail,
+  sendTierChangedEmail,
+} from "../services/email";
 
 const router: IRouter = Router();
 
@@ -303,6 +313,13 @@ router.post("/me/membership/request", async (req, res) => {
       .where(eq(userMembershipsTable.id, created!.id));
   }
 
+  // Fire-and-forget welcome email (handles graceful-degrade when RESEND not configured)
+  if (userEmailHeader) {
+    void (status === "active"
+      ? sendApprovalEmail({ to: userEmailHeader, name: userNameHeader, tierName: tier.name })
+      : sendWelcomeEmail({ to: userEmailHeader, name: userNameHeader, tierName: tier.name }));
+  }
+
   const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
   res.status(201).json({ membership: final });
 });
@@ -401,6 +418,102 @@ router.post("/me/membership/checkout", async (req, res) => {
   }
 });
 
+// ───────────────────────────── NOWPayments: crypto checkout ─────────────────────────────
+
+const CryptoCheckoutBody = z.object({
+  tierId: z.number().int().positive(),
+  billing: z.enum(["monthly", "annual"]).default("annual"),
+  entityType: z.enum(["company", "individual"]).default("individual"),
+  entityName: z.string().min(1).max(200),
+  successPath: z.string().default("/membership?status=success"),
+  cancelPath: z.string().default("/membership?status=cancelled"),
+});
+
+router.post("/me/membership/crypto/start", async (req, res) => {
+  if (!isNowPaymentsConfigured()) { res.status(503).json({ error: "NOWPayments not configured" }); return; }
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const parsed = CryptoCheckoutBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
+  if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
+  const amountCents = parsed.data.billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
+  if (!amountCents || amountCents <= 0) { res.status(400).json({ error: "Tier has no price for the requested billing period" }); return; }
+
+  const kyc = await checkKycForTier(auth.userId, tier.slug);
+  if (!kyc.ok) {
+    res.status(403).json({
+      error: "KYC required",
+      requiredKycLevel: kyc.requiredKycLevel,
+      tierSlug: tier.slug,
+      message: `This tier requires identity verification (${kyc.requiredKycLevel} level) before checkout.`,
+      redirectTo: `/kyc?tierSlug=${tier.slug}&returnTo=/membership`,
+    });
+    return;
+  }
+
+  const userEmail = (req.headers["x-user-email"] as string | undefined) ?? null;
+  const userName = (req.headers["x-user-name"] as string | undefined) ?? null;
+
+  // Create the pending membership up front so the IPN webhook can match order_id → id.
+  const [membership] = await db.insert(userMembershipsTable).values({
+    userId: auth.userId,
+    userEmail,
+    userName,
+    tierId: parsed.data.tierId,
+    entityType: parsed.data.entityType,
+    entityName: parsed.data.entityName,
+    paymentMethod: "crypto",
+    paymentAmountCents: amountCents,
+    notes: `NOWPayments crypto checkout (${parsed.data.billing})`,
+  }).returning();
+
+  const origin = (req.headers.origin as string | undefined)
+    ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+    ?? `${req.protocol}://${req.headers.host}`;
+
+  const buildUrl = (pathWithQuery: string): string => {
+    try {
+      const u = new URL(pathWithQuery, origin);
+      u.searchParams.set("membership", String(membership!.id));
+      return u.toString();
+    } catch {
+      const sep = pathWithQuery.includes("?") ? "&" : "?";
+      return `${origin}${pathWithQuery}${sep}membership=${membership!.id}`;
+    }
+  };
+
+  const ipnCallbackUrl = `${origin.replace(/\/$/, "")}/api/payments/nowpayments/webhook`;
+
+  try {
+    const invoice = await createNowPaymentsInvoice({
+      orderId: String(membership!.id),
+      priceAmount: amountCents / 100,
+      priceCurrency: "usd",
+      orderDescription: `Capability Economics — ${tier.name} (${parsed.data.billing})`,
+      ipnCallbackUrl,
+      successUrl: buildUrl(parsed.data.successPath),
+      cancelUrl: buildUrl(parsed.data.cancelPath),
+    });
+
+    // Store the NOWPayments invoice id for reconciliation
+    await db.update(userMembershipsTable).set({
+      paymentRef: invoice.invoiceId,
+      updatedAt: new Date(),
+    }).where(eq(userMembershipsTable.id, membership!.id));
+
+    res.json({ invoiceUrl: invoice.invoiceUrl, invoiceId: invoice.invoiceId, membershipId: membership!.id });
+  } catch (err) {
+    await db.update(userMembershipsTable).set({
+      paymentStatus: "failed",
+      notes: `NOWPayments invoice create failed: ${(err as Error).message}`,
+      updatedAt: new Date(),
+    }).where(eq(userMembershipsTable.id, membership!.id));
+    res.status(500).json({ error: "Failed to create crypto invoice" });
+  }
+});
+
 // ───────────────────────────── Admin: payments review ─────────────────────────────
 
 router.get("/admin/payments", requireAdmin, async (req, res) => {
@@ -456,6 +569,10 @@ router.post("/admin/payments/:id/approve", requireAdmin, async (req, res) => {
     targetId: id,
     details: { userId: existing.userId, tierId: existing.tierId, paymentMethod: existing.paymentMethod },
   });
+  if (existing.userEmail) {
+    const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
+    void sendApprovalEmail({ to: existing.userEmail, name: existing.userName, tierName: tier?.name ?? "your" });
+  }
   res.json({ membership: updated });
 });
 
@@ -478,6 +595,10 @@ router.post("/admin/payments/:id/reject", requireAdmin, async (req, res) => {
     targetId: id,
     details: { userId: existing.userId, tierId: existing.tierId, reason },
   });
+  if (existing.userEmail) {
+    const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
+    void sendRejectionEmail({ to: existing.userEmail, name: existing.userName, tierName: tier?.name ?? "requested", reason });
+  }
   res.json({ membership: updated });
 });
 
@@ -520,6 +641,10 @@ router.post("/admin/payments/comp", requireAdmin, async (req, res) => {
     targetId: created!.id,
     details: { userId: parsed.data.userId, tierId: parsed.data.tierId, entityName: parsed.data.entityName, notes: parsed.data.notes },
   });
+  if (parsed.data.userEmail) {
+    const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
+    void sendCompEmail({ to: parsed.data.userEmail, name: parsed.data.userName, tierName: tier?.name ?? "a new", notes: parsed.data.notes });
+  }
   res.status(201).json({ membership: final });
 });
 
@@ -622,6 +747,10 @@ router.post("/admin/memberships/:id/change-tier", requireAdmin, async (req, res)
     targetId: id,
     details: { userId: existing.userId, fromTierId: existing.tierId, toTierId: parsed.data.tierId, toTierName: newTier.name, syncCredits: parsed.data.syncCredits },
   });
+  if (existing.userEmail) {
+    const [oldTier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
+    void sendTierChangedEmail({ to: existing.userEmail, name: existing.userName, fromTier: oldTier?.name ?? "previous", toTier: newTier.name });
+  }
   res.json({ membership: updated, tier: newTier });
 });
 
@@ -648,6 +777,9 @@ router.post("/admin/memberships/:id/hold", requireAdmin, async (req, res) => {
     targetId: id,
     details: { userId: existing.userId, reason },
   });
+  if (existing.userEmail) {
+    void sendHoldEmail({ to: existing.userEmail, name: existing.userName, reason });
+  }
   res.json({ membership: updated });
 });
 
@@ -672,7 +804,69 @@ router.post("/admin/memberships/:id/reactivate", requireAdmin, async (req, res) 
     targetId: id,
     details: { userId: existing.userId },
   });
+  if (existing.userEmail) {
+    const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
+    void sendReactivatedEmail({ to: existing.userEmail, name: existing.userName, tierName: tier?.name ?? "your" });
+  }
   res.json({ membership: updated });
+});
+
+const RefundBody = z.object({
+  amountCents: z.number().int().positive().optional(),
+  reason: z.enum(["duplicate", "fraudulent", "requested_by_customer"]).default("requested_by_customer"),
+});
+
+/**
+ * Issue a Stripe refund for a card-paid membership. Uses the stored paymentRef
+ * as the PaymentIntent id. NOWPayments (crypto) refunds are not supported
+ * through this endpoint — crypto refunds must be handled manually through the
+ * NOWPayments dashboard.
+ */
+router.post("/admin/memberships/:id/refund", requireAdmin, async (req, res) => {
+  if (!isStripeConfigured()) { res.status(503).json({ error: "Stripe not configured" }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const parsed = RefundBody.safeParse(req.body ?? {});
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [existing] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "not found" }); return; }
+  if (existing.paymentMethod !== "card") {
+    res.status(400).json({
+      error: "Only Stripe (card) payments can be refunded through this endpoint",
+      paymentMethod: existing.paymentMethod,
+      hint: "For crypto refunds, use the NOWPayments dashboard.",
+    });
+    return;
+  }
+  if (!existing.paymentRef || !existing.paymentRef.startsWith("pi_")) {
+    res.status(400).json({ error: "No Stripe PaymentIntent found on this membership", paymentRef: existing.paymentRef });
+    return;
+  }
+
+  try {
+    const refund = await refundPaymentIntent({
+      paymentIntent: existing.paymentRef,
+      amountCents: parsed.data.amountCents,
+      reason: parsed.data.reason,
+    });
+    await db.update(userMembershipsTable).set({
+      paymentStatus: "refunded",
+      notes: `${existing.notes ?? ""}\n[admin] Refunded ${refund.amount != null ? `$${(refund.amount / 100).toFixed(2)}` : "full amount"} via Stripe (${refund.id}) at ${new Date().toISOString()}`.trim(),
+      updatedAt: new Date(),
+    }).where(eq(userMembershipsTable.id, id));
+
+    await logAdminAction(req, {
+      action: "membership.refund",
+      targetType: "membership",
+      targetId: id,
+      details: { userId: existing.userId, stripeRefundId: refund.id, amount: refund.amount, reason: parsed.data.reason },
+    });
+
+    res.json({ refund: { id: refund.id, amount: refund.amount, status: refund.status } });
+  } catch (err) {
+    res.status(500).json({ error: "Refund failed", message: (err as Error).message });
+  }
 });
 
 const GrantCreditsBody = z.object({

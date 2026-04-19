@@ -12,9 +12,9 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  ArrowUpRight, ArrowDownRight, Bitcoin, Building2, CheckCircle2, Coins, CreditCard,
-  FileText, Loader2, Mail, PauseCircle, PlayCircle, ShieldCheck, Sparkles, User, XCircle,
-  IdCard,
+  ArrowUpRight, ArrowDownRight, Bitcoin, Building2, CheckCircle2, Coins, Copy, CreditCard,
+  FileText, Key, KeyRound, Loader2, LogIn, Mail, PauseCircle, PlayCircle, RotateCcw,
+  ShieldCheck, Sparkles, Trash2, User, XCircle, IdCard,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -78,6 +78,17 @@ type MemberSummary = {
   transactions: CreditTransaction[];
 };
 
+type ApiKey = {
+  id: number;
+  userId: string;
+  label: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+  createdBy: string | null;
+};
+
 const fmtMoney = (cents: number | null | undefined) =>
   cents == null ? "—" : `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString() : "—");
@@ -130,18 +141,31 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
   // Hold reason
   const [holdReason, setHoldReason] = useState<string>("");
 
+  // Refund form
+  const [refundAmount, setRefundAmount] = useState<string>("");
+
+  // API keys
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
+  const [newKeyLabel, setNewKeyLabel] = useState<string>("");
+  const [lastIssuedKey, setLastIssuedKey] = useState<{ raw: string; label: string } | null>(null);
+
   const fetchSummary = useCallback(async () => {
     if (!userId) return;
     setLoading(true);
     setError(null);
     try {
-      const [sRes, tRes] = await Promise.all([
+      const [sRes, tRes, kRes] = await Promise.all([
         fetch(`${API_BASE}/admin/members/${encodeURIComponent(userId)}`, { credentials: "include" }),
         fetch(`${API_BASE}/membership/tiers/all`, { credentials: "include" }),
+        fetch(`${API_BASE}/admin/api-keys?userId=${encodeURIComponent(userId)}`, { credentials: "include" }),
       ]);
       if (!sRes.ok) throw new Error(`Summary: ${sRes.status}`);
       setSummary(await sRes.json());
       if (tRes.ok) setTiers(await tRes.json());
+      if (kRes.ok) {
+        const kJson = await kRes.json();
+        setApiKeys(kJson.keys ?? []);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -156,6 +180,9 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
       setGrantAmount("");
       setGrantDescription("");
       setHoldReason("");
+      setRefundAmount("");
+      setNewKeyLabel("");
+      setLastIssuedKey(null);
     }
   }, [open, userId, fetchSummary]);
 
@@ -223,6 +250,83 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
     ).then(() => { setGrantAmount(""); setGrantDescription(""); });
   };
 
+  const refund = () => {
+    if (!current) return;
+    const amountCents = refundAmount ? Math.round(Number(refundAmount) * 100) : undefined;
+    if (refundAmount && (!Number.isFinite(amountCents) || amountCents! <= 0)) return;
+    if (!confirm(`Refund ${refundAmount ? `$${refundAmount}` : "the full amount"} via Stripe?`)) return;
+    return action("refund", () =>
+      fetch(`${API_BASE}/admin/memberships/${current.id}/refund`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(amountCents ? { amountCents } : {}),
+      }),
+    ).then(() => setRefundAmount(""));
+  };
+
+  const impersonate = async () => {
+    if (!userId) return;
+    setActioning("impersonate");
+    try {
+      const res = await fetch(`${API_BASE}/admin/members/${encodeURIComponent(userId)}/impersonate`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json() as { url: string | null; token: string };
+      if (json.url) window.open(json.url, "_blank", "noopener");
+      else alert(`Actor token issued: ${json.token}. Paste it into Clerk sign-in as __clerk_ticket param within 60 seconds.`);
+    } catch (e) {
+      alert(`Impersonation failed: ${(e as Error).message}`);
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const issueApiKey = async () => {
+    if (!userId || !newKeyLabel.trim()) return;
+    setActioning("issue-key");
+    try {
+      const res = await fetch(`${API_BASE}/admin/api-keys`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, label: newKeyLabel.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json() as { raw: string; label: string };
+      setLastIssuedKey({ raw: json.raw, label: json.label });
+      setNewKeyLabel("");
+      await fetchSummary();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const revokeApiKey = async (id: number) => {
+    if (!confirm("Revoke this API key? The holder will lose access immediately.")) return;
+    setActioning(`revoke-${id}`);
+    try {
+      const res = await fetch(`${API_BASE}/admin/api-keys/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchSummary();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setActioning(null);
+    }
+  };
+
+  const copyKey = (raw: string) => {
+    void navigator.clipboard.writeText(raw);
+  };
+
   const displayName = current?.userName ?? current?.userEmail ?? userId ?? "—";
   const displayEmail = current?.userEmail;
   const entity = current ? `${current.entityType === "company" ? "🏢" : "👤"} ${current.entityName}` : "—";
@@ -260,6 +364,7 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
               <TabsList className="rounded-none">
                 <TabsTrigger value="membership" className="rounded-none">Membership</TabsTrigger>
                 <TabsTrigger value="credits" className="rounded-none">Credits</TabsTrigger>
+                <TabsTrigger value="access" className="rounded-none">Access</TabsTrigger>
                 <TabsTrigger value="history" className="rounded-none">History</TabsTrigger>
               </TabsList>
 
@@ -348,6 +453,40 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
                         )}
                       </CardContent>
                     </Card>
+
+                    {current.paymentMethod === "card" && current.paymentStatus === "paid" && (
+                      <Card className="rounded-none">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-serif flex items-center gap-2">
+                            <RotateCcw className="w-4 h-4 text-primary" />
+                            Refund (Stripe)
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="flex flex-col md:flex-row gap-2 items-stretch md:items-end">
+                          <div className="flex-1">
+                            <Label htmlFor="refund-amount">Partial amount in USD (blank = refund full)</Label>
+                            <Input
+                              id="refund-amount"
+                              type="number"
+                              step="0.01"
+                              placeholder={fmtMoney(current.paymentAmountCents)}
+                              value={refundAmount}
+                              onChange={e => setRefundAmount(e.target.value)}
+                              className="rounded-none font-mono"
+                            />
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="rounded-none border-orange-300 text-orange-700 hover:bg-orange-50"
+                            onClick={refund}
+                            disabled={actioning === "refund"}
+                          >
+                            {actioning === "refund" ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+                            <span className="ml-2">Issue Refund</span>
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    )}
 
                     <Card className="rounded-none">
                       <CardHeader className="pb-2">
@@ -454,6 +593,114 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
                                   )}
                                 </td>
                                 <td className="px-3 py-2 text-right font-mono text-xs">{t.balanceAfter.toLocaleString()}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* ── Access tab ── */}
+              <TabsContent value="access" className="space-y-4 mt-4">
+                <Card className="rounded-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-serif flex items-center gap-2">
+                      <LogIn className="w-4 h-4 text-primary" />
+                      Sign in as this user
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-muted-foreground">
+                      Creates a 60-second Clerk actor token and opens a session as this user in a new tab. Actions performed while impersonating are logged with your admin ID as the actor.
+                    </p>
+                    <Button onClick={impersonate} disabled={actioning === "impersonate"} className="rounded-none shrink-0">
+                      {actioning === "impersonate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                      <span className="ml-2">Impersonate</span>
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-none">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-serif flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-primary" />
+                      API Keys
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex flex-col md:flex-row gap-2 items-stretch md:items-end">
+                      <div className="flex-1">
+                        <Label htmlFor="new-key-label">Issue a new key — label (e.g. "Staging integration")</Label>
+                        <Input
+                          id="new-key-label"
+                          placeholder="Integration name"
+                          value={newKeyLabel}
+                          onChange={e => setNewKeyLabel(e.target.value)}
+                          className="rounded-none"
+                        />
+                      </div>
+                      <Button onClick={issueApiKey} disabled={!newKeyLabel.trim() || actioning === "issue-key"} className="rounded-none">
+                        {actioning === "issue-key" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                        <span className="ml-2">Issue</span>
+                      </Button>
+                    </div>
+
+                    {lastIssuedKey && (
+                      <div className="p-3 border-l-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 text-sm">
+                        <div className="font-medium mb-1">New key for "{lastIssuedKey.label}" — copy now, it won't be shown again:</div>
+                        <div className="flex items-center gap-2">
+                          <code className="flex-1 px-2 py-1 bg-background font-mono text-xs break-all">{lastIssuedKey.raw}</code>
+                          <Button size="sm" variant="outline" onClick={() => copyKey(lastIssuedKey.raw)} className="rounded-none">
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {apiKeys.length === 0 ? (
+                      <div className="text-sm text-muted-foreground text-center py-4">No API keys issued.</div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead className="border-b bg-muted/30">
+                            <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                              <th className="px-3 py-2">Label</th>
+                              <th className="px-3 py-2">Prefix</th>
+                              <th className="px-3 py-2">Last used</th>
+                              <th className="px-3 py-2">Status</th>
+                              <th className="px-3 py-2 text-right">Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {apiKeys.map(k => (
+                              <tr key={k.id} className="border-b">
+                                <td className="px-3 py-2 text-sm font-medium">{k.label}</td>
+                                <td className="px-3 py-2 text-xs font-mono text-muted-foreground">{k.prefix}…</td>
+                                <td className="px-3 py-2 text-xs text-muted-foreground">{k.lastUsedAt ? fmtDate(k.lastUsedAt) : "—"}</td>
+                                <td className="px-3 py-2">
+                                  {k.revokedAt ? (
+                                    <span className="text-xs text-red-700">Revoked {fmtDate(k.revokedAt)}</span>
+                                  ) : (
+                                    <span className="text-xs text-emerald-700">Active</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  {!k.revokedAt && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-7 rounded-none border-red-300 text-red-700 hover:bg-red-50"
+                                      onClick={() => revokeApiKey(k.id)}
+                                      disabled={actioning === `revoke-${k.id}`}
+                                    >
+                                      {actioning === `revoke-${k.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                      <span className="ml-1">Revoke</span>
+                                    </Button>
+                                  )}
+                                </td>
                               </tr>
                             ))}
                           </tbody>

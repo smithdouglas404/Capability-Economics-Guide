@@ -52,6 +52,26 @@ export async function createCheckoutSession(input: CheckoutSessionInput): Promis
   });
 }
 
+export interface RefundInput {
+  paymentIntent: string;          // pi_... from paymentRef column
+  amountCents?: number;           // omit to refund the full charge
+  reason?: "duplicate" | "fraudulent" | "requested_by_customer";
+}
+
+/**
+ * Issue a refund against a prior Stripe PaymentIntent. When amountCents is
+ * omitted Stripe refunds the full original charge; supplying a smaller amount
+ * issues a partial refund.
+ */
+export async function refundPaymentIntent(input: RefundInput): Promise<Stripe.Refund> {
+  const stripe = getStripe();
+  return stripe.refunds.create({
+    payment_intent: input.paymentIntent,
+    amount: input.amountCents,
+    reason: input.reason ?? "requested_by_customer",
+  });
+}
+
 export function verifyWebhookSignature(rawBody: Buffer, signature: string): Stripe.Event {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) {

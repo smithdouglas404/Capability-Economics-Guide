@@ -37,6 +37,9 @@ import collaborationRouter from "./collaboration";
 import creditsRouter from "./credits";
 import kycRouter from "./kyc";
 import auditLogRouter from "./audit-log";
+import apiKeysRouter from "./api-keys";
+import meRouter from "./me";
+import impersonateRouter from "./impersonate";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -69,6 +72,9 @@ router.use(usageRouter);
 router.use(creditsRouter);
 router.use(kycRouter);
 router.use(auditLogRouter);
+router.use(apiKeysRouter);
+router.use(meRouter);
+router.use(impersonateRouter);
 
 // ── Tier-gated routes (Workbench+) ──
 const workbenchGate = requireTier("workbench");
