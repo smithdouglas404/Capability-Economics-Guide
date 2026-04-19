@@ -224,9 +224,9 @@ export interface ScannedEvent {
   rationale: string;
 }
 
-export async function runWorldScanForIndustry(industryName: string, industryId: number): Promise<{ inserted: number; events: MacroEvent[]; errors: string[] }> {
+export async function runWorldScanForIndustry(industryName: string, industryId: number): Promise<{ inserted: number; events: MacroEvent[]; errors: string[]; maxSeverity: number }> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return { inserted: 0, events: [], errors: ["PERPLEXITY_API_KEY not set"] };
+  if (!apiKey) return { inserted: 0, events: [], errors: ["PERPLEXITY_API_KEY not set"], maxSeverity: 0 };
 
   // Pull the actual capability menu for this industry so the LLM can name-tag events to specific caps.
   const industryCaps = await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name })
@@ -278,7 +278,7 @@ Tag 1-4 capabilities per event. Skip the field only if no capability in the menu
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const start = cleaned.indexOf("[");
     const end = cleaned.lastIndexOf("]");
-    if (start === -1 || end === -1) return { inserted: 0, events: [], errors: ["No JSON array in response"] };
+    if (start === -1 || end === -1) return { inserted: 0, events: [], errors: ["No JSON array in response"], maxSeverity: 0 };
     const parsed = JSON.parse(cleaned.substring(start, end + 1)) as ScannedEvent[];
 
     const inserted: MacroEvent[] = [];
@@ -325,21 +325,22 @@ Tag 1-4 capabilities per event. Skip the field only if no capability in the menu
         console.log(`[world-scan] no cap match for "${ev.title.substring(0, 60)}" (industry-only shock)`);
       }
     }
-    return { inserted: inserted.length, events: inserted, errors: [] };
+    const maxSeverity = inserted.reduce((m, e) => Math.max(m, e.severity), 0);
+    return { inserted: inserted.length, events: inserted, errors: [], maxSeverity };
   } catch (err) {
     logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, errorMessage: err instanceof Error ? err.message : String(err) });
-    return { inserted: 0, events: [], errors: [err instanceof Error ? err.message : String(err)] };
+    return { inserted: 0, events: [], errors: [err instanceof Error ? err.message : String(err)], maxSeverity: 0 };
   }
 }
 
-export async function runWorldScanAllIndustries(): Promise<{ totalInserted: number; perIndustry: Array<{ industryId: number; industryName: string; inserted: number; errors: string[] }> }> {
+export async function runWorldScanAllIndustries(): Promise<{ totalInserted: number; perIndustry: Array<{ industryId: number; industryName: string; inserted: number; errors: string[]; maxSeverity: number }> }> {
   const industries = await db.select().from(industriesTable);
   let totalInserted = 0;
-  const perIndustry: Array<{ industryId: number; industryName: string; inserted: number; errors: string[] }> = [];
+  const perIndustry: Array<{ industryId: number; industryName: string; inserted: number; errors: string[]; maxSeverity: number }> = [];
   for (const ind of industries) {
     const result = await runWorldScanForIndustry(ind.name, ind.id);
     totalInserted += result.inserted;
-    perIndustry.push({ industryId: ind.id, industryName: ind.name, inserted: result.inserted, errors: result.errors });
+    perIndustry.push({ industryId: ind.id, industryName: ind.name, inserted: result.inserted, errors: result.errors, maxSeverity: result.maxSeverity });
     await new Promise(r => setTimeout(r, 1500));
   }
   return { totalInserted, perIndustry };

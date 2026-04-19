@@ -139,14 +139,16 @@ async function executeWorldScan(trigger: string): Promise<void> {
     console.log(`[World Scan] Inserted ${result.totalInserted} events across ${result.perIndustry.length} industries`);
     emitAgentEvent({ type: "phase", phase: "world_scan_complete", message: `World scan: ${result.totalInserted} new events ingested` });
 
-    const highSeverity = result.perIndustry
-      .filter(p => p.inserted > 0)
-      .sort((a, b) => b.inserted - a.inserted)[0];
-    if (highSeverity && highSeverity.inserted >= 1 && !isRotating) {
+    // Urgency burst gate: only when an industry got at least one *severe* (>=7) event
+    // from this scan. Cheaper events (sev 5-6) don't warrant blowing up the rotation queue.
+    const burstTarget = result.perIndustry
+      .filter(p => p.inserted > 0 && (p.maxSeverity ?? 0) >= 7)
+      .sort((a, b) => (b.maxSeverity ?? 0) - (a.maxSeverity ?? 0))[0];
+    if (burstTarget && !isRotating) {
       isRotating = true;
       try {
-        emitAgentEvent({ type: "phase", phase: "scan_burst", message: `Macro event burst: ${URGENCY_BURST_SIZE} caps in ${highSeverity.industryName}` });
-        await rotateTriangulations(URGENCY_BURST_SIZE, highSeverity.industryId);
+        emitAgentEvent({ type: "phase", phase: "scan_burst", message: `Macro event burst (sev ${burstTarget.maxSeverity}): ${URGENCY_BURST_SIZE} caps in ${burstTarget.industryName}` });
+        await rotateTriangulations(URGENCY_BURST_SIZE, burstTarget.industryId);
       } finally {
         isRotating = false;
       }

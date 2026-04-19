@@ -1,0 +1,147 @@
+2026-04-19T12:13:35.357323258Z [inf]  
+2026-04-19T12:13:36.953530716Z [inf]  [35m[Region: us-west1][0m
+2026-04-19T12:13:36.979959525Z [inf]  [35m=========================
+2026-04-19T12:13:36.980013270Z [inf]  Using Detected Dockerfile
+2026-04-19T12:13:36.980033094Z [inf]  =========================
+2026-04-19T12:13:36.980045011Z [inf]  [0m
+2026-04-19T12:13:36.980074084Z [inf]  context: xr0s-o0RG
+2026-04-19T12:13:37.262598859Z [inf]  [internal] load build definition from Dockerfile
+2026-04-19T12:13:37.262687722Z [inf]  [internal] load build definition from Dockerfile
+2026-04-19T12:13:37.262818946Z [inf]  [internal] load build definition from Dockerfile
+2026-04-19T12:13:37.282508128Z [inf]  [internal] load build definition from Dockerfile
+2026-04-19T12:13:37.285905015Z [inf]  [internal] load metadata for docker.io/library/node:22-slim
+2026-04-19T12:13:37.424029190Z [inf]  [internal] load metadata for docker.io/library/node:22-slim
+2026-04-19T12:13:37.424517664Z [inf]  [internal] load .dockerignore
+2026-04-19T12:13:37.424782448Z [inf]  [internal] load .dockerignore
+2026-04-19T12:13:37.424826072Z [inf]  [internal] load .dockerignore
+2026-04-19T12:13:37.445761834Z [inf]  [internal] load .dockerignore
+2026-04-19T12:13:37.452829404Z [inf]  [6/6] RUN pnpm run build:deploy
+2026-04-19T12:13:37.452913335Z [inf]  [5/6] RUN pnpm install --frozen-lockfile
+2026-04-19T12:13:37.452935757Z [inf]  [4/6] COPY . .
+2026-04-19T12:13:37.452949017Z [inf]  [internal] load build context
+2026-04-19T12:13:37.452968997Z [inf]  [3/6] RUN npm install -g pnpm@10.26.1
+2026-04-19T12:13:37.452982498Z [inf]  [2/6] WORKDIR /app
+2026-04-19T12:13:37.452993634Z [inf]  [1/6] FROM docker.io/library/node:22-slim@sha256:f3a68cf41a855d227d1b0ab832bed9749469ef38cf4f58182fb8c893bc462383
+2026-04-19T12:13:37.453028074Z [inf]  [1/6] FROM docker.io/library/node:22-slim@sha256:f3a68cf41a855d227d1b0ab832bed9749469ef38cf4f58182fb8c893bc462383
+2026-04-19T12:13:37.453041275Z [inf]  [internal] load build context
+2026-04-19T12:13:37.453062137Z [inf]  [internal] load build context
+2026-04-19T12:13:37.464247095Z [inf]  [1/6] FROM docker.io/library/node:22-slim@sha256:f3a68cf41a855d227d1b0ab832bed9749469ef38cf4f58182fb8c893bc462383
+2026-04-19T12:13:37.465678106Z [inf]  [2/6] WORKDIR /app
+2026-04-19T12:13:37.465738795Z [inf]  [internal] load build context
+2026-04-19T12:13:37.465762088Z [inf]  [3/6] RUN npm install -g pnpm@10.26.1
+2026-04-19T12:13:37.633922312Z [inf]  [internal] load build context
+2026-04-19T12:13:39.94564036Z [inf]  
+added 1 package in 2s
+
+2026-04-19T12:13:39.945763683Z [inf]  
+1 package is looking for funding
+  run `npm fund` for details
+
+2026-04-19T12:13:39.947298751Z [inf]  npm notice
+npm notice New major version of npm available! 10.9.7 -> 11.12.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.1
+npm notice To update run: npm install -g npm@11.12.1
+npm notice
+
+2026-04-19T12:13:43.405882359Z [inf]  [3/6] RUN npm install -g pnpm@10.26.1
+2026-04-19T12:13:43.410864806Z [inf]  [4/6] COPY . .
+2026-04-19T12:13:43.560975069Z [inf]  [4/6] COPY . .
+2026-04-19T12:13:43.563054871Z [inf]  [5/6] RUN pnpm install --frozen-lockfile
+2026-04-19T12:13:44.305884212Z [inf]  Scope: all 11 workspace projects
+
+2026-04-19T12:13:44.443263009Z [inf]  Lockfile is up to date, resolution step is skipped
+
+2026-04-19T12:13:44.501707489Z [inf]  Progress: resolved 1, reused 0, downloaded 0, added 0
+
+2026-04-19T12:13:44.595645338Z [inf]  Packages: +711
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+2026-04-19T12:13:45.507810706Z [inf]  Progress: resolved 711, reused 0, downloaded 0, added 0
+
+2026-04-19T12:13:46.349362921Z [inf]  
+   ╭──────────────────────────────────────────╮
+   │                                          │
+   │   Update available! 10.26.1 → 10.33.0.   │
+   │   Changelog: https://pnpm.io/v/10.33.0   │
+   │     To update, run: pnpm add -g pnpm     │
+   │                                          │
+   ╰──────────────────────────────────────────╯
+
+
+2026-04-19T12:13:46.50932649Z [inf]  Progress: resolved 711, reused 0, downloaded 434, added 332
+
+2026-04-19T12:13:47.51026829Z [inf]  Progress: resolved 711, reused 0, downloaded 687, added 689
+
+2026-04-19T12:13:48.510893658Z [inf]  Progress: resolved 711, reused 0, downloaded 696, added 698
+
+2026-04-19T12:13:49.511436588Z [inf]  Progress: resolved 711, reused 0, downloaded 701, added 703
+
+2026-04-19T12:13:50.773684823Z [inf]  Progress: resolved 711, reused 0, downloaded 702, added 703
+
+2026-04-19T12:13:51.774546222Z [inf]  Progress: resolved 711, reused 0, downloaded 704, added 706
+
+2026-04-19T12:13:52.776408308Z [inf]  Progress: resolved 711, reused 0, downloaded 706, added 708
+
+2026-04-19T12:13:53.778609504Z [inf]  Progress: resolved 711, reused 0, downloaded 708, added 710
+
+2026-04-19T12:13:54.257981603Z [inf]  Progress: resolved 711, reused 0, downloaded 709, added 711, done
+
+2026-04-19T12:13:54.663716527Z [inf]  .../esbuild@0.27.3/node_modules/esbuild postinstall$ node install.js
+
+2026-04-19T12:13:54.866803548Z [inf]  .../esbuild@0.27.3/node_modules/esbuild postinstall: Done
+
+2026-04-19T12:13:55.400060149Z [inf]  
+devDependencies:
++ prettier 3.8.1
++ typescript 5.9.3
+
+
+2026-04-19T12:13:55.505800071Z [inf]  . preinstall$ sh -c 'rm -f package-lock.json yarn.lock; case "$npm_config_user_agent" in pnpm/*) ;; *) echo "Use pnpm instead" >&2; exit 1 ;; esac'
+
+2026-04-19T12:13:55.597748201Z [inf]  . preinstall: Done
+
+2026-04-19T12:13:55.799794668Z [inf]  ╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @clerk/shared@4.8.1, msgpackr-extract@3.0.3.        │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+2026-04-19T12:13:56.180799945Z [inf]  Done in 12.3s using pnpm v10.26.1
+
+2026-04-19T12:13:57.429186175Z [inf]  [5/6] RUN pnpm install --frozen-lockfile
+2026-04-19T12:13:57.430651863Z [inf]  [6/6] RUN pnpm run build:deploy
+2026-04-19T12:13:59.547915333Z [inf]  
+> workspace@0.0.0 build:deploy /app
+> pnpm run typecheck:libs && pnpm --filter @workspace/capability-economics run build && pnpm --filter @workspace/api-server run build
+
+
+2026-04-19T12:14:00.027383062Z [inf]  
+> workspace@0.0.0 typecheck:libs /app
+> tsc --build
+
+
+2026-04-19T12:14:08.790183764Z [inf]  lib/api-zod/src/index.ts(2,1): error TS2308: Module "./generated/api" has already exported a member named 'GenerateInsightsResponse'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2026-04-19T12:14:08.790463521Z [inf]  lib/api-zod/src/index.ts(2,1): error TS2308: Module "./generated/api" has already exported a member named 'GetDashboardParams'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2026-04-19T12:14:08.790485285Z [inf]  lib/api-zod/src/index.ts(2,1): error TS2308: Module "./generated/api" has already exported a member named 'GetProjectParams'. Consider explicitly re-exporting to resolve the ambiguity.
+lib/api-zod/src/index.ts(2,1): error TS2308: Module "./generated/api" has already exported a member named 'RefreshCEIBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2026-04-19T12:14:08.790559427Z [inf]  lib/api-zod/src/index.ts(2,1): error TS2308: Module "./generated/api" has already exported a member named 'UpdateOrganizationBody'. Consider explicitly re-exporting to resolve the ambiguity.
+
+2026-04-19T12:14:08.987412514Z [inf]   ELIFECYCLE  Command failed with exit code 2.
+
+2026-04-19T12:14:09.021086025Z [inf]   ELIFECYCLE  Command failed with exit code 2.
+
+2026-04-19T12:14:09.317273302Z [err]  [6/6] RUN pnpm run build:deploy
+2026-04-19T12:14:09.339441520Z [err]  Dockerfile:15
+2026-04-19T12:14:09.339520570Z [err]  -------------------
+2026-04-19T12:14:09.339531711Z [err]  13 |
+2026-04-19T12:14:09.339539997Z [err]  14 |     # Build frontend (capability-economics) then API server
+2026-04-19T12:14:09.339553725Z [err]  15 | >>> RUN pnpm run build:deploy
+2026-04-19T12:14:09.339562322Z [err]  16 |
+2026-04-19T12:14:09.339570237Z [err]  17 |     ENV PORT=8080
+2026-04-19T12:14:09.339577745Z [err]  -------------------
+2026-04-19T12:14:09.339586757Z [err]  ERROR: failed to build: failed to solve: process "/bin/sh -c pnpm run build:deploy" did not complete successfully: exit code: 2
