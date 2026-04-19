@@ -1,6 +1,7 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider, SignIn, SignUp } from "@clerk/react";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
@@ -70,6 +71,13 @@ function SignUpPage() {
   );
 }
 
+function AdminOnly({ component: Component }: { component: React.ComponentType }) {
+  const { isAdmin, isLoaded } = useIsAdmin();
+  if (!isLoaded) return null;
+  if (!isAdmin) return <Redirect to="/" />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -85,8 +93,8 @@ function Router() {
       <Route path="/insights" component={InsightsPage} />
       <Route path="/organization" component={OrganizationSetup} />
       <Route path="/assess" component={Assess} />
-      <Route path="/admin" component={AdminDashboard} />
-      <Route path="/admin/payments" component={AdminPaymentsPage} />
+      <Route path="/admin">{() => <AdminOnly component={AdminDashboard} />}</Route>
+      <Route path="/admin/payments">{() => <AdminOnly component={AdminPaymentsPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />
       <Route path="/membership" component={Membership} />

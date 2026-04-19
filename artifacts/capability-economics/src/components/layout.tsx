@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { SignInButton, SignOutButton, useUser, useAuth } from "@clerk/react";
+import { useIsAdmin } from "@/hooks/use-is-admin";
 import {
   Activity, Network, Scale,
   Building2, Layers, Bell, MessageCircle,
@@ -127,6 +128,7 @@ function useCreditBalance(): { balance: number | null; tierSlug: string | null }
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { isSignedIn, isLoaded, user } = useUser();
+  const { isAdmin } = useIsAdmin();
   const { status: membershipStatus } = useMembershipStatus();
   const { balance: creditBalance, tierSlug } = useCreditBalance();
   const hasAccess = isSignedIn && membershipStatus === "active";
@@ -326,17 +328,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Link href="/admin">
-                  <button
-                    data-testid="nav-admin"
-                    title="Admin"
-                    className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
-                      location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
-                    }`}
-                  >
-                    <Settings2 className="w-4 h-4" />
-                  </button>
-                </Link>
+                {isAdmin && (
+                  <Link href="/admin">
+                    <button
+                      data-testid="nav-admin"
+                      title="Admin"
+                      className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
+                        location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
+                      }`}
+                    >
+                      <Settings2 className="w-4 h-4" />
+                    </button>
+                  </Link>
+                )}
               </>
             )}
           </div>
