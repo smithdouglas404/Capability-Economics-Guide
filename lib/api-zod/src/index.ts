@@ -1,2 +1,86 @@
-export * from "./generated/api";
-export * from "./generated/types";
+// AUTO-RESOLVED ambiguity: api.ts exports zod schemas (runtime values) for
+  // GenerateInsightsResponse, GetDashboardParams, GetProjectParams, RefreshCEIBody,
+  // UpdateOrganizationBody. The same names also exist as TS types under
+  // ./generated/types/. To avoid duplicate-export errors, we re-export api.ts
+  // (the schemas), then explicitly re-export every non-conflicting type module.
+  // Consumers needing types for the conflicting names can use z.infer<typeof Schema>.
+  export * from "./generated/api";
+  export * from "./generated/types/agentMemory";
+export * from "./generated/types/agentMemoryMetadata";
+export * from "./generated/types/agentMemoryStats";
+export * from "./generated/types/agentMemoryStatsByType";
+export * from "./generated/types/agentRunResult";
+export * from "./generated/types/agentSchedulerStatus";
+export * from "./generated/types/agentStatusResponse";
+export * from "./generated/types/assessment";
+export * from "./generated/types/capability";
+export * from "./generated/types/capabilityDependency";
+export * from "./generated/types/capabilityDetail";
+export * from "./generated/types/capabilityInsight";
+export * from "./generated/types/capabilityInsightMetadata";
+export * from "./generated/types/capabilityInsightSeverity";
+export * from "./generated/types/capabilityMetric";
+export * from "./generated/types/capabilityThreshold";
+export * from "./generated/types/capabilityThresholdStatus";
+export * from "./generated/types/cEIData";
+export * from "./generated/types/cEIDataIndustryBreakdowns";
+export * from "./generated/types/cEIHistoryEntry";
+export * from "./generated/types/cEIHistoryEntryIndustryBreakdowns";
+export * from "./generated/types/cEIIndustryBreakdown";
+export * from "./generated/types/createOrganizationRequest";
+export * from "./generated/types/createOrganizationRequestSize";
+export * from "./generated/types/cSuiteRole";
+export * from "./generated/types/csvUploadResponse";
+export * from "./generated/types/dashboardData";
+export * from "./generated/types/dashboardDataRadarDataItem";
+export * from "./generated/types/dashboardDataSummary";
+export * from "./generated/types/dataSource";
+export * from "./generated/types/errorResponse";
+export * from "./generated/types/gapAnalysis";
+export * from "./generated/types/generateInsightsRequest";
+export * from "./generated/types/generateInsightsResponseInsightsItem";
+export * from "./generated/types/getAgentHistoryParams";
+export * from "./generated/types/getAgentMemoriesParams";
+export * from "./generated/types/getCEIHistoryParams";
+export * from "./generated/types/getCEIMethodology200";
+export * from "./generated/types/getOntologyParams";
+export * from "./generated/types/healthStatus";
+export * from "./generated/types/industry";
+export * from "./generated/types/industryComparison";
+export * from "./generated/types/industryComparisonIndustriesItem";
+export * from "./generated/types/industryComparisonSharedCapabilitiesItem";
+export * from "./generated/types/industryComparisonSharedCapabilitiesItemIndustriesItem";
+export * from "./generated/types/industryDetail";
+export * from "./generated/types/leaderboardEntry";
+export * from "./generated/types/listCapabilitiesParams";
+export * from "./generated/types/listDataSourcesParams";
+export * from "./generated/types/listInsightsParams";
+export * from "./generated/types/listLeaderboardParams";
+export * from "./generated/types/listProjectsParams";
+export * from "./generated/types/listThresholdsParams";
+export * from "./generated/types/listWhitePapersParams";
+export * from "./generated/types/ontologyAdapter";
+export * from "./generated/types/ontologyAdapterMaturityModel";
+export * from "./generated/types/ontologyData";
+export * from "./generated/types/ontologyRelationship";
+export * from "./generated/types/organization";
+export * from "./generated/types/organizationDetail";
+export * from "./generated/types/projectCapabilityImpact";
+export * from "./generated/types/projectDetail";
+export * from "./generated/types/projectExecutiveInsight";
+export * from "./generated/types/projectRisk";
+export * from "./generated/types/refreshCEI200";
+export * from "./generated/types/refreshCEI200TriangulationsItem";
+export * from "./generated/types/researchFinding";
+export * from "./generated/types/researchFindingRelevance";
+export * from "./generated/types/researchRequest";
+export * from "./generated/types/researchResponse";
+export * from "./generated/types/roleMapping";
+export * from "./generated/types/technologyProject";
+export * from "./generated/types/updateOrganizationBodySize";
+export * from "./generated/types/upsertAssessmentsRequest";
+export * from "./generated/types/upsertAssessmentsRequestAssessmentsItem";
+export * from "./generated/types/upsertAssessmentsRequestAssessmentsItemInvestmentLevel";
+export * from "./generated/types/upsertAssessmentsRequestAssessmentsItemStrategicImportance";
+export * from "./generated/types/whitePaper";
+  
