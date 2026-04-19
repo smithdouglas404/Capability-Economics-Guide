@@ -12,7 +12,7 @@ cmds = [
 ]
 
 [phases.build]
-cmds = ["echo \"VITE_CLERK_PUBLISHABLE_KEY present: ${VITE_CLERK_PUBLISHABLE_KEY:+yes}\" && pnpm run build:deploy"]
+cmds = ["pnpm run build:deploy"]
 
 [start]
 cmd = "pnpm run start"
