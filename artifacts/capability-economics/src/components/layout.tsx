@@ -328,20 +328,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                {isAdmin && (
-                  <Link href="/admin">
-                    <button
-                      data-testid="nav-admin"
-                      title="Admin"
-                      className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
-                        location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
-                      }`}
-                    >
-                      <Settings2 className="w-4 h-4" />
-                    </button>
-                  </Link>
-                )}
               </>
+            )}
+
+            {isSignedIn && isAdmin && (
+              <Link href="/admin">
+                <button
+                  data-testid="nav-admin"
+                  title="Admin"
+                  className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors hover:bg-muted ${
+                    location === "/admin" ? "text-primary bg-primary/10" : "text-muted-foreground"
+                  }`}
+                >
+                  <Settings2 className="w-4 h-4" />
+                </button>
+              </Link>
             )}
           </div>
 
