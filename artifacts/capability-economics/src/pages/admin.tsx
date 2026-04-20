@@ -20,6 +20,7 @@ import ManualCompForm from "@/components/manual-comp-form";
 import MembersList from "@/components/members-list";
 import AuditLogViewer from "@/components/audit-log-viewer";
 import MarketplaceModeration from "@/components/marketplace-moderation";
+import FeaturedContentScheduler from "@/components/featured-content-scheduler";
 
 const API_BASE = "/api";
 
@@ -488,6 +489,7 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
+          <FeaturedContentScheduler />
           <EducationalContentAdmin />
           <CaseStudyAdmin />
         </TabsContent>
