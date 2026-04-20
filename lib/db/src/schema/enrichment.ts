@@ -1,6 +1,22 @@
-import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb, index, boolean } from "drizzle-orm/pg-core";
 import { capabilitiesTable } from "./capabilities";
 import { industriesTable } from "./industries";
+
+/**
+ * Single-row admin config for the auto-enrichment schedule. The hourly
+ * scheduler reads this row: if enabled and more than `refreshDays` days
+ * since a capability's last economics row, it gets re-enqueued.
+ */
+export const enrichmentConfigTable = pgTable("enrichment_config", {
+  id: serial("id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(false),
+  refreshDays: integer("refresh_days").notNull().default(30),
+  lastRunAt: timestamp("last_run_at"),
+  lastRunEnqueued: integer("last_run_enqueued").notNull().default(0),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type EnrichmentConfig = typeof enrichmentConfigTable.$inferSelect;
 
 export const enrichmentJobsTable = pgTable(
   "enrichment_jobs",

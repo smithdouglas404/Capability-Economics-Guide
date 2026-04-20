@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Show, SignInButton, useUser, useClerk } from "@clerk/react";
 
 const API_BASE = "/api";
@@ -24,6 +27,17 @@ interface EnrichmentRun {
   errors: string[] | null;
   status: string;
 }
+interface EnrichmentConfig {
+  enabled: boolean;
+  refreshDays: number;
+  lastRunAt: string | null;
+  lastRunEnqueued: number;
+}
+interface RedisHealth {
+  configured: boolean;
+  connected: boolean;
+  error?: string;
+}
 
 export default function EnrichmentAdmin() {
   const [status, setStatus] = useState<EnrichmentStatus | null>(null);
@@ -31,21 +45,59 @@ export default function EnrichmentAdmin() {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
+  const [config, setConfig] = useState<EnrichmentConfig | null>(null);
+  const [configEnabled, setConfigEnabled] = useState(false);
+  const [configDays, setConfigDays] = useState(30);
+  const [configSaving, setConfigSaving] = useState(false);
+  const [redis, setRedis] = useState<RedisHealth | null>(null);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([
+      const [s, r, cfgRes, redisRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
+        fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/healthz/redis`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
+      if (cfgRes?.config) {
+        setConfig(cfgRes.config);
+        setConfigEnabled(cfgRes.config.enabled);
+        setConfigDays(cfgRes.config.refreshDays);
+      }
+      setRedis(redisRes ?? null);
     } catch (e) {
       setError(String(e));
     }
   }, []);
+
+  const saveConfig = async () => {
+    if (!isSignedIn) { setError("Sign in to change the schedule."); return; }
+    setConfigSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/enrichment/config`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: configEnabled, refreshDays: configDays }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(body.error || `Save failed (${res.status})`); return; }
+      if (body.config) {
+        setConfig(body.config);
+        setConfigEnabled(body.config.enabled);
+        setConfigDays(body.config.refreshDays);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setConfigSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetchAll();
@@ -149,6 +201,50 @@ export default function EnrichmentAdmin() {
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
           <a href="/workbench" className="ml-auto text-sm text-primary hover:underline self-center">View Workbench →</a>
+        </div>
+
+        {/* Auto-refresh cadence */}
+        <div className="mb-6 border rounded-md p-4 bg-muted/20">
+          <div className="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <div className="text-sm font-medium flex items-center gap-2"><CalendarClock className="w-4 h-4" /> Scheduled auto-refresh</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                When enabled, capabilities whose economics are older than the refresh window get re-enqueued for enrichment automatically (checked hourly).
+              </div>
+            </div>
+            {redis && (
+              <span className={`text-xs px-2 py-1 rounded whitespace-nowrap ${
+                redis.connected ? "bg-green-500/10 text-green-700" :
+                redis.configured ? "bg-amber-500/10 text-amber-700" :
+                "bg-red-500/10 text-red-700"
+              }`}>
+                Redis: {redis.connected ? "connected" : redis.configured ? "configured, not reachable" : "not configured"}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+            <div className="flex items-center gap-3">
+              <Switch checked={configEnabled} onCheckedChange={setConfigEnabled} id="cadence-enabled" disabled={!isSignedIn} />
+              <Label htmlFor="cadence-enabled" className="cursor-pointer">Auto-refresh enabled</Label>
+            </div>
+            <div>
+              <Label htmlFor="cadence-days" className="text-xs">Refresh every (days)</Label>
+              <Input id="cadence-days" type="number" min={1} max={365} value={configDays} onChange={e => setConfigDays(Number(e.target.value) || 30)} disabled={!isSignedIn} />
+            </div>
+            <Button onClick={saveConfig} disabled={!isSignedIn || configSaving} className="gap-2">
+              {configSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save
+            </Button>
+          </div>
+          {config?.lastRunAt && (
+            <div className="text-xs text-muted-foreground mt-3">
+              Last tick: {new Date(config.lastRunAt).toLocaleString()} · enqueued {config.lastRunEnqueued} capabilit{config.lastRunEnqueued === 1 ? "y" : "ies"}
+            </div>
+          )}
+          {configEnabled && redis && !redis.connected && (
+            <div className="text-xs text-amber-700 mt-2">
+              Cadence is enabled but Redis isn't reachable — ticks will be skipped until Redis comes online.
+            </div>
+          )}
         </div>
 
         <div>
