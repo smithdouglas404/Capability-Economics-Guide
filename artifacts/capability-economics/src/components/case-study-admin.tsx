@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FileText, Sparkles, Trash2, AlertCircle, RefreshCw } from "lucide-react";
+import { FileText, Sparkles, Trash2, AlertCircle, RefreshCw, Star } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -15,6 +15,7 @@ interface CaseStudyRow {
   executiveSummary: string;
   generatedAt: string;
   model: string;
+  isFeatured?: boolean;
 }
 
 interface Industry {
@@ -82,6 +83,16 @@ export default function CaseStudyAdmin() {
     fetchAll();
   };
 
+  const toggleFeatured = async (id: number, isFeatured: boolean) => {
+    await fetch(`${API_BASE}/admin/case-studies/${id}/feature`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-key": adminToken } : {}) },
+      body: JSON.stringify({ featured: !isFeatured }),
+    });
+    fetchAll();
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -128,6 +139,7 @@ export default function CaseStudyAdmin() {
               <tr className="border-b border-border">
                 <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Industry</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Title</th>
+                <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground uppercase" title="Pin this case study to the homepage">Homepage</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Model</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Generated</th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase">Actions</th>
@@ -137,13 +149,24 @@ export default function CaseStudyAdmin() {
               {loading ? (
                 <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Loading...</td></tr>
               ) : studies.length === 0 ? (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">No case studies generated yet — pick an industry above and generate one.</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No case studies generated yet — pick an industry above and generate one.</td></tr>
               ) : studies.map(s => (
                 <tr key={s.id} className="border-b border-border/50 hover:bg-muted/30 align-top">
                   <td className="px-3 py-2 font-medium">{s.industryName}</td>
                   <td className="px-3 py-2 max-w-md">
                     <div className="font-medium">{s.title}</div>
                     <div className="text-xs text-muted-foreground line-clamp-2">{s.executiveSummary}</div>
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => toggleFeatured(s.id, !!s.isFeatured)}
+                      className="h-7 w-7 p-0"
+                      title={s.isFeatured ? "Unpin from homepage" : "Pin to homepage (replaces current featured)"}
+                    >
+                      <Star className={`w-4 h-4 ${s.isFeatured ? "fill-amber-500 text-amber-500" : "text-muted-foreground"}`} />
+                    </Button>
                   </td>
                   <td className="px-3 py-2 font-mono text-xs">{s.model}</td>
                   <td className="px-3 py-2 text-xs text-muted-foreground">{new Date(s.generatedAt).toLocaleString()}</td>

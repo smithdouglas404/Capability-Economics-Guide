@@ -86,7 +86,31 @@ const item = {
   show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
 };
 
+type FeaturedCaseStudy = {
+  industrySlug: string;
+  industryName: string;
+  title: string;
+  executiveSummary: string;
+};
+
 export default function Home() {
+  const [featured, setFeatured] = useState<FeaturedCaseStudy | null>(null);
+  useEffect(() => {
+    fetch("/api/featured-case-study")
+      .then(r => r.ok ? r.json() : { featured: null })
+      .then((j: { featured: FeaturedCaseStudy | null }) => setFeatured(j.featured))
+      .catch(() => setFeatured(null));
+  }, []);
+
+  // Whatever's featured (admin-pinned, else most recent) drives the two
+  // industry CTAs. Fallback: insurance — that's the seed case study and
+  // matches the app's marketing copy if nothing has been generated yet.
+  const featuredSlug = featured?.industrySlug ?? "insurance";
+  const featuredName = featured?.industryName ?? "Insurance";
+  const featuredBlurb = featured?.executiveSummary
+    ?? "See capability economics in action. Watch how an insurance carrier optimized claims processing and underwriting.";
+  const featuredHref = `/case-study/${featuredSlug}`;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -117,8 +141,8 @@ export default function Home() {
                 Explore C-Suite Perspectives
                 <ArrowRight className="ml-2 w-5 h-5" />
               </Link>
-              <Link href="/insurance-example" className="inline-flex h-12 items-center justify-center whitespace-nowrap border border-input bg-background px-8 text-base font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" data-testid="hero-cta-insurance">
-                View Industry Case Study
+              <Link href={featuredHref} className="inline-flex h-12 items-center justify-center whitespace-nowrap border border-input bg-background px-8 text-base font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" data-testid="hero-cta-case-study">
+                View {featuredName} Case Study
               </Link>
             </div>
           </motion.div>
@@ -231,13 +255,13 @@ export default function Home() {
           </div>
           
           <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <Link href="/insurance-example" className="group block h-full" data-testid="nav-card-insurance">
+            <Link href={featuredHref} className="group block h-full" data-testid="nav-card-case-study">
               <Card className="h-full bg-background/10 border-none hover:bg-background/20 transition-colors cursor-pointer rounded-none text-background">
                 <CardHeader>
                   <Shield className="w-8 h-8 text-primary mb-2" />
-                  <CardTitle className="font-serif text-2xl group-hover:text-primary transition-colors text-background">Industry Case: Insurance</CardTitle>
-                  <CardDescription className="text-muted/80 text-base">
-                    See capability economics in action. Watch how an insurance carrier optimized claims processing and underwriting.
+                  <CardTitle className="font-serif text-2xl group-hover:text-primary transition-colors text-background">Industry Case: {featuredName}</CardTitle>
+                  <CardDescription className="text-muted/80 text-base line-clamp-3">
+                    {featuredBlurb}
                   </CardDescription>
                 </CardHeader>
               </Card>

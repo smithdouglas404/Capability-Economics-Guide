@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, jsonb, timestamp, boolean } from "drizzle-orm/pg-core";
 import { industriesTable } from "./industries";
 
 export const caseStudiesTable = pgTable("case_studies", {
@@ -14,6 +14,9 @@ export const caseStudiesTable = pgTable("case_studies", {
   sources: jsonb("sources").$type<{ url: string; title: string }[]>().notNull(),
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
   model: text("model").notNull(),
+  // Admin can pin one case study to be the homepage "featured example". When no
+  // row is featured, the homepage falls back to the most-recently generated study.
+  isFeatured: boolean("is_featured").notNull().default(false),
 });
 
 export type CaseStudy = typeof caseStudiesTable.$inferSelect;

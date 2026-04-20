@@ -17,6 +17,51 @@ const GenerateBody = z.object({
   industrySlug: z.string().min(2).max(80),
 });
 
+/**
+ * Pick the industry to feature on the homepage. Priority:
+ *   1. The case study with is_featured=true (admin-pinned)
+ *   2. Otherwise the most recently generated one
+ * Returns a compact payload — the homepage only needs industry slug/name + title + blurb.
+ */
+router.get("/featured-case-study", async (_req, res) => {
+  const rows = await db
+    .select({
+      id: caseStudiesTable.id,
+      industryId: caseStudiesTable.industryId,
+      industrySlug: industriesTable.slug,
+      industryName: industriesTable.name,
+      title: caseStudiesTable.title,
+      executiveSummary: caseStudiesTable.executiveSummary,
+      generatedAt: caseStudiesTable.generatedAt,
+      isFeatured: caseStudiesTable.isFeatured,
+    })
+    .from(caseStudiesTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, caseStudiesTable.industryId))
+    .orderBy(desc(caseStudiesTable.isFeatured), desc(caseStudiesTable.generatedAt))
+    .limit(1);
+  if (rows.length === 0) { res.json({ featured: null }); return; }
+  res.json({ featured: rows[0] });
+});
+
+/** Admin pins (or unpins) a case study as the homepage-featured example. */
+router.patch("/admin/case-studies/:id/feature", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  const pin = req.body?.featured !== false;
+
+  if (pin) {
+    // Only one can be featured at a time — unfeature everything else first.
+    await db.transaction(async (tx) => {
+      await tx.update(caseStudiesTable).set({ isFeatured: false });
+      await tx.update(caseStudiesTable).set({ isFeatured: true }).where(eq(caseStudiesTable.id, id));
+    });
+  } else {
+    await db.update(caseStudiesTable).set({ isFeatured: false }).where(eq(caseStudiesTable.id, id));
+  }
+
+  res.json({ ok: true, featured: pin });
+});
+
 router.get("/case-studies", async (_req, res) => {
   const rows = await db
     .select({
@@ -28,10 +73,11 @@ router.get("/case-studies", async (_req, res) => {
       executiveSummary: caseStudiesTable.executiveSummary,
       generatedAt: caseStudiesTable.generatedAt,
       model: caseStudiesTable.model,
+      isFeatured: caseStudiesTable.isFeatured,
     })
     .from(caseStudiesTable)
     .innerJoin(industriesTable, eq(industriesTable.id, caseStudiesTable.industryId))
-    .orderBy(desc(caseStudiesTable.generatedAt));
+    .orderBy(desc(caseStudiesTable.isFeatured), desc(caseStudiesTable.generatedAt));
   res.json(rows);
 });
 
