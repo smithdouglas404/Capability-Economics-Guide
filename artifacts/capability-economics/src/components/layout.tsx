@@ -334,6 +334,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         <Store className="w-4 h-4" /> Marketplace
                       </DropdownMenuItem>
                     </Link>
+                    <Link href="/case-studies">
+                      <DropdownMenuItem data-testid="nav-link-case-studies" className="cursor-pointer gap-2">
+                        <Lightbulb className="w-4 h-4" /> Case studies
+                      </DropdownMenuItem>
+                    </Link>
                     <DropdownMenuSeparator />
                     <SignOutButton>
                       <DropdownMenuItem className="cursor-pointer gap-2">
