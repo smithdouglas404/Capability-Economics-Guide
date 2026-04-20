@@ -49,7 +49,11 @@ function getQueueInternal(): Queue<EnrichmentJobData> {
       attempts: 3,
       backoff: { type: "exponential", delay: 5000 },
       removeOnComplete: { age: 24 * 60 * 60, count: 1000 },
-      removeOnFail: { age: 7 * 24 * 60 * 60 },
+      // removeOnFail: true — drop failed jobs immediately so a single
+      // poison job doesn't permanently block the deterministic jobId from
+      // being re-enqueued. Retry attempts (3 above) still happen before this
+      // takes effect.
+      removeOnFail: true,
     },
   });
   return queueInstance;
@@ -145,11 +149,9 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
   if (capabilityId != null) {
     await setCapabilityEnrichment(capabilityId, "running", stage, null);
   }
-  // Heartbeat — extend the BullMQ lock every 2 min so long Perplexity/GLM
-  // calls don't look stalled. Cleared when the job resolves.
-  const heartbeat = setInterval(() => {
-    job.extendLock(job.token ?? "", 15 * 60 * 1000).catch(() => { /* worker gone, ignore */ });
-  }, 2 * 60 * 1000);
+  // BullMQ automatically renews the worker lock every lockDuration/2 by
+  // default — no custom heartbeat needed. (Earlier version had one; it was
+  // redundant and the setInterval callback could throw, killing the worker.)
   try {
     if (jobType === "alpha") {
       const p = payload as AlphaPayload;
@@ -194,8 +196,6 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
     }
     log.error({ jobId: job.id, err: message, durationMs: Date.now() - start }, "[queue] job failed");
     throw err;
-  } finally {
-    clearInterval(heartbeat);
   }
 }
 
