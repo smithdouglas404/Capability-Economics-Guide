@@ -3,6 +3,7 @@ import { useUser } from "@clerk/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Loader2 } from "lucide-react";
+import { MarketplaceNav } from "@/components/marketplace-nav";
 
 const API_BASE = "/api";
 
@@ -44,11 +45,15 @@ export default function MarketplaceLibraryPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  if (!isLoaded) return <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
-  if (!user) return <div className="p-12 text-center text-muted-foreground">Sign in to view your library.</div>;
-
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <MarketplaceNav />
+      {!isLoaded ? (
+        <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+      ) : !user ? (
+        <div className="p-12 text-center text-muted-foreground">Sign in to view your library.</div>
+      ) : (
+      <>
       <h1 className="font-serif text-3xl flex items-center gap-2 mb-2"><FileText className="w-7 h-7 text-primary" /> Your library</h1>
       <p className="text-muted-foreground text-sm mb-6">Reports you've purchased. Downloads are watermarked with your email.</p>
 
@@ -86,6 +91,8 @@ export default function MarketplaceLibraryPage() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

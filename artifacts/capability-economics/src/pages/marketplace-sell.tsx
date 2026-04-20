@@ -9,6 +9,7 @@ import {
   AlertTriangle, ArrowUpRight, CheckCircle2, Clock, FileText, Loader2,
   Plus, Send, Store, Upload, XCircle,
 } from "lucide-react";
+import { MarketplaceNav } from "@/components/marketplace-nav";
 
 const API_BASE = "/api";
 
@@ -190,13 +191,28 @@ export default function MarketplaceSellPage() {
     }
   };
 
-  if (!isLoaded) return <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>;
-  if (!user) return <div className="p-12 text-center text-muted-foreground">Sign in to sell research.</div>;
-
   const canPublish = seller && seller.chargesEnabled && seller.payoutsEnabled;
+
+  if (!isLoaded) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <MarketplaceNav />
+        <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
+      </div>
+    );
+  }
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-4xl">
+        <MarketplaceNav />
+        <div className="p-12 text-center text-muted-foreground">Sign in to sell research.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
+      <MarketplaceNav />
       <div>
         <h1 className="font-serif text-3xl flex items-center gap-2"><Store className="w-7 h-7 text-primary" /> Sell your research</h1>
         <p className="text-muted-foreground text-sm mt-1">
