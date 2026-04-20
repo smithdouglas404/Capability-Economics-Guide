@@ -13,7 +13,7 @@ import {
   CREDIT_COSTS,
 } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
-import { enqueueEnrichmentJob } from "../services/alpha/queue";
+import { enqueueEnrichmentJob, getQueueStats } from "../services/alpha/queue";
 import { deductCredits } from "../middlewares/deductCredits";
 import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -22,6 +22,21 @@ import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enric
 import { logger } from "../lib/logger";
 
 const router = Router();
+
+/**
+ * Queue diagnostics — shows BullMQ job counts by state. Use this to see
+ * whether the worker is draining: `active` should be 1 or 0 (concurrency=1),
+ * `waiting` should trend to 0 if the worker is healthy, and `failed` climbing
+ * means jobs are erroring out. `completed` should tick up as work finishes.
+ */
+router.get("/queue-stats", async (_req: Request, res: Response) => {
+  try {
+    const stats = await getQueueStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "queue-stats failed" });
+  }
+});
 
 router.get("/status", async (_req: Request, res: Response) => {
   try {
