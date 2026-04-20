@@ -82,6 +82,78 @@ export async function createBillingPortalSession(opts: {
   });
 }
 
+export interface OrgCheckoutSessionInput {
+  orgId: number;
+  orgName: string;
+  tierName: string;
+  tierSlug: string;
+  perSeatPriceCents: number;
+  seats: number;
+  billingPeriod: "monthly" | "annual";
+  customerEmail?: string;
+  existingCustomerId?: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+/**
+ * Stripe Checkout session for an org-level seat-priced subscription. The
+ * subscription quantity equals the seat count; Stripe bills seats × per-seat
+ * price on each period. Later member adds/removes update the Stripe
+ * subscription quantity via updateOrgSubscriptionSeats().
+ */
+export async function createOrgCheckoutSession(input: OrgCheckoutSessionInput): Promise<Stripe.Checkout.Session> {
+  const stripe = getStripe();
+  return stripe.checkout.sessions.create({
+    mode: "subscription",
+    payment_method_types: ["card"],
+    line_items: [{
+      quantity: input.seats,
+      price_data: {
+        currency: "usd",
+        unit_amount: input.perSeatPriceCents,
+        recurring: { interval: input.billingPeriod === "annual" ? "year" : "month" },
+        product_data: {
+          name: `${input.tierName} — Capability Economics (${input.orgName})`,
+          description: `${input.billingPeriod === "annual" ? "Annual" : "Monthly"} team membership, per seat`,
+        },
+      },
+    }],
+    customer: input.existingCustomerId,
+    customer_email: input.existingCustomerId ? undefined : input.customerEmail,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    client_reference_id: `org:${input.orgId}`,
+    metadata: {
+      orgId: String(input.orgId),
+      tierSlug: input.tierSlug,
+      billingPeriod: input.billingPeriod,
+      seatsAtPurchase: String(input.seats),
+    },
+    subscription_data: {
+      metadata: {
+        orgId: String(input.orgId),
+        tierSlug: input.tierSlug,
+      },
+    },
+  });
+}
+
+/**
+ * Update the quantity on an existing org subscription. Stripe will prorate
+ * the difference and bill the owner accordingly.
+ */
+export async function updateOrgSubscriptionSeats(subscriptionId: string, seats: number): Promise<Stripe.Subscription> {
+  const stripe = getStripe();
+  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  const itemId = sub.items.data[0]?.id;
+  if (!itemId) throw new Error("Subscription has no line items");
+  return stripe.subscriptions.update(subscriptionId, {
+    items: [{ id: itemId, quantity: seats }],
+    proration_behavior: "create_prorations",
+  });
+}
+
 export async function cancelSubscription(subscriptionId: string, opts?: { atPeriodEnd?: boolean }): Promise<Stripe.Subscription> {
   const stripe = getStripe();
   if (opts?.atPeriodEnd) {

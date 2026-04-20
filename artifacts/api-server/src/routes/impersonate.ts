@@ -59,7 +59,10 @@ router.post("/admin/members/:userId/impersonate", requireAdmin, async (req, res)
     const origin = (req.headers.origin as string | undefined)
       ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
       ?? `${req.protocol}://${req.headers.host}`;
-    const fallbackUrl = `${origin.replace(/\/$/, "")}/?__clerk_ticket=${encodeURIComponent(ticket)}`;
+    // Clerk's ticket-flow sign-in path is the same route the app uses for normal sign-in
+    // (wouter Route at /sign-in/*? in App.tsx). Clerk's SignIn component reads
+    // __clerk_ticket from the URL and exchanges it for a session automatically.
+    const fallbackUrl = `${origin.replace(/\/$/, "")}/sign-in?__clerk_ticket=${encodeURIComponent(ticket)}`;
 
     await logAdminAction(req, {
       action: "impersonate.start",

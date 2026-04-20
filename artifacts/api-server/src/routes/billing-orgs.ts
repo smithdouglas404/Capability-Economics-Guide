@@ -7,11 +7,12 @@ import {
   billingOrgInvitesTable,
   membershipTiersTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, isNull, gt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, gt } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
 import { sendOrgInviteEmail } from "../services/email";
 import { logger } from "../lib/logger";
+import { createOrgCheckoutSession, updateOrgSubscriptionSeats, createBillingPortalSession, cancelSubscription, isStripeConfigured } from "../services/stripe";
 
 const router: IRouter = Router();
 
@@ -80,6 +81,168 @@ router.post("/billing-orgs", async (req, res) => {
   res.status(201).json({ organization: created });
 });
 
+// ───────────────────── Org-level Stripe subscription (per-seat) ─────────────────────
+
+const OrgCheckoutBody = z.object({
+  tierId: z.number().int().positive(),
+  billing: z.enum(["monthly", "annual"]).default("annual"),
+  successPath: z.string().default("/account?status=success"),
+  cancelPath: z.string().default("/account?status=cancelled"),
+});
+
+router.post("/billing-orgs/:id/checkout", async (req, res) => {
+  if (!isStripeConfigured()) { res.status(503).json({ error: "Stripe not configured" }); return; }
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+
+  // Only the owner can purchase a team subscription. Admins can't create org charges.
+  const role = await requireOrgRole(auth.userId, orgId, "owner");
+  if (!role) { res.status(403).json({ error: "Forbidden — only the owner can subscribe" }); return; }
+
+  const parsed = OrgCheckoutBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+  if (!org) { res.status(404).json({ error: "Org not found" }); return; }
+
+  const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
+  if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
+  const perSeat = parsed.data.billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
+  if (!perSeat || perSeat <= 0) { res.status(400).json({ error: "Tier has no price for this billing period" }); return; }
+
+  // seatLimit == seat count we bill for. Owner-only: the owner can adjust
+  // seatLimit (e.g. to buy more seats) via PATCH /billing-orgs/:id before checkout.
+  const seats = org.seatLimit;
+  const userEmail = (req.headers["x-user-email"] as string | undefined) ?? org.ownerEmail ?? undefined;
+  const origin = (req.headers.origin as string | undefined)
+    ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+    ?? `${req.protocol}://${req.headers.host}`;
+  const buildUrl = (p: string): string => {
+    try { const u = new URL(p, origin); u.searchParams.set("org", String(orgId)); return u.toString(); }
+    catch { const sep = p.includes("?") ? "&" : "?"; return `${origin}${p}${sep}org=${orgId}`; }
+  };
+
+  try {
+    // Stage the tier on the org up front (webhook activates status on payment).
+    await db.update(billingOrganizationsTable).set({
+      tierId: parsed.data.tierId,
+      status: "pending",
+      updatedAt: new Date(),
+    }).where(eq(billingOrganizationsTable.id, orgId));
+
+    const session = await createOrgCheckoutSession({
+      orgId,
+      orgName: org.name,
+      tierName: tier.name,
+      tierSlug: tier.slug,
+      perSeatPriceCents: perSeat,
+      seats,
+      billingPeriod: parsed.data.billing,
+      customerEmail: userEmail,
+      existingCustomerId: org.stripeCustomerId ?? undefined,
+      successUrl: buildUrl(parsed.data.successPath),
+      cancelUrl: buildUrl(parsed.data.cancelPath),
+    });
+    res.json({ checkoutUrl: session.url, sessionId: session.id });
+  } catch (err) {
+    logger.error({ err, orgId }, "[billing-orgs] checkout failed");
+    res.status(500).json({ error: "Failed to create checkout session", message: (err as Error).message });
+  }
+});
+
+const UpdateSeatLimitBody = z.object({ seatLimit: z.number().int().min(1).max(500) });
+
+/** Owner can change seatLimit. If there's an active subscription, syncs to Stripe. */
+router.patch("/billing-orgs/:id/seats", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+  const role = await requireOrgRole(auth.userId, orgId, "owner");
+  if (!role) { res.status(403).json({ error: "Forbidden — owner only" }); return; }
+  const parsed = UpdateSeatLimitBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+  if (!org) { res.status(404).json({ error: "Org not found" }); return; }
+
+  // Don't let seatLimit shrink below current member count — that would orphan members.
+  const members = await db.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, orgId));
+  if (parsed.data.seatLimit < members.length) {
+    res.status(400).json({ error: `Cannot shrink below current member count (${members.length}). Remove members first.` });
+    return;
+  }
+
+  await db.update(billingOrganizationsTable).set({
+    seatLimit: parsed.data.seatLimit,
+    updatedAt: new Date(),
+  }).where(eq(billingOrganizationsTable.id, orgId));
+
+  // If there's a live subscription, sync the quantity to Stripe (prorated).
+  if (org.stripeSubscriptionId) {
+    try {
+      await updateOrgSubscriptionSeats(org.stripeSubscriptionId, parsed.data.seatLimit);
+    } catch (err) {
+      logger.warn({ err, orgId }, "[billing-orgs] failed to sync seats to Stripe");
+      // Non-fatal — our DB reflects the intent, reconciliation can happen later.
+    }
+  }
+
+  res.json({ ok: true, seatLimit: parsed.data.seatLimit });
+});
+
+/** Owner can cancel the org subscription. */
+router.post("/billing-orgs/:id/cancel-subscription", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+  const role = await requireOrgRole(auth.userId, orgId, "owner");
+  if (!role) { res.status(403).json({ error: "Forbidden — owner only" }); return; }
+  const atPeriodEnd = req.body?.atPeriodEnd === true;
+
+  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+  if (!org?.stripeSubscriptionId) { res.status(404).json({ error: "No active subscription for this org" }); return; }
+
+  try {
+    await cancelSubscription(org.stripeSubscriptionId, { atPeriodEnd });
+    // Webhook customer.subscription.(updated|deleted) will flip status definitively.
+    res.json({ ok: true, atPeriodEnd });
+  } catch (err) {
+    res.status(500).json({ error: "Cancel failed", message: (err as Error).message });
+  }
+});
+
+/** Owner can open Stripe's Customer Portal to manage card, invoices, etc. */
+router.post("/billing-orgs/:id/billing-portal", async (req, res) => {
+  if (!isStripeConfigured()) { res.status(503).json({ error: "Stripe not configured" }); return; }
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+  const role = await requireOrgRole(auth.userId, orgId, "owner");
+  if (!role) { res.status(403).json({ error: "Forbidden — owner only" }); return; }
+
+  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+  if (!org?.stripeCustomerId) { res.status(404).json({ error: "No Stripe customer for this org yet" }); return; }
+
+  const origin = (req.headers.origin as string | undefined)
+    ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+    ?? `${req.protocol}://${req.headers.host}`;
+
+  try {
+    const portal = await createBillingPortalSession({
+      customerId: org.stripeCustomerId,
+      returnUrl: `${origin.replace(/\/$/, "")}/account`,
+    });
+    res.json({ url: portal.url });
+  } catch (err) {
+    res.status(500).json({ error: "Portal session failed", message: (err as Error).message });
+  }
+});
+
 // ───────────────────── List / detail ─────────────────────
 
 router.get("/billing-orgs/mine", async (req, res) => {
@@ -145,10 +308,8 @@ router.post("/billing-orgs/:id/invites", async (req, res) => {
   try {
     await db.transaction(async (tx) => {
       // SELECT ... FOR UPDATE serializes seat counting against concurrent accepts/invites.
-      const [org] = await tx.execute(
-        sql`SELECT * FROM ${billingOrganizationsTable} WHERE id = ${orgId} FOR UPDATE`,
-      ) as unknown as (typeof billingOrganizationsTable.$inferSelect)[];
-      if (!org) throw Object.assign(new Error("not found"), { statusCode: 404 });
+      const [org] = await tx.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId)).for("update");
+      if (!org) throw Object.assign(new Error("Org no longer exists"), { statusCode: 404 });
 
       const members = await tx.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, orgId));
       const pending = await tx.select().from(billingOrgInvitesTable).where(and(
@@ -244,9 +405,7 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
     // Seat-check + member insert atomically so two concurrent accept calls can't both succeed.
     try {
       await db.transaction(async (tx) => {
-        const [org] = await tx.execute(
-          sql`SELECT * FROM ${billingOrganizationsTable} WHERE id = ${invite.orgId} FOR UPDATE`,
-        ) as unknown as (typeof billingOrganizationsTable.$inferSelect)[];
+        const [org] = await tx.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, invite.orgId)).for("update");
         if (!org) throw Object.assign(new Error("Org no longer exists"), { statusCode: 404 });
         const members = await tx.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, invite.orgId));
         if (members.length >= org.seatLimit) {
@@ -273,6 +432,51 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
   }).where(eq(billingOrgInvitesTable.id, invite.id));
 
   res.json({ ok: true, orgId: invite.orgId });
+});
+
+const TransferOwnershipBody = z.object({
+  toUserId: z.string().min(1),
+});
+
+router.post("/billing-orgs/:id/transfer-ownership", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+
+  // Only the current owner can transfer ownership.
+  const callerRole = await requireOrgRole(auth.userId, orgId, "owner");
+  if (!callerRole) { res.status(403).json({ error: "Forbidden — only the owner can transfer ownership" }); return; }
+
+  const parsed = TransferOwnershipBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+  if (parsed.data.toUserId === auth.userId) { res.status(400).json({ error: "You are already the owner" }); return; }
+
+  const [target] = await db.select().from(billingOrgMembersTable).where(and(
+    eq(billingOrgMembersTable.orgId, orgId),
+    eq(billingOrgMembersTable.userId, parsed.data.toUserId),
+  ));
+  if (!target) { res.status(404).json({ error: "Target user is not a member of this org" }); return; }
+
+  // Transfer: promote target to owner, demote old owner to admin, update the org's ownerUserId.
+  await db.transaction(async (tx) => {
+    await tx.update(billingOrgMembersTable).set({ role: "admin" }).where(and(
+      eq(billingOrgMembersTable.orgId, orgId),
+      eq(billingOrgMembersTable.userId, auth.userId),
+    ));
+    await tx.update(billingOrgMembersTable).set({ role: "owner" }).where(and(
+      eq(billingOrgMembersTable.orgId, orgId),
+      eq(billingOrgMembersTable.userId, parsed.data.toUserId),
+    ));
+    await tx.update(billingOrganizationsTable).set({
+      ownerUserId: parsed.data.toUserId,
+      ownerEmail: target.email,
+      updatedAt: new Date(),
+    }).where(eq(billingOrganizationsTable.id, orgId));
+  });
+
+  logger.info({ orgId, fromUserId: auth.userId, toUserId: parsed.data.toUserId }, "[billing-orgs] ownership transferred");
+  res.json({ ok: true });
 });
 
 router.delete("/billing-orgs/:id/members/:userId", async (req, res) => {

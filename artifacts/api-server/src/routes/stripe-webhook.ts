@@ -1,9 +1,16 @@
 import express, { Router, type IRouter } from "express";
-import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable } from "@workspace/db";
+import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable, billingOrganizationsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { verifyWebhookSignature } from "../services/stripe";
 import { sendApprovalEmail, sendPaymentFailedEmail } from "../services/email";
 import { logger } from "../lib/logger";
+
+/** Stripe fields that may be either a string id or the expanded object; normalize to id. */
+function stringId(v: unknown): string | null {
+  if (typeof v === "string") return v;
+  if (v && typeof v === "object" && "id" in v && typeof (v as { id: unknown }).id === "string") return (v as { id: string }).id;
+  return null;
+}
 
 const router: IRouter = Router();
 
@@ -62,19 +69,33 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
       } else {
         // ── Membership activation ──
         const membershipId = Number(session.metadata?.membershipId ?? session.client_reference_id ?? 0);
-        const sessionFull = event.data.object as { metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: string; subscription?: string; customer?: string };
-        if (!Number.isFinite(membershipId) || membershipId <= 0) {
-          console.warn("[stripe webhook] checkout.session.completed without valid membershipId");
+        const sessionFull = event.data.object as { metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: unknown; subscription?: unknown; customer?: unknown };
+        const subscriptionId = stringId(sessionFull.subscription);
+        const customerId = stringId(sessionFull.customer);
+        const paymentIntentId = stringId(sessionFull.payment_intent);
+        const orgId = Number(session.metadata?.orgId ?? 0);
+
+        // Org-level subscription checkout: metadata.orgId is set by the org
+        // checkout endpoint. Update the billing_organizations row instead of a
+        // user membership — individual members inherit access through requireTier.
+        if (Number.isFinite(orgId) && orgId > 0) {
+          await db.update(billingOrganizationsTable).set({
+            status: "active",
+            stripeSubscriptionId: subscriptionId,
+            stripeCustomerId: customerId,
+            updatedAt: new Date(),
+          }).where(eq(billingOrganizationsTable.id, orgId));
+          console.log(`[stripe webhook] activated billing org ${orgId}`);
+        } else if (!Number.isFinite(membershipId) || membershipId <= 0) {
+          console.warn("[stripe webhook] checkout.session.completed without valid membershipId or orgId");
         } else {
           const result = await db.update(userMembershipsTable).set({
             status: "active",
             paymentStatus: "paid",
             // Subscription mode: payment_intent is null; store the subscription id as the ref so refunds/cancels can find it.
-            paymentRef: typeof sessionFull.payment_intent === "string"
-              ? sessionFull.payment_intent
-              : (typeof sessionFull.subscription === "string" ? sessionFull.subscription : "stripe_checkout"),
-            stripeSubscriptionId: typeof sessionFull.subscription === "string" ? sessionFull.subscription : null,
-            stripeCustomerId: typeof sessionFull.customer === "string" ? sessionFull.customer : null,
+            paymentRef: paymentIntentId ?? subscriptionId ?? "stripe_checkout",
+            stripeSubscriptionId: subscriptionId,
+            stripeCustomerId: customerId,
             approvedAt: new Date(),
             approvedBy: "stripe",
             updatedAt: new Date(),
@@ -96,23 +117,30 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
       }
     } else if (event.type === "invoice.payment_succeeded") {
       // Subscription renewal succeeded — extend the current_period_end on our record.
-      const inv = event.data.object as { subscription?: string; period_end?: number };
-      if (typeof inv.subscription === "string") {
+      const inv = event.data.object as { subscription?: unknown; period_end?: number };
+      const subId = stringId(inv.subscription);
+      if (subId) {
         const periodEnd = typeof inv.period_end === "number" ? new Date(inv.period_end * 1000) : null;
         await db.update(userMembershipsTable).set({
           paymentStatus: "paid",
           currentPeriodEnd: periodEnd,
           updatedAt: new Date(),
-        }).where(eq(userMembershipsTable.stripeSubscriptionId, inv.subscription));
+        }).where(eq(userMembershipsTable.stripeSubscriptionId, subId));
+        // Also ack the org-scoped subscription
+        await db.update(billingOrganizationsTable).set({
+          status: "active",
+          updatedAt: new Date(),
+        }).where(eq(billingOrganizationsTable.stripeSubscriptionId, subId));
       }
     } else if (event.type === "invoice.payment_failed") {
       // Start dunning — email the user and mark past_due. Stripe Smart Retries keeps trying.
-      const inv = event.data.object as { subscription?: string; amount_due?: number };
-      if (typeof inv.subscription === "string") {
+      const inv = event.data.object as { subscription?: unknown; amount_due?: number };
+      const subId = stringId(inv.subscription);
+      if (subId) {
         const rows = await db.update(userMembershipsTable).set({
           paymentStatus: "past_due",
           updatedAt: new Date(),
-        }).where(eq(userMembershipsTable.stripeSubscriptionId, inv.subscription)).returning({
+        }).where(eq(userMembershipsTable.stripeSubscriptionId, subId)).returning({
           userEmail: userMembershipsTable.userEmail,
           userName: userMembershipsTable.userName,
           tierId: userMembershipsTable.tierId,
@@ -124,6 +152,24 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
               to: r.userEmail,
               name: r.userName,
               tierName: tier?.name ?? "your",
+              amountCents: typeof inv.amount_due === "number" ? inv.amount_due : null,
+            });
+          }
+        }
+        // Org-scoped: mark past_due + email the owner
+        const orgRows = await db.update(billingOrganizationsTable).set({
+          status: "past_due",
+          updatedAt: new Date(),
+        }).where(eq(billingOrganizationsTable.stripeSubscriptionId, subId)).returning({
+          ownerEmail: billingOrganizationsTable.ownerEmail,
+          name: billingOrganizationsTable.name,
+        });
+        for (const o of orgRows) {
+          if (o.ownerEmail) {
+            void sendPaymentFailedEmail({
+              to: o.ownerEmail,
+              name: null,
+              tierName: `${o.name} team`,
               amountCents: typeof inv.amount_due === "number" ? inv.amount_due : null,
             });
           }
@@ -171,7 +217,12 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
         notes: `[stripe] Subscription ${sub.id} ended at ${new Date().toISOString()}`,
         updatedAt: new Date(),
       }).where(eq(userMembershipsTable.stripeSubscriptionId, sub.id));
-      logger.info({ subscriptionId: sub.id }, "[stripe webhook] subscription cancelled, membership deactivated");
+      // Org-scoped: revoke seat-inheritance access
+      await db.update(billingOrganizationsTable).set({
+        status: "cancelled",
+        updatedAt: new Date(),
+      }).where(eq(billingOrganizationsTable.stripeSubscriptionId, sub.id));
+      logger.info({ subscriptionId: sub.id }, "[stripe webhook] subscription cancelled, access deactivated");
     } else if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
       const session = event.data.object as { id?: string; metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: string };
       const tierSlug = session.metadata?.tierSlug;

@@ -35,10 +35,21 @@ type ApiKey = {
 };
 
 type OrgSummary = {
-  org: { id: number; name: string; slug: string; seatLimit: number; status: string };
+  org: {
+    id: number;
+    name: string;
+    slug: string;
+    seatLimit: number;
+    status: string;
+    tierId: number | null;
+    stripeSubscriptionId: string | null;
+    stripeCustomerId: string | null;
+  };
   role: string;
   joinedAt: string;
 };
+
+type TierOption = { id: number; slug: string; name: string; monthlyPriceCents: number | null; annualPriceCents: number | null };
 
 const statusBadge = (s: Membership["status"]) => {
   const map = {
@@ -72,16 +83,24 @@ export default function AccountPage() {
   const [newOrgName, setNewOrgName] = useState("");
   const [inviteEmails, setInviteEmails] = useState<Record<number, string>>({});
   const [orgDetails, setOrgDetails] = useState<Record<number, { members: { userId: string; email: string | null; role: string }[]; pendingInvites: { id: number; email: string; role: string; expiresAt: string }[] }>>({});
+  const [tierOptions, setTierOptions] = useState<TierOption[]>([]);
+  const [selectedTier, setSelectedTier] = useState<Record<number, string>>({});
+  const [seatInput, setSeatInput] = useState<Record<number, string>>({});
 
   const load = useCallback(async () => {
     if (!isLoaded || !user) return;
     setLoading(true);
     try {
-      const [mRes, kRes, oRes] = await Promise.all([
+      const [mRes, kRes, oRes, tRes] = await Promise.all([
         fetch(`${API_BASE}/me/membership`, { credentials: "include" }),
         fetch(`${API_BASE}/me/api-keys`, { credentials: "include" }),
         fetch(`${API_BASE}/billing-orgs/mine`, { credentials: "include" }),
+        fetch(`${API_BASE}/membership/tiers/all`, { credentials: "include" }),
       ]);
+      if (tRes.ok) {
+        const tiers = await tRes.json() as TierOption[];
+        setTierOptions(tiers.filter(t => (t.annualPriceCents ?? 0) > 0));
+      }
       if (mRes.ok) {
         const mJson = await mRes.json() as { membership: Membership | null; tier: Tier | null };
         setMembership(mJson.membership);
@@ -190,6 +209,61 @@ export default function AccountPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       setNewOrgName("");
+      await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const subscribeOrg = async (orgId: number) => {
+    const tierId = Number(selectedTier[orgId] ?? "");
+    if (!tierId) { alert("Pick a tier first."); return; }
+    setBusyId(`subscribe-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/checkout`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tierId, billing: "annual" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json() as { checkoutUrl: string };
+      window.location.href = json.checkoutUrl;
+    } catch (e) {
+      alert((e as Error).message);
+      setBusyId(null);
+    }
+  };
+
+  const openOrgPortal = async (orgId: number) => {
+    setBusyId(`portal-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/billing-portal`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json() as { url: string };
+      window.location.href = json.url;
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const updateSeats = async (orgId: number) => {
+    const n = Number(seatInput[orgId] ?? "");
+    if (!Number.isFinite(n) || n <= 0) return;
+    setBusyId(`seats-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/seats`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seatLimit: n }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setSeatInput(m => ({ ...m, [orgId]: "" }));
       await load();
     } catch (e) {
       alert((e as Error).message);
@@ -402,6 +476,72 @@ export default function AccountPage() {
                         </Button>
                       )}
                     </div>
+
+                    {role === "owner" && (
+                      <div className="mt-3 p-3 border-l-2 border-primary bg-primary/5">
+                        {!org.stripeSubscriptionId ? (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium">Subscribe to activate team access</div>
+                            <p className="text-xs text-muted-foreground">Members inherit the team's tier. Billed as seats × per-seat price, annually.</p>
+                            <div className="flex gap-2 items-end flex-wrap">
+                              <div className="flex-1 min-w-[180px]">
+                                <Label className="text-xs">Tier</Label>
+                                <select
+                                  className="w-full border border-border px-2 py-1.5 rounded-none text-sm"
+                                  value={selectedTier[org.id] ?? ""}
+                                  onChange={e => setSelectedTier(m => ({ ...m, [org.id]: e.target.value }))}
+                                >
+                                  <option value="">Select tier…</option>
+                                  {tierOptions.map(t => (
+                                    <option key={t.id} value={String(t.id)}>
+                                      {t.name}{t.annualPriceCents != null ? ` — $${(t.annualPriceCents / 100).toLocaleString()}/seat/yr` : ""}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="text-xs text-muted-foreground shrink-0">
+                                × {org.seatLimit} seats
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={() => subscribeOrg(org.id)}
+                                disabled={!selectedTier[org.id] || busyId === `subscribe-${org.id}`}
+                                className="rounded-none"
+                              >
+                                {busyId === `subscribe-${org.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                <span className="ml-1">Subscribe</span>
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium flex items-center gap-2">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                              Subscribed ({org.status})
+                            </div>
+                            <div className="flex gap-2 items-end flex-wrap">
+                              <div className="flex-1 min-w-[120px]">
+                                <Label className="text-xs">Change seat count</Label>
+                                <Input
+                                  type="number"
+                                  placeholder={String(org.seatLimit)}
+                                  value={seatInput[org.id] ?? ""}
+                                  onChange={e => setSeatInput(m => ({ ...m, [org.id]: e.target.value }))}
+                                  className="rounded-none h-8"
+                                />
+                              </div>
+                              <Button size="sm" variant="outline" onClick={() => updateSeats(org.id)} disabled={!seatInput[org.id] || busyId === `seats-${org.id}`} className="rounded-none">
+                                {busyId === `seats-${org.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update"}
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => openOrgPortal(org.id)} disabled={busyId === `portal-${org.id}`} className="rounded-none">
+                                {busyId === `portal-${org.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                                <span className="ml-1">Manage billing</span>
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {canManage && detail && (
                       <div className="mt-3 space-y-3">
