@@ -130,14 +130,38 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
         }
       }
     } else if (event.type === "customer.subscription.updated") {
-      // Plan changes, cancel_at_period_end toggle, etc. Sync the period end and reflect cancellation-scheduled status.
+      // Plan changes, cancel_at_period_end toggle, and final-retry-exhausted transitions to "unpaid".
       const sub = event.data.object as { id: string; cancel_at_period_end?: boolean; current_period_end?: number; status?: string };
       const periodEnd = typeof sub.current_period_end === "number" ? new Date(sub.current_period_end * 1000) : null;
-      await db.update(userMembershipsTable).set({
-        paymentStatus: sub.status === "past_due" ? "past_due" : (sub.cancel_at_period_end ? "cancel_scheduled" : "paid"),
+      const newPaymentStatus =
+        sub.status === "past_due" ? "past_due" :
+        sub.status === "unpaid"   ? "unpaid"   :
+        sub.cancel_at_period_end  ? "cancel_scheduled" : "paid";
+      const updated = await db.update(userMembershipsTable).set({
+        paymentStatus: newPaymentStatus,
+        // Stripe's "unpaid" = Smart Retries exhausted. Revoke access so downstream tier gates start failing.
+        status: sub.status === "unpaid" ? "cancelled" : undefined as never,
         currentPeriodEnd: periodEnd,
         updatedAt: new Date(),
-      }).where(eq(userMembershipsTable.stripeSubscriptionId, sub.id));
+      }).where(eq(userMembershipsTable.stripeSubscriptionId, sub.id)).returning({
+        userEmail: userMembershipsTable.userEmail,
+        userName: userMembershipsTable.userName,
+        tierId: userMembershipsTable.tierId,
+      });
+      // Escalation email when Stripe gave up retrying.
+      if (sub.status === "unpaid") {
+        for (const row of updated) {
+          if (row.userEmail) {
+            const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, row.tierId));
+            void sendPaymentFailedEmail({
+              to: row.userEmail,
+              name: row.userName,
+              tierName: tier?.name ?? "your",
+              amountCents: null,
+            });
+          }
+        }
+      }
     } else if (event.type === "customer.subscription.deleted") {
       // Subscription fully cancelled — revoke access.
       const sub = event.data.object as { id: string };

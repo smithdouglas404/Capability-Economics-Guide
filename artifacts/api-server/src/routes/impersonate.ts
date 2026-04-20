@@ -46,20 +46,33 @@ router.post("/admin/members/:userId/impersonate", requireAdmin, async (req, res)
       return;
     }
 
-    const token = await response.json() as { id: string; token: string; url?: string };
+    const tokenResp = await response.json() as { id?: string; token?: string; url?: string };
+    const ticket = tokenResp.token;
+    if (!ticket) {
+      logger.warn({ tokenResp }, "[impersonate] clerk response missing token");
+      res.status(502).json({ error: "Clerk response missing token", raw: tokenResp });
+      return;
+    }
+
+    // Clerk sometimes returns `url`, sometimes only the token. Build the ticket
+    // URL ourselves from the app origin so this works either way.
+    const origin = (req.headers.origin as string | undefined)
+      ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+      ?? `${req.protocol}://${req.headers.host}`;
+    const fallbackUrl = `${origin.replace(/\/$/, "")}/?__clerk_ticket=${encodeURIComponent(ticket)}`;
 
     await logAdminAction(req, {
       action: "impersonate.start",
       targetType: "user",
       targetId: targetUserId,
-      details: { actorTokenId: token.id },
+      details: { actorTokenId: tokenResp.id ?? null },
     });
 
     res.json({
-      token: token.token,
-      url: token.url ?? null,
+      token: ticket,
+      url: tokenResp.url ?? fallbackUrl,
       expiresInSeconds: 60,
-      hint: "Navigate to `url` (or construct the ticket URL) within 60 seconds to establish a session as the target user.",
+      hint: "Open `url` in a new tab within 60 seconds to sign in as the target user.",
     });
   } catch (err) {
     logger.error({ err }, "[impersonate] failed");

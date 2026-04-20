@@ -1,5 +1,30 @@
-import PDFDocument from "pdfkit";
 import type { Writable } from "node:stream";
+
+// Lazy import: pdfkit is externalized in esbuild and loads AFM font files at
+// runtime. If something goes wrong with font resolution, isolate the failure
+// to this route rather than crashing boot.
+type PdfKitCtor = new (options?: Record<string, unknown>) => {
+  pipe: (out: Writable) => void;
+  fillColor: (c: string) => any;
+  rect: (x: number, y: number, w: number, h: number) => any;
+  fill: () => any;
+  fontSize: (s: number) => any;
+  font: (f: string) => any;
+  text: (txt: string, x?: number, y?: number, opts?: Record<string, unknown>) => any;
+  moveTo: (x: number, y: number) => any;
+  lineTo: (x: number, y: number) => any;
+  strokeColor: (c: string) => any;
+  lineWidth: (w: number) => any;
+  stroke: () => any;
+  end: () => void;
+};
+let _PDFDocument: PdfKitCtor | null = null;
+async function getPDFDocument(): Promise<PdfKitCtor> {
+  if (_PDFDocument) return _PDFDocument;
+  const mod = await import("pdfkit");
+  _PDFDocument = (mod.default ?? (mod as unknown as PdfKitCtor)) as PdfKitCtor;
+  return _PDFDocument;
+}
 
 export type InvoiceData = {
   invoiceNumber: string;
@@ -38,7 +63,8 @@ const methodLabel = (m: InvoiceData["payment"]["method"]) =>
  * if you need to flush — the underlying PDFDocument ends itself when the
  * internal stream is drained.
  */
-export function writeInvoicePdf(data: InvoiceData, out: Writable): void {
+export async function writeInvoicePdf(data: InvoiceData, out: Writable): Promise<void> {
+  const PDFDocument = await getPDFDocument();
   const doc = new PDFDocument({ size: "LETTER", margin: 50 });
   doc.pipe(out);
 

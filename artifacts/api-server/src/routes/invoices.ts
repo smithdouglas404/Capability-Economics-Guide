@@ -47,10 +47,19 @@ function buildInvoiceData(opts: {
   };
 }
 
-function streamPdfResponse(res: Parameters<typeof writeInvoicePdf>[1] & { setHeader: (k: string, v: string) => void }, data: InvoiceData) {
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="invoice-${data.invoiceNumber}.pdf"`);
-  writeInvoicePdf(data, res);
+async function streamPdfResponse(res: Parameters<typeof writeInvoicePdf>[1] & { setHeader: (k: string, v: string) => void; status: (code: number) => { json: (b: unknown) => void } }, data: InvoiceData) {
+  try {
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="invoice-${data.invoiceNumber}.pdf"`);
+    await writeInvoicePdf(data, res);
+  } catch (err) {
+    // If pdfkit failed to load or render (rare — usually font file resolution),
+    // return a JSON error instead of a dangling PDF header.
+    if (!res.headersSent) {
+      res.setHeader("Content-Type", "application/json");
+      res.status(500).json({ error: "PDF generation failed", message: (err as Error).message });
+    }
+  }
 }
 
 /** Users can download invoices for their own memberships. */
@@ -62,7 +71,7 @@ router.get("/me/memberships/:id/invoice.pdf", async (req, res) => {
   const [m] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
   if (!m || m.userId !== auth.userId) { res.status(404).json({ error: "not found" }); return; }
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, m.tierId));
-  streamPdfResponse(res, buildInvoiceData({ membership: m, tier: tier ?? null }));
+  await streamPdfResponse(res, buildInvoiceData({ membership: m, tier: tier ?? null }));
 });
 
 /** Admin can download invoices for any membership. */
@@ -72,7 +81,7 @@ router.get("/admin/memberships/:id/invoice.pdf", requireAdmin, async (req, res) 
   const [m] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
   if (!m) { res.status(404).json({ error: "not found" }); return; }
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, m.tierId));
-  streamPdfResponse(res, buildInvoiceData({ membership: m, tier: tier ?? null }));
+  await streamPdfResponse(res, buildInvoiceData({ membership: m, tier: tier ?? null }));
 });
 
 export default router;

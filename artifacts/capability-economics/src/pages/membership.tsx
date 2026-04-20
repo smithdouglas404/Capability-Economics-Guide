@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, ArrowLeft } from "lucide-react";
+import { Check, Sparkles, ArrowLeft, Bitcoin } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 type Tier = {
@@ -58,7 +58,9 @@ function PriceBlock({ tier, billing }: { tier: Tier; billing: "monthly" | "annua
   );
 }
 
-async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise<void> {
+type CheckoutMethod = "card" | "crypto";
+
+async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: CheckoutMethod = "card"): Promise<void> {
   const monthly = tier.monthlyPriceCents ?? 0;
   const annual = tier.annualPriceCents ?? 0;
   const isFree = !tier.isContactSales && monthly === 0 && annual === 0;
@@ -138,7 +140,8 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise
       return;
     }
 
-    const res = await fetch("/api/me/membership/checkout", {
+    const endpoint = method === "crypto" ? "/api/me/membership/crypto/start" : "/api/me/membership/checkout";
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ tierId: tier.id, billing, entityType, entityName: entityName.trim() }),
@@ -146,12 +149,14 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       if (res.status === 401) { alert("Please sign in to purchase a membership."); return; }
+      if (res.status === 503 && method === "crypto") { alert("Crypto payments aren't configured yet. Try card instead, or contact support."); return; }
       alert(`Could not start checkout: ${err.error ?? res.statusText}`);
       return;
     }
-    const { checkoutUrl } = await res.json();
-    if (checkoutUrl) {
-      window.location.href = checkoutUrl;
+    const json = await res.json() as { checkoutUrl?: string; invoiceUrl?: string };
+    const url = json.invoiceUrl ?? json.checkoutUrl;
+    if (url) {
+      window.location.href = url;
     } else {
       alert("Checkout session created but no redirect URL was returned.");
     }
@@ -162,11 +167,13 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual"): Promise
 
 function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual" }) {
   const [flipped, setFlipped] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const onPurchase = async () => {
-    setLoading(true);
-    try { await startCheckout(tier, billing); } finally { setLoading(false); }
+  const [loading, setLoading] = useState<null | "card" | "crypto">(null);
+  const onPurchase = async (method: "card" | "crypto" = "card") => {
+    setLoading(method);
+    try { await startCheckout(tier, billing, method); } finally { setLoading(null); }
   };
+  const isFree = !tier.isContactSales && (tier.monthlyPriceCents ?? 0) === 0 && (tier.annualPriceCents ?? 0) === 0;
+  const showCryptoButton = !isFree && !tier.isContactSales;
   return (
     <div className="relative h-[520px] [perspective:1500px]">
       <motion.div
@@ -202,11 +209,23 @@ function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual"
                 className="w-full"
                 variant={tier.highlight ? "default" : "outline"}
                 data-testid={`button-purchase-${tier.slug}`}
-                onClick={onPurchase}
-                disabled={loading}
+                onClick={() => onPurchase("card")}
+                disabled={loading !== null}
               >
-                {loading ? "Redirecting…" : tier.ctaLabel}
+                {loading === "card" ? "Redirecting…" : tier.ctaLabel}
               </Button>
+              {showCryptoButton && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-1.5"
+                  data-testid={`button-purchase-crypto-${tier.slug}`}
+                  onClick={() => onPurchase("crypto")}
+                  disabled={loading !== null}
+                >
+                  <Bitcoin className="w-4 h-4" />
+                  {loading === "crypto" ? "Redirecting…" : "Pay with crypto"}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className="w-full"
@@ -247,15 +266,28 @@ function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual"
                 </li>
               ))}
             </ul>
-            <Button
-              className="w-full mt-5"
-              variant={tier.highlight ? "default" : "outline"}
-              data-testid={`button-purchase-back-${tier.slug}`}
-              onClick={onPurchase}
-              disabled={loading}
-            >
-              {loading ? "Redirecting…" : tier.ctaLabel}
-            </Button>
+            <div className="space-y-2 mt-5">
+              <Button
+                className="w-full"
+                variant={tier.highlight ? "default" : "outline"}
+                data-testid={`button-purchase-back-${tier.slug}`}
+                onClick={() => onPurchase("card")}
+                disabled={loading !== null}
+              >
+                {loading === "card" ? "Redirecting…" : tier.ctaLabel}
+              </Button>
+              {showCryptoButton && (
+                <Button
+                  variant="outline"
+                  className="w-full gap-1.5"
+                  onClick={() => onPurchase("crypto")}
+                  disabled={loading !== null}
+                >
+                  <Bitcoin className="w-4 h-4" />
+                  {loading === "crypto" ? "Redirecting…" : "Pay with crypto"}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>

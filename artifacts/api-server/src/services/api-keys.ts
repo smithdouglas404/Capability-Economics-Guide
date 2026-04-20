@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { db, apiKeysTable } from "@workspace/db";
 import { and, eq, isNull } from "drizzle-orm";
+import { logger } from "../lib/logger";
 
 const KEY_PREFIX = "ce_live_";
 const RAW_LENGTH_BYTES = 32; // 32 bytes → 43 chars base64url
@@ -36,8 +37,12 @@ export async function resolveApiKey(authHeader: string | undefined): Promise<{ u
     .limit(1);
   if (!row) return null;
 
-  // Best-effort lastUsedAt update
-  db.update(apiKeysTable).set({ lastUsedAt: new Date() }).where(eq(apiKeysTable.id, row.id)).catch(() => {});
+  // Best-effort lastUsedAt update. Log failures so silent DB issues don't hide
+  // from ops — but never block auth resolution on this write.
+  db.update(apiKeysTable)
+    .set({ lastUsedAt: new Date() })
+    .where(eq(apiKeysTable.id, row.id))
+    .catch((err) => logger.warn({ err, keyId: row.id }, "[api-keys] failed to update lastUsedAt"));
 
   return { userId: row.userId, keyId: row.id };
 }

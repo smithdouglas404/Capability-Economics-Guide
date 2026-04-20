@@ -7,7 +7,7 @@ import {
   billingOrgInvitesTable,
   membershipTiersTable,
 } from "@workspace/db";
-import { and, asc, desc, eq, isNull, gt } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, gt, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
 import { sendOrgInviteEmail } from "../services/email";
@@ -136,34 +136,57 @@ router.post("/billing-orgs/:id/invites", async (req, res) => {
   const parsed = InviteBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
 
-  // Seat check: count existing members + pending invites against org.seatLimit
-  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
-  if (!org) { res.status(404).json({ error: "not found" }); return; }
-  const members = await db.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, orgId));
-  const pending = await db.select().from(billingOrgInvitesTable).where(and(
-    eq(billingOrgInvitesTable.orgId, orgId),
-    isNull(billingOrgInvitesTable.acceptedAt),
-    gt(billingOrgInvitesTable.expiresAt, new Date()),
-  ));
-  if (members.length + pending.length >= org.seatLimit) {
-    res.status(402).json({ error: "Seat limit reached", seatLimit: org.seatLimit, current: members.length + pending.length });
-    return;
-  }
-
-  // Already a member?
-  const existing = members.find(m => m.email?.toLowerCase() === parsed.data.email.toLowerCase());
-  if (existing) { res.status(409).json({ error: "Email is already a member" }); return; }
-
+  // Seat count + insert in one transaction to close the race window where two
+  // concurrent invites could both pass the check.
   const token = crypto.randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
-  const [invite] = await db.insert(billingOrgInvitesTable).values({
-    orgId,
-    email: parsed.data.email,
-    token,
-    role: parsed.data.role,
-    invitedBy: auth.userId,
-    expiresAt,
-  }).returning();
+
+  let invite: typeof billingOrgInvitesTable.$inferSelect | undefined;
+  try {
+    await db.transaction(async (tx) => {
+      // SELECT ... FOR UPDATE serializes seat counting against concurrent accepts/invites.
+      const [org] = await tx.execute(
+        sql`SELECT * FROM ${billingOrganizationsTable} WHERE id = ${orgId} FOR UPDATE`,
+      ) as unknown as (typeof billingOrganizationsTable.$inferSelect)[];
+      if (!org) throw Object.assign(new Error("not found"), { statusCode: 404 });
+
+      const members = await tx.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, orgId));
+      const pending = await tx.select().from(billingOrgInvitesTable).where(and(
+        eq(billingOrgInvitesTable.orgId, orgId),
+        isNull(billingOrgInvitesTable.acceptedAt),
+        gt(billingOrgInvitesTable.expiresAt, new Date()),
+      ));
+      if (members.length + pending.length >= org.seatLimit) {
+        throw Object.assign(new Error("Seat limit reached"), {
+          statusCode: 402,
+          seatLimit: org.seatLimit,
+          current: members.length + pending.length,
+        });
+      }
+      if (members.find(m => m.email?.toLowerCase() === parsed.data.email.toLowerCase())) {
+        throw Object.assign(new Error("Email is already a member"), { statusCode: 409 });
+      }
+
+      const [inserted] = await tx.insert(billingOrgInvitesTable).values({
+        orgId,
+        email: parsed.data.email,
+        token,
+        role: parsed.data.role,
+        invitedBy: auth.userId,
+        expiresAt,
+      }).returning();
+      invite = inserted;
+    });
+  } catch (err) {
+    const e = err as { statusCode?: number; message?: string; seatLimit?: number; current?: number };
+    if (e.statusCode) { res.status(e.statusCode).json({ error: e.message, seatLimit: e.seatLimit, current: e.current }); return; }
+    throw err;
+  }
+
+  if (!invite) { res.status(500).json({ error: "Insert failed" }); return; }
+
+  const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+  if (!org) { res.status(404).json({ error: "org disappeared" }); return; }
 
   const origin = (req.headers.origin as string | undefined)
     ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
@@ -218,20 +241,30 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
   )).limit(1);
 
   if (!existing) {
-    // Seat check again at accept time to avoid a race when limits shrank.
-    const members = await db.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, invite.orgId));
-    const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, invite.orgId));
-    if (org && members.length >= org.seatLimit) {
-      res.status(402).json({ error: "Seat limit reached — cannot accept invite" });
-      return;
+    // Seat-check + member insert atomically so two concurrent accept calls can't both succeed.
+    try {
+      await db.transaction(async (tx) => {
+        const [org] = await tx.execute(
+          sql`SELECT * FROM ${billingOrganizationsTable} WHERE id = ${invite.orgId} FOR UPDATE`,
+        ) as unknown as (typeof billingOrganizationsTable.$inferSelect)[];
+        if (!org) throw Object.assign(new Error("Org no longer exists"), { statusCode: 404 });
+        const members = await tx.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, invite.orgId));
+        if (members.length >= org.seatLimit) {
+          throw Object.assign(new Error("Seat limit reached — cannot accept invite"), { statusCode: 402 });
+        }
+        await tx.insert(billingOrgMembersTable).values({
+          orgId: invite.orgId,
+          userId: auth.userId,
+          email: userEmail ?? invite.email,
+          role: invite.role,
+          invitedBy: invite.invitedBy,
+        });
+      });
+    } catch (err) {
+      const e = err as { statusCode?: number; message?: string };
+      if (e.statusCode) { res.status(e.statusCode).json({ error: e.message }); return; }
+      throw err;
     }
-    await db.insert(billingOrgMembersTable).values({
-      orgId: invite.orgId,
-      userId: auth.userId,
-      email: userEmail ?? invite.email,
-      role: invite.role,
-      invitedBy: invite.invitedBy,
-    });
   }
 
   await db.update(billingOrgInvitesTable).set({

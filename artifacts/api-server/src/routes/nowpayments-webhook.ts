@@ -6,6 +6,20 @@ import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
+/** Recursively sort object keys so JSON.stringify produces a deterministic representation. */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(obj)
+        .sort()
+        .map(k => [k, sortKeysDeep(obj[k])]),
+    );
+  }
+  return value;
+}
+
 /**
  * NOWPayments IPN webhook for crypto payments.
  *
@@ -40,7 +54,7 @@ router.post(
     }
 
     const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body));
-    let payload: Record<string, unknown>;
+    let payload: unknown;
     try {
       payload = JSON.parse(rawBody.toString("utf8"));
     } catch {
@@ -48,14 +62,11 @@ router.post(
       return;
     }
 
-    // NOWPayments sorts top-level keys alphabetically before signing. Re-serialize
-    // the same way so our HMAC matches theirs.
-    const sorted = JSON.stringify(
-      Object.fromEntries(
-        Object.entries(payload).sort(([a], [b]) => a.localeCompare(b)),
-      ),
-    );
-    const expected = crypto.createHmac("sha512", secret).update(sorted).digest("hex");
+    // NOWPayments signs the JSON with keys sorted RECURSIVELY, not just at the top
+    // level — their reference implementation walks nested objects too. Matching
+    // their format exactly is the only way our HMAC will match theirs.
+    const sortedJson = JSON.stringify(sortKeysDeep(payload));
+    const expected = crypto.createHmac("sha512", secret).update(sortedJson).digest("hex");
 
     let valid = false;
     try {
@@ -71,13 +82,14 @@ router.post(
       return;
     }
 
-    const status = String(payload.payment_status ?? "");
+    const p = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+    const status = String(p.payment_status ?? "");
     // The `order_id` we set when creating the invoice should match our membership id.
-    const orderId = Number(payload.order_id ?? 0);
-    const paymentId = payload.payment_id != null ? String(payload.payment_id) : null;
+    const orderId = Number(p.order_id ?? 0);
+    const paymentId = p.payment_id != null ? String(p.payment_id) : null;
 
     logger.info(
-      { status, orderId, paymentId, paidAmount: payload.actually_paid, priceAmount: payload.price_amount },
+      { status, orderId, paymentId, paidAmount: p.actually_paid, priceAmount: p.price_amount },
       "[nowpayments webhook] received",
     );
 
