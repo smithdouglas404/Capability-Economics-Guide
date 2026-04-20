@@ -46,6 +46,10 @@ export const userMembershipsTable = pgTable("user_memberships", {
   approvedAt: timestamp("approved_at"),
   approvedBy: text("approved_by"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  // Stripe subscription mode (optional — legacy one-time payments leave null)
+  stripeSubscriptionId: text("stripe_subscription_id"),
+  stripeCustomerId: text("stripe_customer_id"),
+  currentPeriodEnd: timestamp("current_period_end"),
 });
 
 export const insertUserMembershipSchema = createInsertSchema(userMembershipsTable).omit({
@@ -53,6 +57,10 @@ export const insertUserMembershipSchema = createInsertSchema(userMembershipsTabl
 });
 export type InsertUserMembership = z.infer<typeof insertUserMembershipSchema>;
 export type UserMembership = typeof userMembershipsTable.$inferSelect;
+
+// Add Stripe subscription columns — kept separate to make the diff obvious.
+// These are populated by the stripe webhook when a subscription is created.
+// For one-time payments (legacy memberships) they remain null.
 
 // ── CEI Credits System ──
 

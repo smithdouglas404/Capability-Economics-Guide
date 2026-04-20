@@ -1,6 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
-import { userMembershipsTable, membershipTiersTable, kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
+import {
+  userMembershipsTable,
+  membershipTiersTable,
+  kycVerificationsTable,
+  KYC_LEVELS_BY_TIER,
+  billingOrgMembersTable,
+  billingOrganizationsTable,
+} from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { isClerkAdmin } from "./requireAdmin";
@@ -78,21 +85,32 @@ export function requireTier(minimumTier: string) {
       return;
     }
 
-    // Find user's active membership
-    const [membership] = await db.select({
-      status: userMembershipsTable.status,
-      tierSlug: membershipTiersTable.slug,
-    })
-      .from(userMembershipsTable)
-      .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
-      .where(and(
-        eq(userMembershipsTable.userId, userId),
-        eq(userMembershipsTable.status, "active"),
-      ))
-      .limit(1);
+    // Find user's active personal membership + every org they belong to.
+    // The effective tier is the highest of the two.
+    const [personal, orgMemberships] = await Promise.all([
+      db.select({ tierSlug: membershipTiersTable.slug })
+        .from(userMembershipsTable)
+        .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
+        .where(and(
+          eq(userMembershipsTable.userId, userId),
+          eq(userMembershipsTable.status, "active"),
+        ))
+        .limit(1),
+      db.select({ tierSlug: membershipTiersTable.slug })
+        .from(billingOrgMembersTable)
+        .innerJoin(billingOrganizationsTable, eq(billingOrgMembersTable.orgId, billingOrganizationsTable.id))
+        .innerJoin(membershipTiersTable, eq(billingOrganizationsTable.tierId, membershipTiersTable.id))
+        .where(and(
+          eq(billingOrgMembersTable.userId, userId),
+          eq(billingOrganizationsTable.status, "active"),
+        )),
+    ]);
 
-    // No membership = treat as discovery (free tier)
-    const userTier = membership?.tierSlug ?? "discovery";
+    const candidateSlugs = [personal[0]?.tierSlug, ...orgMemberships.map(o => o.tierSlug)].filter(Boolean) as string[];
+    // Rank every candidate, pick the max. Default to "discovery" (free) when none.
+    const userTier = candidateSlugs.length
+      ? candidateSlugs.reduce((best, slug) => (TIER_RANK[slug] ?? 0) > (TIER_RANK[best] ?? 0) ? slug : best, "discovery")
+      : "discovery";
     const userRank = TIER_RANK[userTier] ?? 0;
 
     if (userRank < minRank) {

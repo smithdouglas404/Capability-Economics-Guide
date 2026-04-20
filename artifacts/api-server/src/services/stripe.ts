@@ -22,18 +22,27 @@ export interface CheckoutSessionInput {
   customerEmail?: string;
   successUrl: string;
   cancelUrl: string;
+  /** When true, creates a recurring subscription; otherwise a one-time payment (legacy). */
+  subscription?: boolean;
 }
 
 export async function createCheckoutSession(input: CheckoutSessionInput): Promise<Stripe.Checkout.Session> {
   const stripe = getStripe();
+  const isSubscription = input.subscription !== false; // default to subscriptions for new flows
+
+  const recurring: Stripe.Checkout.SessionCreateParams.LineItem.PriceData["recurring"] | undefined = isSubscription
+    ? { interval: input.billingPeriod === "annual" ? "year" : "month" }
+    : undefined;
+
   return stripe.checkout.sessions.create({
-    mode: "payment",
+    mode: isSubscription ? "subscription" : "payment",
     payment_method_types: ["card"],
     line_items: [{
       quantity: 1,
       price_data: {
         currency: "usd",
         unit_amount: input.amountCents,
+        recurring,
         product_data: {
           name: `${input.tierName} — Capability Economics`,
           description: `${input.billingPeriod === "annual" ? "Annual" : "Monthly"} membership`,
@@ -49,7 +58,36 @@ export async function createCheckoutSession(input: CheckoutSessionInput): Promis
       tierSlug: input.tierSlug,
       billingPeriod: input.billingPeriod,
     },
+    subscription_data: isSubscription ? {
+      metadata: {
+        membershipId: String(input.membershipId),
+        tierSlug: input.tierSlug,
+      },
+    } : undefined,
   });
+}
+
+/**
+ * Returns a URL to Stripe's hosted Customer Portal where the user can
+ * update payment methods, change plan, view invoices, or cancel.
+ */
+export async function createBillingPortalSession(opts: {
+  customerId: string;
+  returnUrl: string;
+}): Promise<Stripe.BillingPortal.Session> {
+  const stripe = getStripe();
+  return stripe.billingPortal.sessions.create({
+    customer: opts.customerId,
+    return_url: opts.returnUrl,
+  });
+}
+
+export async function cancelSubscription(subscriptionId: string, opts?: { atPeriodEnd?: boolean }): Promise<Stripe.Subscription> {
+  const stripe = getStripe();
+  if (opts?.atPeriodEnd) {
+    return stripe.subscriptions.update(subscriptionId, { cancel_at_period_end: true });
+  }
+  return stripe.subscriptions.cancel(subscriptionId);
 }
 
 export interface RefundInput {

@@ -24,3 +24,4 @@ export * from "./innovation";
 export * from "./kyc";
 export * from "./audit-log";
 export * from "./api-keys";
+export * from "./billing-orgs";

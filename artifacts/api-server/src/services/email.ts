@@ -165,6 +165,36 @@ export async function sendCompEmail({ to, name, tierName, notes }: { to: string;
   });
 }
 
+export async function sendOrgInviteEmail({ to, orgName, inviterName, acceptUrl }: { to: string; orgName: string; inviterName?: string | null; acceptUrl: string }): Promise<void> {
+  await sendRaw({
+    to,
+    subject: `You've been invited to join ${orgName} on Capability Economics`,
+    html: wrap(`
+      <p>Hi there,</p>
+      <p>${inviterName ? `<strong>${escapeHtml(inviterName)}</strong>` : "An administrator"} has invited you to join <strong>${escapeHtml(orgName)}</strong> on Capability Economics.</p>
+      <p>Accept the invite to gain access to your team's membership tier and shared resources.</p>
+      <p><a href="${acceptUrl}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Accept invite</a></p>
+      <p style="font-size: 12px; color: #888;">This invite expires in 7 days. If you weren't expecting it you can ignore this email.</p>
+    `),
+  });
+}
+
+export async function sendPaymentFailedEmail({ to, name, tierName, amountCents }: { to: string; name?: string | null; tierName: string; amountCents: number | null }): Promise<void> {
+  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
+  const amt = amountCents ? `$${(amountCents / 100).toFixed(2)}` : "your latest charge";
+  await sendRaw({
+    to,
+    subject: `Payment failed — action required for your ${tierName} membership`,
+    html: wrap(`
+      <p>${greeting}</p>
+      <p>We weren't able to process ${amt} for your <strong>${tierName}</strong> membership.</p>
+      <p>Stripe will automatically retry over the next few days, but you can update your card now to avoid any interruption.</p>
+      <p><a href="${appUrl("/account")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Update payment method</a></p>
+      <p>— The Capability Economics team</p>
+    `),
+  });
+}
+
 export async function sendTierChangedEmail({ to, name, fromTier, toTier }: { to: string; name?: string | null; fromTier: string; toTier: string }): Promise<void> {
   const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
   await sendRaw({

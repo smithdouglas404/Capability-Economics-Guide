@@ -41,6 +41,7 @@ import apiKeysRouter from "./api-keys";
 import meRouter from "./me";
 import impersonateRouter from "./impersonate";
 import invoicesRouter from "./invoices";
+import billingOrgsRouter from "./billing-orgs";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -77,6 +78,7 @@ router.use(apiKeysRouter);
 router.use(meRouter);
 router.use(impersonateRouter);
 router.use(invoicesRouter);
+router.use(billingOrgsRouter);
 
 // ── Tier-gated routes (Workbench+) ──
 const workbenchGate = requireTier("workbench");

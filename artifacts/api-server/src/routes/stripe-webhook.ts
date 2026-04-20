@@ -1,7 +1,9 @@
 import express, { Router, type IRouter } from "express";
-import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable } from "@workspace/db";
+import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { verifyWebhookSignature } from "../services/stripe";
+import { sendApprovalEmail, sendPaymentFailedEmail } from "../services/email";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -60,27 +62,92 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
       } else {
         // ── Membership activation ──
         const membershipId = Number(session.metadata?.membershipId ?? session.client_reference_id ?? 0);
+        const sessionFull = event.data.object as { metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: string; subscription?: string; customer?: string };
         if (!Number.isFinite(membershipId) || membershipId <= 0) {
           console.warn("[stripe webhook] checkout.session.completed without valid membershipId");
         } else {
           const result = await db.update(userMembershipsTable).set({
             status: "active",
             paymentStatus: "paid",
-            paymentRef: typeof session.payment_intent === "string" ? session.payment_intent : "stripe_checkout",
+            // Subscription mode: payment_intent is null; store the subscription id as the ref so refunds/cancels can find it.
+            paymentRef: typeof sessionFull.payment_intent === "string"
+              ? sessionFull.payment_intent
+              : (typeof sessionFull.subscription === "string" ? sessionFull.subscription : "stripe_checkout"),
+            stripeSubscriptionId: typeof sessionFull.subscription === "string" ? sessionFull.subscription : null,
+            stripeCustomerId: typeof sessionFull.customer === "string" ? sessionFull.customer : null,
             approvedAt: new Date(),
             approvedBy: "stripe",
             updatedAt: new Date(),
           }).where(and(
             eq(userMembershipsTable.id, membershipId),
             eq(userMembershipsTable.status, "pending"),
-          )).returning({ id: userMembershipsTable.id });
+          )).returning({ id: userMembershipsTable.id, userEmail: userMembershipsTable.userEmail, userName: userMembershipsTable.userName, tierId: userMembershipsTable.tierId });
           if (result.length > 0) {
             console.log(`[stripe webhook] activated membership ${membershipId}`);
+            const [membership] = result;
+            if (membership.userEmail) {
+              const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, membership.tierId));
+              void sendApprovalEmail({ to: membership.userEmail, name: membership.userName, tierName: tier?.name ?? "your" });
+            }
           } else {
             console.log(`[stripe webhook] membership ${membershipId} not in pending state — skipping activation`);
           }
         }
       }
+    } else if (event.type === "invoice.payment_succeeded") {
+      // Subscription renewal succeeded — extend the current_period_end on our record.
+      const inv = event.data.object as { subscription?: string; period_end?: number };
+      if (typeof inv.subscription === "string") {
+        const periodEnd = typeof inv.period_end === "number" ? new Date(inv.period_end * 1000) : null;
+        await db.update(userMembershipsTable).set({
+          paymentStatus: "paid",
+          currentPeriodEnd: periodEnd,
+          updatedAt: new Date(),
+        }).where(eq(userMembershipsTable.stripeSubscriptionId, inv.subscription));
+      }
+    } else if (event.type === "invoice.payment_failed") {
+      // Start dunning — email the user and mark past_due. Stripe Smart Retries keeps trying.
+      const inv = event.data.object as { subscription?: string; amount_due?: number };
+      if (typeof inv.subscription === "string") {
+        const rows = await db.update(userMembershipsTable).set({
+          paymentStatus: "past_due",
+          updatedAt: new Date(),
+        }).where(eq(userMembershipsTable.stripeSubscriptionId, inv.subscription)).returning({
+          userEmail: userMembershipsTable.userEmail,
+          userName: userMembershipsTable.userName,
+          tierId: userMembershipsTable.tierId,
+        });
+        for (const r of rows) {
+          if (r.userEmail) {
+            const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, r.tierId));
+            void sendPaymentFailedEmail({
+              to: r.userEmail,
+              name: r.userName,
+              tierName: tier?.name ?? "your",
+              amountCents: typeof inv.amount_due === "number" ? inv.amount_due : null,
+            });
+          }
+        }
+      }
+    } else if (event.type === "customer.subscription.updated") {
+      // Plan changes, cancel_at_period_end toggle, etc. Sync the period end and reflect cancellation-scheduled status.
+      const sub = event.data.object as { id: string; cancel_at_period_end?: boolean; current_period_end?: number; status?: string };
+      const periodEnd = typeof sub.current_period_end === "number" ? new Date(sub.current_period_end * 1000) : null;
+      await db.update(userMembershipsTable).set({
+        paymentStatus: sub.status === "past_due" ? "past_due" : (sub.cancel_at_period_end ? "cancel_scheduled" : "paid"),
+        currentPeriodEnd: periodEnd,
+        updatedAt: new Date(),
+      }).where(eq(userMembershipsTable.stripeSubscriptionId, sub.id));
+    } else if (event.type === "customer.subscription.deleted") {
+      // Subscription fully cancelled — revoke access.
+      const sub = event.data.object as { id: string };
+      await db.update(userMembershipsTable).set({
+        status: "cancelled",
+        paymentStatus: "cancelled",
+        notes: `[stripe] Subscription ${sub.id} ended at ${new Date().toISOString()}`,
+        updatedAt: new Date(),
+      }).where(eq(userMembershipsTable.stripeSubscriptionId, sub.id));
+      logger.info({ subscriptionId: sub.id }, "[stripe webhook] subscription cancelled, membership deactivated");
     } else if (event.type === "checkout.session.expired" || event.type === "checkout.session.async_payment_failed") {
       const session = event.data.object as { id?: string; metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: string };
       const tierSlug = session.metadata?.tierSlug;

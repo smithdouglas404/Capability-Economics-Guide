@@ -9,7 +9,8 @@ import {
   creditPurchasesTable,
   kycVerificationsTable,
 } from "@workspace/db";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, and, isNotNull } from "drizzle-orm";
+import { createBillingPortalSession, isStripeConfigured } from "../services/stripe";
 
 const router: IRouter = Router();
 
@@ -47,6 +48,45 @@ router.get("/me/export", async (req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.setHeader("Content-Disposition", `attachment; filename="capability-economics-data-${auth.userId}.json"`);
   res.send(JSON.stringify(payload, null, 2));
+});
+
+/**
+ * Returns a Stripe Customer Portal URL so the user can update their card,
+ * view invoices, change plan, or cancel — without leaving our support
+ * surface. Only works for users with an active Stripe subscription (ie.
+ * stripeCustomerId on their membership row).
+ */
+router.post("/me/billing-portal", async (req, res) => {
+  if (!isStripeConfigured()) { res.status(503).json({ error: "Stripe not configured" }); return; }
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [membership] = await db.select()
+    .from(userMembershipsTable)
+    .where(and(
+      eq(userMembershipsTable.userId, auth.userId),
+      isNotNull(userMembershipsTable.stripeCustomerId),
+    ))
+    .orderBy(desc(userMembershipsTable.requestedAt))
+    .limit(1);
+  if (!membership?.stripeCustomerId) {
+    res.status(404).json({ error: "No Stripe customer found for this user. You may need to start a subscription first." });
+    return;
+  }
+
+  const origin = (req.headers.origin as string | undefined)
+    ?? (req.headers.referer as string | undefined)?.replace(/\/[^/]*$/, "")
+    ?? `${req.protocol}://${req.headers.host}`;
+
+  try {
+    const portal = await createBillingPortalSession({
+      customerId: membership.stripeCustomerId,
+      returnUrl: `${origin.replace(/\/$/, "")}/account`,
+    });
+    res.json({ url: portal.url });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to create portal session", message: (err as Error).message });
+  }
 });
 
 /** User-initiated cancellation of their own active membership. Sets status to cancelled (on hold). */

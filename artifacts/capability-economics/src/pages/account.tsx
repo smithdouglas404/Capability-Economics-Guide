@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   AlertTriangle, CheckCircle2, Copy, Download, Key, KeyRound, Loader2, LogOut,
-  PauseCircle, Trash2, UserCircle, XCircle,
+  PauseCircle, Trash2, UserCircle, Users, UserPlus, XCircle,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -21,6 +21,8 @@ type Membership = {
   paymentStatus: string;
   requestedAt: string;
   approvedAt: string | null;
+  stripeCustomerId: string | null;
+  currentPeriodEnd: string | null;
 };
 
 type ApiKey = {
@@ -30,6 +32,12 @@ type ApiKey = {
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;
+};
+
+type OrgSummary = {
+  org: { id: number; name: string; slug: string; seatLimit: number; status: string };
+  role: string;
+  joinedAt: string;
 };
 
 const statusBadge = (s: Membership["status"]) => {
@@ -60,13 +68,19 @@ export default function AccountPage() {
   const [lastIssuedKey, setLastIssuedKey] = useState<{ raw: string; label: string } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  const [orgs, setOrgs] = useState<OrgSummary[]>([]);
+  const [newOrgName, setNewOrgName] = useState("");
+  const [inviteEmails, setInviteEmails] = useState<Record<number, string>>({});
+  const [orgDetails, setOrgDetails] = useState<Record<number, { members: { userId: string; email: string | null; role: string }[]; pendingInvites: { id: number; email: string; role: string; expiresAt: string }[] }>>({});
+
   const load = useCallback(async () => {
     if (!isLoaded || !user) return;
     setLoading(true);
     try {
-      const [mRes, kRes] = await Promise.all([
+      const [mRes, kRes, oRes] = await Promise.all([
         fetch(`${API_BASE}/me/membership`, { credentials: "include" }),
         fetch(`${API_BASE}/me/api-keys`, { credentials: "include" }),
+        fetch(`${API_BASE}/billing-orgs/mine`, { credentials: "include" }),
       ]);
       if (mRes.ok) {
         const mJson = await mRes.json() as { membership: Membership | null; tier: Tier | null };
@@ -77,12 +91,36 @@ export default function AccountPage() {
         const kJson = await kRes.json() as { keys: ApiKey[] };
         setKeys(kJson.keys);
       }
+      if (oRes.ok) {
+        const oJson = await oRes.json() as { organizations: OrgSummary[] };
+        setOrgs(oJson.organizations);
+        // Pre-fetch detail for each org the user can manage
+        for (const o of oJson.organizations) {
+          if (o.role === "owner" || o.role === "admin") {
+            void fetchOrgDetail(o.org.id);
+          }
+        }
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   }, [isLoaded, user]);
+
+  const fetchOrgDetail = async (orgId: number) => {
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}`, { credentials: "include" });
+      if (!res.ok) return;
+      const json = await res.json() as {
+        members: { userId: string; email: string | null; role: string }[];
+        pendingInvites: { id: number; email: string; role: string; expiresAt: string }[];
+      };
+      setOrgDetails(d => ({ ...d, [orgId]: { members: json.members, pendingInvites: json.pendingInvites } }));
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   useEffect(() => { void load(); }, [load]);
 
@@ -104,6 +142,20 @@ export default function AccountPage() {
     window.location.href = `${API_BASE}/me/export`;
   };
 
+  const openBillingPortal = async () => {
+    setBusyId("billing-portal");
+    try {
+      const res = await fetch(`${API_BASE}/me/billing-portal`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json() as { url: string };
+      window.location.href = json.url;
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const createKey = async () => {
     if (!newKeyLabel.trim()) return;
     setBusyId("create-key");
@@ -119,6 +171,80 @@ export default function AccountPage() {
       setLastIssuedKey({ raw: json.raw, label: json.label });
       setNewKeyLabel("");
       await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const createOrg = async () => {
+    if (!newOrgName.trim()) return;
+    setBusyId("create-org");
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newOrgName.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setNewOrgName("");
+      await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const inviteMember = async (orgId: number) => {
+    const email = (inviteEmails[orgId] ?? "").trim();
+    if (!email) return;
+    setBusyId(`invite-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/invites`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, role: "member" }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setInviteEmails(m => ({ ...m, [orgId]: "" }));
+      await fetchOrgDetail(orgId);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const revokeInvite = async (orgId: number, inviteId: number) => {
+    setBusyId(`revoke-invite-${inviteId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/invites/${inviteId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchOrgDetail(orgId);
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const removeMember = async (orgId: number, targetUserId: string) => {
+    if (!confirm("Remove this member from the team?")) return;
+    setBusyId(`remove-${targetUserId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/members/${encodeURIComponent(targetUserId)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await fetchOrgDetail(orgId);
     } catch (e) {
       alert((e as Error).message);
     } finally {
@@ -190,13 +316,22 @@ export default function AccountPage() {
                     <span className="ml-2">Invoice PDF</span>
                   </a>
                 </Button>
-                {membership.status === "active" && (
+                {membership.stripeCustomerId && (
+                  <Button variant="outline" onClick={openBillingPortal} disabled={busyId === "billing-portal"} className="rounded-none">
+                    {busyId === "billing-portal" ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                    <span className="ml-2">Manage billing</span>
+                  </Button>
+                )}
+                {membership.status === "active" && !membership.stripeCustomerId && (
                   <Button variant="outline" onClick={cancel} disabled={busyId === "cancel"} className="rounded-none border-red-300 text-red-700 hover:bg-red-50">
                     {busyId === "cancel" ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
                     <span className="ml-2">Cancel membership</span>
                   </Button>
                 )}
               </div>
+              {membership.currentPeriodEnd && (
+                <p className="text-xs text-muted-foreground">Next renewal: {new Date(membership.currentPeriodEnd).toLocaleDateString()}</p>
+              )}
             </div>
           )}
         </CardContent>
@@ -213,6 +348,128 @@ export default function AccountPage() {
             <Download className="w-4 h-4" />
             <span className="ml-2">Download my data</span>
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Organizations */}
+      <Card className="rounded-none">
+        <CardHeader>
+          <CardTitle className="text-base font-serif flex items-center gap-2">
+            <Users className="w-5 h-5 text-primary" />
+            Your teams
+          </CardTitle>
+          <CardDescription>Billing teams you belong to. Your effective tier is the highest of your personal membership and any team membership.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Label htmlFor="new-org">Create a new team</Label>
+              <Input
+                id="new-org"
+                placeholder="Team name (e.g. Acme Strategy)"
+                value={newOrgName}
+                onChange={e => setNewOrgName(e.target.value)}
+                className="rounded-none"
+              />
+            </div>
+            <Button onClick={createOrg} disabled={!newOrgName.trim() || busyId === "create-org"} className="rounded-none">
+              {busyId === "create-org" ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+              <span className="ml-2">Create</span>
+            </Button>
+          </div>
+
+          {orgs.length === 0 ? (
+            <p className="text-sm text-muted-foreground">You don't belong to any teams yet.</p>
+          ) : (
+            <div className="space-y-4">
+              {orgs.map(({ org, role }) => {
+                const detail = orgDetails[org.id];
+                const canManage = role === "owner" || role === "admin";
+                const activeCount = detail?.members.length ?? 0;
+                const pendingCount = detail?.pendingInvites.length ?? 0;
+                return (
+                  <div key={org.id} className="border border-border p-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <div className="font-medium">{org.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Your role: <span className="font-mono">{role}</span> · Seats: {activeCount + pendingCount}/{org.seatLimit}
+                        </div>
+                      </div>
+                      {canManage && detail && (
+                        <Button size="sm" variant="ghost" onClick={() => fetchOrgDetail(org.id)} className="h-7">
+                          <Loader2 className={`w-3 h-3 ${busyId?.startsWith(`invite-${org.id}`) ? "animate-spin" : "opacity-0"}`} />
+                        </Button>
+                      )}
+                    </div>
+
+                    {canManage && detail && (
+                      <div className="mt-3 space-y-3">
+                        <div className="flex gap-2 items-end">
+                          <div className="flex-1">
+                            <Label htmlFor={`invite-${org.id}`} className="text-xs">Invite teammate by email</Label>
+                            <Input
+                              id={`invite-${org.id}`}
+                              type="email"
+                              placeholder="teammate@company.com"
+                              value={inviteEmails[org.id] ?? ""}
+                              onChange={e => setInviteEmails(m => ({ ...m, [org.id]: e.target.value }))}
+                              className="rounded-none"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => inviteMember(org.id)}
+                            disabled={!inviteEmails[org.id]?.trim() || busyId === `invite-${org.id}`}
+                            className="rounded-none"
+                          >
+                            {busyId === `invite-${org.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                            <span className="ml-1">Invite</span>
+                          </Button>
+                        </div>
+
+                        {detail.pendingInvites.length > 0 && (
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Pending invites</div>
+                            <ul className="space-y-1">
+                              {detail.pendingInvites.map(inv => (
+                                <li key={inv.id} className="flex items-center justify-between text-sm">
+                                  <span>{inv.email} <span className="text-xs text-muted-foreground">({inv.role})</span></span>
+                                  <Button size="sm" variant="ghost" onClick={() => revokeInvite(org.id, inv.id)} disabled={busyId === `revoke-invite-${inv.id}`} className="h-7 text-red-600 hover:bg-red-50">
+                                    {busyId === `revoke-invite-${inv.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                                    <span className="ml-1">Revoke</span>
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {detail.members.length > 0 && (
+                          <div>
+                            <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Members</div>
+                            <ul className="space-y-1">
+                              {detail.members.map(m => (
+                                <li key={m.userId} className="flex items-center justify-between text-sm">
+                                  <span>{m.email ?? m.userId} <span className="text-xs text-muted-foreground">({m.role})</span></span>
+                                  {m.role !== "owner" && (
+                                    <Button size="sm" variant="ghost" onClick={() => removeMember(org.id, m.userId)} disabled={busyId === `remove-${m.userId}`} className="h-7 text-red-600 hover:bg-red-50">
+                                      {busyId === `remove-${m.userId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                      <span className="ml-1">Remove</span>
+                                    </Button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
