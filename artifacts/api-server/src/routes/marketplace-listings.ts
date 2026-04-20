@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, marketplaceListingsTable, marketplaceSellersTable } from "@workspace/db";
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
 import { saveUpload, readFile } from "../services/marketplace-storage";
@@ -40,7 +40,13 @@ router.get("/marketplace/listings", async (_req, res) => {
     })
     .from(marketplaceListingsTable)
     .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
-    .where(eq(marketplaceListingsTable.status, "approved"))
+    .where(and(
+      eq(marketplaceListingsTable.status, "approved"),
+      or(
+        isNull(marketplaceListingsTable.expiresAt),
+        gt(marketplaceListingsTable.expiresAt, sql`now()`),
+      ),
+    ))
     .orderBy(desc(marketplaceListingsTable.approvedAt));
   res.json({ listings: rows });
 });
@@ -61,7 +67,8 @@ router.get("/marketplace/listings/:id", async (req, res) => {
   if (!row?.listing) { res.status(404).json({ error: "not found" }); return; }
 
   const isOwner = auth.userId && row.seller?.userId === auth.userId;
-  if (row.listing.status !== "approved" && !isOwner) {
+  const isExpired = row.listing.expiresAt && row.listing.expiresAt.getTime() < Date.now();
+  if ((row.listing.status !== "approved" || isExpired) && !isOwner) {
     res.status(404).json({ error: "not found" });
     return;
   }

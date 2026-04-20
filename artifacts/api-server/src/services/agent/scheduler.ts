@@ -4,6 +4,7 @@ import { startConsolidator, stopConsolidator } from "./consolidator";
 import { rotateTriangulations } from "../triangulation";
 import { computeCEI } from "../cei-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
+import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -224,6 +225,7 @@ export function startScheduler(): void {
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_INTERVAL_MS / 60000 });
 
   startConsolidator();
+  startMarketplaceAutoArchive();
 
   executeRun("startup");
 
@@ -236,6 +238,7 @@ export function stopScheduler(): void {
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   stopConsolidator();
+  stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
 }

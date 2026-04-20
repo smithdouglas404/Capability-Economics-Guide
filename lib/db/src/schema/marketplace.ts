@@ -58,6 +58,9 @@ export const marketplaceListingsTable = pgTable(
     rejectionReason: text("rejection_reason"),
     approvedBy: text("approved_by"),
     approvedAt: timestamp("approved_at"),
+    // When set, the listing auto-archives at this time. Null = open-ended (still
+    // subject to the 30-day-after-approval auto-archive sweep).
+    expiresAt: timestamp("expires_at"),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
