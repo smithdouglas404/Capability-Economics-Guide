@@ -78,13 +78,22 @@ export default function EnrichmentAdmin() {
     }
   }, []);
 
-  const runSync = async () => {
+  // Single unified enrichment trigger — runs both pipelines:
+  //  1. Workbench data (quadrants/value-chain/companies) via legacy queued trigger
+  //  2. Detail-page data (capability_economics) via synchronous alpha
+  // The sync alpha processes up to 10 caps per click; click repeatedly to
+  // drain the backlog. The Workbench trigger is fire-and-forget (runs in
+  // the background, row shows up in Recent Runs below).
+  const runEverything = async () => {
     if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
-    if (!confirm("Run alpha enrichment synchronously (bypasses the queue)?\n\nThis blocks for 5–15 minutes while Perplexity + GLM process a batch of up to 10 capabilities. Safe to re-run repeatedly to drain all 58.")) return;
+    if (!confirm("Run enrichment now?\n\n• Kicks off Workbench refresh (runs in background, ~10-15 min)\n• Runs next batch of 10 capability detail enrichments inline (5-15 min, this request blocks)\n\nRe-click to process the next batch of 10.")) return;
     setSyncRunning(true);
     setError(null);
     setLastResult(null);
     try {
+      // Fire-and-forget the Workbench refresh — we don't wait on it.
+      fetch(`${API_BASE}/enrichment/run`, { method: "POST", credentials: "include" }).catch(() => { /* surfaced in Recent Runs */ });
+      // Await the sync alpha batch so the user sees real counts return.
       const res = await fetch(`${API_BASE}/alpha/enrich-sync`, {
         method: "POST",
         credentials: "include",
@@ -92,8 +101,8 @@ export default function EnrichmentAdmin() {
         body: JSON.stringify({ limitCapabilities: 10, limitEdges: 10 }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(body.error || `Sync run failed (${res.status})`); return; }
-      setLastResult(`Sync enrichment: ${body.capabilitiesEnriched ?? 0} capabilities, ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s`);
+      if (!res.ok) { setError(body.error || `Run failed (${res.status})`); return; }
+      setLastResult(`Enriched ${body.capabilitiesEnriched ?? 0} capabilities + ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s. Workbench refresh running in background.`);
       fetchAll();
     } catch (e) {
       setError(String(e));
@@ -226,13 +235,14 @@ export default function EnrichmentAdmin() {
         </div>
 
         <div className="flex gap-2 mb-3 flex-wrap">
-          <Button onClick={triggerRun} disabled={running || !isSignedIn} title={!isSignedIn ? "Sign in to run enrichment" : undefined} className="gap-2">
-            {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {running ? "Running enrichment..." : "Enrich Now (queued)"}
-          </Button>
-          <Button onClick={runSync} disabled={syncRunning || !isSignedIn} variant="secondary" title="Bypasses BullMQ — runs alpha enrichment inline in the HTTP request. Blocks 5–15 min per batch." className="gap-2">
-            {syncRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            {syncRunning ? "Running sync…" : "Run NOW (sync, bypass queue)"}
+          <Button
+            onClick={runEverything}
+            disabled={syncRunning || !isSignedIn}
+            title={!isSignedIn ? "Sign in to run enrichment" : "Runs Workbench refresh in background + next 10 capability detail enrichments inline"}
+            className="gap-2"
+          >
+            {syncRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {syncRunning ? "Running enrichment…" : "Run enrichment now"}
           </Button>
           <Button variant="outline" onClick={fetchAll} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Refresh
