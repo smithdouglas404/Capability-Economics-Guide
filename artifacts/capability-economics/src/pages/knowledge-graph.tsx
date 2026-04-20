@@ -164,10 +164,12 @@ export default function KnowledgeGraph() {
     setRerunning(true);
     setRerunError(null);
     try {
-      const resp = await fetch(`/api/alpha/enrich-detail`, {
+      // Synchronous per-capability rerun — runs alpha + detail inline
+      // (1–3 min) then returns. When it returns, the data is in the DB
+      // and we re-fetch it for display.
+      const resp = await fetch(`/api/alpha/rerun/${selectedCapabilityId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ capabilityId: selectedCapabilityId, force: true }),
+        credentials: "include",
       });
       if (!resp.ok) {
         const body = await resp.json().catch(() => ({} as { error?: string }));

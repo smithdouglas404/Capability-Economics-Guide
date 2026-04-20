@@ -17,6 +17,9 @@ import { enqueueEnrichmentJob } from "../services/alpha/queue";
 import { deductCredits } from "../middlewares/deductCredits";
 import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireReviewer } from "../middlewares/requireReviewer";
+import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
+import { logger } from "../lib/logger";
 
 const router = Router();
 
@@ -66,6 +69,42 @@ router.post("/enrich-detail", requireAdmin, async (req: Request, res: Response) 
     res.status(202).json({ jobId: job.id, status: job.status, message: "Detail enrichment queued" });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Detail enqueue failed" });
+  }
+});
+
+/**
+ * Synchronous per-capability rerun — powers the "Rerun economics" button on
+ * the capability detail page. Runs alpha (creates/refreshes the economics
+ * row) then detail (narrative fields) inline so the user sees the populated
+ * page as soon as the request returns. Takes 1–3 minutes per capability.
+ * Requires a signed-in Clerk user, matching "Enrich Now".
+ */
+router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response) => {
+  const capId = parseInt(req.params.id);
+  if (!Number.isFinite(capId)) { res.status(400).json({ error: "bad id" }); return; }
+  const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId));
+  if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
+
+  const start = Date.now();
+  try {
+    // Delete any existing economics row for this capability so alpha re-inserts
+    // fresh. Safe because detail enrichment writes to the same row that alpha
+    // creates, and both are being re-run here.
+    await db.delete(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
+
+    // Alpha: creates the capability_economics row with TAM/SAM/quadrant/etc.
+    // Scoped to this capability's industry with limit=1 so only this cap enriches.
+    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] starting alpha");
+    await runAlphaEnrichment({ industryId: cap.industryId, limitCapabilities: 1, limitEdges: 0 });
+
+    // Detail: populates narrative fields on the row alpha just created.
+    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] starting detail");
+    await runDetailEnrichment({ capabilityId: capId, force: true });
+
+    res.json({ ok: true, capabilityId: capId, durationMs: Date.now() - start });
+  } catch (err) {
+    logger.error({ err, capabilityId: capId }, "[alpha/rerun] failed");
+    res.status(500).json({ error: err instanceof Error ? err.message : "rerun failed", durationMs: Date.now() - start });
   }
 });
 
