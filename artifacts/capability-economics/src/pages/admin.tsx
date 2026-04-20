@@ -8,7 +8,7 @@ import {
   FileText, Lightbulb, Trophy, BookOpen, Network, Mic, File, Briefcase,
   ChevronUp, ChevronDown, Minus, Zap, Building2, GitBranch, Layers,
   LayoutDashboard, ShieldCheck, Gift, CreditCard, BookMarked, BookOpenCheck,
-  Settings,
+  Settings, Store,
 } from "lucide-react";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
@@ -19,6 +19,7 @@ import PaymentApprovals, { usePaymentApprovalsData } from "@/components/payment-
 import ManualCompForm from "@/components/manual-comp-form";
 import MembersList from "@/components/members-list";
 import AuditLogViewer from "@/components/audit-log-viewer";
+import MarketplaceModeration from "@/components/marketplace-moderation";
 
 const API_BASE = "/api";
 
@@ -270,6 +271,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="content" className="gap-2"><BookMarked className="w-4 h-4" /> Content</TabsTrigger>
           <TabsTrigger value="enrichment" className="gap-2"><Zap className="w-4 h-4" /> Enrichment</TabsTrigger>
           <TabsTrigger value="assessments" className="gap-2"><Users className="w-4 h-4" /> Assessments</TabsTrigger>
+          <TabsTrigger value="marketplace" className="gap-2"><Store className="w-4 h-4" /> Marketplace</TabsTrigger>
           <TabsTrigger value="system" className="gap-2"><Settings className="w-4 h-4" /> System</TabsTrigger>
         </TabsList>
 
@@ -704,6 +706,11 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ─────────────────────── Marketplace tab ─────────────────────── */}
+        <TabsContent value="marketplace">
+          <MarketplaceModeration />
         </TabsContent>
 
         {/* ─────────────────────── System tab ─────────────────────── */}

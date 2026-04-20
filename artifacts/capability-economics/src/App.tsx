@@ -23,6 +23,10 @@ import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
 import Account from "@/pages/account";
 import AcceptInvite from "@/pages/accept-invite";
+import Marketplace from "@/pages/marketplace";
+import MarketplaceListing from "@/pages/marketplace-listing";
+import MarketplaceSell from "@/pages/marketplace-sell";
+import MarketplaceLibrary from "@/pages/marketplace-library";
 import KycPage from "@/pages/kyc";
 import Companies from "@/pages/companies";
 import Usage from "@/pages/usage";
@@ -102,6 +106,10 @@ function Router() {
       <Route path="/membership" component={Membership} />
       <Route path="/account" component={Account} />
       <Route path="/accept-invite" component={AcceptInvite} />
+      <Route path="/marketplace" component={Marketplace} />
+      <Route path="/marketplace/listings/:id" component={MarketplaceListing} />
+      <Route path="/marketplace/sell" component={MarketplaceSell} />
+      <Route path="/marketplace/my-purchases" component={MarketplaceLibrary} />
       <Route path="/kyc" component={KycPage} />
       <Route path="/companies" component={Companies} />
       <Route path="/usage" component={Usage} />

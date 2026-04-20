@@ -1,5 +1,5 @@
 import express, { Router, type IRouter } from "express";
-import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable, billingOrganizationsTable, marketplaceSellersTable } from "@workspace/db";
+import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable, billingOrganizationsTable, marketplaceSellersTable, marketplacePurchasesTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { verifyWebhookSignature } from "../services/stripe";
 import { sendApprovalEmail, sendPaymentFailedEmail } from "../services/email";
@@ -31,6 +31,29 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as { metadata?: Record<string, string>; client_reference_id?: string; payment_intent?: string };
       const tierSlug = session.metadata?.tierSlug;
+
+      // Marketplace purchase branch — session metadata.kind === "marketplace"
+      if (session.metadata?.kind === "marketplace") {
+        const listingId = Number(session.metadata.listingId ?? 0);
+        const sessionFull = event.data.object as { id?: string; payment_intent?: unknown; customer_details?: { email?: string | null } };
+        const paymentIntentId = stringId(sessionFull.payment_intent);
+        if (Number.isFinite(listingId) && listingId > 0) {
+          const rows = await db.update(marketplacePurchasesTable).set({
+            status: "paid",
+            purchasedAt: new Date(),
+            stripePaymentIntentId: paymentIntentId,
+            buyerEmail: sessionFull.customer_details?.email ?? undefined,
+          }).where(and(
+            eq(marketplacePurchasesTable.listingId, listingId),
+            eq(marketplacePurchasesTable.stripeCheckoutSessionId, sessionFull.id ?? ""),
+          )).returning({ id: marketplacePurchasesTable.id });
+          if (rows.length > 0) {
+            console.log(`[stripe webhook] marketplace purchase ${rows[0].id} marked paid`);
+          }
+        }
+        res.json({ received: true });
+        return;
+      }
 
       if (tierSlug === "credits") {
         // ── Credit purchase completion ──

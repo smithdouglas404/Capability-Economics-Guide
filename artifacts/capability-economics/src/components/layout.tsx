@@ -11,6 +11,7 @@ import {
   Swords, FlaskConical, Target, Rocket, BarChart3, PieChart,
   Lightbulb, MessageSquare,
   Settings2, ChevronDown, CreditCard, LogOut, Sparkles,
+  Store,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -326,6 +327,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <Link href="/account">
                       <DropdownMenuItem data-testid="nav-link-account" className="cursor-pointer gap-2">
                         <Settings2 className="w-4 h-4" /> Account &amp; API keys
+                      </DropdownMenuItem>
+                    </Link>
+                    <Link href="/marketplace">
+                      <DropdownMenuItem data-testid="nav-link-marketplace" className="cursor-pointer gap-2">
+                        <Store className="w-4 h-4" /> Marketplace
                       </DropdownMenuItem>
                     </Link>
                     <DropdownMenuSeparator />
