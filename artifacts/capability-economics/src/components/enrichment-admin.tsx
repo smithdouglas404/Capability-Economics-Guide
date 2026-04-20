@@ -99,11 +99,16 @@ export default function EnrichmentAdmin() {
     }
   };
 
+  // Poll fast (5s) whenever a run is in flight — either the user just clicked
+  // Enrich Now in this tab, OR any recent run has status="running" (catches
+  // the case where the user leaves and comes back while a run continues
+  // server-side). Otherwise poll at the idle 30s cadence.
+  const anyRunActive = runs.some(r => r.status === "running");
   useEffect(() => {
     fetchAll();
-    const id = setInterval(fetchAll, running ? 5000 : 30000);
+    const id = setInterval(fetchAll, (running || anyRunActive) ? 5000 : 30000);
     return () => clearInterval(id);
-  }, [fetchAll, running]);
+  }, [fetchAll, running, anyRunActive]);
 
   const triggerRun = async () => {
     if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
