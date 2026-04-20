@@ -309,6 +309,25 @@ export default function AccountPage() {
     }
   };
 
+  const transferOwnership = async (orgId: number, toUserId: string) => {
+    if (!confirm("Transfer ownership? You'll be demoted to admin, the new owner will be billed for future renewals.")) return;
+    setBusyId(`transfer-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/transfer-ownership`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toUserId }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const removeMember = async (orgId: number, targetUserId: string) => {
     if (!confirm("Remove this member from the team?")) return;
     setBusyId(`remove-${targetUserId}`);
@@ -592,12 +611,20 @@ export default function AccountPage() {
                               {detail.members.map(m => (
                                 <li key={m.userId} className="flex items-center justify-between text-sm">
                                   <span>{m.email ?? m.userId} <span className="text-xs text-muted-foreground">({m.role})</span></span>
-                                  {m.role !== "owner" && (
-                                    <Button size="sm" variant="ghost" onClick={() => removeMember(org.id, m.userId)} disabled={busyId === `remove-${m.userId}`} className="h-7 text-red-600 hover:bg-red-50">
-                                      {busyId === `remove-${m.userId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                                      <span className="ml-1">Remove</span>
-                                    </Button>
-                                  )}
+                                  <div className="flex items-center gap-1">
+                                    {role === "owner" && m.role !== "owner" && (
+                                      <Button size="sm" variant="ghost" onClick={() => transferOwnership(org.id, m.userId)} disabled={busyId === `transfer-${org.id}`} className="h-7 text-xs">
+                                        {busyId === `transfer-${org.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                                        <span className="ml-1">Make owner</span>
+                                      </Button>
+                                    )}
+                                    {m.role !== "owner" && (
+                                      <Button size="sm" variant="ghost" onClick={() => removeMember(org.id, m.userId)} disabled={busyId === `remove-${m.userId}`} className="h-7 text-red-600 hover:bg-red-50">
+                                        {busyId === `remove-${m.userId}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                        <span className="ml-1">Remove</span>
+                                      </Button>
+                                    )}
+                                  </div>
                                 </li>
                               ))}
                             </ul>

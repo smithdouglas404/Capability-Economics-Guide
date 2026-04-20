@@ -159,6 +159,7 @@ const PatchBody = z.object({
   description: z.string().min(2).max(2000).optional(),
   monthlyPriceCents: z.number().int().min(0).max(100000000).nullable().optional(),
   annualPriceCents: z.number().int().min(0).max(100000000).nullable().optional(),
+  seatPriceCents: z.number().int().min(0).max(100000000).nullable().optional(),
   features: z.array(z.string().min(1).max(300)).max(20).optional(),
   ctaLabel: z.string().min(2).max(40).optional(),
   highlight: z.boolean().optional(),

@@ -18,6 +18,22 @@ const router: IRouter = Router();
 
 const INVITE_TTL_DAYS = 7;
 
+/**
+ * When the org has an active Stripe subscription, keep the quantity on
+ * Stripe in sync with the current active member count. Fire-and-forget —
+ * a Stripe outage must not fail the underlying invite/accept/remove flow.
+ */
+async function syncOrgStripeSeats(orgId: number): Promise<void> {
+  try {
+    const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, orgId));
+    if (!org?.stripeSubscriptionId) return;
+    const members = await db.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, orgId));
+    await updateOrgSubscriptionSeats(org.stripeSubscriptionId, Math.max(1, members.length));
+  } catch (err) {
+    logger.warn({ err, orgId }, "[billing-orgs] failed to sync Stripe seat quantity");
+  }
+}
+
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || `org-${Date.now()}`;
 }
@@ -109,7 +125,11 @@ router.post("/billing-orgs/:id/checkout", async (req, res) => {
 
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, parsed.data.tierId));
   if (!tier || !tier.active) { res.status(404).json({ error: "Tier not found or inactive" }); return; }
-  const perSeat = parsed.data.billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
+  // Team subscriptions use seatPriceCents when the tier sets an explicit team
+  // price; otherwise fall back to the per-period individual price.
+  const perSeat = parsed.data.billing === "annual"
+    ? (tier.seatPriceCents ?? tier.annualPriceCents)
+    : tier.monthlyPriceCents;
   if (!perSeat || perSeat <= 0) { res.status(400).json({ error: "Tier has no price for this billing period" }); return; }
 
   // seatLimit == seat count we bill for. Owner-only: the owner can adjust
@@ -431,6 +451,7 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
     acceptedByUserId: auth.userId,
   }).where(eq(billingOrgInvitesTable.id, invite.id));
 
+  void syncOrgStripeSeats(invite.orgId);
   res.json({ ok: true, orgId: invite.orgId });
 });
 
@@ -510,6 +531,7 @@ router.delete("/billing-orgs/:id/members/:userId", async (req, res) => {
     eq(billingOrgMembersTable.userId, targetUserId),
   ));
 
+  void syncOrgStripeSeats(orgId);
   logger.info({ orgId, targetUserId, by: auth.userId }, "[billing-orgs] member removed");
   res.json({ ok: true });
 });

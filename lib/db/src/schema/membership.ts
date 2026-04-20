@@ -2,6 +2,10 @@ import { pgTable, text, serial, integer, boolean, jsonb, timestamp } from "drizz
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
+// membership_tiers: both personal and team pricing. seatPriceCents is the
+// per-seat price an org owner pays when subscribing the team to this tier.
+// When null, team checkout falls back to annualPriceCents (a reasonable
+// default that treats each seat like an individual subscription).
 export const membershipTiersTable = pgTable("membership_tiers", {
   id: serial("id").primaryKey(),
   slug: text("slug").notNull().unique(),
@@ -10,6 +14,8 @@ export const membershipTiersTable = pgTable("membership_tiers", {
   description: text("description").notNull(),
   monthlyPriceCents: integer("monthly_price_cents"),
   annualPriceCents: integer("annual_price_cents"),
+  /** Per-seat annual price for team/org subscriptions. When null, annualPriceCents is used. */
+  seatPriceCents: integer("seat_price_cents"),
   isContactSales: boolean("is_contact_sales").notNull().default(false),
   priceLocked: boolean("price_locked").notNull().default(false),
   displayOrder: integer("display_order").notNull().default(0),
