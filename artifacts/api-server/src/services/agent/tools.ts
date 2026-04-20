@@ -404,7 +404,8 @@ Return ONLY valid JSON:
 
 export const generateCaseStudyContentTool = tool(
   async ({ industrySlug }) => {
-    const anthropic = await getAnthropic();
+    const openrouterKey = process.env.OPENROUTER_API_KEY;
+    if (!openrouterKey) return JSON.stringify({ success: false, error: "OPENROUTER_API_KEY not configured" });
 
     const [industry] = await db
       .select()
@@ -490,14 +491,33 @@ Return ONLY valid JSON:
 Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be real ${industry.name} KPIs. Value generated should show compelling compounding ROI.`;
 
     try {
-      const message = await anthropic.messages.create({
-        model: rm("claude-sonnet-4-5"),
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      });
-
-      const text = message.content[0].type === "text" ? message.content[0].text : "";
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const controller = new AbortController();
+      const abortTimer = setTimeout(() => controller.abort(), 180_000);
+      let gResp: Response;
+      try {
+        gResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${openrouterKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://capabilityeconomics.com",
+            "X-Title": "Capability Economics",
+          },
+          body: JSON.stringify({
+            model: "z-ai/glm-5.1",
+            max_tokens: 4096,
+            messages: [{ role: "user", content: prompt }],
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(abortTimer);
+      }
+      const gData = (await gResp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+      if (gData.error) throw new Error(gData.error.message);
+      const text = gData.choices?.[0]?.message?.content ?? "";
+      const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error("No JSON in response");
 
       const parsed = JSON.parse(jsonMatch[0]) as {
