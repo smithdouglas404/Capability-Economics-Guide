@@ -92,14 +92,15 @@ export async function enqueueEnrichmentJob(
   };
   // Deterministic jobId so a duplicate click or cron-tick enqueue is silently
   // collapsed by BullMQ (add() returns the existing job rather than creating
-  // a second one). The key scopes to capability → industry → global so the
-  // three natural call patterns don't collide.
+  // a second one). Scopes to capability → industry → global so the three
+  // natural call patterns don't collide. BullMQ disallows `:` in custom
+  // jobIds (reserved as Redis key separator), so we use dashes.
   const scope = opts.capabilityId != null
     ? `cap-${opts.capabilityId}`
     : opts.industryId != null
       ? `ind-${opts.industryId}`
       : "all";
-  const jobId = `${jobType}:${scope}`;
+  const jobId = `${jobType}-${scope}`;
   const job = await getQueueInternal().add(jobType, data, { jobId });
   const numericId = job.id ? Number(job.id) : Date.now();
   log.info(
