@@ -65,12 +65,15 @@ router.use(agentRouter);
 router.use(contentRouter);
 router.use(assessRouter);
 router.use(secRouter);
+// enrichmentConfigRouter must mount BEFORE adminRouter — adminRouter has a
+// catch-all `router.use("/admin", requireAdmin)` that would otherwise block
+// the public read-only GET /admin/enrichment/config the admin UI relies on.
+router.use(enrichmentConfigRouter);
 router.use(adminRouter);
 router.use(educationalContentRouter);
 router.use(caseStudiesRouter);
 router.use(vceRouter);
 router.use("/enrichment", enrichmentRouter);
-router.use(enrichmentConfigRouter);
 router.use("/alpha", alphaRouter);
 router.use(reviewRouter);
 router.use(membershipRouter);
