@@ -154,6 +154,100 @@ export async function updateOrgSubscriptionSeats(subscriptionId: string, seats: 
   });
 }
 
+// ───────────────────────────── Stripe Connect (marketplace) ─────────────────────────────
+
+/**
+ * Create a Stripe Connect Express account for a new seller. The account id
+ * returned (acct_xxx) should be stored on the user's marketplace_seller row;
+ * hosted onboarding happens via createAccountOnboardingLink.
+ */
+export async function createConnectAccount(opts: { email?: string; country?: string }): Promise<Stripe.Account> {
+  const stripe = getStripe();
+  return stripe.accounts.create({
+    type: "express",
+    email: opts.email,
+    country: opts.country ?? "US",
+    capabilities: {
+      card_payments: { requested: true },
+      transfers: { requested: true },
+    },
+  });
+}
+
+export async function createAccountOnboardingLink(opts: { accountId: string; returnUrl: string; refreshUrl: string }): Promise<Stripe.AccountLink> {
+  const stripe = getStripe();
+  return stripe.accountLinks.create({
+    account: opts.accountId,
+    type: "account_onboarding",
+    return_url: opts.returnUrl,
+    refresh_url: opts.refreshUrl,
+  });
+}
+
+/** For a seller who wants to visit their Stripe Express dashboard (payouts, tax forms). */
+export async function createExpressDashboardLink(accountId: string): Promise<Stripe.LoginLink> {
+  const stripe = getStripe();
+  return stripe.accounts.createLoginLink(accountId);
+}
+
+export async function retrieveConnectAccount(accountId: string): Promise<Stripe.Account> {
+  const stripe = getStripe();
+  return stripe.accounts.retrieve(accountId);
+}
+
+export interface MarketplaceCheckoutInput {
+  listingId: number;
+  listingTitle: string;
+  buyerEmail?: string;
+  priceCents: number;
+  platformFeeCents: number;
+  sellerStripeAccountId: string;
+  successUrl: string;
+  cancelUrl: string;
+}
+
+/**
+ * Marketplace checkout uses Stripe Connect "destination charges": buyer pays
+ * us (the platform), we automatically transfer (price - platformFee) to the
+ * connected seller account, and Stripe handles the 1099-K at year end.
+ */
+export async function createMarketplaceCheckoutSession(input: MarketplaceCheckoutInput): Promise<Stripe.Checkout.Session> {
+  const stripe = getStripe();
+  return stripe.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    line_items: [{
+      quantity: 1,
+      price_data: {
+        currency: "usd",
+        unit_amount: input.priceCents,
+        product_data: {
+          name: input.listingTitle,
+          description: `Capability Economics marketplace report`,
+        },
+      },
+    }],
+    customer_email: input.buyerEmail,
+    success_url: input.successUrl,
+    cancel_url: input.cancelUrl,
+    client_reference_id: `listing:${input.listingId}`,
+    metadata: {
+      listingId: String(input.listingId),
+      kind: "marketplace",
+    },
+    payment_intent_data: {
+      application_fee_amount: input.platformFeeCents,
+      transfer_data: {
+        destination: input.sellerStripeAccountId,
+      },
+      metadata: {
+        listingId: String(input.listingId),
+        kind: "marketplace",
+      },
+    },
+  });
+}
+
 export async function cancelSubscription(subscriptionId: string, opts?: { atPeriodEnd?: boolean }): Promise<Stripe.Subscription> {
   const stripe = getStripe();
   if (opts?.atPeriodEnd) {

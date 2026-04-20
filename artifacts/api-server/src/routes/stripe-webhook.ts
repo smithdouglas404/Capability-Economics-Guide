@@ -1,5 +1,5 @@
 import express, { Router, type IRouter } from "express";
-import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable, billingOrganizationsTable } from "@workspace/db";
+import { db, userMembershipsTable, creditPurchasesTable, creditAccountsTable, creditTransactionsTable, membershipTiersTable, billingOrganizationsTable, marketplaceSellersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { verifyWebhookSignature } from "../services/stripe";
 import { sendApprovalEmail, sendPaymentFailedEmail } from "../services/email";
@@ -208,6 +208,16 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
           }
         }
       }
+    } else if (event.type === "account.updated") {
+      // Connect account state sync (marketplace sellers).
+      const account = event.data.object as { id: string; charges_enabled?: boolean; payouts_enabled?: boolean; details_submitted?: boolean };
+      await db.update(marketplaceSellersTable).set({
+        chargesEnabled: account.charges_enabled ?? false,
+        payoutsEnabled: account.payouts_enabled ?? false,
+        detailsSubmitted: account.details_submitted ?? false,
+        accountSnapshot: account as unknown as Record<string, unknown>,
+        updatedAt: new Date(),
+      }).where(eq(marketplaceSellersTable.stripeAccountId, account.id));
     } else if (event.type === "customer.subscription.deleted") {
       // Subscription fully cancelled — revoke access.
       const sub = event.data.object as { id: string };

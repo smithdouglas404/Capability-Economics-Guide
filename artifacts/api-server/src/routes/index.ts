@@ -42,6 +42,8 @@ import meRouter from "./me";
 import impersonateRouter from "./impersonate";
 import invoicesRouter from "./invoices";
 import billingOrgsRouter from "./billing-orgs";
+import marketplaceSellersRouter from "./marketplace-sellers";
+import marketplaceListingsRouter from "./marketplace-listings";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -79,6 +81,8 @@ router.use(meRouter);
 router.use(impersonateRouter);
 router.use(invoicesRouter);
 router.use(billingOrgsRouter);
+router.use(marketplaceSellersRouter);
+router.use(marketplaceListingsRouter);
 
 // ── Tier-gated routes (Workbench+) ──
 const workbenchGate = requireTier("workbench");

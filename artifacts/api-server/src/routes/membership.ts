@@ -208,39 +208,53 @@ router.get("/me/membership", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
-  // Admins get synthetic Platform-tier membership so every gate treats them as top-tier
-  // without requiring a row in userMembershipsTable. Actual memberships in the table
-  // (if any) are ignored in favor of this synthetic one — admins are operators, not customers.
+  // Admins: if they don't already have a membership row, auto-provision a real
+  // Platform-tier active row so (a) they show up in the Members list like any
+  // other user, (b) they don't need to self-assign a tier, and (c) every gate
+  // treats them as top-tier without a special synthetic path.
   if (await isClerkAdmin(auth.userId)) {
     await ensureSeeded();
+    const [existing] = await db
+      .select()
+      .from(userMembershipsTable)
+      .where(eq(userMembershipsTable.userId, auth.userId))
+      .orderBy(desc(userMembershipsTable.requestedAt))
+      .limit(1);
+
+    if (existing && existing.status === "active") {
+      // Already provisioned — just return.
+      const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
+      res.json({ membership: existing, tier: tier ?? null });
+      return;
+    }
+
     const [platform] = await db
       .select()
       .from(membershipTiersTable)
       .where(eq(membershipTiersTable.slug, "platform"));
     if (platform) {
-      const now = new Date();
-      res.json({
-        membership: {
-          id: -1,
-          userId: auth.userId,
-          tierId: platform.id,
-          entityType: "individual",
-          entityName: "Platform Administrator",
-          paymentMethod: "invoice",
-          paymentStatus: "comped",
-          paymentRef: "ADMIN",
-          paymentAmountCents: null,
-          status: "active",
-          notes: "Synthetic admin membership (Clerk publicMetadata.role=admin).",
-          rejectionReason: null,
-          requestedAt: now,
-          approvedAt: now,
-          approvedBy: "system",
-          updatedAt: now,
-          _synthetic: true,
-        },
-        tier: platform,
-      });
+      const userEmail = (req.headers["x-user-email"] as string | undefined) ?? null;
+      const userName = (req.headers["x-user-name"] as string | undefined) ?? null;
+      const [created] = await db.insert(userMembershipsTable).values({
+        userId: auth.userId,
+        userEmail,
+        userName,
+        tierId: platform.id,
+        entityType: "individual",
+        entityName: userName ?? userEmail ?? "Platform Administrator",
+        paymentMethod: "invoice",
+        paymentRef: "ADMIN",
+        notes: "Auto-provisioned admin membership (Clerk publicMetadata.role=admin).",
+      }).returning();
+      await db.update(userMembershipsTable).set({
+        status: "active",
+        paymentStatus: "comped",
+        approvedAt: new Date(),
+        approvedBy: "system",
+        updatedAt: new Date(),
+      }).where(eq(userMembershipsTable.id, created!.id));
+      const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
+      res.json({ membership: final, tier: platform });
       return;
     }
   }
