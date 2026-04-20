@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowUpRight, ArrowDownRight, Bitcoin, Building2, CheckCircle2, Coins, Copy, CreditCard,
-  FileText, Key, KeyRound, Loader2, LogIn, Mail, PauseCircle, PlayCircle, RotateCcw,
-  ShieldCheck, Sparkles, Trash2, User, XCircle, IdCard,
+  Download, FileText, Key, KeyRound, Loader2, LogIn, Mail, PauseCircle, PlayCircle,
+  RotateCcw, ShieldCheck, Sparkles, Trash2, User, XCircle, IdCard,
 } from "lucide-react";
 
 const API_BASE = "/api";
@@ -490,7 +490,20 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
 
                     <Card className="rounded-none">
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-serif">Current membership details</CardTitle>
+                        <CardTitle className="text-sm font-serif flex items-center justify-between gap-2">
+                          <span>Current membership details</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-none h-7"
+                            asChild
+                          >
+                            <a href={`${API_BASE}/admin/memberships/${current.id}/invoice.pdf`} target="_blank" rel="noopener">
+                              <Download className="w-3.5 h-3.5" />
+                              <span className="ml-1">Invoice PDF</span>
+                            </a>
+                          </Button>
+                        </CardTitle>
                       </CardHeader>
                       <CardContent className="text-sm space-y-1.5">
                         <Row label="Requested">{fmtDate(current.requestedAt)}</Row>

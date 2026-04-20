@@ -5,6 +5,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
+import { apiKeyAuth } from "./middlewares/apiKeyAuth";
 import router from "./routes";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
@@ -44,6 +45,9 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/csv" }));
 
 app.use(clerkMiddleware());
+// Runs after Clerk so a real browser session always wins. Only falls back to
+// API-key auth when the caller is programmatic (no Clerk cookie).
+app.use(apiKeyAuth());
 
 app.use("/api", router);
 

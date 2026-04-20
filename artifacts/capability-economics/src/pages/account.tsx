@@ -184,6 +184,12 @@ export default function AccountPage() {
                 <Button asChild variant="outline" className="rounded-none">
                   <a href="/membership">Change tier</a>
                 </Button>
+                <Button asChild variant="outline" className="rounded-none">
+                  <a href={`${API_BASE}/me/memberships/${membership.id}/invoice.pdf`} target="_blank" rel="noopener">
+                    <Download className="w-4 h-4" />
+                    <span className="ml-2">Invoice PDF</span>
+                  </a>
+                </Button>
                 {membership.status === "active" && (
                   <Button variant="outline" onClick={cancel} disabled={busyId === "cancel"} className="rounded-none border-red-300 text-red-700 hover:bg-red-50">
                     {busyId === "cancel" ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogOut className="w-4 h-4" />}
