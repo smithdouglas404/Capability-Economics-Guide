@@ -10,6 +10,8 @@ import {
 import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { generateCaseStudyContentTool } from "../services/agent/tools";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -301,7 +303,22 @@ Constraints:
     })
     .returning();
 
-  res.status(201).json({ caseStudy: inserted, sourcesCount: sources.length });
+  // Also populate case_study_content (per-capability traditional/economic view
+  // cards that back the case-study page grid). This is a separate LLM call —
+  // if it fails we still return the study metadata so the admin sees partial
+  // success rather than losing the whole run.
+  let content: { generated: number; error?: string } = { generated: 0 };
+  try {
+    const raw = await generateCaseStudyContentTool.invoke({ industrySlug });
+    const parsed = JSON.parse(raw) as { success: boolean; capabilitiesGenerated?: number; error?: string };
+    if (parsed.success) content = { generated: parsed.capabilitiesGenerated ?? 0 };
+    else content = { generated: 0, error: parsed.error ?? "unknown" };
+  } catch (err) {
+    logger.warn({ err, industrySlug }, "[case-studies] content generation failed");
+    content = { generated: 0, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  res.status(201).json({ caseStudy: inserted, sourcesCount: sources.length, content });
 });
 
 export default router;
