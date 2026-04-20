@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, enrichmentConfigTable } from "@workspace/db";
 import { z } from "zod/v4";
-import { requireAdmin } from "../middlewares/requireAdmin";
+import { requireReviewer } from "../middlewares/requireReviewer";
 
 const router: IRouter = Router();
 
@@ -29,7 +29,9 @@ const UpdateBody = z.object({
   refreshDays: z.number().int().min(1).max(365).optional(),
 });
 
-router.put("/admin/enrichment/config", requireAdmin, async (req: Request, res: Response) => {
+// Matches the auth bar on "Enrich Now" (requireReviewer — any signed-in
+// Clerk user). The cadence toggle is no more sensitive than triggering a run.
+router.put("/admin/enrichment/config", requireReviewer(), async (req: Request, res: Response) => {
   const parsed = UpdateBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
