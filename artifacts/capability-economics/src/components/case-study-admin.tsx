@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FileText, Sparkles, Trash2, AlertCircle, RefreshCw, Star } from "lucide-react";
+import { FileText, Sparkles, Trash2, AlertCircle, RefreshCw, Star, CheckCircle2, XCircle } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -24,24 +23,33 @@ interface Industry {
   name: string;
 }
 
+interface Diagnostics {
+  totalStudies: number;
+  perplexityConfigured: boolean;
+  openrouterConfigured: boolean;
+  canGenerate: boolean;
+}
+
 export default function CaseStudyAdmin() {
   const [studies, setStudies] = useState<CaseStudyRow[]>([]);
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [adminToken, setAdminToken] = useState<string>(() => localStorage.getItem("admin_token") ?? "");
   const [pickIndustry, setPickIndustry] = useState<string>("");
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, i] = await Promise.all([
-        fetch(`${API_BASE}/case-studies`).then(r => r.json()),
-        fetch(`${API_BASE}/industries`).then(r => r.json()),
+      const [s, i, d] = await Promise.all([
+        fetch(`${API_BASE}/case-studies`, { credentials: "include" }).then(r => r.json()),
+        fetch(`${API_BASE}/industries`, { credentials: "include" }).then(r => r.json()),
+        fetch(`${API_BASE}/case-studies/diagnostics`, { credentials: "include" }).then(r => r.json()),
       ]);
-      setStudies(s);
-      setIndustries(i);
+      setStudies(Array.isArray(s) ? s : []);
+      setIndustries(Array.isArray(i) ? i : []);
+      setDiagnostics(d as Diagnostics);
     } catch (e) {
       setError(String(e));
     } finally {
@@ -58,17 +66,22 @@ export default function CaseStudyAdmin() {
     try {
       const res = await fetch(`${API_BASE}/case-studies/generate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-key": adminToken } : {}) },
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ industrySlug: pickIndustry }),
       });
-      const body = await res.json().catch(() => ({}));
+      const raw = await res.text();
+      let body: Record<string, unknown> = {};
+      try { body = JSON.parse(raw); } catch { /* non-JSON */ }
       if (!res.ok) {
-        setError(body.error || `Failed (${res.status})`);
+        const msg = typeof body.error === "string" ? body.error : raw || `Failed (${res.status})`;
+        const details = typeof body.details === "string" ? ` — ${body.details}` : "";
+        setError(`${res.status}: ${msg}${details}`);
       } else {
         fetchAll();
       }
     } catch (e) {
-      setError(String(e));
+      setError(`Network error: ${(e as Error).message}`);
     } finally {
       setGenerating(null);
     }
@@ -76,21 +89,31 @@ export default function CaseStudyAdmin() {
 
   const remove = async (id: number) => {
     if (!confirm("Delete this case study?")) return;
-    await fetch(`${API_BASE}/admin/case-studies/${id}`, {
-      method: "DELETE",
-      headers: adminToken ? { "x-admin-key": adminToken } : {},
-    });
-    fetchAll();
+    try {
+      const res = await fetch(`${API_BASE}/admin/case-studies/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      fetchAll();
+    } catch (e) {
+      setError(`Delete failed: ${(e as Error).message}`);
+    }
   };
 
   const toggleFeatured = async (id: number, isFeatured: boolean) => {
-    await fetch(`${API_BASE}/admin/case-studies/${id}/feature`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", ...(adminToken ? { "x-admin-key": adminToken } : {}) },
-      body: JSON.stringify({ featured: !isFeatured }),
-    });
-    fetchAll();
+    try {
+      const res = await fetch(`${API_BASE}/admin/case-studies/${id}/feature`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ featured: !isFeatured }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      fetchAll();
+    } catch (e) {
+      setError(`Feature toggle failed: ${(e as Error).message}`);
+    }
   };
 
   return (
@@ -100,18 +123,47 @@ export default function CaseStudyAdmin() {
           <FileText className="w-5 h-5" /> Case Study Generator
           <span className="text-sm font-normal text-muted-foreground ml-2">({studies.length} stored)</span>
         </CardTitle>
-        <Input
-          type="password"
-          placeholder="Admin token"
-          value={adminToken}
-          onChange={e => { setAdminToken(e.target.value); localStorage.setItem("admin_token", e.target.value); }}
-          className="w-40 h-8 text-xs"
-        />
+        <Button size="sm" variant="ghost" onClick={fetchAll} disabled={loading}>
+          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+        </Button>
       </CardHeader>
       <CardContent>
+        {/* Configuration diagnostic */}
+        {diagnostics && (
+          <div className={`mb-4 p-3 rounded text-sm border-l-4 ${
+            diagnostics.canGenerate
+              ? "bg-emerald-500/5 border-emerald-500 text-emerald-900 dark:text-emerald-200"
+              : "bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200"
+          }`}>
+            <div className="font-medium mb-1">
+              {diagnostics.canGenerate ? "Generator ready" : "Generator cannot run"}
+            </div>
+            <div className="text-xs space-y-0.5">
+              <div className="flex items-center gap-1.5">
+                {diagnostics.perplexityConfigured ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                <span>PERPLEXITY_API_KEY {diagnostics.perplexityConfigured ? "configured" : "not set"}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {diagnostics.openrouterConfigured ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                <span>OPENROUTER_API_KEY {diagnostics.openrouterConfigured ? "configured" : "not set"}</span>
+              </div>
+              {!diagnostics.canGenerate && (
+                <div className="mt-2 text-xs">
+                  Add the missing env var(s) in Railway → Variables, redeploy, then reload this page.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {error && (
-          <div className="mb-3 px-3 py-2 bg-red-500/10 text-red-700 text-sm rounded flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" /> {error}
+          <div className="mb-3 px-3 py-2 bg-red-500/10 text-red-700 text-sm rounded flex items-start gap-2 border-l-4 border-red-500">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium mb-0.5">Error</div>
+              <pre className="text-xs whitespace-pre-wrap font-mono break-words">{error}</pre>
+            </div>
+            <button onClick={() => setError(null)} className="text-xs text-red-900 hover:underline">dismiss</button>
           </div>
         )}
 
@@ -127,7 +179,12 @@ export default function CaseStudyAdmin() {
               {industries.map(i => <option key={i.id} value={i.slug}>{i.name}</option>)}
             </select>
           </div>
-          <Button onClick={generate} disabled={!pickIndustry || generating !== null} className="gap-2">
+          <Button
+            onClick={generate}
+            disabled={!pickIndustry || generating !== null || !diagnostics?.canGenerate}
+            className="gap-2"
+            title={!diagnostics?.canGenerate ? "Configure PERPLEXITY_API_KEY and OPENROUTER_API_KEY first" : undefined}
+          >
             {generating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {generating ? "Generating..." : "Generate (Perplexity + GLM 5.1)"}
           </Button>
@@ -147,7 +204,7 @@ export default function CaseStudyAdmin() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">Loading...</td></tr>
+                <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">Loading...</td></tr>
               ) : studies.length === 0 ? (
                 <tr><td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">No case studies generated yet — pick an industry above and generate one.</td></tr>
               ) : studies.map(s => (

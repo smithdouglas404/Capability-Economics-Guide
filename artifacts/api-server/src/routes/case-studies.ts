@@ -62,6 +62,21 @@ router.patch("/admin/case-studies/:id/feature", requireAdmin, async (req, res) =
   res.json({ ok: true, featured: pin });
 });
 
+/**
+ * Reports whether the dependencies required for case study generation are
+ * configured, plus a count of existing studies. Use this before showing the
+ * Generate button so the admin knows if the attempt will fail.
+ */
+router.get("/case-studies/diagnostics", async (_req, res) => {
+  const rows = await db.select({ id: caseStudiesTable.id }).from(caseStudiesTable);
+  res.json({
+    totalStudies: rows.length,
+    perplexityConfigured: !!process.env.PERPLEXITY_API_KEY,
+    openrouterConfigured: !!process.env.OPENROUTER_API_KEY,
+    canGenerate: !!process.env.PERPLEXITY_API_KEY && !!process.env.OPENROUTER_API_KEY,
+  });
+});
+
 router.get("/case-studies", async (_req, res) => {
   const rows = await db
     .select({
