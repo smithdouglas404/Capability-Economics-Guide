@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -50,16 +50,19 @@ export default function EnrichmentAdmin() {
   const [configDays, setConfigDays] = useState(30);
   const [configSaving, setConfigSaving] = useState(false);
   const [redis, setRedis] = useState<RedisHealth | null>(null);
+  const [syncRunning, setSyncRunning] = useState(false);
+  const [alphaStatus, setAlphaStatus] = useState<{ capabilities: number; capabilitiesEnriched: number } | null>(null);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r, cfgRes, redisRes] = await Promise.all([
+      const [s, r, cfgRes, redisRes, alphaRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
         fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/healthz/redis`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/alpha/status`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
@@ -69,10 +72,35 @@ export default function EnrichmentAdmin() {
         setConfigDays(cfgRes.config.refreshDays);
       }
       setRedis(redisRes ?? null);
+      if (alphaRes) setAlphaStatus({ capabilities: alphaRes.capabilities, capabilitiesEnriched: alphaRes.capabilitiesEnriched });
     } catch (e) {
       setError(String(e));
     }
   }, []);
+
+  const runSync = async () => {
+    if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
+    if (!confirm("Run alpha enrichment synchronously (bypasses the queue)?\n\nThis blocks for 5–15 minutes while Perplexity + GLM process a batch of up to 10 capabilities. Safe to re-run repeatedly to drain all 58.")) return;
+    setSyncRunning(true);
+    setError(null);
+    setLastResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/alpha/enrich-sync`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ limitCapabilities: 10, limitEdges: 10 }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(body.error || `Sync run failed (${res.status})`); return; }
+      setLastResult(`Sync enrichment: ${body.capabilitiesEnriched ?? 0} capabilities, ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s`);
+      fetchAll();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSyncRunning(false);
+    }
+  };
 
   const saveConfig = async () => {
     if (!isSignedIn) { setError("Sign in to change the schedule."); return; }
@@ -197,16 +225,25 @@ export default function EnrichmentAdmin() {
           </div>
         </div>
 
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-3 flex-wrap">
           <Button onClick={triggerRun} disabled={running || !isSignedIn} title={!isSignedIn ? "Sign in to run enrichment" : undefined} className="gap-2">
             {running ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {running ? "Running enrichment..." : "Enrich Now"}
+            {running ? "Running enrichment..." : "Enrich Now (queued)"}
+          </Button>
+          <Button onClick={runSync} disabled={syncRunning || !isSignedIn} variant="secondary" title="Bypasses BullMQ — runs alpha enrichment inline in the HTTP request. Blocks 5–15 min per batch." className="gap-2">
+            {syncRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            {syncRunning ? "Running sync…" : "Run NOW (sync, bypass queue)"}
           </Button>
           <Button variant="outline" onClick={fetchAll} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
           <a href="/workbench" className="ml-auto text-sm text-primary hover:underline self-center">View Workbench →</a>
         </div>
+        {alphaStatus && (
+          <div className="mb-6 text-xs text-muted-foreground">
+            Alpha pipeline (capability_economics): <span className="font-mono text-foreground">{alphaStatus.capabilitiesEnriched}</span> / {alphaStatus.capabilities} capabilities enriched
+          </div>
+        )}
 
         {/* Auto-refresh cadence */}
         <div className="mb-6 border rounded-md p-4 bg-muted/20">

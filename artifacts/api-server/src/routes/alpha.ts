@@ -56,6 +56,28 @@ router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * Synchronous bulk enrichment — bypasses BullMQ entirely. Runs
+ * runAlphaEnrichment inline, returns when the batch is done. Takes a few
+ * minutes per capability. Use `limitCapabilities` to bound the batch so the
+ * HTTP request doesn't exceed Railway/proxy timeouts; callers can re-hit
+ * this to continue draining. Escape hatch for when the queue is misbehaving.
+ */
+router.post("/enrich-sync", requireReviewer(), async (req: Request, res: Response) => {
+  const limitCapabilities = typeof req.body?.limitCapabilities === "number" ? req.body.limitCapabilities : 10;
+  const limitEdges = typeof req.body?.limitEdges === "number" ? req.body.limitEdges : 10;
+  const industryId = typeof req.body?.industryId === "number" ? req.body.industryId : undefined;
+  const start = Date.now();
+  try {
+    logger.info({ limitCapabilities, limitEdges, industryId }, "[alpha/enrich-sync] starting");
+    const result = await runAlphaEnrichment({ limitCapabilities, limitEdges, industryId });
+    res.json({ ...result, mode: "sync", durationMs: Date.now() - start });
+  } catch (err) {
+    logger.error({ err }, "[alpha/enrich-sync] failed");
+    res.status(500).json({ error: err instanceof Error ? err.message : "sync enrichment failed", durationMs: Date.now() - start });
+  }
+});
+
 router.post("/enrich-detail", requireAdmin, async (req: Request, res: Response) => {
   const limit = typeof req.body?.limit === "number" ? req.body.limit : 6;
   const force = req.body?.force === true;
