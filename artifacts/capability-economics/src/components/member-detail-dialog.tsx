@@ -70,8 +70,20 @@ type CreditTransaction = {
   createdAt: string;
 };
 
+type ClerkProfile = {
+  userId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  imageUrl: string | null;
+  createdAt: number | null;
+  lastSignInAt: number | null;
+};
+
 type MemberSummary = {
   userId: string;
+  clerk: ClerkProfile | null;
   currentMembership: Membership | null;
   allMemberships: Membership[];
   creditAccount: CreditAccount | null;
@@ -327,23 +339,33 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
     void navigator.clipboard.writeText(raw);
   };
 
-  const displayName = current?.userName ?? current?.userEmail ?? userId ?? "—";
-  const displayEmail = current?.userEmail;
+  // Prefer Clerk's live profile over stored membership fields.
+  const clerk = summary?.clerk;
+  const displayName = clerk?.displayName ?? current?.userName ?? current?.userEmail ?? userId ?? "—";
+  const displayEmail = clerk?.email ?? current?.userEmail;
   const entity = current ? `${current.entityType === "company" ? "🏢" : "👤"} ${current.entityName}` : "—";
+  const clerkSignedUpAt = clerk?.createdAt ? new Date(clerk.createdAt).toLocaleDateString() : null;
+  const clerkLastActiveAt = clerk?.lastSignInAt ? new Date(clerk.lastSignInAt).toLocaleString() : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-none max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 font-serif text-xl">
-            <User className="w-5 h-5 text-primary" />
-            {displayName}
+          <DialogTitle className="flex items-center gap-3 font-serif text-xl">
+            {clerk?.imageUrl ? (
+              <img src={clerk.imageUrl} alt="" className="w-10 h-10 rounded-full object-cover bg-muted" />
+            ) : (
+              <User className="w-5 h-5 text-primary" />
+            )}
+            <span>{displayName}</span>
             {current && <StatusPill status={current.status} />}
           </DialogTitle>
           <DialogDescription className="flex flex-wrap items-center gap-3 text-xs">
             {displayEmail && <span className="inline-flex items-center gap-1"><Mail className="w-3 h-3" /> {displayEmail}</span>}
             <span className="inline-flex items-center gap-1"><IdCard className="w-3 h-3" /> <code className="font-mono">{userId}</code></span>
             {current && <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" /> {entity}</span>}
+            {clerkSignedUpAt && <span className="text-muted-foreground">· Joined {clerkSignedUpAt}</span>}
+            {clerkLastActiveAt && <span className="text-muted-foreground">· Last seen {clerkLastActiveAt}</span>}
           </DialogDescription>
         </DialogHeader>
 

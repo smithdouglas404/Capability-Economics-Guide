@@ -50,6 +50,10 @@ export const marketplaceListingsTable = pgTable(
     fileKey: text("file_key"), // storage path to the PDF (set after upload)
     fileSizeBytes: integer("file_size_bytes"),
     fileOriginalName: text("file_original_name"),
+    // Optional free-preview PDF (first few pages / teaser) downloadable by
+    // anyone who visits the listing page — no entitlement, no watermark.
+    previewFileKey: text("preview_file_key"),
+    previewFileSizeBytes: integer("preview_file_size_bytes"),
     status: text("status").notNull().default("draft"), // "draft" | "pending_review" | "approved" | "rejected" | "archived"
     rejectionReason: text("rejection_reason"),
     approvedBy: text("approved_by"),

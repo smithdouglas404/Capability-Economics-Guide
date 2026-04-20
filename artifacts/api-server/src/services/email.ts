@@ -165,6 +165,36 @@ export async function sendCompEmail({ to, name, tierName, notes }: { to: string;
   });
 }
 
+export async function sendListingApprovedEmail({ to, name, listingTitle }: { to: string; name?: string | null; listingTitle: string }): Promise<void> {
+  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
+  await sendRaw({
+    to,
+    subject: `Your listing "${listingTitle}" is live in the marketplace`,
+    html: wrap(`
+      <p>${greeting}</p>
+      <p>Your listing <strong>${escapeHtml(listingTitle)}</strong> has been approved and is now live in the Capability Economics marketplace.</p>
+      <p>You'll start earning the moment someone purchases it. Payouts arrive via Stripe on your configured schedule.</p>
+      <p><a href="${appUrl("/marketplace/sell")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View your listings</a></p>
+      <p>— The Capability Economics team</p>
+    `),
+  });
+}
+
+export async function sendListingRejectedEmail({ to, name, listingTitle, reason }: { to: string; name?: string | null; listingTitle: string; reason: string }): Promise<void> {
+  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
+  await sendRaw({
+    to,
+    subject: `Update on your marketplace listing "${listingTitle}"`,
+    html: wrap(`
+      <p>${greeting}</p>
+      <p>We couldn't approve your listing <strong>${escapeHtml(listingTitle)}</strong> in its current form.</p>
+      <p><strong>Feedback from our moderation team:</strong><br/>${escapeHtml(reason)}</p>
+      <p>You can edit the listing and resubmit — no need to start over.</p>
+      <p><a href="${appUrl("/marketplace/sell")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Edit your listing</a></p>
+    `),
+  });
+}
+
 export async function sendOrgInviteEmail({ to, orgName, inviterName, acceptUrl }: { to: string; orgName: string; inviterName?: string | null; acceptUrl: string }): Promise<void> {
   await sendRaw({
     to,

@@ -14,6 +14,7 @@ import { createCheckoutSession, isStripeConfigured, refundPaymentIntent } from "
 import { createInvoice as createNowPaymentsInvoice, isNowPaymentsConfigured } from "../services/nowpayments";
 import { checkKycForTier } from "../middlewares/requireTier";
 import { logAdminAction } from "../services/audit-log";
+import { getClerkUserSummaries, getClerkUserSummary } from "../services/clerk-user";
 import {
   sendWelcomeEmail,
   sendApprovalEmail,
@@ -543,7 +544,21 @@ router.get("/admin/payments", requireAdmin, async (req, res) => {
     .orderBy(desc(userMembershipsTable.requestedAt));
   const tiers = await db.select().from(membershipTiersTable);
   const tierMap = new Map(tiers.map(t => [t.id, t]));
-  const enriched = rows.map(r => ({ ...r, tier: tierMap.get(r.tierId) ?? null }));
+
+  // Enrich every row with the latest Clerk profile data so the admin UI
+  // always shows a real email + name rather than the bare Clerk user id.
+  const clerkSummaries = await getClerkUserSummaries(rows.map(r => r.userId));
+  const enriched = rows.map(r => {
+    const clerk = clerkSummaries.get(r.userId);
+    return {
+      ...r,
+      // Prefer live Clerk data over whatever we had cached on the row.
+      userEmail: clerk?.email ?? r.userEmail,
+      userName: clerk?.displayName ?? r.userName,
+      clerk: clerk ?? null,
+      tier: tierMap.get(r.tierId) ?? null,
+    };
+  });
   res.json({ payments: enriched, total: enriched.length });
 });
 
@@ -698,8 +713,13 @@ router.get("/admin/members/:userId", requireAdmin, async (req, res) => {
 
   const currentMembership = enrichedMemberships.find(m => m.status === "active") ?? enrichedMemberships[0] ?? null;
 
+  // Pull the full Clerk profile so the admin detail view has real contact info,
+  // signup date, and profile photo — not just whatever we happened to cache.
+  const clerk = await getClerkUserSummary(userId);
+
   res.json({
     userId,
+    clerk,
     currentMembership,
     allMemberships: enrichedMemberships,
     creditAccount: creditAccount ?? null,

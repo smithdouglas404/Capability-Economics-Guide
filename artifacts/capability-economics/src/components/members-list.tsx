@@ -21,6 +21,17 @@ type Tier = {
   annualPriceCents: number | null;
 };
 
+type ClerkSummary = {
+  userId: string;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  displayName: string;
+  imageUrl: string | null;
+  createdAt: number | null;
+  lastSignInAt: number | null;
+};
+
 type Payment = {
   id: number;
   userId: string;
@@ -35,6 +46,7 @@ type Payment = {
   requestedAt: string;
   approvedAt: string | null;
   tier: Tier | null;
+  clerk: ClerkSummary | null;
 };
 
 const methodIcon = (m: Payment["paymentMethod"]) => {
@@ -179,10 +191,19 @@ export default function MembersList({ onMutated }: Props) {
                       onClick={() => setOpenUserId(p.userId)}
                     >
                       <td className="px-4 py-3">
-                        <div className="font-medium">{p.userName ?? p.userEmail ?? p.userId.slice(0, 16)}</div>
-                        {p.userEmail && p.userName && (
-                          <div className="text-xs text-muted-foreground">{p.userEmail}</div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {p.clerk?.imageUrl && (
+                            <img src={p.clerk.imageUrl} alt="" className="w-7 h-7 rounded-full object-cover bg-muted" />
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">
+                              {p.clerk?.displayName ?? p.userName ?? p.userEmail ?? p.userId.slice(0, 16)}
+                            </div>
+                            {(p.clerk?.email ?? p.userEmail) && (
+                              <div className="text-xs text-muted-foreground truncate">{p.clerk?.email ?? p.userEmail}</div>
+                            )}
+                          </div>
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">

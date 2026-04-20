@@ -231,6 +231,19 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
           }
         }
       }
+    } else if (event.type === "charge.refunded") {
+      // Marketplace refund: look up the purchase by payment_intent and mark it refunded.
+      const charge = event.data.object as { payment_intent?: unknown; amount_refunded?: number };
+      const piId = stringId(charge.payment_intent);
+      if (piId) {
+        const rows = await db.update(marketplacePurchasesTable).set({
+          status: "refunded",
+          refundedAt: new Date(),
+        }).where(eq(marketplacePurchasesTable.stripePaymentIntentId, piId)).returning({ id: marketplacePurchasesTable.id });
+        if (rows.length > 0) {
+          logger.info({ purchaseId: rows[0].id, piId }, "[stripe webhook] marketplace purchase refunded");
+        }
+      }
     } else if (event.type === "account.updated") {
       // Connect account state sync (marketplace sellers).
       const account = event.data.object as { id: string; charges_enabled?: boolean; payouts_enabled?: boolean; details_submitted?: boolean };

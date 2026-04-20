@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Loader2, ShoppingCart } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, ShoppingCart } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -15,6 +15,7 @@ type Listing = {
   tags: string[];
   status: string;
   fileKey: string | null;
+  previewFileKey: string | null;
 };
 
 type Seller = {
@@ -85,12 +86,22 @@ export default function MarketplaceListingPage() {
             </div>
           )}
 
-          <div className="border-t pt-4 flex items-center justify-between">
+          <div className="border-t pt-4 flex items-center justify-between flex-wrap gap-3">
             <span className="text-3xl font-mono font-bold">{fmtMoney(listing.priceCents)}</span>
-            <Button onClick={buy} disabled={buying || listing.status !== "approved"} className="rounded-none">
-              {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
-              <span className="ml-2">Buy now</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              {listing.previewFileKey && (
+                <Button asChild variant="outline" className="rounded-none">
+                  <a href={`${API_BASE}/marketplace/listings/${listing.id}/preview.pdf`} target="_blank" rel="noopener">
+                    <FileText className="w-4 h-4" />
+                    <span className="ml-2">Free preview</span>
+                  </a>
+                </Button>
+              )}
+              <Button onClick={buy} disabled={buying || listing.status !== "approved"} className="rounded-none">
+                {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingCart className="w-4 h-4" />}
+                <span className="ml-2">Buy now</span>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

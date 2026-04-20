@@ -29,6 +29,7 @@ type Listing = {
   rejectionReason: string | null;
   fileKey: string | null;
   fileOriginalName: string | null;
+  previewFileKey: string | null;
 };
 
 const fmtMoney = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -136,15 +137,16 @@ export default function MarketplaceSellPage() {
 
   const uploadRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<number | null>(null);
+  const [uploadKind, setUploadKind] = useState<"file" | "preview-file">("file");
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadTargetId) return;
-    setBusy(`upload-${uploadTargetId}`);
+    setBusy(`${uploadKind}-${uploadTargetId}`);
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch(`${API_BASE}/marketplace/listings/${uploadTargetId}/file`, {
+      const res = await fetch(`${API_BASE}/marketplace/listings/${uploadTargetId}/${uploadKind}`, {
         method: "POST",
         credentials: "include",
         body: form,
@@ -156,6 +158,7 @@ export default function MarketplaceSellPage() {
     } finally {
       setBusy(null);
       setUploadTargetId(null);
+      setUploadKind("file");
       if (uploadRef.current) uploadRef.current.value = "";
     }
   };
@@ -291,16 +294,24 @@ export default function MarketplaceSellPage() {
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
-                    {(l.status === "draft" || l.status === "rejected") && (
+                    {(l.status === "draft" || l.status === "rejected" || l.status === "approved") && (
                       <>
-                        <Button size="sm" variant="outline" onClick={() => { setUploadTargetId(l.id); uploadRef.current?.click(); }} disabled={busy === `upload-${l.id}`} className="h-8 rounded-none">
-                          {busy === `upload-${l.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                          <span className="ml-1">{l.fileKey ? "Replace file" : "Upload PDF"}</span>
+                        {(l.status === "draft" || l.status === "rejected") && (
+                          <Button size="sm" variant="outline" onClick={() => { setUploadKind("file"); setUploadTargetId(l.id); uploadRef.current?.click(); }} disabled={busy === `file-${l.id}`} className="h-8 rounded-none">
+                            {busy === `file-${l.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                            <span className="ml-1">{l.fileKey ? "Replace PDF" : "Upload PDF"}</span>
+                          </Button>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => { setUploadKind("preview-file"); setUploadTargetId(l.id); uploadRef.current?.click(); }} disabled={busy === `preview-file-${l.id}`} className="h-8 rounded-none" title="Optional free preview PDF — downloadable without purchase">
+                          {busy === `preview-file-${l.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                          <span className="ml-1">{l.previewFileKey ? "Replace preview" : "Upload preview"}</span>
                         </Button>
-                        <Button size="sm" onClick={() => submitForReview(l.id)} disabled={!l.fileKey || busy === `submit-${l.id}`} className="h-8 rounded-none">
-                          {busy === `submit-${l.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                          <span className="ml-1">Submit for review</span>
-                        </Button>
+                        {(l.status === "draft" || l.status === "rejected") && (
+                          <Button size="sm" onClick={() => submitForReview(l.id)} disabled={!l.fileKey || busy === `submit-${l.id}`} className="h-8 rounded-none">
+                            {busy === `submit-${l.id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            <span className="ml-1">Submit for review</span>
+                          </Button>
+                        )}
                       </>
                     )}
                     {(l.status === "approved" || l.status === "pending_review") && (

@@ -4,10 +4,12 @@ import { db, marketplaceListingsTable, marketplaceSellersTable } from "@workspac
 import { and, desc, eq, or } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
-import { saveUpload } from "../services/marketplace-storage";
+import { saveUpload, readFile } from "../services/marketplace-storage";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
+import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
+import { getClerkUserSummary } from "../services/clerk-user";
 
 const router: IRouter = Router();
 
@@ -162,6 +164,56 @@ router.post("/marketplace/listings/:id/file", upload.single("file"), async (req,
   }
 });
 
+/** Upload a free preview PDF for a listing — downloadable without purchase. */
+router.post("/marketplace/listings/:id/preview-file", upload.single("file"), async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const seller = await getSellerForCurrentUser(auth.userId);
+  if (!seller) { res.status(403).json({ error: "Not a seller" }); return; }
+  const [existing] = await db.select().from(marketplaceListingsTable).where(eq(marketplaceListingsTable.id, id));
+  if (!existing || existing.sellerId !== seller.id) { res.status(404).json({ error: "not found" }); return; }
+  if (!req.file) { res.status(400).json({ error: "No file uploaded (field name must be 'file')" }); return; }
+  if (req.file.mimetype !== "application/pdf") { res.status(400).json({ error: "Only PDF files are accepted for previews" }); return; }
+  // Previews capped at 5MB — they're teaser pages, not the full report.
+  if (req.file.size > 5 * 1024 * 1024) { res.status(413).json({ error: "Preview must be under 5 MB" }); return; }
+
+  try {
+    const { key, size } = await saveUpload(req.file.buffer, `preview-${req.file.originalname}`);
+    const [updated] = await db.update(marketplaceListingsTable).set({
+      previewFileKey: key,
+      previewFileSizeBytes: size,
+      updatedAt: new Date(),
+    }).where(eq(marketplaceListingsTable.id, id)).returning();
+    res.json({ listing: updated });
+  } catch (err) {
+    logger.error({ err, listingId: id }, "[marketplace] preview upload failed");
+    res.status(500).json({ error: "Upload failed", message: (err as Error).message });
+  }
+});
+
+/** Public preview download — no auth, no entitlement check, no watermark. */
+router.get("/marketplace/listings/:id/preview.pdf", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const [existing] = await db.select().from(marketplaceListingsTable).where(eq(marketplaceListingsTable.id, id));
+  if (!existing || existing.status !== "approved" || !existing.previewFileKey) {
+    res.status(404).json({ error: "No preview available" });
+    return;
+  }
+  try {
+    const buf = await readFile(existing.previewFileKey);
+    const safeTitle = existing.title.replace(/[^a-z0-9]+/gi, "-").slice(0, 60) || "preview";
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `inline; filename="${safeTitle}-preview.pdf"`);
+    res.send(buf);
+  } catch (err) {
+    logger.error({ err, listingId: id }, "[marketplace] preview download failed");
+    res.status(500).json({ error: "Preview download failed" });
+  }
+});
+
 router.post("/marketplace/listings/:id/submit", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -219,6 +271,27 @@ router.get("/admin/marketplace/listings/pending", requireAdmin, async (_req, res
   res.json({ listings: rows });
 });
 
+async function notifySeller(listingId: number, kind: "approved" | "rejected", reason?: string): Promise<void> {
+  try {
+    const [row] = await db
+      .select({ listing: marketplaceListingsTable, seller: marketplaceSellersTable })
+      .from(marketplaceListingsTable)
+      .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+      .where(eq(marketplaceListingsTable.id, listingId));
+    if (!row?.seller) return;
+    const clerk = await getClerkUserSummary(row.seller.userId);
+    const to = clerk.email ?? row.seller.email;
+    if (!to) return;
+    if (kind === "approved") {
+      void sendListingApprovedEmail({ to, name: clerk.displayName, listingTitle: row.listing.title });
+    } else {
+      void sendListingRejectedEmail({ to, name: clerk.displayName, listingTitle: row.listing.title, reason: reason ?? "Does not meet publishing guidelines" });
+    }
+  } catch (err) {
+    logger.warn({ err, listingId }, "[marketplace] seller notification failed");
+  }
+}
+
 router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
@@ -232,6 +305,7 @@ router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req,
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "approved" } });
+  void notifySeller(id, "approved");
   res.json({ ok: true });
 });
 
@@ -247,6 +321,7 @@ router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, 
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "rejected", reason } });
+  void notifySeller(id, "rejected", reason);
   res.json({ ok: true });
 });
 
