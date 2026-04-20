@@ -359,6 +359,11 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
       }, metrics, deps, roles, opts.revisionGuidance);
       if (r.ok) enriched++; else errors.push(`[detail:${cap.name}] ${r.error}`);
     }
+    // Same systemic-failure guard as alpha — throw if every attempt failed
+    // so BullMQ retries instead of silently succeeding.
+    if (targets.length > 0 && enriched === 0) {
+      throw new Error(`Detail enrichment: 0 of ${targets.length} succeeded — ${errors[0] ?? "unknown"}`);
+    }
     return { enriched, errors, durationMs: Date.now() - start };
   }
 }
@@ -513,6 +518,15 @@ export async function runAlphaEnrichment(opts: { limitCapabilities?: number; lim
 
     const durationMs = Date.now() - start;
     log.info(`[Alpha] done in ${(durationMs / 1000).toFixed(1)}s: ${capabilitiesEnriched} caps, ${edgesEnriched} edges, ${errors.length} errors`);
+
+    // If we attempted work and *everything* failed, this is a systemic issue
+    // (bad API key, provider outage, etc.) — throw so BullMQ burns a retry
+    // attempt. Per-item failures are still surfaced in `errors[]` on success.
+    const attempted = toEnrich.length + edgesToScore.length;
+    const succeeded = capabilitiesEnriched + edgesEnriched;
+    if (attempted > 0 && succeeded === 0) {
+      throw new Error(`Alpha enrichment: 0 of ${attempted} succeeded — ${errors[0] ?? "unknown"}`);
+    }
     return { capabilitiesEnriched, edgesEnriched, errors, durationMs };
   }
 }

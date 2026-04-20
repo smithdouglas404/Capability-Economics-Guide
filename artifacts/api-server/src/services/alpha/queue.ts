@@ -90,7 +90,17 @@ export async function enqueueEnrichmentJob(
     capabilityId: opts.capabilityId ?? null,
     industryId: opts.industryId ?? null,
   };
-  const job = await getQueueInternal().add(jobType, data);
+  // Deterministic jobId so a duplicate click or cron-tick enqueue is silently
+  // collapsed by BullMQ (add() returns the existing job rather than creating
+  // a second one). The key scopes to capability → industry → global so the
+  // three natural call patterns don't collide.
+  const scope = opts.capabilityId != null
+    ? `cap-${opts.capabilityId}`
+    : opts.industryId != null
+      ? `ind-${opts.industryId}`
+      : "all";
+  const jobId = `${jobType}:${scope}`;
+  const job = await getQueueInternal().add(jobType, data, { jobId });
   const numericId = job.id ? Number(job.id) : Date.now();
   log.info(
     { jobId: numericId, jobType, capabilityId: opts.capabilityId ?? null },
@@ -134,6 +144,11 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
   if (capabilityId != null) {
     await setCapabilityEnrichment(capabilityId, "running", stage, null);
   }
+  // Heartbeat — extend the BullMQ lock every 2 min so long Perplexity/GLM
+  // calls don't look stalled. Cleared when the job resolves.
+  const heartbeat = setInterval(() => {
+    job.extendLock(job.token ?? "", 15 * 60 * 1000).catch(() => { /* worker gone, ignore */ });
+  }, 2 * 60 * 1000);
   try {
     if (jobType === "alpha") {
       const p = payload as AlphaPayload;
@@ -178,6 +193,8 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
     }
     log.error({ jobId: job.id, err: message, durationMs: Date.now() - start }, "[queue] job failed");
     throw err;
+  } finally {
+    clearInterval(heartbeat);
   }
 }
 
@@ -193,7 +210,12 @@ export function startEnrichmentWorker(): void {
     {
       connection: getRedis(),
       concurrency: 1,
-      lockDuration: 5 * 60 * 1000,
+      // 15 min — our per-capability Perplexity + GLM round-trip can push
+      // past 5 min during provider slowness. Short locks led to BullMQ
+      // considering the job stalled and re-assigning it mid-run, which
+      // caused double-writes. Heartbeats via job.extendLock in processJob
+      // keep this safe for even longer batches.
+      lockDuration: 15 * 60 * 1000,
     },
   );
   workerInstance.on("ready", () => log.info("[queue] BullMQ worker ready"));

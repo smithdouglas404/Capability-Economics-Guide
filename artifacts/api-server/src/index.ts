@@ -1,8 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
-import { db, capabilitiesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable } from "@workspace/db";
+import { eq, inArray } from "drizzle-orm";
 import { startEnrichmentWorker } from "./services/alpha/queue";
 
 const rawPort = process.env["PORT"];
@@ -27,11 +27,32 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  void db.update(capabilitiesTable)
-    .set({ enrichmentStatus: "failed", enrichmentError: "interrupted by server restart", enrichmentUpdatedAt: new Date() })
-    .where(eq(capabilitiesTable.enrichmentStatus, "running"))
-    .then(() => logger.info("Reset stale running enrichment rows on boot"))
-    .catch(e => logger.error({ err: e }, "Failed to reset stale enrichment rows"));
+  // Boot cleanup — any capability stuck in `enrichmentStatus='running'`
+  // means a worker crashed mid-job. Reset it AND delete the partial
+  // capability_economics / dependency_edge_scores rows it may have written
+  // so the next run starts clean instead of skipping the capability as
+  // "already enriched". Scope is narrow: only caps the DB says are running.
+  void (async () => {
+    try {
+      const stuck = await db
+        .select({ id: capabilitiesTable.id })
+        .from(capabilitiesTable)
+        .where(eq(capabilitiesTable.enrichmentStatus, "running"));
+      if (stuck.length === 0) return;
+      const stuckIds = stuck.map(c => c.id);
+      const delEcon = await db.delete(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, stuckIds)).returning({ id: capabilityEconomicsTable.id });
+      const stuckDeps = await db.select({ id: capabilityDependenciesTable.id }).from(capabilityDependenciesTable).where(inArray(capabilityDependenciesTable.capabilityId, stuckIds));
+      const delEdges = stuckDeps.length > 0
+        ? await db.delete(dependencyEdgeScoresTable).where(inArray(dependencyEdgeScoresTable.dependencyId, stuckDeps.map(d => d.id))).returning({ id: dependencyEdgeScoresTable.id })
+        : [];
+      await db.update(capabilitiesTable)
+        .set({ enrichmentStatus: "failed", enrichmentError: "interrupted by server restart — partial data cleared", enrichmentUpdatedAt: new Date() })
+        .where(eq(capabilitiesTable.enrichmentStatus, "running"));
+      logger.info({ capabilitiesReset: stuck.length, economicsDeleted: delEcon.length, edgeScoresDeleted: delEdges.length }, "Boot cleanup of interrupted enrichment");
+    } catch (e) {
+      logger.error({ err: e }, "Failed boot cleanup of interrupted enrichment");
+    }
+  })();
 
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");
