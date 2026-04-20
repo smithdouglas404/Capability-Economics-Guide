@@ -81,9 +81,31 @@ type ClerkProfile = {
   lastSignInAt: number | null;
 };
 
+type KycVerification = {
+  id: number;
+  kycLevel: string;
+  tierSlug: string;
+  status: "pending" | "approved" | "declined" | "expired";
+  firstName: string | null;
+  lastName: string | null;
+  dateOfBirth: string | null;
+  documentType: string | null;
+  documentNumber: string | null;
+  nationality: string | null;
+  idStatus: string | null;
+  livenessStatus: string | null;
+  livenessScore: number | null;
+  amlStatus: string | null;
+  amlHits: number | null;
+  declineReasons: string[] | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
 type MemberSummary = {
   userId: string;
   clerk: ClerkProfile | null;
+  kyc: { highestApproved: KycVerification | null; all: KycVerification[] };
   currentMembership: Membership | null;
   allMemberships: Membership[];
   creditAccount: CreditAccount | null;
@@ -385,6 +407,10 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
             <Tabs defaultValue="membership" className="mt-4">
               <TabsList className="rounded-none">
                 <TabsTrigger value="membership" className="rounded-none">Membership</TabsTrigger>
+                <TabsTrigger value="identity" className="rounded-none">
+                  Identity (KYC)
+                  {summary.kyc.highestApproved && <CheckCircle2 className="w-3 h-3 ml-1 text-emerald-600" />}
+                </TabsTrigger>
                 <TabsTrigger value="credits" className="rounded-none">Credits</TabsTrigger>
                 <TabsTrigger value="access" className="rounded-none">Access</TabsTrigger>
                 <TabsTrigger value="history" className="rounded-none">History</TabsTrigger>
@@ -547,6 +573,110 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
                         )}
                       </CardContent>
                     </Card>
+                  </>
+                )}
+              </TabsContent>
+
+              {/* ── Identity (KYC) tab ── */}
+              <TabsContent value="identity" className="space-y-4 mt-4">
+                {summary.kyc.all.length === 0 ? (
+                  <Card className="rounded-none">
+                    <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                      <p>This member has not completed KYC verification.</p>
+                      <p className="text-xs mt-2">KYC data comes from Didit. Members verify when they apply for a tier that requires it (Briefing+ for identity, Workbench+ for biometric, Platform for AML).</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {summary.kyc.highestApproved && (() => {
+                      const k = summary.kyc.highestApproved;
+                      return (
+                        <Card className="rounded-none border-emerald-300">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-serif flex items-center gap-2">
+                              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                              Verified identity — {k.kycLevel} level
+                              <span className="ml-auto text-xs text-muted-foreground">
+                                {k.completedAt ? fmtDate(k.completedAt) : fmtDate(k.createdAt)}
+                              </span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="text-sm space-y-1.5">
+                            <Row label="Legal name">{[k.firstName, k.lastName].filter(Boolean).join(" ") || "—"}</Row>
+                            <Row label="Date of birth">{k.dateOfBirth ?? "—"}</Row>
+                            <Row label="Nationality">{k.nationality ?? "—"}</Row>
+                            <Row label="Document type">{k.documentType ?? "—"}</Row>
+                            <Row label="Document number">
+                              {k.documentNumber
+                                ? <code className="font-mono text-xs">{k.documentNumber}</code>
+                                : "—"}
+                            </Row>
+                            <Row label="ID verification">{k.idStatus ?? "—"}</Row>
+                            {k.livenessStatus && (
+                              <Row label="Biometric liveness">
+                                {k.livenessStatus}{k.livenessScore != null ? ` (score ${k.livenessScore.toFixed(2)})` : ""}
+                              </Row>
+                            )}
+                            {k.amlStatus && (
+                              <Row label="AML screening">
+                                <span className={k.amlStatus === "Clear" ? "text-emerald-700" : "text-red-700"}>
+                                  {k.amlStatus}{k.amlHits != null && k.amlHits > 0 ? ` · ${k.amlHits} hit${k.amlHits === 1 ? "" : "s"}` : ""}
+                                </span>
+                              </Row>
+                            )}
+                            <Row label="Tier this unlocked">{k.tierSlug}</Row>
+                          </CardContent>
+                        </Card>
+                      );
+                    })()}
+
+                    {summary.kyc.all.length > 1 && (
+                      <Card className="rounded-none">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-serif">All KYC attempts ({summary.kyc.all.length})</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="border-b bg-muted/30">
+                                <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                                  <th className="px-3 py-2">Started</th>
+                                  <th className="px-3 py-2">Level</th>
+                                  <th className="px-3 py-2">For tier</th>
+                                  <th className="px-3 py-2">Overall</th>
+                                  <th className="px-3 py-2">ID</th>
+                                  <th className="px-3 py-2">Liveness</th>
+                                  <th className="px-3 py-2">AML</th>
+                                  <th className="px-3 py-2">Notes</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {summary.kyc.all.map(v => (
+                                  <tr key={v.id} className="border-b">
+                                    <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(v.createdAt)}</td>
+                                    <td className="px-3 py-2 text-xs font-mono">{v.kycLevel}</td>
+                                    <td className="px-3 py-2 text-xs">{v.tierSlug}</td>
+                                    <td className="px-3 py-2 text-xs">
+                                      <span className={
+                                        v.status === "approved" ? "text-emerald-700"
+                                        : v.status === "declined" ? "text-red-700"
+                                        : "text-amber-700"
+                                      }>{v.status}</span>
+                                    </td>
+                                    <td className="px-3 py-2 text-xs">{v.idStatus ?? "—"}</td>
+                                    <td className="px-3 py-2 text-xs">{v.livenessStatus ?? "—"}</td>
+                                    <td className="px-3 py-2 text-xs">{v.amlStatus ?? "—"}</td>
+                                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                                      {v.declineReasons?.length ? v.declineReasons.join("; ") : "—"}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
                   </>
                 )}
               </TabsContent>

@@ -5,6 +5,7 @@ import {
   userMembershipsTable,
   creditAccountsTable,
   creditTransactionsTable,
+  kycVerificationsTable,
 } from "@workspace/db";
 import { asc, desc, eq, and } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -717,9 +718,23 @@ router.get("/admin/members/:userId", requireAdmin, async (req, res) => {
   // signup date, and profile photo — not just whatever we happened to cache.
   const clerk = await getClerkUserSummary(userId);
 
+  // KYC records — government-verified identity data from Didit. This is distinct
+  // from the Clerk profile: Clerk is just "person who signed up"; KYC is the
+  // legal identity check (ID doc, biometric, AML) required by higher tiers.
+  const kyc = await db
+    .select()
+    .from(kycVerificationsTable)
+    .where(eq(kycVerificationsTable.userId, userId))
+    .orderBy(desc(kycVerificationsTable.createdAt));
+  const highestApprovedKyc = kyc.find(v => v.status === "approved") ?? null;
+
   res.json({
     userId,
     clerk,
+    kyc: {
+      highestApproved: highestApprovedKyc,
+      all: kyc,
+    },
     currentMembership,
     allMemberships: enrichedMemberships,
     creditAccount: creditAccount ?? null,
