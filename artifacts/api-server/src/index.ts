@@ -1,8 +1,8 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
-import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable } from "@workspace/db";
-import { eq, inArray } from "drizzle-orm";
+import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
+import { eq, inArray, isNull, and } from "drizzle-orm";
 import { startEnrichmentWorker } from "./services/alpha/queue";
 
 const rawPort = process.env["PORT"];
@@ -51,6 +51,25 @@ app.listen(port, (err) => {
       logger.info({ capabilitiesReset: stuck.length, economicsDeleted: delEcon.length, edgeScoresDeleted: delEdges.length }, "Boot cleanup of interrupted enrichment");
     } catch (e) {
       logger.error({ err: e }, "Failed boot cleanup of interrupted enrichment");
+    }
+  })();
+
+  // Also clean up the legacy LangGraph enrichment_runs table — any row with
+  // status="running" and no completedAt is from a Node process that died
+  // mid-run (most often a redeploy). The in-memory `enrichmentRunning`
+  // guard resets on boot, so any such row is by definition stale.
+  void (async () => {
+    try {
+      const stale = await db
+        .update(enrichmentRunsTable)
+        .set({ status: "interrupted", completedAt: new Date() })
+        .where(and(eq(enrichmentRunsTable.status, "running"), isNull(enrichmentRunsTable.completedAt)))
+        .returning({ id: enrichmentRunsTable.id });
+      if (stale.length > 0) {
+        logger.info({ runsReset: stale.length }, "Boot cleanup of stale enrichment_runs rows");
+      }
+    } catch (e) {
+      logger.error({ err: e }, "Failed to clean up stale enrichment_runs");
     }
   })();
 
