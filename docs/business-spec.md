@@ -1,8 +1,10 @@
 # Capability Economics Platform — Business Specification
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Date:** April 2026  
 **Classification:** Strategy Reference — Executive & PhD Audience
+
+**Companion documents:** `docs/pitchbook.md` (investor synthesis), `docs/architecture-spec.md` (technical reference). This document is the strategy reference; figures here are the same figures shipped in the production database (pricing tiers, capability counts, industries) — not aspirational.
 
 ---
 
