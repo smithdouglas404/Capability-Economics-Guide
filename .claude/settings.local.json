@@ -40,7 +40,20 @@
       "Bash(curl -s http://localhost:5173/api/marketplace/listings)",
       "Bash(curl -sv http://localhost:5173/api/marketplace/listings)",
       "Bash(curl -s http://localhost:8080/marketplace -o /tmp/m.html)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(curl -s \"http://localhost:8080/api/marketplace/listings\")",
+      "Bash(curl -s \"http://localhost:8080/api/marketplace/listings\" -H \"Accept: application/json\" -H \"Referer: http://localhost:8080/marketplace\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/industries/healthcare/capabilities\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/case-studies/diagnostics\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/case-studies\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/healthz\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/health\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/alpha/status\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/healthz/redis\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/industries\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/admin/enrichment/config\")",
+      "Bash(curl -sI \"https://capabilityeconomics-staging.up.railway.app/api/healthz\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/enrichment/runs?limit=10\")"
     ]
   }
 }
