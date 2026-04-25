@@ -1353,10 +1353,17 @@ export default function CEIDashboard() {
                         </div>
                       </div>
 
+                      {(() => {
+                        const refreshedRows = [...freshness.capabilities]
+                          .filter(c => c.lastTriangulatedAt)
+                          .sort((a, b) => new Date(b.lastTriangulatedAt!).getTime() - new Date(a.lastTriangulatedAt!).getTime())
+                          .slice(0, 10);
+                        const stalestRows = freshness.capabilities.slice(0, 10);
+                        return (
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
                           <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 font-semibold">
-                            ✓ 10 Most Recently Refreshed
+                            ✓ {refreshedRows.length} Most Recently Refreshed
                           </div>
                           <div className="overflow-x-auto rounded-sm border border-emerald-200 dark:border-emerald-900/40">
                             <table className="w-full text-xs">
@@ -1368,11 +1375,7 @@ export default function CEIDashboard() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {[...freshness.capabilities]
-                                  .filter(c => c.lastTriangulatedAt)
-                                  .sort((a, b) => new Date(b.lastTriangulatedAt!).getTime() - new Date(a.lastTriangulatedAt!).getTime())
-                                  .slice(0, 10)
-                                  .map(item => (
+                                {refreshedRows.map(item => (
                                     <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
                                       <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
                                       <td className="py-1.5 px-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
@@ -1388,7 +1391,7 @@ export default function CEIDashboard() {
 
                         <div>
                           <div className="text-[11px] text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 font-semibold">
-                            ⏳ 10 Stalest — Next in Rotation Queue
+                            ⏳ {stalestRows.length} Stalest — Next in Rotation Queue
                           </div>
                           <div className="overflow-x-auto rounded-sm border border-amber-200 dark:border-amber-900/40">
                             <table className="w-full text-xs">
@@ -1400,7 +1403,7 @@ export default function CEIDashboard() {
                                 </tr>
                               </thead>
                               <tbody>
-                                {freshness.capabilities.slice(0, 10).map(item => (
+                                {stalestRows.map(item => (
                                   <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
                                     <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
                                     <td className="py-1.5 px-2 text-right font-mono text-amber-700 dark:text-amber-400">
@@ -1416,6 +1419,8 @@ export default function CEIDashboard() {
                           </div>
                         </div>
                       </div>
+                        );
+                      })()}
 
                       <div className="mt-3 px-3 py-2 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
                         <div className="flex items-start gap-2">

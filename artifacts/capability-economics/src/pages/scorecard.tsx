@@ -86,6 +86,7 @@ export default function CapabilityScorecard() {
             <Swords className="w-6 h-6 mx-auto mb-2 text-primary" />
             <p className="text-2xl font-bold">{matrix.length}</p>
             <p className="text-xs text-muted-foreground">Capabilities Tracked</p>
+            <p className="text-[10px] text-muted-foreground mt-1">{sortedByGap.length} scored · {matrix.length - sortedByGap.length} unscored</p>
           </CardContent>
         </Card>
         <Card>

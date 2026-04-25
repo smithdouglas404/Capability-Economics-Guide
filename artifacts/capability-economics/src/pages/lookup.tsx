@@ -199,8 +199,8 @@ export default function LookupPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="font-serif text-lg">Top 3 leader companies</CardTitle>
-              <CardDescription>Highest composite scores in {indById.get(selected.industryId) ?? "this industry"}.</CardDescription>
+              <CardTitle className="font-serif text-lg">Top {companies.length || 3} leader companies</CardTitle>
+              <CardDescription>Highest composite scores in {indById.get(selected.industryId) ?? "this industry"}{companies.length > 0 && companies.length < 3 ? ` — only ${companies.length} available` : ""}.</CardDescription>
             </CardHeader>
             <CardContent>
               {loadingCompanies ? (

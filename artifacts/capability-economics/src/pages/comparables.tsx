@@ -194,6 +194,14 @@ export default function Comparables() {
         </Card>
       ) : loading && orderedDetails.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-sm text-muted-foreground">Loading…</CardContent></Card>
+      ) : orderedDetails.length < 2 ? (
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            <Columns3 className="w-12 h-12 mx-auto mb-4 opacity-30" />
+            <p className="font-serif text-lg mb-1">Need at least two resolved companies</p>
+            <p className="text-sm">{orderedDetails.length} of {selectedIds.length} selected loaded — others may have no fingerprint data.</p>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardContent className="p-0 overflow-x-auto">

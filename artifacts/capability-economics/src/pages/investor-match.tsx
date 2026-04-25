@@ -115,6 +115,9 @@ export default function InvestorMatch() {
         </Card>
       ) : (
         <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            {matches.length} matching {matches.length === 1 ? "signal" : "signals"} of {signals.length} total
+          </p>
           {matches.map((s) => {
             const Icon = s.signal === "long" ? TrendingUp : TrendingDown;
             const verb = s.signal === "long" ? "is buying" : "is shorting";

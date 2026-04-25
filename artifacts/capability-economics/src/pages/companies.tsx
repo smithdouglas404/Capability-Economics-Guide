@@ -339,7 +339,10 @@ export default function Companies() {
                         <div className="flex items-center gap-2">
                           <div className={`w-3 h-3 rounded-full ${QUAD_LABELS[k].color}`} />
                           <span className="font-medium text-sm">{QUAD_LABELS[k].label}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">{quadGroups[k].length}</span>
+                          <span className="text-xs text-muted-foreground ml-auto">
+                            {Math.min(12, quadGroups[k].length)}
+                            {quadGroups[k].length > 12 && <span className="opacity-60"> / {quadGroups[k].length}</span>}
+                          </span>
                         </div>
                       </CardHeader>
                       <CardContent className="text-xs space-y-1 max-h-48 overflow-y-auto">

@@ -239,9 +239,12 @@ export default function CompetitorScan() {
               <Card>
                 <CardContent className="p-6">
                   <h3 className="font-serif text-xl tracking-tight mb-1 flex items-center gap-2">
-                    <Award className="w-5 h-5 text-primary" />Top 5 capability strengths
+                    <Award className="w-5 h-5 text-primary" />Top {Math.min(5, top5.length) || 5} capability strengths
                   </h3>
-                  <p className="text-xs text-muted-foreground mb-4">Where this company has shown evidence of capability — your competitive surface area.</p>
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Where this company has shown evidence of capability — your competitive surface area.
+                    {top5.length > 0 && top5.length < 5 && ` Only ${top5.length} fingerprinted.`}
+                  </p>
                   {top5.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">No fingerprint data yet for this company.</p>
                   ) : (

@@ -97,7 +97,9 @@ export default function CurriculumPage() {
           </Select>
         </div>
         <span className="text-xs text-muted-foreground ml-auto">
-          {filtered.length} {filtered.length === 1 ? "pack" : "packs"}
+          {industryFilter !== "all" || levelFilter !== "all"
+            ? `Showing ${filtered.length} of ${packs?.length ?? 0} ${(packs?.length ?? 0) === 1 ? "pack" : "packs"}`
+            : `${filtered.length} ${filtered.length === 1 ? "pack" : "packs"}`}
         </span>
       </div>
 

@@ -99,7 +99,7 @@ export default function CitationsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="font-serif text-lg">Source library</CardTitle>
-          <CardDescription>{loading ? "Loading…" : `${filtered.length} of ${sources.length} sources`}</CardDescription>
+          <CardDescription>{loading ? "Loading…" : `${filtered.length} of ${sources.length} sources${filtered.length > 200 ? ` — showing first 200` : ""}`}</CardDescription>
         </CardHeader>
         <CardContent>
           <Input

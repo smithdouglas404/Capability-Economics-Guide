@@ -255,6 +255,12 @@ export default function PipelinePage() {
                   {active.notes && <p className="text-sm text-muted-foreground mt-1 max-w-2xl">{active.notes}</p>}
                   <p className="text-xs text-muted-foreground mt-2 flex items-center gap-3">
                     <span>Updated {new Date(active.updatedAt).toLocaleDateString()}</span>
+                    <span>
+                      {companies.length} {companies.length === 1 ? "company" : "companies"}
+                      {companies.length !== active.companyIds.length && (
+                        <span className="opacity-70"> · {active.companyIds.length - companies.length} unresolved</span>
+                      )}
+                    </span>
                     {active.industryId && industries.find(i => i.id === active.industryId) && (
                       <Badge variant="outline">{industries.find(i => i.id === active.industryId)?.name}</Badge>
                     )}
