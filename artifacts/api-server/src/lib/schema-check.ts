@@ -16,6 +16,7 @@ const REQUIRED_TABLES = [
   "capability_dependencies",
   "enrichment_runs",
   "enrichment_config",
+  "enrichment_industry_overrides",
   "enrichment_jobs",
   "membership_tiers",
   "user_memberships",

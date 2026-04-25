@@ -46,6 +46,19 @@ interface EnrichmentHealth {
   recentErrors: Array<{ capabilityId: number; name: string; error: string; updatedAt: string | null }>;
   generatedAt: string;
 }
+interface IndustryRow {
+  industryId: number;
+  industrySlug: string;
+  industryName: string;
+  enabled: boolean;
+  refreshDays: number;
+  hasOverride: boolean;
+  capabilities: { total: number; withEconomics: number };
+}
+interface IndustriesResponse {
+  globalDefault: { enabled: boolean; refreshDays: number };
+  industries: IndustryRow[];
+}
 
 export default function EnrichmentAdmin() {
   const [status, setStatus] = useState<EnrichmentStatus | null>(null);
@@ -61,18 +74,21 @@ export default function EnrichmentAdmin() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [alphaStatus, setAlphaStatus] = useState<{ capabilities: number; capabilitiesEnriched: number } | null>(null);
   const [health, setHealth] = useState<EnrichmentHealth | null>(null);
+  const [industries, setIndustries] = useState<IndustriesResponse | null>(null);
+  const [savingIndustryId, setSavingIndustryId] = useState<number | null>(null);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r, cfgRes, redisRes, alphaRes, healthRes] = await Promise.all([
+      const [s, r, cfgRes, redisRes, alphaRes, healthRes, industriesRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
         fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/healthz/redis`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/alpha/status`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/admin/enrichment/health`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/admin/enrichment/industries`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
@@ -84,6 +100,7 @@ export default function EnrichmentAdmin() {
       setRedis(redisRes ?? null);
       if (alphaRes) setAlphaStatus({ capabilities: alphaRes.capabilities, capabilitiesEnriched: alphaRes.capabilitiesEnriched });
       setHealth(healthRes ?? null);
+      setIndustries(industriesRes ?? null);
     } catch (e) {
       setError(String(e));
     }
@@ -119,6 +136,65 @@ export default function EnrichmentAdmin() {
       setError(String(e));
     } finally {
       setSyncRunning(false);
+    }
+  };
+
+  const saveIndustry = async (industryId: number, body: { enabled?: boolean; refreshDays?: number }) => {
+    if (!isSignedIn) { setError("Sign in to change industry settings."); return; }
+    setSavingIndustryId(industryId);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/enrichment/industries/${industryId}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error || `Save failed (${res.status})`);
+        return;
+      }
+      // Optimistic local update so the toggle/input reflects immediately —
+      // fetchAll re-syncs from the server on the next poll.
+      setIndustries(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          industries: prev.industries.map(i =>
+            i.industryId === industryId
+              ? { ...i, enabled: body.enabled ?? i.enabled, refreshDays: body.refreshDays ?? i.refreshDays, hasOverride: true }
+              : i,
+          ),
+        };
+      });
+      fetchAll();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSavingIndustryId(null);
+    }
+  };
+
+  const resetIndustry = async (industryId: number) => {
+    if (!isSignedIn) { setError("Sign in to reset industry settings."); return; }
+    setSavingIndustryId(industryId);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/enrichment/industries/${industryId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(j.error || `Reset failed (${res.status})`);
+        return;
+      }
+      fetchAll();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSavingIndustryId(null);
     }
   };
 
@@ -342,6 +418,70 @@ export default function EnrichmentAdmin() {
           </div>
         )}
 
+        {/* Master switch + per-industry cadence */}
+        {industries && (
+          <div className="mb-5 border rounded">
+            <div className="px-4 py-3 border-b bg-muted/40 flex items-center justify-between flex-wrap gap-3">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <CalendarClock className="w-3.5 h-3.5" /> Cron schedule
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="cron-master" className="text-xs">Run scheduler</Label>
+                <Switch
+                  id="cron-master"
+                  checked={configEnabled}
+                  onCheckedChange={(v) => setConfigEnabled(v)}
+                  disabled={!isSignedIn}
+                />
+                <span className={`text-[11px] font-mono ${configEnabled ? "text-green-700" : "text-muted-foreground"}`}>
+                  {configEnabled ? "ON" : "OFF"}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={saveConfig}
+                  disabled={configSaving || !isSignedIn || (config?.enabled === configEnabled && config?.refreshDays === configDays)}
+                  className="gap-1.5 ml-2"
+                >
+                  <Save className="w-3 h-3" />
+                  Save master
+                </Button>
+              </div>
+            </div>
+
+            <div className="px-4 py-2 border-b text-[11px] text-muted-foreground bg-muted/10">
+              Master switch overrides every industry. When ON, each industry runs at its own cadence below — default is the global value
+              (<code className="font-mono">{industries.globalDefault.refreshDays}</code> days). Toggle an industry off to pause it without
+              affecting others. Reset clears the override and falls back to the global default.
+            </div>
+
+            <table className="w-full text-sm">
+              <thead className="bg-muted/20">
+                <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                  <th className="text-left px-4 py-2 font-medium">Industry</th>
+                  <th className="text-left px-4 py-2 font-medium">Coverage</th>
+                  <th className="text-left px-4 py-2 font-medium">Enabled</th>
+                  <th className="text-left px-4 py-2 font-medium">Refresh (days)</th>
+                  <th className="text-left px-4 py-2 font-medium">Source</th>
+                  <th className="px-4 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {industries.industries.map(ind => (
+                  <IndustryRow
+                    key={ind.industryId}
+                    row={ind}
+                    saving={savingIndustryId === ind.industryId}
+                    onSave={saveIndustry}
+                    onReset={resetIndustry}
+                    disabled={!isSignedIn}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
           <div className="border rounded p-3 bg-muted/30">
             <div className="text-xs text-muted-foreground flex items-center gap-1"><Database className="w-3 h-3" /> Quadrants</div>
@@ -472,5 +612,86 @@ export default function EnrichmentAdmin() {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function IndustryRow({
+  row, saving, onSave, onReset, disabled,
+}: {
+  row: IndustryRow;
+  saving: boolean;
+  onSave: (industryId: number, body: { enabled?: boolean; refreshDays?: number }) => void;
+  onReset: (industryId: number) => void;
+  disabled: boolean;
+}) {
+  const [draftDays, setDraftDays] = useState<number>(row.refreshDays);
+  // Sync local draft when the parent gets fresh data (e.g., after polling)
+  useEffect(() => { setDraftDays(row.refreshDays); }, [row.refreshDays]);
+
+  const dirty = draftDays !== row.refreshDays;
+  const coverage = row.capabilities.total > 0
+    ? Math.round((row.capabilities.withEconomics / row.capabilities.total) * 100)
+    : 0;
+
+  return (
+    <tr className={!row.enabled ? "opacity-60" : ""}>
+      <td className="px-4 py-2.5">
+        <div className="font-medium">{row.industryName}</div>
+        <div className="text-[10px] text-muted-foreground font-mono">{row.industrySlug}</div>
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="font-mono text-xs">
+          {row.capabilities.withEconomics}/{row.capabilities.total}
+        </div>
+        <div className="text-[10px] text-muted-foreground">{coverage}% enriched</div>
+      </td>
+      <td className="px-4 py-2.5">
+        <Switch
+          checked={row.enabled}
+          onCheckedChange={(v) => onSave(row.industryId, { enabled: v })}
+          disabled={disabled || saving}
+        />
+      </td>
+      <td className="px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <Input
+            type="number"
+            min={1}
+            max={365}
+            value={draftDays}
+            onChange={(e) => setDraftDays(Number(e.target.value))}
+            className="h-7 w-20 text-xs"
+            disabled={disabled || saving}
+          />
+          {dirty && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onSave(row.industryId, { refreshDays: draftDays })}
+              disabled={disabled || saving || draftDays < 1 || draftDays > 365}
+              className="h-7 px-2"
+            >
+              <Save className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-2.5 text-[11px] text-muted-foreground">
+        {row.hasOverride ? "override" : "global default"}
+      </td>
+      <td className="px-4 py-2.5 text-right">
+        {row.hasOverride && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => onReset(row.industryId)}
+            disabled={disabled || saving}
+            className="text-[11px] h-7 px-2"
+          >
+            Reset
+          </Button>
+        )}
+      </td>
+    </tr>
   );
 }

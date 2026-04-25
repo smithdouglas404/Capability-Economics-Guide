@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, enrichmentConfigTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
-import { sql, desc, eq, isNull } from "drizzle-orm";
+import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
+import { sql, desc, eq, isNull, asc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { isRedisConfigured } from "../services/alpha/redis";
@@ -14,7 +14,7 @@ async function getOrCreateConfig() {
   if (rows.length > 0) return rows[0];
   const [created] = await db
     .insert(enrichmentConfigTable)
-    .values({ enabled: false, refreshDays: 30 })
+    .values({ enabled: false, refreshDays: 60 })
     .returning();
   return created;
 }
@@ -51,6 +51,91 @@ router.put("/admin/enrichment/config", requireReviewer(), async (req: Request, r
     })
     .returning();
   res.json({ config: updated });
+});
+
+/**
+ * Per-industry override of cadence + per-industry on/off toggle. The endpoint
+ * always returns one entry per industry: when there's no override row, the
+ * effective cadence is the global default and `enabled` defaults to true.
+ */
+router.get("/admin/enrichment/industries", async (_req: Request, res: Response) => {
+  const cfg = await getOrCreateConfig();
+  const industries = await db.select().from(industriesTable).orderBy(asc(industriesTable.id));
+  const overrides = await db.select().from(enrichmentIndustryOverridesTable);
+  const overrideByIndustry = new Map(overrides.map(o => [o.industryId, o]));
+
+  // Per-industry counts: total caps and how many already have economics rows.
+  const counts = await db
+    .select({
+      industryId: capabilitiesTable.industryId,
+      total: sql<number>`count(*)::int`,
+      withEconomics: sql<number>`count(${capabilityEconomicsTable.id})::int`,
+    })
+    .from(capabilitiesTable)
+    .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
+    .groupBy(capabilitiesTable.industryId);
+  const countByIndustry = new Map(counts.map(c => [c.industryId, c]));
+
+  const rows = industries.map(ind => {
+    const o = overrideByIndustry.get(ind.id);
+    const c = countByIndustry.get(ind.id);
+    return {
+      industryId: ind.id,
+      industrySlug: ind.slug,
+      industryName: ind.name,
+      enabled: o?.enabled ?? true,
+      refreshDays: o?.refreshDays ?? cfg.refreshDays,
+      hasOverride: o !== undefined,
+      capabilities: { total: Number(c?.total ?? 0), withEconomics: Number(c?.withEconomics ?? 0) },
+    };
+  });
+  res.json({ globalDefault: { enabled: cfg.enabled, refreshDays: cfg.refreshDays }, industries: rows });
+});
+
+const IndustryOverrideBody = z.object({
+  enabled: z.boolean().optional(),
+  refreshDays: z.number().int().min(1).max(365).optional(),
+});
+
+router.put("/admin/enrichment/industries/:industryId", requireReviewer(), async (req: Request, res: Response) => {
+  const industryId = Number(req.params.industryId);
+  if (!Number.isFinite(industryId)) { res.status(400).json({ error: "bad industryId" }); return; }
+  const parsed = IndustryOverrideBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, industryId));
+  if (!industry) { res.status(404).json({ error: "industry not found" }); return; }
+
+  const cfg = await getOrCreateConfig();
+  const [existing] = await db.select().from(enrichmentIndustryOverridesTable).where(eq(enrichmentIndustryOverridesTable.industryId, industryId));
+
+  if (existing) {
+    const [updated] = await db.update(enrichmentIndustryOverridesTable).set({
+      enabled: parsed.data.enabled ?? existing.enabled,
+      refreshDays: parsed.data.refreshDays ?? existing.refreshDays,
+      updatedAt: new Date(),
+    }).where(eq(enrichmentIndustryOverridesTable.id, existing.id)).returning();
+    res.json({ override: updated });
+    return;
+  }
+
+  const [created] = await db.insert(enrichmentIndustryOverridesTable).values({
+    industryId,
+    enabled: parsed.data.enabled ?? true,
+    refreshDays: parsed.data.refreshDays ?? cfg.refreshDays,
+  }).returning();
+  res.status(201).json({ override: created });
+});
+
+/**
+ * Remove an industry override so the industry falls back to the global
+ * default. Useful when an admin wants to revert a custom cadence.
+ */
+router.delete("/admin/enrichment/industries/:industryId", requireReviewer(), async (req: Request, res: Response) => {
+  const industryId = Number(req.params.industryId);
+  if (!Number.isFinite(industryId)) { res.status(400).json({ error: "bad industryId" }); return; }
+  await db.delete(enrichmentIndustryOverridesTable).where(eq(enrichmentIndustryOverridesTable.industryId, industryId));
+  res.json({ ok: true });
 });
 
 /**

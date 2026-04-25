@@ -1,5 +1,5 @@
-import { db, enrichmentConfigTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
-import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
+import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
+import { and, eq, isNull, lt, or, sql, inArray } from "drizzle-orm";
 import { Queue, Worker } from "bullmq";
 import { enqueueEnrichmentJob } from "./queue";
 import { getRedis, isRedisConfigured } from "./redis";
@@ -16,14 +16,18 @@ let ticking = false;
 async function loadConfig() {
   const rows = await db.select().from(enrichmentConfigTable).limit(1);
   if (rows.length > 0) return rows[0];
-  const [created] = await db.insert(enrichmentConfigTable).values({ enabled: false, refreshDays: 30 }).returning();
+  const [created] = await db.insert(enrichmentConfigTable).values({ enabled: false, refreshDays: 60 }).returning();
   return created;
 }
 
 /**
- * Find capabilities whose economics row is either missing or older than
- * `refreshDays`. Enqueue alpha jobs (the worker handles rate-limiting and
- * per-capability concurrency).
+ * Find capabilities whose economics row is missing or older than the
+ * effective `refreshDays` for their industry, then enqueue alpha jobs.
+ *
+ * Effective config:
+ *   - If global `enabled` is false → no industry runs (master kill-switch).
+ *   - If a per-industry override row exists, use its `enabled` + `refreshDays`.
+ *   - Otherwise fall back to the global `refreshDays`.
  */
 async function tick() {
   if (ticking) return;
@@ -36,15 +40,35 @@ async function tick() {
       return;
     }
 
-    const cutoff = sql`now() - (${cfg.refreshDays}::int * interval '1 day')`;
-    const stale = await db
-      .select({ id: capabilitiesTable.id, industryId: capabilitiesTable.industryId })
+    // Build the "effective settings per industry" map. Industries without an
+    // override row get the global default; industries with override.enabled =
+    // false get skipped entirely.
+    const overrides = await db.select().from(enrichmentIndustryOverridesTable);
+    const overrideByIndustry = new Map(overrides.map(o => [o.industryId, o]));
+    const skippedIndustries = new Set(overrides.filter(o => !o.enabled).map(o => o.industryId));
+
+    // Collect all candidate caps (any industry not explicitly disabled), then
+    // filter by per-industry refreshDays in JS — simpler than dynamic SQL.
+    const candidateCaps = await db
+      .select({
+        id: capabilitiesTable.id,
+        industryId: capabilitiesTable.industryId,
+        economicsId: capabilityEconomicsTable.id,
+        generatedAt: capabilityEconomicsTable.generatedAt,
+      })
       .from(capabilitiesTable)
-      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
-      .where(or(
-        isNull(capabilityEconomicsTable.id),
-        lt(capabilityEconomicsTable.generatedAt, cutoff),
-      ));
+      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id));
+
+    const now = Date.now();
+    const stale: Array<{ id: number; industryId: number }> = [];
+    for (const row of candidateCaps) {
+      if (skippedIndustries.has(row.industryId)) continue;
+      const effectiveDays = overrideByIndustry.get(row.industryId)?.refreshDays ?? cfg.refreshDays;
+      const cutoffMs = now - effectiveDays * 24 * 60 * 60 * 1000;
+      const isMissing = row.economicsId === null;
+      const isOld = row.generatedAt !== null && row.generatedAt.getTime() < cutoffMs;
+      if (isMissing || isOld) stale.push({ id: row.id, industryId: row.industryId });
+    }
 
     if (stale.length === 0) {
       logger.info("[auto-enrich] nothing stale — skipping enqueue");
@@ -79,7 +103,7 @@ async function tick() {
     await db.update(enrichmentConfigTable)
       .set({ lastRunAt: new Date(), lastRunEnqueued: enqueued })
       .where(eq(enrichmentConfigTable.id, cfg.id));
-    logger.info({ industries: byIndustry.size, enqueued, staleCount: stale.length }, "[auto-enrich] tick enqueued");
+    logger.info({ industries: byIndustry.size, enqueued, staleCount: stale.length, skippedIndustries: [...skippedIndustries] }, "[auto-enrich] tick enqueued");
   } catch (err) {
     logger.error({ err }, "[auto-enrich] tick failed");
   } finally {

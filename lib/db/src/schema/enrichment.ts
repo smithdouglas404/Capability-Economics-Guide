@@ -9,14 +9,33 @@ import { industriesTable } from "./industries";
  */
 export const enrichmentConfigTable = pgTable("enrichment_config", {
   id: serial("id").primaryKey(),
+  // Master kill-switch. When false the scheduler is silent regardless of any
+  // per-industry overrides — used by admins to pause all enrichment spend.
   enabled: boolean("enabled").notNull().default(false),
-  refreshDays: integer("refresh_days").notNull().default(30),
+  // Default refresh cadence for industries that don't have an override row.
+  refreshDays: integer("refresh_days").notNull().default(60),
   lastRunAt: timestamp("last_run_at"),
   lastRunEnqueued: integer("last_run_enqueued").notNull().default(0),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export type EnrichmentConfig = typeof enrichmentConfigTable.$inferSelect;
+
+/**
+ * Per-industry override of the global enrichment cadence. Absence of a row
+ * means "use the global default". Presence means: use this industry's
+ * `refreshDays` and respect this industry's `enabled` toggle. The global
+ * `enabled` master kill-switch always wins — if it's off, no industry runs.
+ */
+export const enrichmentIndustryOverridesTable = pgTable("enrichment_industry_overrides", {
+  id: serial("id").primaryKey(),
+  industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }).unique(),
+  enabled: boolean("enabled").notNull().default(true),
+  refreshDays: integer("refresh_days").notNull().default(60),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type EnrichmentIndustryOverride = typeof enrichmentIndustryOverridesTable.$inferSelect;
 
 export const enrichmentJobsTable = pgTable(
   "enrichment_jobs",
