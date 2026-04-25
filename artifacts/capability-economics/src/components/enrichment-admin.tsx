@@ -603,6 +603,11 @@ export default function EnrichmentAdmin() {
           )}
         </div>
 
+        {/* Live graph state — subscribes to /api/agent/events SSE so the
+            user sees the current node + per-industry progress in real time
+            instead of waiting for the run record's final update. */}
+        <LiveGraphState />
+
         <div>
           <div className="text-sm font-medium mb-2 flex items-center gap-2"><Clock className="w-4 h-4" /> Recent runs</div>
           <div className="overflow-x-auto">
@@ -730,5 +735,193 @@ function IndustryRow({
         )}
       </td>
     </tr>
+  );
+}
+
+type GraphEvent = {
+  type: string;
+  runId?: number;
+  industryId?: number;
+  industryName?: string;
+  classified?: number;
+  enriched?: number;
+  profiled?: number;
+  mapped?: number;
+  stages?: number;
+  memoriesRecalled?: number;
+  memoriesStored?: number;
+  trigger?: string;
+  result?: { errors?: string[]; classified?: number; valueChainStages?: number; companiesProfiled?: number; companiesMapped?: number; alphaEnriched?: number; detailEnriched?: number };
+  industries?: number;
+  capabilities?: number;
+  status?: string;
+  timestamp?: string;
+};
+
+const NODE_ORDER = [
+  { key: "load", label: "Load industries" },
+  { key: "recall", label: "Recall memories" },
+  { key: "industry.classify_quadrant", label: "Classify quadrants" },
+  { key: "industry.map_value_chain", label: "Map value chain" },
+  { key: "industry.discover_companies", label: "Discover companies" },
+  { key: "industry.economics_alpha", label: "Economics — alpha" },
+  { key: "industry.economics_detail", label: "Economics — detail" },
+  { key: "reflect", label: "Reflect" },
+  { key: "memorize", label: "Memorize + Letta" },
+  { key: "finalize", label: "Finalize" },
+];
+
+function LiveGraphState() {
+  const [currentRunId, setCurrentRunId] = useState<number | null>(null);
+  const [activeNode, setActiveNode] = useState<string | null>(null);
+  const [nodeStatuses, setNodeStatuses] = useState<Record<string, "idle" | "running" | "done" | "failed">>({});
+  const [perIndustry, setPerIndustry] = useState<Record<number, { name: string; classified: number; stages: number; profiled: number; mapped: number; alpha: number; detail: number; status: string }>>({});
+  const [recentEvents, setRecentEvents] = useState<GraphEvent[]>([]);
+
+  useEffect(() => {
+    const es = new EventSource(`${API_BASE}/agent/events`);
+    es.onmessage = (e) => {
+      try {
+        const evt = JSON.parse(e.data) as GraphEvent;
+        if (!evt.type?.startsWith("enrichment.") && !evt.type?.startsWith("industry.")) return;
+
+        setRecentEvents(prev => [evt, ...prev].slice(0, 20));
+
+        if (evt.type === "enrichment.run.start" && evt.runId) {
+          setCurrentRunId(evt.runId);
+          setActiveNode("load");
+          setNodeStatuses({});
+          setPerIndustry({});
+          return;
+        }
+
+        const baseType = evt.type.replace(/^enrichment\./, "").replace(/^industry\./, "industry.");
+        if (baseType.endsWith(".start")) {
+          const node = baseType.replace(".start", "");
+          setActiveNode(node);
+          setNodeStatuses(s => ({ ...s, [node]: "running" }));
+        } else if (baseType.endsWith(".complete")) {
+          const node = baseType.replace(".complete", "");
+          setNodeStatuses(s => ({ ...s, [node]: "done" }));
+        }
+
+        if (evt.industryId && evt.industryName) {
+          setPerIndustry(p => {
+            const cur = p[evt.industryId!] ?? { name: evt.industryName!, classified: 0, stages: 0, profiled: 0, mapped: 0, alpha: 0, detail: 0, status: "running" };
+            return {
+              ...p,
+              [evt.industryId!]: {
+                name: evt.industryName!,
+                classified: evt.classified ?? cur.classified,
+                stages: evt.stages ?? cur.stages,
+                profiled: evt.profiled ?? cur.profiled,
+                mapped: evt.mapped ?? cur.mapped,
+                alpha: evt.type === "industry.economics_alpha.complete" ? (evt.enriched ?? cur.alpha) : cur.alpha,
+                detail: evt.type === "industry.economics_detail.complete" ? (evt.enriched ?? cur.detail) : cur.detail,
+                status: evt.type === "industry.complete" ? (evt.result?.errors?.length ? "failed" : "done") : cur.status,
+              },
+            };
+          });
+        }
+
+        if (evt.type === "enrichment.finalize.complete") {
+          setActiveNode(null);
+        }
+      } catch { /* ignore malformed events */ }
+    };
+    es.onerror = () => { /* keep connection alive; EventSource auto-reconnects */ };
+    return () => es.close();
+  }, []);
+
+  if (!currentRunId && Object.keys(nodeStatuses).length === 0) {
+    return (
+      <div className="border border-dashed border-border rounded-md p-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-2 mb-1"><Activity className="w-3.5 h-3.5" /> Live graph state</div>
+        Waiting for the next enrichment run. The cron tick or the "Run scheduler" button will start one.
+      </div>
+    );
+  }
+
+  return (
+    <div className="border border-border rounded-md p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <Activity className="w-4 h-4 text-blue-500 animate-pulse" />
+          Live graph {currentRunId !== null && <span className="text-xs font-mono text-muted-foreground">· run #{currentRunId}</span>}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {activeNode ? <>active: <span className="font-mono">{activeNode}</span></> : "idle"}
+        </div>
+      </div>
+
+      {/* Node strip — left to right shows graph progression */}
+      <div className="flex flex-wrap gap-1.5">
+        {NODE_ORDER.map(({ key, label }) => {
+          const status = nodeStatuses[key] ?? "idle";
+          const cls = status === "running" ? "bg-blue-500/10 text-blue-700 border-blue-500/30 animate-pulse"
+            : status === "done" ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/30"
+            : status === "failed" ? "bg-red-500/10 text-red-700 border-red-500/30"
+            : "bg-muted text-muted-foreground border-border";
+          return (
+            <span key={key} className={`text-[10px] px-2 py-1 rounded-sm border ${cls}`}>
+              {label}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* Per-industry progress table — fills as events arrive */}
+      {Object.keys(perIndustry).length > 0 && (
+        <div className="border-t pt-2">
+          <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Per industry</div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b text-[10px] uppercase tracking-wider text-muted-foreground">
+                <th className="text-left py-1">Industry</th>
+                <th className="text-right py-1">Quad</th>
+                <th className="text-right py-1">Stages</th>
+                <th className="text-right py-1">Cos</th>
+                <th className="text-right py-1">Map</th>
+                <th className="text-right py-1">Alpha</th>
+                <th className="text-right py-1">Detail</th>
+                <th className="text-right py-1">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.values(perIndustry).map((r) => (
+                <tr key={r.name} className="border-b border-border/30">
+                  <td className="py-1">{r.name}</td>
+                  <td className="text-right font-mono">{r.classified}</td>
+                  <td className="text-right font-mono">{r.stages}</td>
+                  <td className="text-right font-mono">{r.profiled}</td>
+                  <td className="text-right font-mono">{r.mapped}</td>
+                  <td className="text-right font-mono">{r.alpha}</td>
+                  <td className="text-right font-mono">{r.detail}</td>
+                  <td className="text-right text-[10px]">{r.status}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Last 5 events tail — useful for debugging, collapsed when none */}
+      {recentEvents.length > 0 && (
+        <details className="border-t pt-2">
+          <summary className="text-[11px] text-muted-foreground cursor-pointer">
+            Recent events ({recentEvents.length})
+          </summary>
+          <div className="mt-1 space-y-0.5 font-mono text-[10px] text-muted-foreground max-h-32 overflow-y-auto">
+            {recentEvents.slice(0, 10).map((evt, i) => (
+              <div key={i}>
+                <span className="text-foreground">{evt.type}</span>
+                {evt.industryName && <span> · {evt.industryName}</span>}
+                {evt.timestamp && <span className="opacity-60"> · {new Date(evt.timestamp).toLocaleTimeString()}</span>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
