@@ -42,7 +42,7 @@ const NAV_GROUPS = [
   },
   {
     label: "Strategy",
-    matchPaths: ["/scorecard", "/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
+    matchPaths: ["/scorecard", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
     children: [
       { href: "/scorecard", label: "Capability Scorecard", icon: "Swords", description: "Your scores vs. industry benchmarks, gap-by-gap" },
       { href: "/simulation", label: "Simulate", icon: "FlaskConical", description: "What-if scenario modeling" },
