@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, Target, LineChart, Zap, Building2, Shield, Users, BookOpen, Clock, ExternalLink } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowRight, Clock, ExternalLink } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 
@@ -32,59 +31,75 @@ function EducationalLibrary() {
   if (loading || items.length === 0) return null;
 
   return (
-    <section className="py-24 bg-muted/30 border-t">
-      <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 text-primary text-sm font-semibold uppercase tracking-wider mb-3">
-            <BookOpen className="w-4 h-4" /> Foundational Library
+    <section className="border-t border-border/60">
+      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+        <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-12">
+          <div>
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
+              § Library
+            </div>
+            <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
+              Learn the<br /><span className="italic text-foreground/85">discipline.</span>
+            </h2>
           </div>
-          <h2 className="text-3xl md:text-4xl font-serif text-foreground">Learn the Discipline</h2>
+          <p className="font-serif italic text-lg text-foreground/70 leading-relaxed self-end max-w-2xl">
+            A curated reading list — the foundational ideas, frameworks, and primary sources behind capability economics.
+          </p>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {items.map(item => (
-            <Card key={item.id} className="bg-card border shadow-sm h-full rounded-none flex flex-col" data-testid={`edu-card-${item.slug}`}>
-              <CardHeader className="flex-1">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2 uppercase tracking-wider">
-                  <span className="font-semibold text-primary">{item.category}</span>
-                  <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" />{item.estimatedReadMinutes} min</span>
+
+        <div className="border-t border-border/60">
+          {items.map((entry, i) => (
+            <Link key={entry.id} href={`#`} className="block group">
+              <article
+                data-testid={`edu-card-${entry.slug}`}
+                className="grid lg:grid-cols-[60px_140px_1fr_auto] gap-x-8 gap-y-3 py-8 border-b border-border/60 hover:bg-muted/30 transition-colors px-2 -mx-2"
+              >
+                <div className="font-mono text-[11px] tabular-nums tracking-[0.18em] text-muted-foreground">
+                  {String(i + 1).padStart(2, "0")}
                 </div>
-                <CardTitle className="font-serif text-xl">{item.title}</CardTitle>
-                <CardDescription className="text-base text-muted-foreground">{item.summary}</CardDescription>
-              </CardHeader>
-              <CardContent className="border-t pt-4">
-                <ul className="space-y-2 text-sm text-muted-foreground mb-4">
-                  {item.keyTakeaways.slice(0, 3).map((t, i) => (
-                    <li key={i} className="flex gap-2"><span className="text-primary">•</span><span>{t}</span></li>
-                  ))}
-                </ul>
-                {item.sources.length > 0 && (
-                  <a href={item.sources[0].url} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1 hover:underline">
-                    <ExternalLink className="w-3 h-3" /> {item.sources[0].title}
-                  </a>
-                )}
-              </CardContent>
-            </Card>
+                <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+                  {entry.category}
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl lg:text-[1.625rem] leading-tight tracking-tight group-hover:text-foreground/70 transition-colors">
+                    {entry.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-2xl">
+                    {entry.summary}
+                  </p>
+                  {entry.keyTakeaways.length > 0 && (
+                    <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-foreground/70">
+                      {entry.keyTakeaways.slice(0, 3).map((t, ti) => (
+                        <li key={ti} className="flex gap-2 before:content-['—'] before:text-muted-foreground/60">
+                          <span>{t}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {entry.sources.length > 0 && (
+                    <a
+                      href={entry.sources[0].url}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-accent inline-flex items-center gap-1.5 mt-3"
+                    >
+                      <ExternalLink className="w-3 h-3" /> {entry.sources[0].title}
+                    </a>
+                  )}
+                </div>
+                <div className="font-mono text-[11px] tabular-nums uppercase tracking-[0.18em] text-muted-foreground inline-flex items-center gap-1.5 self-start">
+                  <Clock className="w-3 h-3" />
+                  {entry.estimatedReadMinutes} min
+                </div>
+              </article>
+            </Link>
           ))}
         </div>
       </div>
     </section>
   );
 }
-
-const container = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.15
-    }
-  }
-};
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
-};
 
 type SlotResponse = {
   source: "slot" | "fallback" | "empty";
@@ -108,12 +123,15 @@ function useSlot(slotKey: string) {
   return state;
 }
 
+const fade = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
+};
+
 export default function Home() {
   const heroSlot = useSlot("homepage_hero");
   const cardSlot = useSlot("homepage_case_card");
 
-  // Each slot independently: use the admin-scheduled content if present,
-  // otherwise the fallback (newest case study), otherwise seeded defaults.
   const hero = heroSlot?.content;
   const heroSlug = hero?.industrySlug ?? "insurance";
   const heroName = hero?.industryName ?? "Insurance";
@@ -126,172 +144,233 @@ export default function Home() {
     ?? "See capability economics in action. Watch how an organization optimized its core operating capabilities.";
   const cardHref = `/case-study/${cardSlug}`;
 
+  const principles = [
+    { id: "01", title: "Identify", body: "Isolate the specific combinations of people, process, and technology that create distinct value in the market." },
+    { id: "02", title: "Measure",  body: "Quantify the baseline cost, performance, and revenue impact of each capability using hard economic metrics." },
+    { id: "03", title: "Optimize", body: "Direct capital and leadership attention to the capabilities that drive the highest return on strategic investment." },
+  ];
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Hero Section */}
-      <section className="relative py-24 lg:py-32 overflow-hidden border-b">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-background to-background" />
-        <div className="container mx-auto px-4 relative z-10">
-          <motion.div 
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            className="max-w-4xl"
-          >
-            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary/10 text-primary mb-6">
-              Executive Briefing
-            </div>
-            <h1 className="text-5xl md:text-7xl font-serif font-medium tracking-tight mb-6 text-foreground">
-              Master the Value of <br />
-              <span className="text-primary italic">What You Can Do.</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-4 max-w-2xl leading-relaxed">
-              Capability Economics is the discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
-            </p>
-            <div className="mb-8">
-              <WhatIsCEModal />
-            </div>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="/c-suite" className="inline-flex h-12 items-center justify-center whitespace-nowrap px-8 text-base font-medium transition-colors bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" data-testid="hero-cta-csuite">
-                Explore C-Suite Perspectives
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Link>
-              <Link href={heroHref} className="inline-flex h-12 items-center justify-center whitespace-nowrap border border-input bg-background px-8 text-base font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50" data-testid="hero-cta-case-study">
-                View {heroName} Case Study
-              </Link>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Definition Section */}
-      <section className="py-24 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-serif mb-6 text-foreground">What is Capability Economics?</h2>
-            <p className="text-lg text-muted-foreground leading-relaxed">
-              Think of a capability as a muscle your organization has built—like "rapid order fulfillment" or "precision underwriting." Capability Economics stops treating these muscles as just operational processes, and starts treating them as <strong>economic assets</strong> that can be measured, valued, and invested in.
-            </p>
-          </div>
-
-          <motion.div 
-            variants={container}
+      {/* Masthead + Hero */}
+      <section className="border-b border-border/60">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-20 lg:pt-16 lg:pb-28">
+          <motion.div
             initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-100px" }}
-            className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto"
+            animate="show"
+            variants={fade}
+            className="grid lg:grid-cols-[1fr_300px] gap-12 lg:gap-20 items-end"
           >
-            <motion.div variants={item}>
-              <Card className="bg-card border-none shadow-sm h-full rounded-none">
-                <CardHeader>
-                  <Target className="w-10 h-10 text-primary mb-4" />
-                  <CardTitle className="font-serif text-xl">Identify</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Isolate the specific combinations of people, process, and technology that create distinct value in the market.</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-            <motion.div variants={item}>
-              <Card className="bg-card border-none shadow-sm h-full rounded-none">
-                <CardHeader>
-                  <LineChart className="w-10 h-10 text-primary mb-4" />
-                  <CardTitle className="font-serif text-xl">Measure</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Quantify the baseline cost, performance, and revenue impact of each capability using hard economic metrics.</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-            <motion.div variants={item}>
-              <Card className="bg-card border-none shadow-sm h-full rounded-none">
-                <CardHeader>
-                  <Zap className="w-10 h-10 text-primary mb-4" />
-                  <CardTitle className="font-serif text-xl">Optimize</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground">Direct capital and leadership attention to the capabilities that drive the highest return on strategic investment.</p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* The Analogy */}
-      <section className="py-24 border-t">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row items-center gap-12 max-w-6xl mx-auto">
-            <div className="flex-1">
-              <h2 className="text-3xl font-serif mb-6 text-foreground">The Real Estate Analogy</h2>
-              <div className="space-y-6 text-lg text-muted-foreground">
-                <p>
-                  Imagine you own a large commercial building. If you don't know the square footage, the rental yield per floor, or the maintenance costs of the HVAC system, you can't make smart decisions about renovations.
-                </p>
-                <p>
-                  Most companies treat their capabilities like that opaque building. They know the total budget, but they don't know the "rental yield" of their customer onboarding process versus their product development process.
-                </p>
-                <p className="font-medium text-foreground border-l-4 border-primary pl-4 py-1">
-                  Capability Economics provides the blueprint and the ledger, allowing you to renovate the exact floors that generate the highest returns.
-                </p>
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-6 flex items-center gap-3">
+                <span>Vol. I</span>
+                <span className="h-px w-8 bg-border" />
+                <span>The Briefing</span>
+              </div>
+              <h1 className="font-serif text-5xl md:text-7xl lg:text-[5.5rem] leading-[0.95] tracking-tight max-w-5xl">
+                Master the value of<br />
+                <span className="italic text-foreground/85">what you can do.</span>
+              </h1>
+              <p className="font-serif text-lg lg:text-xl text-foreground/70 leading-relaxed mt-8 max-w-2xl italic">
+                Capability Economics is the discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
+              </p>
+              <div className="mt-6">
+                <WhatIsCEModal />
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3 mt-10">
+                <Link
+                  href="/c-suite"
+                  data-testid="hero-cta-csuite"
+                  className="inline-flex h-11 items-center justify-center px-7 font-sans text-[13px] uppercase tracking-wide bg-foreground text-background hover:bg-foreground/90 transition-colors"
+                >
+                  C-Suite Perspectives
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Link>
+                <Link
+                  href={heroHref}
+                  data-testid="hero-cta-case-study"
+                  className="inline-flex h-11 items-center justify-center px-7 font-sans text-[13px] uppercase tracking-wide border border-border hover:bg-muted/50 transition-colors"
+                >
+                  {heroName} Case Study
+                </Link>
               </div>
             </div>
-            <div className="flex-1 bg-muted p-8 flex items-center justify-center relative overflow-hidden rounded-sm">
-               <Building2 className="w-48 h-48 text-primary/10 absolute -right-8 -bottom-8" />
-               <div className="relative z-10 flex flex-col gap-6 w-full max-w-sm">
-                  <div className="bg-background p-6 border-l-4 border-muted shadow-sm">
-                    <span className="text-sm text-muted-foreground font-semibold uppercase tracking-wider block mb-1">Traditional View</span>
-                    <span className="text-2xl font-serif text-foreground block">IT Budget: $4.2M</span>
-                    <span className="text-sm text-muted-foreground">Opaque cost center</span>
+
+            {/* Featured industry sidebar — pulls from admin slot */}
+            <aside className="lg:border-l lg:border-border/60 lg:pl-10 lg:self-stretch flex flex-col justify-end">
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-3">
+                Featured Industry
+              </div>
+              <div className="font-serif text-3xl leading-tight tracking-tight">
+                {heroName}
+              </div>
+              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                {hero?.executiveSummary ? hero.executiveSummary.slice(0, 180) + (hero.executiveSummary.length > 180 ? "…" : "") : "Read how the framework reshapes capital allocation in this vertical."}
+              </p>
+              <Link href={heroHref} className="font-mono text-[11px] uppercase tracking-[0.18em] text-foreground hover:text-accent mt-4 inline-flex items-center gap-1.5">
+                Read the case <ArrowRight className="w-3 h-3" />
+              </Link>
+            </aside>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* § 01 — Definition + Three principles */}
+      <section className="border-b border-border/60">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
+                § 01 — Premise
+              </div>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
+                What is<br /><span className="italic text-foreground/85">capability economics?</span>
+              </h2>
+            </div>
+            <p className="font-serif text-xl lg:text-2xl text-foreground/80 leading-relaxed self-end max-w-3xl">
+              Think of a capability as a muscle your organization has built — like <em>rapid order fulfillment</em> or <em>precision underwriting</em>. Capability Economics stops treating these muscles as operational processes, and starts treating them as <span className="text-foreground font-medium not-italic">economic assets</span> that can be measured, valued, and invested in.
+            </p>
+          </div>
+
+          <motion.div
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true, margin: "-80px" }}
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.12 } } }}
+            className="grid lg:grid-cols-3 border-t border-border/60"
+          >
+            {principles.map((p, i) => (
+              <motion.div
+                key={p.id}
+                variants={fade}
+                className={`py-10 lg:py-12 lg:px-10 ${i > 0 ? "lg:border-l lg:border-border/60 border-t lg:border-t-0 border-border/60" : "lg:pl-0 lg:pr-10"}`}
+              >
+                <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
+                  {p.id}
+                </div>
+                <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-4">
+                  {p.title}
+                </h3>
+                <p className="text-base text-foreground/75 leading-relaxed max-w-md">
+                  {p.body}
+                </p>
+              </motion.div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* § 02 — Real estate analogy */}
+      <section className="border-b border-border/60">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+          <div className="grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-20 items-start">
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
+                § 02 — Analogy
+              </div>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight mb-8">
+                The real estate<br /><span className="italic text-foreground/85">parallel.</span>
+              </h2>
+              <div className="space-y-5 font-serif text-lg lg:text-xl text-foreground/75 leading-relaxed">
+                <p>
+                  Imagine you own a commercial building. Without the square footage, the rental yield per floor, or the maintenance costs of the HVAC, you cannot make smart decisions about renovations.
+                </p>
+                <p>
+                  Most companies treat their capabilities exactly like that — opaque. They know the total budget, but not the rental yield of customer onboarding versus product development.
+                </p>
+              </div>
+              <p className="font-serif text-xl lg:text-2xl text-foreground leading-relaxed mt-8 pl-6 border-l-2 border-accent">
+                Capability Economics is the blueprint and the ledger — so you renovate the floors that generate the highest returns.
+              </p>
+            </div>
+
+            <div className="lg:sticky lg:top-24">
+              <div className="border border-border/60">
+                <div className="border-b border-border/60 p-6 lg:p-8">
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                    Traditional view
                   </div>
-                  <div className="bg-background p-6 border-l-4 border-primary shadow-md transform translate-x-4">
-                    <span className="text-sm text-primary font-semibold uppercase tracking-wider block mb-1">Capability View</span>
-                    <span className="text-2xl font-serif text-foreground block">Digital Onboarding: $1.8M</span>
-                    <span className="text-sm text-muted-foreground">Generates $8.5M in retained value</span>
+                  <div className="font-serif text-3xl lg:text-4xl tracking-tight">IT Budget: <span className="font-mono font-light tabular-nums">$4.2M</span></div>
+                  <div className="text-sm text-muted-foreground mt-1.5">Opaque cost center</div>
+                </div>
+                <div className="p-6 lg:p-8 bg-accent/[0.06] relative">
+                  <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" aria-hidden />
+                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-2">
+                    Capability view
                   </div>
-               </div>
+                  <div className="font-serif text-3xl lg:text-4xl tracking-tight leading-tight">
+                    Digital Onboarding: <span className="font-mono font-light tabular-nums">$1.8M</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1.5">
+                    Generates <span className="font-mono tabular-nums text-foreground">$8.5M</span> in retained value
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Editor-managed educational content (CMS) */}
+      {/* Editor-managed CMS library */}
       <EducationalLibrary />
 
-      {/* Autonomous Agent Memory Showcase */}
+      {/* Autonomous Agent Memory Showcase (kept as-is) */}
       <AgentMemoryShowcase />
 
-      {/* Navigation Cards */}
-      <section className="py-24 bg-foreground text-background">
-        <div className="container mx-auto px-4">
-          <div className="text-center max-w-2xl mx-auto mb-16">
-            <h2 className="text-3xl font-serif mb-4 text-background">Continue Your Briefing</h2>
-            <p className="text-muted/80 text-lg">Explore how Capability Economics transforms decision-making across industries and leadership roles.</p>
+      {/* § Next — Continue your briefing */}
+      <section className="bg-foreground text-background">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-12">
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-3">
+                § Next
+              </div>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
+                Continue your<br /><span className="italic text-background/80">briefing.</span>
+              </h2>
+            </div>
+            <p className="font-serif italic text-lg text-background/70 leading-relaxed self-end max-w-2xl">
+              Two paths through the framework — by industry, or by the executive seat where the decisions are made.
+            </p>
           </div>
-          
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            <Link href={cardHref} className="group block h-full" data-testid="nav-card-case-study">
-              <Card className="h-full bg-background/10 border-none hover:bg-background/20 transition-colors cursor-pointer rounded-none text-background">
-                <CardHeader>
-                  <Shield className="w-8 h-8 text-primary mb-2" />
-                  <CardTitle className="font-serif text-2xl group-hover:text-primary transition-colors text-background">Industry Case: {cardName}</CardTitle>
-                  <CardDescription className="text-muted/80 text-base line-clamp-3">
-                    {cardBlurb}
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+
+          <div className="grid lg:grid-cols-2 border-t border-background/20">
+            <Link
+              href={cardHref}
+              data-testid="nav-card-case-study"
+              className="group block lg:border-r border-background/20 py-12 lg:px-10 lg:py-14"
+            >
+              <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
+                01 — Industry
+              </div>
+              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors">
+                {cardName} case study
+              </h3>
+              <p className="text-base text-background/70 leading-relaxed max-w-md mb-5 line-clamp-3">
+                {cardBlurb}
+              </p>
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-background/80 group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
+                Read the case <ArrowRight className="w-3 h-3" />
+              </span>
             </Link>
-            
-            <Link href="/c-suite" className="group block h-full" data-testid="nav-card-csuite">
-              <Card className="h-full bg-background/10 border-none hover:bg-background/20 transition-colors cursor-pointer rounded-none text-background">
-                <CardHeader>
-                  <Users className="w-8 h-8 text-accent mb-2" />
-                  <CardTitle className="font-serif text-2xl group-hover:text-accent transition-colors text-background">C-Suite Perspectives</CardTitle>
-                  <CardDescription className="text-muted/80 text-base">
-                    How different executives leverage capability economics to drive strategy.
-                  </CardDescription>
-                </CardHeader>
-              </Card>
+
+            <Link
+              href="/c-suite"
+              data-testid="nav-card-csuite"
+              className="group block py-12 border-t lg:border-t-0 border-background/20 lg:px-10 lg:py-14"
+            >
+              <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
+                02 — Role
+              </div>
+              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors">
+                C-Suite perspectives
+              </h3>
+              <p className="text-base text-background/70 leading-relaxed max-w-md mb-5">
+                How different executives leverage capability economics to drive strategy — by seat, by question, by lever.
+              </p>
+              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-background/80 group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
+                Browse perspectives <ArrowRight className="w-3 h-3" />
+              </span>
             </Link>
           </div>
         </div>

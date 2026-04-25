@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Check, Sparkles, ArrowLeft, Bitcoin } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Bitcoin } from "lucide-react";
+import { motion } from "framer-motion";
 
 type Tier = {
   id: number;
@@ -26,38 +24,6 @@ function formatPrice(cents: number | null): string {
   return `$${(cents / 100).toFixed(0)}`;
 }
 
-function PriceBlock({ tier, billing }: { tier: Tier; billing: "monthly" | "annual" }) {
-  if (tier.isContactSales && billing === "monthly") {
-    return (
-      <div>
-        <div className="text-3xl font-bold font-mono">Custom</div>
-        <div className="text-sm text-muted-foreground mt-1">Contact sales</div>
-      </div>
-    );
-  }
-  const cents = billing === "monthly" ? tier.monthlyPriceCents : tier.annualPriceCents;
-  if (cents === null) {
-    return (
-      <div>
-        <div className="text-3xl font-bold font-mono">—</div>
-        <div className="text-sm text-muted-foreground mt-1">Not available {billing}</div>
-      </div>
-    );
-  }
-  const suffix = billing === "monthly" ? "/month" : "/year";
-  return (
-    <div>
-      <div className="text-4xl font-bold font-mono tracking-tight">{formatPrice(cents)}</div>
-      <div className="text-sm text-muted-foreground mt-1">USD {suffix}</div>
-      {billing === "annual" && tier.monthlyPriceCents !== null && (
-        <div className="text-xs text-muted-foreground mt-0.5">
-          equivalent to ${(cents / 100 / 12).toFixed(0)}/mo
-        </div>
-      )}
-    </div>
-  );
-}
-
 type CheckoutMethod = "card" | "crypto";
 
 async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: CheckoutMethod = "card"): Promise<void> {
@@ -71,7 +37,6 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
     return;
   }
 
-  // KYC pre-flight: ensure user has the right level of identity verification for this tier.
   try {
     const kycRes = await fetch("/api/kyc/status");
     if (kycRes.ok) {
@@ -81,8 +46,6 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
       };
       const requiredLevel = kyc.levels?.[tier.slug];
       const rank: Record<string, number> = { email: 0, identity: 1, biometric: 2, full: 3 };
-      // Use highestApprovedLevel (across all attempts) so a newer pending/declined
-      // attempt does not block a user who already has a sufficient older approval.
       const userLevel = kyc.highestApprovedLevel;
       const hasLevel = userLevel ? (rank[userLevel] ?? -1) >= (rank[requiredLevel ?? "email"] ?? 0) : false;
       if (requiredLevel && !hasLevel) {
@@ -102,7 +65,7 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
       return;
     }
   } catch {
-    // If KYC status check fails, fall through — server-side requireTier will block protected features anyway.
+    // fall through — server-side requireTier still gates protected features.
   }
 
   const promptMsg = isFree
@@ -165,8 +128,42 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
   }
 }
 
-function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual" }) {
-  const [flipped, setFlipped] = useState(false);
+function PriceDisplay({ tier, billing }: { tier: Tier; billing: "monthly" | "annual" }) {
+  if (tier.isContactSales && billing === "monthly") {
+    return (
+      <div>
+        <div className="font-mono text-3xl font-light tabular-nums tracking-tight">Custom</div>
+        <div className="font-sans text-[11px] uppercase tracking-[0.18em] text-muted-foreground mt-1">Contact sales</div>
+      </div>
+    );
+  }
+  const cents = billing === "monthly" ? tier.monthlyPriceCents : tier.annualPriceCents;
+  if (cents === null) {
+    return (
+      <div>
+        <div className="font-mono text-3xl font-light tabular-nums tracking-tight text-muted-foreground">—</div>
+        <div className="font-sans text-[11px] uppercase tracking-[0.18em] text-muted-foreground mt-1">{billing === "monthly" ? "Annual only" : "Monthly only"}</div>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="font-mono text-4xl font-light tabular-nums tracking-tight leading-none">
+        {formatPrice(cents)}
+      </div>
+      <div className="font-sans text-[11px] uppercase tracking-[0.18em] text-muted-foreground mt-2">
+        USD / {billing === "monthly" ? "month" : "year"}
+      </div>
+      {billing === "annual" && tier.monthlyPriceCents !== null && cents > 0 && (
+        <div className="font-mono text-[11px] tabular-nums text-muted-foreground mt-0.5">
+          ≈ ${(cents / 100 / 12).toFixed(0)}/mo
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TierRow({ tier, billing, index }: { tier: Tier; billing: "monthly" | "annual"; index: number }) {
   const [loading, setLoading] = useState<null | "card" | "crypto">(null);
   const onPurchase = async (method: "card" | "crypto" = "card") => {
     setLoading(method);
@@ -174,124 +171,98 @@ function TierCard({ tier, billing }: { tier: Tier; billing: "monthly" | "annual"
   };
   const isFree = !tier.isContactSales && (tier.monthlyPriceCents ?? 0) === 0 && (tier.annualPriceCents ?? 0) === 0;
   const showCryptoButton = !isFree && !tier.isContactSales;
+  const indexLabel = String(index + 1).padStart(2, "0");
+
   return (
-    <div className="relative h-[520px] [perspective:1500px]">
-      <motion.div
-        className="relative w-full h-full [transform-style:preserve-3d]"
-        animate={{ rotateY: flipped ? 180 : 0 }}
-        transition={{ duration: 0.6, ease: [0.4, 0.0, 0.2, 1] }}
-      >
-        <Card
-          className={`absolute inset-0 [backface-visibility:hidden] flex flex-col ${
-            tier.highlight ? "border-primary border-2 shadow-lg" : ""
-          }`}
-        >
+    <motion.div
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.6, delay: 0.1 + index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      className={`group relative ${tier.highlight ? "bg-accent/[0.06]" : ""}`}
+    >
+      {tier.highlight && (
+        <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" aria-hidden />
+      )}
+      <div className="grid lg:grid-cols-[80px_1fr_240px_240px] gap-x-8 gap-y-6 px-6 lg:px-10 py-10 border-t border-border/60">
+        {/* Index + name */}
+        <div className="lg:col-span-1">
+          <div className="font-mono text-[11px] tabular-nums text-muted-foreground tracking-[0.18em] mb-1.5">
+            {indexLabel}
+          </div>
           {tier.highlight && (
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-              <Badge className="bg-primary text-primary-foreground gap-1">
-                <Sparkles className="w-3 h-3" /> Most popular
-              </Badge>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent">
+              Editor's choice
             </div>
           )}
-          <CardContent className="p-7 flex-1 flex flex-col">
-            <div className="mb-4">
-              <h3 className="text-2xl font-serif font-bold">{tier.name}</h3>
-              <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">{tier.tagline}</p>
-            </div>
-            <div className="py-5 border-y mb-5">
-              <PriceBlock tier={tier} billing={billing} />
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed flex-1">
-              {tier.description}
-            </p>
-            <div className="space-y-2 mt-6">
-              <Button
-                className="w-full"
-                variant={tier.highlight ? "default" : "outline"}
-                data-testid={`button-purchase-${tier.slug}`}
-                onClick={() => onPurchase("card")}
-                disabled={loading !== null}
-              >
-                {loading === "card" ? "Redirecting…" : tier.ctaLabel}
-              </Button>
-              {showCryptoButton && (
-                <Button
-                  variant="outline"
-                  className="w-full gap-1.5"
-                  data-testid={`button-purchase-crypto-${tier.slug}`}
-                  onClick={() => onPurchase("crypto")}
-                  disabled={loading !== null}
-                >
-                  <Bitcoin className="w-4 h-4" />
-                  {loading === "crypto" ? "Redirecting…" : "Pay with crypto"}
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                className="w-full"
-                onClick={() => setFlipped(true)}
-                data-testid={`button-details-${tier.slug}`}
-              >
-                More detail →
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          className={`absolute inset-0 [backface-visibility:hidden] [transform:rotateY(180deg)] flex flex-col ${
-            tier.highlight ? "border-primary border-2 shadow-lg" : ""
-          }`}
-        >
-          <CardContent className="p-7 flex-1 flex flex-col">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">What's included</div>
-                <h3 className="text-xl font-serif font-bold">{tier.name}</h3>
-              </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setFlipped(false)}
-                data-testid={`button-back-${tier.slug}`}
-                className="gap-1"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" /> Back
-              </Button>
-            </div>
-            <ul className="space-y-2.5 flex-1 overflow-auto">
-              {tier.features.map((f, i) => (
-                <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed">
-                  <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-            <div className="space-y-2 mt-5">
-              <Button
-                className="w-full"
-                variant={tier.highlight ? "default" : "outline"}
-                data-testid={`button-purchase-back-${tier.slug}`}
-                onClick={() => onPurchase("card")}
-                disabled={loading !== null}
-              >
-                {loading === "card" ? "Redirecting…" : tier.ctaLabel}
-              </Button>
-              {showCryptoButton && (
-                <Button
-                  variant="outline"
-                  className="w-full gap-1.5"
-                  onClick={() => onPurchase("crypto")}
-                  disabled={loading !== null}
-                >
-                  <Bitcoin className="w-4 h-4" />
-                  {loading === "crypto" ? "Redirecting…" : "Pay with crypto"}
-                </Button>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-    </div>
+        </div>
+
+        {/* Description + features */}
+        <div className="lg:col-span-1 max-w-2xl">
+          <h3 className="font-serif text-3xl lg:text-[2.25rem] leading-[1.05] tracking-tight">
+            {tier.name}
+          </h3>
+          <p className="font-serif italic text-base lg:text-lg text-foreground/70 mt-2 leading-relaxed">
+            {tier.tagline}
+          </p>
+          <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
+            {tier.description}
+          </p>
+          <ul className="mt-6 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+            {tier.features.slice(0, 6).map((f, i) => (
+              <li key={i} className="text-[13px] text-foreground/85 leading-snug flex gap-2 before:content-['—'] before:text-muted-foreground/60 before:font-light">
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+          {tier.features.length > 6 && (
+            <details className="mt-3 group/more">
+              <summary className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground cursor-pointer list-none flex items-center gap-1.5 select-none">
+                <span>Show {tier.features.length - 6} more</span>
+                <span className="transition-transform group-open/more:rotate-90">›</span>
+              </summary>
+              <ul className="mt-3 grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+                {tier.features.slice(6).map((f, i) => (
+                  <li key={i} className="text-[13px] text-foreground/85 leading-snug flex gap-2 before:content-['—'] before:text-muted-foreground/60 before:font-light">
+                    <span>{f}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+
+        {/* Price */}
+        <div className="lg:col-span-1 lg:border-l lg:border-border/60 lg:pl-8">
+          <PriceDisplay tier={tier} billing={billing} />
+        </div>
+
+        {/* CTA */}
+        <div className="lg:col-span-1 flex flex-col gap-2 lg:justify-start">
+          <Button
+            className={`w-full h-11 rounded-none font-sans text-[13px] tracking-wide uppercase ${
+              tier.highlight ? "bg-accent text-accent-foreground hover:bg-accent/90" : ""
+            }`}
+            variant={tier.highlight ? "default" : "outline"}
+            data-testid={`button-purchase-${tier.slug}`}
+            onClick={() => onPurchase("card")}
+            disabled={loading !== null}
+          >
+            {loading === "card" ? "Redirecting…" : tier.ctaLabel}
+          </Button>
+          {showCryptoButton && (
+            <button
+              data-testid={`button-purchase-crypto-${tier.slug}`}
+              onClick={() => onPurchase("crypto")}
+              disabled={loading !== null}
+              className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground transition-colors flex items-center justify-center gap-1.5 py-1 disabled:opacity-50"
+            >
+              <Bitcoin className="w-3 h-3" />
+              {loading === "crypto" ? "Redirecting…" : "Or pay with crypto"}
+            </button>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -307,55 +278,120 @@ export default function Membership() {
   }, []);
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-6xl">
-      <div className="text-center mb-10">
-        <h1 className="text-4xl font-serif font-bold tracking-tight mb-3">Membership</h1>
-        <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-          Choose how you want to use Capability Economics — from reading the framework to running it on your own industries.
-        </p>
-        <div className="inline-flex items-center mt-6 p-1 rounded-lg bg-muted">
-          <button
-            onClick={() => setBilling("monthly")}
-            data-testid="button-billing-monthly"
-            className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-              billing === "monthly" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"
-            }`}
+    <div className="min-h-screen bg-background">
+      {/* Editorial header */}
+      <header className="border-b border-border/60 bg-background">
+        <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-16 pb-12 lg:pt-24 lg:pb-16">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="grid lg:grid-cols-[1fr_auto] gap-10 lg:gap-16 items-end"
           >
-            Monthly
-          </button>
-          <button
-            onClick={() => setBilling("annual")}
-            data-testid="button-billing-annual"
-            className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
-              billing === "annual" ? "bg-background shadow-sm font-medium" : "text-muted-foreground"
-            }`}
+            <div>
+              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-5">
+                Vol. I &nbsp;·&nbsp; Membership
+              </div>
+              <h1 className="font-serif text-5xl lg:text-7xl leading-[0.95] tracking-tight">
+                Choose how you<br />
+                <span className="italic text-foreground/85">use the framework.</span>
+              </h1>
+            </div>
+            <p className="font-serif text-lg lg:text-xl text-foreground/70 leading-relaxed max-w-md italic">
+              From reading the index to running Capability Economics on your own industries — four ways in.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="mt-12 flex items-center gap-6 border-t border-border/60 pt-6"
           >
-            Annual <span className="text-xs text-primary ml-1">save ~17%</span>
-          </button>
+            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+              Billed
+            </div>
+            <div className="inline-flex items-center font-mono text-[12px] uppercase tracking-[0.18em]">
+              <button
+                onClick={() => setBilling("monthly")}
+                data-testid="button-billing-monthly"
+                className={`pr-4 transition-colors ${
+                  billing === "monthly" ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+                }`}
+              >
+                Monthly
+              </button>
+              <span className="text-muted-foreground/40">/</span>
+              <button
+                onClick={() => setBilling("annual")}
+                data-testid="button-billing-annual"
+                className={`pl-4 pr-3 transition-colors ${
+                  billing === "annual" ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+                }`}
+              >
+                Annual
+              </button>
+              {billing === "annual" && (
+                <motion.span
+                  initial={{ opacity: 0, x: -4 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="ml-1 px-2 py-0.5 bg-accent/15 text-accent normal-case tracking-normal text-[10px] font-sans"
+                >
+                  save ~17%
+                </motion.span>
+              )}
+            </div>
+          </motion.div>
         </div>
-      </div>
+      </header>
 
-      {tiers === null && (
-        <div className="text-center text-muted-foreground py-20">Loading tiers...</div>
-      )}
-
-      {tiers && tiers.length === 0 && (
-        <div className="text-center text-muted-foreground py-20">No tiers available.</div>
-      )}
-
-      <AnimatePresence>
+      {/* Tier list */}
+      <main className="max-w-7xl mx-auto">
+        {tiers === null && (
+          <div className="text-center text-muted-foreground py-32 font-mono text-sm uppercase tracking-[0.18em]">
+            Loading tiers…
+          </div>
+        )}
+        {tiers && tiers.length === 0 && (
+          <div className="text-center text-muted-foreground py-32 font-mono text-sm uppercase tracking-[0.18em]">
+            No tiers available
+          </div>
+        )}
         {tiers && tiers.length > 0 && (
-          <div className="grid md:grid-cols-3 gap-6 mt-10">
-            {tiers.map((tier) => (
-              <TierCard key={tier.id} tier={tier} billing={billing} />
+          <div className="border-b border-border/60">
+            {tiers.map((tier, i) => (
+              <TierRow key={tier.id} tier={tier} billing={billing} index={i} />
             ))}
           </div>
         )}
-      </AnimatePresence>
+      </main>
 
-      <div className="mt-16 text-center text-sm text-muted-foreground">
-        <p>All prices in USD. Annual plans billed once per year. Enterprise procurement, security review, and SSO supported on Platform.</p>
-      </div>
+      {/* Footer note */}
+      <footer className="max-w-7xl mx-auto px-6 lg:px-10 py-12">
+        <div className="grid lg:grid-cols-3 gap-8 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+          <div>
+            <div className="text-foreground/80 mb-2">Pricing</div>
+            <p className="normal-case tracking-normal font-sans text-sm leading-relaxed">
+              All prices in USD. Annual plans billed once per year. Monthly plans cancel anytime.
+            </p>
+          </div>
+          <div>
+            <div className="text-foreground/80 mb-2">Identity</div>
+            <p className="normal-case tracking-normal font-sans text-sm leading-relaxed">
+              Higher tiers require identity verification through our KYC partner. You'll be guided through it at checkout.
+            </p>
+          </div>
+          <div>
+            <div className="text-foreground/80 mb-2">Enterprise</div>
+            <p className="normal-case tracking-normal font-sans text-sm leading-relaxed">
+              Procurement, security review, SSO, and custom industries supported on Platform.{" "}
+              <a href="mailto:sales@capabilityeconomics.com" className="underline underline-offset-2 hover:text-foreground">
+                Talk to sales
+              </a>.
+            </p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
