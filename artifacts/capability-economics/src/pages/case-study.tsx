@@ -2,24 +2,26 @@ import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { motion } from "framer-motion";
 import {
-  ArrowRight, ArrowLeft, TrendingUp, TrendingDown, Activity,
-  CheckCircle2, AlertTriangle, RefreshCw, Brain,
+  Shield, Heart, Landmark, Cpu, Factory, Truck, ShoppingBag, Leaf, Plane, Briefcase, BookOpen,
+  ArrowRight, ArrowLeft, Activity, TrendingUp, TrendingDown, Brain, CheckCircle2, AlertTriangle, RefreshCw,
 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, Line, ComposedChart,
 } from "recharts";
+import { Button } from "@/components/ui/button";
 
 const API_BASE = "/api";
 
-const fade = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
+const container = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { staggerChildren: 0.15 } },
 };
 
-const stagger = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.1 } },
+const item = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } },
 };
 
 interface Metric {
@@ -66,10 +68,29 @@ interface CaseStudyData {
   study: StudyNarrative | null;
 }
 
-function TrendArrow({ trend }: { trend: "up" | "down" | "neutral" }) {
-  if (trend === "up") return <TrendingUp className="w-3.5 h-3.5 text-accent" aria-hidden />;
-  if (trend === "down") return <TrendingDown className="w-3.5 h-3.5 text-muted-foreground" aria-hidden />;
-  return <Activity className="w-3.5 h-3.5 text-muted-foreground" aria-hidden />;
+function TrendIcon({ trend }: { trend: "up" | "down" | "neutral" }) {
+  if (trend === "up") return <TrendingUp className="w-5 h-5 mb-2 text-primary" aria-hidden="true" />;
+  if (trend === "down") return <TrendingDown className="w-5 h-5 mb-2 text-muted-foreground" aria-hidden="true" />;
+  return <Activity className="w-5 h-5 mb-2 text-muted-foreground" aria-hidden="true" />;
+}
+
+/**
+ * Pick a domain-appropriate icon for the industry. Keeps the hero visually
+ * aligned with the topic rather than using a generic icon everywhere.
+ */
+function iconForIndustry(slug: string): React.ComponentType<{ className?: string }> {
+  const s = slug.toLowerCase();
+  if (s.includes("insurance")) return Shield;
+  if (s.includes("health") || s.includes("pharma") || s.includes("medical") || s.includes("bio")) return Heart;
+  if (s.includes("finance") || s.includes("bank") || s.includes("wealth") || s.includes("capital")) return Landmark;
+  if (s.includes("tech") || s.includes("software") || s.includes("saas") || s.includes("ai")) return Cpu;
+  if (s.includes("manufactur") || s.includes("industrial")) return Factory;
+  if (s.includes("logistic") || s.includes("transport") || s.includes("shipping")) return Truck;
+  if (s.includes("retail") || s.includes("consumer") || s.includes("ecommerce")) return ShoppingBag;
+  if (s.includes("energy") || s.includes("sustainab") || s.includes("climate") || s.includes("agri")) return Leaf;
+  if (s.includes("airline") || s.includes("aviation") || s.includes("travel")) return Plane;
+  if (s.includes("professional") || s.includes("consult") || s.includes("advisor")) return Briefcase;
+  return BookOpen;
 }
 
 export default function CaseStudy() {
@@ -83,6 +104,9 @@ export default function CaseStudy() {
     if (!slug) return;
     setLoading(true);
     setError(false);
+    // Try the preferred /case-studies/:slug endpoint first, then fall back to
+    // the older /case-study/:slug (kept for backward-compat with the old
+    // hardcoded insurance page).
     (async () => {
       for (const url of [`${API_BASE}/case-studies/${slug}`, `${API_BASE}/case-study/${slug}`]) {
         try {
@@ -101,197 +125,145 @@ export default function CaseStudy() {
   }, [slug]);
 
   const roiData: RoiRow[] = data?.capabilities.find(c => c.roiData)?.roiData ?? [];
-  const industryName = data?.industry?.name ?? (slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " "));
+  const HeroIcon = iconForIndustry(slug);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Masthead */}
-      <header className="border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-16 lg:pt-16 lg:pb-24">
-          <Link
-            href="/case-studies"
-            className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 mb-10"
-          >
-            <ArrowLeft className="w-3 h-3" /> All case studies
-          </Link>
-
-          <motion.div
-            initial="hidden"
-            animate="show"
-            variants={fade}
-          >
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-6 flex items-center gap-3">
-              <span>Case Study</span>
-              <span className="h-px w-8 bg-border" />
-              <span>Industry Briefing</span>
-            </div>
-            <h1 className="font-serif text-5xl md:text-7xl lg:text-[5.5rem] leading-[0.95] tracking-tight max-w-5xl">
-              {industryName}
-            </h1>
-            {data?.study?.executiveSummary && (
-              <p className="font-serif italic text-xl lg:text-2xl text-foreground/75 leading-relaxed mt-8 max-w-3xl">
-                {data.study.executiveSummary}
-              </p>
-            )}
-          </motion.div>
-        </div>
-      </header>
-
-      {/* § 01 — Capability Transformation */}
-      <section className="border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <section className="bg-muted/30 py-16 border-b">
+        <div className="container mx-auto px-4 max-w-5xl">
+          <Button asChild variant="ghost" size="sm" className="mb-4 -ml-2">
+            <Link href="/case-studies"><ArrowLeft className="w-4 h-4" /> <span className="ml-1">All case studies</span></Link>
+          </Button>
+          <div className="flex items-center gap-4 mb-6">
+            <HeroIcon className="w-12 h-12 text-primary" />
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § 01 — Reframing
-              </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                The capability<br /><span className="italic text-foreground/85">transformation.</span>
-              </h2>
+              <div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-1">Industry Case Study</div>
+              <h1 className="text-3xl md:text-5xl font-serif font-medium text-foreground">{data?.industry?.name ?? (slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, " "))}</h1>
             </div>
-            <p className="font-serif text-lg lg:text-xl text-foreground/75 leading-relaxed self-end max-w-2xl">
-              Traditional accounting treats these functions as cost centers — budgets get trimmed uniformly when margins compress. Capability Economics treats them as distinct economic engines, each with its own ROI curve, moat, and decay profile.
-            </p>
           </div>
-
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <RefreshCw className="w-4 h-4 text-muted-foreground animate-spin" />
-            </div>
-          )}
-
-          {!loading && error && (
-            <div className="border border-dashed border-border/60 py-16 text-center">
-              <AlertTriangle className="w-6 h-6 text-muted-foreground mx-auto mb-3" />
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Could not load case study data</p>
-            </div>
-          )}
-
-          {!loading && !error && data?.capabilities.length === 0 && (
-            <div className="border border-dashed border-border/60 py-16 text-center">
-              <Brain className="w-6 h-6 text-muted-foreground/40 mx-auto mb-3" />
-              <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">No content yet</p>
-              <p className="text-xs text-muted-foreground">Admins can trigger generation from Admin → Content → Case Study.</p>
-            </div>
-          )}
-
-          {!loading && !error && data && data.capabilities.length > 0 && (
-            <motion.div
-              variants={stagger}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: "-80px" }}
-              className="border-t border-border/60"
-            >
-              {data.capabilities.map((cap, capIndex) => (
-                <motion.article
-                  key={cap.capabilitySlug}
-                  variants={fade}
-                  className="grid lg:grid-cols-[80px_1fr_1fr] gap-x-8 gap-y-6 py-12 lg:py-14 border-b border-border/60"
-                >
-                  <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent">
-                    {String(capIndex + 1).padStart(2, "0")}
-                  </div>
-
-                  <div className="max-w-xl">
-                    <h3 className="font-serif text-3xl lg:text-[2rem] leading-tight tracking-tight mb-3">
-                      {cap.capabilityName}
-                    </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">{cap.description}</p>
-
-                    <div className="space-y-4">
-                      <div>
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
-                          Traditional view
-                        </div>
-                        <p className="text-sm text-foreground/85 leading-relaxed">{cap.traditionalView}</p>
-                      </div>
-                      <div className="pl-4 border-l-2 border-accent">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent mb-1.5">
-                          Economic view
-                        </div>
-                        <p className="text-sm text-foreground leading-relaxed">{cap.economicView}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-5">
-                      Economic impact measured
-                    </div>
-                    <dl className="grid sm:grid-cols-3 gap-x-4">
-                      {cap.metrics.map((metric, idx) => (
-                        <div key={idx} className={`py-3 ${idx > 0 ? "sm:border-l sm:border-border/60 sm:pl-4" : ""}`}>
-                          <div className="flex items-center gap-1.5 mb-2">
-                            <TrendArrow trend={metric.trend} />
-                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{metric.name}</span>
-                          </div>
-                          <dd className="font-mono text-2xl lg:text-3xl font-light tabular-nums tracking-tight leading-none">
-                            {metric.value}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </div>
-                </motion.article>
-              ))}
-            </motion.div>
+          {data?.study?.executiveSummary && (
+            <p className="text-xl text-muted-foreground leading-relaxed">{data.study.executiveSummary}</p>
           )}
         </div>
       </section>
 
-      {/* § 02 — Strategic Briefing */}
-      {!loading && !error && data?.study && (
-        <section className="border-b border-border/60 bg-muted/30">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-            <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
-              <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                  § 02 — Strategic Briefing
+      {/* The Transformation */}
+      <section className="py-16 container mx-auto px-4 max-w-5xl">
+        <div className="mb-12">
+          <h2 className="text-2xl font-serif mb-4 text-foreground">The Capability Transformation</h2>
+          <p className="text-lg text-muted-foreground">
+            Traditional accounting treats these functions as cost centers — budgets get trimmed uniformly when margins compress.
+            Capability Economics treats them as distinct economic engines, each with its own ROI curve, moat, and decay profile.
+            This study shows how that reframing reshapes capital allocation.
+          </p>
+        </div>
+
+        {loading && (
+          <div className="flex items-center justify-center py-16">
+            <RefreshCw className="w-5 h-5 text-primary/40 animate-spin" />
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="flex flex-col items-center py-16 text-center border border-dashed rounded-sm">
+            <AlertTriangle className="w-8 h-8 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">Could not load case study data. Please check the API server.</p>
+          </div>
+        )}
+
+        {!loading && !error && data?.capabilities.length === 0 && (
+          <div className="flex flex-col items-center py-16 text-center border border-dashed rounded-sm">
+            <Brain className="w-8 h-8 text-muted-foreground/40 mb-3" />
+            <p className="text-sm text-muted-foreground font-medium mb-1">No case study content yet</p>
+            <p className="text-xs text-muted-foreground">
+              Admins can trigger generation from Admin → Content → Case Study.
+            </p>
+          </div>
+        )}
+
+        {!loading && !error && data && data.capabilities.length > 0 && (
+          <motion.div
+            variants={container}
+            initial="hidden"
+            whileInView="show"
+            viewport={{ once: true }}
+            className="space-y-12"
+          >
+            {data.capabilities.map((cap) => (
+              <motion.div
+                key={cap.capabilitySlug}
+                variants={item}
+                className="grid md:grid-cols-12 gap-6 bg-card border shadow-sm p-6 md:p-8 rounded-sm"
+              >
+                {/* Capability Description */}
+                <div className="md:col-span-5 border-r md:pr-8 border-border">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-3 rounded-lg bg-primary/10 text-primary">
+                      <HeroIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-xl font-serif text-foreground">{cap.capabilityName}</h3>
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-6">{cap.description}</p>
+
+                  <div className="space-y-4">
+                    <div className="bg-muted p-4 rounded-sm border-l-2 border-muted-foreground">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Traditional View</div>
+                      <div className="text-sm text-foreground">{cap.traditionalView}</div>
+                    </div>
+                    <div className="bg-primary/5 p-4 rounded-sm border-l-2 border-primary">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-1">Economic View</div>
+                      <div className="text-sm text-foreground">{cap.economicView}</div>
+                    </div>
+                  </div>
                 </div>
-                <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                  {data.study.title}
-                </h2>
-              </div>
-              <p className="font-serif text-lg lg:text-xl text-foreground/80 leading-relaxed self-end max-w-3xl whitespace-pre-line">
-                {data.study.situation}
-              </p>
+
+                {/* Metrics */}
+                <div className="md:col-span-7 md:pl-4 flex flex-col justify-center">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-6">Economic Impact Measured</h4>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {cap.metrics.map((metric, idx) => (
+                      <div key={idx} className="bg-background border rounded-sm p-4 text-center flex flex-col items-center justify-center">
+                        <TrendIcon trend={metric.trend} />
+                        <div className="text-xl font-serif text-foreground mb-1">{metric.value}</div>
+                        <div className="text-xs text-muted-foreground font-medium">{metric.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+        )}
+      </section>
+
+      {/* AI-Generated Strategic Narrative */}
+      {!loading && !error && data?.study && (
+        <section className="py-16 bg-muted/30 border-y">
+          <div className="container mx-auto px-4 max-w-5xl space-y-12">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-2">Strategic Briefing</div>
+              <h2 className="text-3xl font-serif text-foreground mb-4">{data.study.title}</h2>
+              <p className="text-lg text-muted-foreground whitespace-pre-line">{data.study.situation}</p>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-x-12 gap-y-16 border-t border-border/60 pt-12">
+            <div className="grid md:grid-cols-2 gap-8">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6 flex items-center gap-2">
-                  <AlertTriangle className="w-3 h-3" /> Strategic challenges
-                </div>
-                <ol className="space-y-5">
+                <h3 className="text-xl font-serif text-foreground mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-primary" /> Strategic Challenges</h3>
+                <ul className="space-y-3">
                   {data.study.challenges.map((c, i) => (
-                    <li key={i} className="grid grid-cols-[40px_1fr] gap-3 pb-5 border-b border-border/60 last:border-b-0">
-                      <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-0.5">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span className="font-serif text-base lg:text-lg text-foreground leading-relaxed">{c}</span>
-                    </li>
+                    <li key={i} className="flex gap-3 text-sm text-foreground"><span className="text-primary font-bold">{i + 1}.</span><span>{c}</span></li>
                   ))}
-                </ol>
+                </ul>
               </div>
-
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6 flex items-center gap-2">
-                  <CheckCircle2 className="w-3 h-3" /> Recommendations
-                </div>
-                <div className="space-y-6">
+                <h3 className="text-xl font-serif text-foreground mb-4 flex items-center gap-2"><CheckCircle2 className="w-5 h-5 text-primary" /> Recommendations</h3>
+                <div className="space-y-4">
                   {data.study.recommendations.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[40px_1fr] gap-3 pb-6 border-b border-border/60 last:border-b-0">
-                      <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-0.5">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <div>
-                        <div className="font-serif text-lg lg:text-xl text-foreground leading-snug mb-1.5">{r.title}</div>
-                        <p className="text-sm text-muted-foreground leading-relaxed mb-2">{r.rationale}</p>
-                        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
-                          Impact — <span className="normal-case tracking-normal text-foreground/80">{r.impact}</span>
-                        </div>
-                      </div>
+                    <div key={i} className="bg-card border p-4 rounded-sm">
+                      <div className="font-serif text-foreground mb-1">{r.title}</div>
+                      <div className="text-xs text-muted-foreground mb-2">{r.rationale}</div>
+                      <div className="text-xs text-primary font-medium">Impact: {r.impact}</div>
                     </div>
                   ))}
                 </div>
@@ -299,26 +271,14 @@ export default function CaseStudy() {
             </div>
 
             {data.study.kpis.length > 0 && (
-              <div className="mt-16 pt-12 border-t border-border/60">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-8">
-                  5-Year KPI targets
-                </div>
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-8">
+              <div>
+                <h3 className="text-xl font-serif text-foreground mb-4">5-Year KPI Targets</h3>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {data.study.kpis.map((k, i) => (
-                    <div key={i} className="border-t border-border pt-4">
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                        {k.name}
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-0.5">Now</div>
-                          <div className="font-mono tabular-nums text-base text-muted-foreground">{k.baseline}</div>
-                        </div>
-                        <div>
-                          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-0.5">Target</div>
-                          <div className="font-mono tabular-nums text-base text-foreground">{k.target}</div>
-                        </div>
-                      </div>
+                    <div key={i} className="bg-card border p-4 rounded-sm">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{k.name}</div>
+                      <div className="text-sm text-muted-foreground"><span className="font-mono">Now:</span> {k.baseline}</div>
+                      <div className="text-sm text-primary"><span className="font-mono">Target:</span> {k.target}</div>
                     </div>
                   ))}
                 </div>
@@ -326,83 +286,61 @@ export default function CaseStudy() {
             )}
 
             {data.study.fiveYearOutlook && (
-              <div className="mt-16 pt-12 border-t border-border/60 max-w-3xl">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-4">
-                  5-Year outlook
-                </div>
-                <p className="font-serif text-lg lg:text-xl text-foreground/85 leading-relaxed whitespace-pre-line">
-                  {data.study.fiveYearOutlook}
-                </p>
+              <div>
+                <h3 className="text-xl font-serif text-foreground mb-4">5-Year Outlook</h3>
+                <p className="text-base text-muted-foreground whitespace-pre-line">{data.study.fiveYearOutlook}</p>
               </div>
             )}
 
             {data.study.sources.length > 0 && (
-              <div className="mt-16 pt-8 border-t border-border/60">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                  Sources
-                </div>
-                <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <div className="pt-6 border-t">
+                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Sources</div>
+                <div className="flex flex-wrap gap-2">
                   {data.study.sources.map((s, i) => (
-                    <a
-                      key={i}
-                      href={s.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-foreground/80 hover:text-accent underline underline-offset-4 decoration-border hover:decoration-accent"
-                    >
-                      {s.title}
-                    </a>
+                    <a key={i} href={s.url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">{s.title}</a>
                   ))}
                 </div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mt-4">
-                  Generated {new Date(data.study.generatedAt).toLocaleDateString()} · {data.study.model}
-                </div>
+                <div className="text-xs text-muted-foreground mt-2">Generated {new Date(data.study.generatedAt).toLocaleDateString()} via {data.study.model}</div>
               </div>
             )}
           </div>
         </section>
       )}
 
-      {/* § 03 — ROI of Capability Investment */}
+      {/* Financial Visualization */}
       {!loading && !error && roiData.length > 0 && (
-        <section className="bg-foreground text-background border-b border-background/20">
-          <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-            <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+        <section className="py-16 bg-foreground text-background">
+          <div className="container mx-auto px-4 max-w-5xl">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-3">
-                  § 03 — Returns
-                </div>
-                <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight mb-8">
-                  The ROI of capability<br /><span className="italic text-background/80">investment.</span>
-                </h2>
-                <div className="space-y-5 font-serif text-lg lg:text-xl text-background/75 leading-relaxed">
+                <h2 className="text-3xl font-serif mb-6 text-background">The ROI of Capability Investment</h2>
+                <div className="space-y-4 text-muted/80 text-lg">
                   <p>
-                    Treating capabilities as economic assets requires an initial capital outlay — technology, talent upskilling, process re-engineering.
+                    Treating capabilities as economic assets requires an initial capital outlay — often in the form of technology, talent upskilling, and process re-engineering.
                   </p>
                   <p>
-                    Unlike a traditional project that simply depreciates, a fortified capability generates compounding value over time. Investment costs typically rise above the traditional baseline in years one and two, then exponential value generation takes over as the capability matures.
+                    Unlike a traditional project that simply depreciates, a fortified capability generates compounding value over time.
+                    Investment costs typically rise above the traditional baseline in years one and two, then exponential value generation takes over as the capability matures.
                   </p>
                 </div>
               </div>
 
-              <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-6">
-                  5-year capability valuation ($M)
-                </div>
-                <div className="h-[340px] w-full">
+              <div className="bg-background/10 p-6 rounded-sm backdrop-blur-sm">
+                <h3 className="text-center font-serif text-xl text-background mb-6">5-Year Capability Valuation ($M)</h3>
+                <div className="h-[300px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <ComposedChart data={roiData} margin={{ top: 10, right: 20, bottom: 10, left: 0 }}>
+                    <ComposedChart data={roiData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.4)" tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 11 }} />
-                      <YAxis stroke="rgba(255,255,255,0.4)" tick={{ fill: "rgba(255,255,255,0.7)", fontSize: 11 }} />
+                      <XAxis dataKey="year" stroke="rgba(255,255,255,0.5)" tick={{ fill: "rgba(255,255,255,0.7)" }} />
+                      <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fill: "rgba(255,255,255,0.7)" }} />
                       <RechartsTooltip
-                        contentStyle={{ backgroundColor: "hsl(var(--foreground))", border: "1px solid rgba(255,255,255,0.2)", color: "white", fontSize: 12 }}
+                        contentStyle={{ backgroundColor: "hsl(var(--foreground))", border: "1px solid rgba(255,255,255,0.2)", color: "white" }}
                         itemStyle={{ color: "white" }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: "12px", color: "white", fontSize: 11 }} />
-                      <Bar dataKey="valueGenerated" name="Value Generated" fill="hsl(var(--accent))" />
-                      <Line type="monotone" dataKey="capabilityCost" name="Capability Cost" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3, fill: "hsl(var(--primary))" }} />
-                      <Line type="monotone" dataKey="traditionalCost" name="Traditional Baseline" stroke="rgba(255,255,255,0.4)" strokeDasharray="4 4" strokeWidth={1.5} dot={false} />
+                      <Legend wrapperStyle={{ paddingTop: "20px", color: "white" }} />
+                      <Bar dataKey="valueGenerated" name="Value Generated" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
+                      <Line type="monotone" dataKey="capabilityCost" name="Capability Cost" stroke="hsl(var(--accent))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--accent))" }} />
+                      <Line type="monotone" dataKey="traditionalCost" name="Traditional Cost Baseline" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" strokeWidth={2} dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
                 </div>
@@ -412,32 +350,19 @@ export default function CaseStudy() {
         </section>
       )}
 
-      {/* § Next */}
-      <section>
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-24">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 items-end">
-            <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § Next
-              </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                See how this<br /><span className="italic text-foreground/85">impacts leadership.</span>
-              </h2>
-            </div>
-            <div className="flex flex-col gap-4">
-              <p className="font-serif italic text-lg text-foreground/70 leading-relaxed max-w-2xl">
-                Capability Economics requires cross-functional alignment. See how different executives view these exact same capabilities.
-              </p>
-              <Link
-                href="/c-suite"
-                data-testid="case-cta-csuite"
-                className="inline-flex h-11 items-center px-7 font-sans text-[13px] uppercase tracking-wide bg-foreground text-background hover:bg-foreground/90 transition-colors w-fit"
-              >
-                C-Suite perspectives
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Link>
-            </div>
-          </div>
+      {/* CTA */}
+      <section className="py-16 text-center">
+        <div className="container mx-auto px-4 max-w-2xl">
+          <h2 className="text-2xl font-serif mb-6 text-foreground">See How This Impacts Leadership</h2>
+          <p className="text-muted-foreground mb-8 text-lg">
+            Capability Economics requires cross-functional alignment. See how different executives view these exact same capabilities.
+          </p>
+          <Link href="/c-suite">
+            <Button size="lg" className="h-12 px-8 text-base bg-primary hover:bg-primary/90 text-primary-foreground rounded-none" data-testid="case-cta-csuite">
+              Explore C-Suite Perspectives
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+          </Link>
         </div>
       </section>
     </div>
