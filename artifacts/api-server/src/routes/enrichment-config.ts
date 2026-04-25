@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
-import { sql, desc, eq, isNull, asc } from "drizzle-orm";
+import { sql, desc, eq, gt, isNull, asc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { isRedisConfigured } from "../services/alpha/redis";
@@ -267,6 +267,42 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     }
   } catch { /* table may be missing; surfaced via schema check */ }
 
+  // Silent-failure detection. The scheduler can claim "I enqueued 128 caps"
+  // and the queue can claim "I completed 6 jobs" while the worker silently
+  // produces zero new economics rows (the BullMQ-jobid-dedupe bug, the
+  // missing-table-throws-silently bug, etc.). Detecting it: if the last
+  // tick claimed work and 15+ minutes have passed but zero new economics
+  // rows have generated_at > lastRunAt, that's a stuck pipeline.
+  let silentFailure: null | {
+    lastTickAt: string;
+    enqueuedCount: number;
+    minutesSinceTick: number;
+    newEconomicsSinceTick: number;
+    message: string;
+  } = null;
+  if (config?.lastRunAt && config.lastRunEnqueued > 0) {
+    const lastRunAt = new Date(config.lastRunAt);
+    const minutesSince = (Date.now() - lastRunAt.getTime()) / 60000;
+    if (minutesSince > 15) {
+      try {
+        const newRows = await db
+          .select({ id: capabilityEconomicsTable.id })
+          .from(capabilityEconomicsTable)
+          .where(gt(capabilityEconomicsTable.generatedAt, lastRunAt))
+          .limit(1);
+        if (newRows.length === 0) {
+          silentFailure = {
+            lastTickAt: config.lastRunAt,
+            enqueuedCount: config.lastRunEnqueued,
+            minutesSinceTick: Math.round(minutesSince),
+            newEconomicsSinceTick: 0,
+            message: `Tick at ${config.lastRunAt} enqueued ${config.lastRunEnqueued} capabilities ${Math.round(minutesSince)} minutes ago, but zero new economics rows have been written since. Worker is stuck or queue is broken.`,
+          };
+        }
+      } catch { /* ignore */ }
+    }
+  }
+
   res.json({
     schema: schema ?? { ok: null, missing: [], note: "boot check has not run yet" },
     capabilities: capStats,
@@ -274,6 +310,7 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     autoEnrich: { config, configError },
     queue: { ...queue, error: queueError },
     recentErrors,
+    silentFailure,
     generatedAt: new Date().toISOString(),
   });
 });

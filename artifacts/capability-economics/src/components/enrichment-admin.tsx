@@ -45,6 +45,7 @@ interface EnrichmentHealth {
   autoEnrich: { config: { enabled: boolean; refreshDays: number; lastRunAt: string | null; lastRunEnqueued: number } | null; configError: string | null };
   queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number; error: string | null };
   recentErrors: Array<{ capabilityId: number; name: string; error: string; updatedAt: string | null }>;
+  silentFailure: null | { lastTickAt: string; enqueuedCount: number; minutesSinceTick: number; newEconomicsSinceTick: number; message: string };
   generatedAt: string;
 }
 interface IndustryRow {
@@ -312,6 +313,20 @@ export default function EnrichmentAdmin() {
               </div>
               <div className="text-[10px] text-muted-foreground">checked {new Date(health.generatedAt).toLocaleTimeString()}</div>
             </div>
+
+            {/* Silent-failure banner — fires when scheduler claims to enqueue work but no economics rows are being produced */}
+            {health.silentFailure && (
+              <div className="mx-3 mt-3 px-3 py-2 bg-red-500/10 text-red-700 text-sm rounded flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-semibold">Pipeline stuck — scheduler ran but produced no work.</div>
+                  <div className="text-xs mt-1">{health.silentFailure.message}</div>
+                  <div className="text-xs mt-1 text-red-700/80">
+                    Last tick: {new Date(health.silentFailure.lastTickAt).toLocaleString()} · enqueued {health.silentFailure.enqueuedCount} · 0 new rows
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Schema banner — only shows when something is wrong */}
             {health.schema.ok === false && (

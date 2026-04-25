@@ -1,5 +1,5 @@
 import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
-import { and, eq, isNull, lt, or, sql, inArray } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, or, sql, inArray } from "drizzle-orm";
 import { Queue, Worker } from "bullmq";
 import { enqueueEnrichmentJob } from "./queue";
 import { getRedis, isRedisConfigured } from "./redis";
@@ -38,6 +38,32 @@ async function tick() {
     if (!isRedisConfigured()) {
       logger.warn("[auto-enrich] config enabled but REDIS_URL not set — skipping tick");
       return;
+    }
+
+    // SILENT-FAILURE DETECTOR — at the START of each tick, look at how the
+    // PREVIOUS tick ended. If it claimed to enqueue work but produced zero
+    // new capability_economics rows since it ran, scream loudly. This is
+    // the second silent-failure bug we've hit in this pipeline; the
+    // detector ensures any future regression of the same shape is visible
+    // in seconds, not days.
+    if (cfg.lastRunAt && cfg.lastRunEnqueued > 0) {
+      const minutesSince = (Date.now() - cfg.lastRunAt.getTime()) / 60000;
+      // Give the previous tick at least 15 min to actually do work before
+      // calling it stuck — alpha enrichments take 1-3 min apiece.
+      if (minutesSince > 15) {
+        const newRows = await db
+          .select({ id: capabilityEconomicsTable.id })
+          .from(capabilityEconomicsTable)
+          .where(gt(capabilityEconomicsTable.generatedAt, cfg.lastRunAt))
+          .limit(1);
+        if (newRows.length === 0) {
+          logger.error({
+            lastTickAt: cfg.lastRunAt.toISOString(),
+            enqueuedCount: cfg.lastRunEnqueued,
+            minutesSinceTick: Math.round(minutesSince),
+          }, "[auto-enrich] SILENT FAILURE: previous tick enqueued work but produced zero new economics rows. Worker may be stuck or queue dedupe is broken.");
+        }
+      }
     }
 
     // Build the "effective settings per industry" map. Industries without an
