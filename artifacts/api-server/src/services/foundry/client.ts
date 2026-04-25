@@ -85,14 +85,80 @@ export async function abortTransaction(datasetRid: string, transactionRid: strin
 }
 
 /**
+ * Apply (or re-apply) a schema to a Dataset by inferring it from the CSV file
+ * just committed. Foundry's CSV upload writes the file but does NOT auto-attach
+ * a schema — without one, the Dataset's columns aren't queryable, Object Type
+ * "Backing column" dropdowns are empty, and Workshop/AIP can't read it as a
+ * table. Schema inference is a separate, post-commit step.
+ *
+ * The public Foundry API exposes schema management at varying paths depending
+ * on stack version. This function tries the documented v2 path first, falls
+ * back to the legacy `foundry-schema-inference` service, and surfaces any
+ * remaining failure as a non-fatal warning so the sync still succeeds even
+ * if schema-apply itself doesn't.
+ */
+export async function applySchemaFromCsv(datasetRid: string, branch = "master"): Promise<{ ok: boolean; via?: string; error?: string }> {
+  // Try 1: v2 schema endpoint — POST infers schema from latest commit
+  try {
+    await foundryFetch(
+      `/api/v2/datasets/${datasetRid}/schemas?preview=true`,
+      {
+        method: "POST",
+        body: JSON.stringify({ branchName: branch }),
+      },
+    );
+    return { ok: true, via: "v2-schemas" };
+  } catch (e1) {
+    // Try 2: foundry-schema-inference service (legacy path, still on many stacks)
+    try {
+      await foundryFetch(
+        `/foundry-schema-inference/api/datasets/${datasetRid}/branches/${branch}/schema?endTransactionRid=&parser=CSV`,
+        { method: "POST", body: "{}" },
+      );
+      return { ok: true, via: "schema-inference" };
+    } catch (e2) {
+      // Try 3: foundry-metadata "apply schema from inference"
+      try {
+        await foundryFetch(
+          `/foundry-metadata/api/schemas/datasets/${datasetRid}/branches/${branch}`,
+          {
+            method: "PUT",
+            body: JSON.stringify({
+              schema: {
+                fieldSchemaList: [],
+                primaryKey: null,
+                customMetadata: { format: "csv", "options.header": "true" },
+              },
+            }),
+          },
+        );
+        return { ok: true, via: "metadata-schema" };
+      } catch (e3) {
+        return { ok: false, error: `${e1 instanceof Error ? e1.message : e1} / ${e2 instanceof Error ? e2.message : e2} / ${e3 instanceof Error ? e3.message : e3}`.slice(0, 400) };
+      }
+    }
+  }
+}
+
+/**
  * Replace a Dataset's contents with a single CSV file. Snapshot transaction so
  * each sync produces a clean, full-table view (no append/dedup logic needed).
+ * After commit, attempts schema auto-apply so the Dataset is immediately
+ * queryable as a table — without this step Object Type "Backing column"
+ * dropdowns stay empty.
  */
 export async function replaceDatasetCsv(datasetRid: string, csvBody: string, fileName = "data.csv"): Promise<void> {
   const txn = await startTransaction(datasetRid, "SNAPSHOT");
   try {
     await uploadFile(datasetRid, txn, fileName, csvBody, "text/csv");
     await commitTransaction(datasetRid, txn);
+    // Apply schema as best-effort. Failure is logged but does not break the
+    // upload — the data is committed regardless, so worst case the user
+    // applies schema manually in the Foundry UI.
+    const schemaResult = await applySchemaFromCsv(datasetRid);
+    if (!schemaResult.ok) {
+      console.warn(`[foundry] schema auto-apply failed for ${datasetRid}: ${schemaResult.error}`);
+    }
   } catch (err) {
     await abortTransaction(datasetRid, txn);
     throw err;

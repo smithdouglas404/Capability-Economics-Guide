@@ -8,6 +8,7 @@
     "seed": "tsx ./src/seed.ts",
     "seed:marketplace": "tsx ./src/seed-marketplace-listings.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
+    "apply-schemas:foundry": "tsx ./src/foundry/apply-schemas.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
