@@ -56,7 +56,8 @@
       "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/enrichment/runs?limit=10\")",
       "Bash(npx skills *)",
       "Bash(find /tmp/skills-* -name \"SKILL.md\" -path '*/skills/*')",
-      "Bash(env)"
+      "Bash(env)",
+      "Bash(pnpm --filter @workspace/db run build)"
     ]
   }
 }
