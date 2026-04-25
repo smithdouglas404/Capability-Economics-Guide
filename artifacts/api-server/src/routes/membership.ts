@@ -137,10 +137,10 @@ const DEFAULT_TIERS = [
 ];
 
 async function ensureSeeded() {
-  const existing = await db.select().from(membershipTiersTable);
-  if (existing.length === 0) {
-    await db.insert(membershipTiersTable).values(DEFAULT_TIERS);
-  }
+  // Insert any DEFAULT_TIERS slug that isn't already in the DB. We deliberately
+  // do NOT overwrite existing rows — once a tier exists, admins edit it via the
+  // PATCH endpoint, and clobbering those edits on every boot would be wrong.
+  await db.insert(membershipTiersTable).values(DEFAULT_TIERS).onConflictDoNothing({ target: membershipTiersTable.slug });
 }
 
 router.get("/membership/tiers", async (_req, res) => {
