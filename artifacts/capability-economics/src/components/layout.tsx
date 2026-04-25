@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SignInButton, SignOutButton, useUser, useAuth } from "@clerk/react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { PersonaSwitcher } from "@/components/persona-switcher";
+import * as Icons from "lucide-react";
 import {
   Activity, Network, Scale,
   Building2, Layers, Bell, MessageCircle,
@@ -18,61 +19,43 @@ import {
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
 
-const navGroups: NavGroup[] = [
-  {
-    label: "Index",
-    matchPaths: ["/cei", "/knowledge-graph", "/regulations"],
-    children: [
-      { href: "/cei", label: "CEI Dashboard", icon: Activity, description: "Live composite index & macro events" },
-      { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network, description: "Capability relationships & dependencies" },
-      { href: "/regulations", label: "Regulations", icon: Scale, description: "Compliance & regulatory landscape" },
-    ],
-  },
-  {
-    label: "Workspace",
-    matchPaths: ["/companies", "/projects", "/watchlist", "/collaborate"],
-    children: [
-      { href: "/companies", label: "Portfolio", icon: Building2, description: "Tracked organizations" },
-      { href: "/projects", label: "Projects", icon: Layers, description: "Your active engagements" },
-      { href: "/watchlist", label: "Watchlist", icon: Bell, description: "Saved capabilities & alerts" },
-      { href: "/collaborate", label: "Strategy Decisions", icon: MessageCircle, description: "Recorded executive decisions & rationale" },
-    ],
-  },
-  {
-    label: "Assess",
-    matchPaths: ["/assess", "/review"],
-    children: [
-      { href: "/assess", label: "Run Assessment", icon: ScanSearch, description: "Start a capability assessment" },
-      { href: "/review", label: "Review Queue", icon: Inbox, description: "Pending QA & approvals" },
-    ],
-  },
-  {
-    label: "C-Suite",
-    href: "/c-suite",
-    matchPaths: ["/c-suite"],
-  },
-  {
-    label: "Strategy",
-    matchPaths: ["/scorecard", "/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
-    children: [
-      { href: "/scorecard", label: "Capability Scorecard", icon: Swords, description: "Your scores vs. industry benchmarks, gap-by-gap" },
-      { href: "/simulation", label: "Simulate", icon: FlaskConical, description: "What-if scenario modeling" },
-      { href: "/trade-signals", label: "Trade Signals", icon: Target, description: "Forward-looking signals" },
-      { href: "/innovation", label: "Innovation Pipeline", icon: Rocket, description: "Emerging capabilities" },
-      { href: "/benchmarking", label: "Peer Benchmarks", icon: BarChart3, description: "Compare against peers" },
-      { href: "/roi", label: "ROI Tracker", icon: PieChart, description: "Investment outcomes" },
-    ],
-  },
-  {
-    label: "Intelligence",
-    matchPaths: ["/insights", "/ask", "/alpha"],
-    children: [
-      { href: "/insights", label: "Insights Feed", icon: Lightbulb, description: "Curated narratives & analysis" },
-      { href: "/ask", label: "CE Search", icon: MessageSquare, description: "Natural-language query over the capability dataset" },
-      { href: "/alpha", label: "CE Alpha", icon: Activity, description: "Advanced analytics: EVaR, moat, dependency impact, M&A targets" },
-    ],
-  },
-];
+type ApiNavChild = { href: string; label: string; icon: string; description?: string };
+type ApiNavGroup = { label: string; href?: string; children?: ApiNavChild[]; matchPaths: string[] };
+
+function resolveIcon(name: string): React.ComponentType<{ className?: string }> {
+  const Comp = (Icons as unknown as Record<string, React.ComponentType<{ className?: string }>>)[name];
+  return Comp ?? Activity;
+}
+
+function useNavGroups(): NavGroup[] {
+  const [groups, setGroups] = useState<NavGroup[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/nav");
+        if (!res.ok) return;
+        const data = await res.json() as { groups: ApiNavGroup[] };
+        if (cancelled) return;
+        const resolved: NavGroup[] = data.groups.map((g) => ({
+          label: g.label,
+          href: g.href,
+          matchPaths: g.matchPaths,
+          children: g.children?.map((c) => ({
+            href: c.href,
+            label: c.label,
+            description: c.description,
+            icon: resolveIcon(c.icon),
+          })),
+        }));
+        setGroups(resolved);
+      } catch { /* leave empty */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return groups;
+}
+
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
@@ -132,6 +115,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useIsAdmin();
   const { status: membershipStatus } = useMembershipStatus();
   const { balance: creditBalance, tierSlug } = useCreditBalance();
+  const navGroups = useNavGroups();
   // Admins always have access — they operate the platform, not consume it. The backend
   // /api/me/membership endpoint also returns a synthetic Platform membership for them,
   // so membershipStatus will normally be "active", but OR'ing with isAdmin handles the
