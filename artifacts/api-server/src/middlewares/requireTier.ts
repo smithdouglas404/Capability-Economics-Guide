@@ -15,7 +15,8 @@ import { isClerkAdmin } from "./requireAdmin";
 const TIER_RANK: Record<string, number> = {
   discovery: 0,
   briefing: 1,
-  workbench: 2,
+  ledger: 2,
+  workbench: 2, // legacy alias — remove once all DB rows are migrated
   platform: 3,
 };
 
@@ -59,8 +60,8 @@ export async function checkKycForTier(
  * Middleware factory that requires the user to have an active membership
  * at or above a minimum tier level.
  *
- * Usage: `router.use("/simulation", requireTier("workbench"))`
- * This allows workbench AND platform users (anything >= workbench).
+ * Usage: `router.use("/simulation", requireTier("ledger"))`
+ * This allows The Ledger AND Platform users (anything >= rank 2).
  */
 export function requireTier(minimumTier: string) {
   const minRank = TIER_RANK[minimumTier] ?? 0;

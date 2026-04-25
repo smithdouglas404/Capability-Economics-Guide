@@ -155,7 +155,7 @@ export default function Companies() {
     <div className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
-            <Badge className="mb-2">Workbench</Badge>
+            <Badge className="mb-2">The Ledger</Badge>
             <h1 className="font-serif text-4xl">Companies, Value-Chain &amp; Quadrant</h1>
             <p className="text-muted-foreground mt-1 max-w-3xl">
               The deal-sourcing layer: short-list companies by capability fingerprint with transparent

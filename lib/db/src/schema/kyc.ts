@@ -4,13 +4,18 @@ import { pgTable, text, serial, integer, real, timestamp, jsonb } from "drizzle-
  * KYC levels by tier:
  *   discovery  → "email"       (email OTP only)
  *   briefing   → "identity"    (email OTP + ID document)
- *   workbench  → "biometric"   (email OTP + ID document + passive liveness)
+ *   ledger     → "biometric"   (email OTP + ID document + passive liveness)
  *   platform   → "full"        (email OTP + ID document + passive liveness + AML screening)
+ *
+ * The legacy `workbench` key is preserved as an alias so any in-flight
+ * checkout/membership rows that still reference the old slug continue to work
+ * during the rename window.
  */
 export const KYC_LEVELS_BY_TIER: Record<string, string> = {
   discovery: "email",
   briefing: "identity",
-  workbench: "biometric",
+  ledger: "biometric",
+  workbench: "biometric", // legacy alias — remove once all DB rows are migrated
   platform: "full",
 };
 

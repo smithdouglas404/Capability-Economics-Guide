@@ -779,7 +779,7 @@ function CompanyXRay({ data }: { data: GraphData }) {
   );
 }
 
-// ============== Workbench shell ==============
+// ============== The Ledger shell ==============
 const TABS = [
   { id: "quadrant", label: "Quadrant xRay", icon: Activity },
   { id: "spider", label: "Bipartite Spider", icon: Network },
@@ -788,7 +788,7 @@ const TABS = [
   { id: "xray", label: "Company X-Ray", icon: ScanSearch },
 ] as const;
 
-export default function Workbench() {
+export default function Ledger() {
   const { data, loading, error } = useGraphData();
   const [tab, setTab] = useState<typeof TABS[number]["id"]>("quadrant");
 
@@ -797,7 +797,7 @@ export default function Workbench() {
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="mb-6">
           <span className="inline-block px-2 py-0.5 text-xs font-semibold tracking-wider uppercase rounded bg-primary/10 text-primary mb-2">
-            CE Workbench
+            The Ledger
           </span>
           <h1 className="text-4xl font-serif font-medium text-foreground">The Capability Lens</h1>
           <p className="text-muted-foreground mt-2 max-w-3xl">

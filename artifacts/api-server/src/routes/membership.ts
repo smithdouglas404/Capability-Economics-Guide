@@ -7,7 +7,7 @@ import {
   creditTransactionsTable,
   kycVerificationsTable,
 } from "@workspace/db";
-import { asc, desc, eq, and } from "drizzle-orm";
+import { asc, desc, eq, and, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireAdmin, isClerkAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
@@ -80,9 +80,9 @@ const DEFAULT_TIERS = [
     active: true,
   },
   {
-    slug: "workbench",
-    name: "Workbench",
-    tagline: "Run the analysis on your own situation.",
+    slug: "ledger",
+    name: "The Ledger",
+    tagline: "Run the framework on your own situation.",
     description:
       "For operating executives who need simulation, benchmarking, trade signals, and the full CE Alpha intelligence suite to drive strategy decisions.",
     monthlyPriceCents: 149900,
@@ -105,7 +105,7 @@ const DEFAULT_TIERS = [
       "Organization profile and project workspace",
       "Submit up to 10 custom capabilities per month",
     ],
-    ctaLabel: "Start Workbench",
+    ctaLabel: "Start The Ledger",
     highlight: true,
     active: true,
   },
@@ -122,7 +122,7 @@ const DEFAULT_TIERS = [
     displayOrder: 3,
     features: [
       "50,000 CEI credits/month",
-      "Everything in Workbench, with no caps on submissions",
+      "Everything in The Ledger, with no caps on submissions",
       "Autonomous discovery agent: continuous capability research with Perplexity + GLM-5.1",
       "Full review-queue admin: approve, reject-with-comment, or terminate submissions",
       "Custom industries beyond the 6 included verticals",
@@ -137,6 +137,21 @@ const DEFAULT_TIERS = [
 ];
 
 async function ensureSeeded() {
+  // One-shot rename: the "workbench" tier was rebranded to "The Ledger" in
+  // April 2026. Migrate any existing row in place — but only if there isn't
+  // already a "ledger" row (which would mean the rename already ran on this
+  // DB). Idempotent and safe to re-run on every boot.
+  await db.execute(sql`
+    UPDATE membership_tiers
+    SET slug = 'ledger',
+        name = 'The Ledger',
+        cta_label = 'Start The Ledger',
+        tagline = 'Run the framework on your own situation.',
+        updated_at = NOW()
+    WHERE slug = 'workbench'
+      AND NOT EXISTS (SELECT 1 FROM membership_tiers WHERE slug = 'ledger')
+  `);
+
   // Insert any DEFAULT_TIERS slug that isn't already in the DB. We deliberately
   // do NOT overwrite existing rows — once a tier exists, admins edit it via the
   // PATCH endpoint, and clobbering those edits on every boot would be wrong.

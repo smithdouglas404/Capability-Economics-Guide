@@ -583,7 +583,7 @@ export default function MemberDetailDialog({ userId, open, onOpenChange, onMutat
                   <Card className="rounded-none">
                     <CardContent className="p-6 text-sm text-muted-foreground text-center">
                       <p>This member has not completed KYC verification.</p>
-                      <p className="text-xs mt-2">KYC data comes from Didit. Members verify when they apply for a tier that requires it (Briefing+ for identity, Workbench+ for biometric, Platform for AML).</p>
+                      <p className="text-xs mt-2">KYC data comes from Didit. Members verify when they apply for a tier that requires it (Briefing+ for identity, The Ledger+ for biometric, Platform for AML).</p>
                     </CardContent>
                   </Card>
                 ) : (
