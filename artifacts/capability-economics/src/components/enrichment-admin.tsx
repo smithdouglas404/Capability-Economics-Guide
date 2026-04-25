@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap, ShieldAlert, Activity, Server, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,14 @@ interface RedisHealth {
   connected: boolean;
   error?: string;
 }
+interface EnrichmentHealth {
+  schema: { ok: boolean | null; missing: string[]; note?: string };
+  capabilities: { total: number; withEconomics: number; withoutEconomics: number };
+  autoEnrich: { config: { enabled: boolean; refreshDays: number; lastRunAt: string | null; lastRunEnqueued: number } | null; configError: string | null };
+  queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number; error: string | null };
+  recentErrors: Array<{ capabilityId: number; name: string; error: string; updatedAt: string | null }>;
+  generatedAt: string;
+}
 
 export default function EnrichmentAdmin() {
   const [status, setStatus] = useState<EnrichmentStatus | null>(null);
@@ -52,17 +60,19 @@ export default function EnrichmentAdmin() {
   const [redis, setRedis] = useState<RedisHealth | null>(null);
   const [syncRunning, setSyncRunning] = useState(false);
   const [alphaStatus, setAlphaStatus] = useState<{ capabilities: number; capabilitiesEnriched: number } | null>(null);
+  const [health, setHealth] = useState<EnrichmentHealth | null>(null);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r, cfgRes, redisRes, alphaRes] = await Promise.all([
+      const [s, r, cfgRes, redisRes, alphaRes, healthRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
         fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/healthz/redis`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/alpha/status`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/admin/enrichment/health`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
@@ -73,6 +83,7 @@ export default function EnrichmentAdmin() {
       }
       setRedis(redisRes ?? null);
       if (alphaRes) setAlphaStatus({ capabilities: alphaRes.capabilities, capabilitiesEnriched: alphaRes.capabilitiesEnriched });
+      setHealth(healthRes ?? null);
     } catch (e) {
       setError(String(e));
     }
@@ -212,6 +223,122 @@ export default function EnrichmentAdmin() {
         {lastResult && (
           <div className="mb-3 px-3 py-2 bg-green-500/10 text-green-700 text-sm rounded flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4" /> {lastResult}
+          </div>
+        )}
+
+        {/* Health panel — answers "is enrichment actually working?" at a glance */}
+        {health && (
+          <div className="mb-5 border rounded">
+            <div className="px-4 py-2 border-b bg-muted/40 flex items-center justify-between">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5" /> Enrichment Health
+              </div>
+              <div className="text-[10px] text-muted-foreground">checked {new Date(health.generatedAt).toLocaleTimeString()}</div>
+            </div>
+
+            {/* Schema banner — only shows when something is wrong */}
+            {health.schema.ok === false && (
+              <div className="mx-3 mt-3 px-3 py-2 bg-red-500/10 text-red-700 text-sm rounded flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-semibold">Schema out of sync — features will silently degrade.</div>
+                  <div className="text-xs mt-1">
+                    Missing tables: <code className="font-mono">{health.schema.missing.join(", ")}</code>
+                  </div>
+                  <div className="text-xs mt-1">
+                    Run <code className="font-mono bg-red-500/10 px-1">cd lib/db &amp;&amp; npx drizzle-kit push --force</code>, then restart the API server.
+                  </div>
+                </div>
+              </div>
+            )}
+            {health.schema.ok === null && (
+              <div className="mx-3 mt-3 px-3 py-2 bg-amber-500/10 text-amber-800 text-xs rounded flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5" /> Boot schema check has not run yet — restart the API server to populate it.
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0">
+              {/* Real pending count — capability_economics row presence is truth */}
+              <div className="p-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Database className="w-3 h-3" /> Capabilities enriched</div>
+                <div className="text-2xl font-mono">
+                  {health.capabilities.withEconomics}
+                  <span className="text-sm text-muted-foreground font-mono ml-1">/ {health.capabilities.total}</span>
+                </div>
+                {health.capabilities.withoutEconomics > 0 && (
+                  <div className="text-[11px] text-amber-700 mt-0.5">{health.capabilities.withoutEconomics} need enrichment</div>
+                )}
+              </div>
+
+              {/* Auto-enrich state */}
+              <div className="p-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><CalendarClock className="w-3 h-3" /> Auto-enrich</div>
+                {health.autoEnrich.configError ? (
+                  <div className="text-sm text-red-700">config error</div>
+                ) : !health.autoEnrich.config ? (
+                  <div className="text-sm text-muted-foreground">not initialised</div>
+                ) : (
+                  <>
+                    <div className={`text-lg font-mono ${health.autoEnrich.config.enabled ? "text-green-700" : "text-muted-foreground"}`}>
+                      {health.autoEnrich.config.enabled ? "Enabled" : "Disabled"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      last tick: {health.autoEnrich.config.lastRunAt ? new Date(health.autoEnrich.config.lastRunAt).toLocaleString() : "never"}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Redis queue depth */}
+              <div className="p-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Server className="w-3 h-3" /> Queue</div>
+                {!health.queue.configured ? (
+                  <div className="text-sm text-red-700">REDIS_URL not set</div>
+                ) : health.queue.error ? (
+                  <div className="text-sm text-red-700" title={health.queue.error}>unreachable</div>
+                ) : (
+                  <>
+                    <div className="text-2xl font-mono">{health.queue.waiting + health.queue.active}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {health.queue.waiting} waiting · {health.queue.active} active · {health.queue.failed} failed
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Recent errors */}
+              <div className="p-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><AlertCircle className="w-3 h-3" /> Recent errors</div>
+                <div className="text-2xl font-mono">{health.recentErrors.length}</div>
+                {health.recentErrors[0] && (
+                  <div className="text-[11px] text-red-700 mt-0.5 truncate" title={health.recentErrors[0].error}>
+                    {health.recentErrors[0].name}: {health.recentErrors[0].error.slice(0, 40)}{health.recentErrors[0].error.length > 40 ? "…" : ""}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent error detail rows — only if there are any */}
+            {health.recentErrors.length > 0 && (
+              <details className="border-t">
+                <summary className="px-4 py-2 text-xs text-muted-foreground cursor-pointer select-none hover:bg-muted/40">
+                  Show last {health.recentErrors.length} error{health.recentErrors.length === 1 ? "" : "s"}
+                </summary>
+                <ul className="divide-y">
+                  {health.recentErrors.map((e) => (
+                    <li key={e.capabilityId} className="px-4 py-2 text-xs grid grid-cols-[1fr_auto] gap-3">
+                      <div>
+                        <div className="font-medium">{e.name}</div>
+                        <div className="text-red-700 font-mono break-all">{e.error}</div>
+                      </div>
+                      <div className="text-muted-foreground whitespace-nowrap">
+                        {e.updatedAt ? new Date(e.updatedAt).toLocaleString() : "—"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         )}
 

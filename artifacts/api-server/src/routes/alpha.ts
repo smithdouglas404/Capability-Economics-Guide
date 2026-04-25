@@ -138,9 +138,25 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] starting detail");
     await runDetailEnrichment({ capabilityId: capId, force: true });
 
+    // Sync the status column. Path A (this synchronous rerun) historically
+    // wrote capability_economics but never updated enrichment_status, so the
+    // admin UI mislabeled enriched capabilities as "pending". Treat the
+    // capability_economics row as the truth and reflect that here.
+    await db.update(capabilitiesTable).set({
+      enrichmentStatus: "completed",
+      enrichmentStage: "detail",
+      enrichmentError: null,
+      enrichmentUpdatedAt: new Date(),
+    }).where(eq(capabilitiesTable.id, capId));
+
     res.json({ ok: true, capabilityId: capId, durationMs: Date.now() - start });
   } catch (err) {
     logger.error({ err, capabilityId: capId }, "[alpha/rerun] failed");
+    await db.update(capabilitiesTable).set({
+      enrichmentStatus: "failed",
+      enrichmentError: err instanceof Error ? err.message : "rerun failed",
+      enrichmentUpdatedAt: new Date(),
+    }).where(eq(capabilitiesTable.id, capId)).catch(() => undefined);
     res.status(500).json({ error: err instanceof Error ? err.message : "rerun failed", durationMs: Date.now() - start });
   }
 });

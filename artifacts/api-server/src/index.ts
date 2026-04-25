@@ -4,6 +4,7 @@ import { startScheduler } from "./services/agent";
 import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { startEnrichmentWorker } from "./services/alpha/queue";
+import { verifySchema } from "./lib/schema-check";
 
 const rawPort = process.env["PORT"];
 
@@ -26,6 +27,11 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Schema check — fail loudly if any load-bearing table is missing. Runs
+  // before scheduler/worker start so missing tables are visible at boot in
+  // logs and on /healthz/schema instead of silently breaking enrichment.
+  void verifySchema().catch(err => logger.error({ err }, "[schema] verifySchema threw"));
 
   // Boot cleanup — any capability stuck in `enrichmentStatus='running'`
   // means a worker crashed mid-job. Reset it AND delete the partial
