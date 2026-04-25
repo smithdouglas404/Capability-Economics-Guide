@@ -5,6 +5,7 @@ import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTa
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
+import { startFoundryHourlySync, fireFoundrySync } from "./services/foundry/sync";
 
 const rawPort = process.env["PORT"];
 
@@ -88,4 +89,12 @@ app.listen(port, (err) => {
   // and cheap when nothing's missing — see sub-cap-backfill.ts.
   void backfillMissingSubCapabilities()
     .catch(err => logger.error({ err }, "[sub-cap-backfill] threw"));
+
+  // Foundry mirror — hourly catch-up sync covers writes that don't go through
+  // the agent (manual reviewer edits, assessments, direct DB writes). The
+  // agent itself fires fireFoundrySync at end-of-run so per-cap reruns
+  // surface in Foundry within seconds. No-ops if Foundry env vars aren't set.
+  startFoundryHourlySync();
+  // Fire one sync at boot so Foundry catches up after a redeploy.
+  fireFoundrySync("api-server boot");
 });

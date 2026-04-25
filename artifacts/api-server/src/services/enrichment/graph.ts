@@ -29,6 +29,7 @@ import { logger } from "../../lib/logger";
 import { emitAgentEvent } from "../agent/events";
 import { lettaArchivalInsert, lettaUpdateBlock } from "../agent/letta";
 import { toolSchemas, toolExecutors } from "./tools";
+import { fireFoundrySync } from "../foundry/sync";
 
 // ─── OpenRouter chat with tools ─────────────────────────────────────────────
 // OpenAI-compatible request shape; OpenRouter relays tool calling to Anthropic.
@@ -364,6 +365,11 @@ async function finalizeNode(state: State): Promise<Partial<State>> {
     economicsRows: econCount,
     summary: state.finishSummary,
   });
+
+  // Mirror to Foundry — fire-and-forget so this never blocks the agent
+  // returning, no-ops if Foundry isn't configured. Concurrency-guarded
+  // inside fireFoundrySync.
+  fireFoundrySync(`enrichment run ${state.runId} (${state.trigger})`);
 
   return {};
 }
