@@ -53,7 +53,10 @@
       "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/industries\")",
       "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/admin/enrichment/config\")",
       "Bash(curl -sI \"https://capabilityeconomics-staging.up.railway.app/api/healthz\")",
-      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/enrichment/runs?limit=10\")"
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/enrichment/runs?limit=10\")",
+      "Bash(npx skills *)",
+      "Bash(find /tmp/skills-* -name \"SKILL.md\" -path '*/skills/*')",
+      "Bash(env)"
     ]
   }
 }
