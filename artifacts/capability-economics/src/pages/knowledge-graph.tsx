@@ -10,7 +10,7 @@ import {
   ChevronRight, ArrowLeft, BarChart3, GitBranch, Users,
   TrendingUp, TrendingDown, Minus, Loader2, Layers, Network,
   Sparkles, AlertTriangle, Activity, BookOpen, RefreshCw, ExternalLink, Info,
-  Bot, Zap, Target,
+  Bot, Zap, Target, Crosshair,
 } from "lucide-react";
 import {
   ResponsiveContainer, RadarChart, Radar, PolarGrid,
@@ -18,6 +18,7 @@ import {
 } from "recharts";
 
 const ForceGraph = lazy(() => import("@/components/ForceGraph"));
+const QuadrantScatter = lazy(() => import("@/components/quadrant-scatter"));
 
 const iconMap: Record<string, React.ElementType> = {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
@@ -74,7 +75,7 @@ export default function KnowledgeGraph() {
     return () => { abort = true; };
   }, [selectedIndustryId]);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [tab, setTab] = useState<"network" | "industries" | "compare">(isMobile ? "industries" : "network");
+  const [tab, setTab] = useState<"quadrant" | "network" | "industries" | "compare">(isMobile ? "industries" : "quadrant");
   interface GraphDataShape {
     industries: Array<{ id: number; name: string; slug: string; icon: string }>;
     capabilities: Array<{ id: number; name: string; industryId: number; benchmarkScore: number; quadrant: string; economicImpactScore: number; adoptionMomentumScore: number; disruptionIntensity: number }>;
@@ -89,7 +90,7 @@ export default function KnowledgeGraph() {
   const [graphError, setGraphError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tab === "network" && !graphData && !graphError) {
+    if ((tab === "network" || tab === "quadrant") && !graphData && !graphError) {
       setGraphLoading(true);
       fetch("/api/ontology/graph")
         .then(r => {
@@ -825,7 +826,16 @@ export default function KnowledgeGraph() {
           <p className="text-lg text-muted-foreground max-w-2xl">
             Explore the capability landscape across six key industries. Each industry has 8-12 core capabilities with benchmarks, metrics, dependencies, and C-suite relevance mappings.
           </p>
-          <div className="flex gap-2 mt-6">
+          <div className="flex gap-2 mt-6 flex-wrap">
+            <Button
+              variant={tab === "quadrant" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setTab("quadrant")}
+              className="rounded-sm"
+            >
+              <Crosshair className="w-4 h-4 mr-2" />
+              Quadrant
+            </Button>
             <Button
               variant={tab === "network" ? "default" : "outline"}
               size="sm"
@@ -857,7 +867,33 @@ export default function KnowledgeGraph() {
         </div>
       </section>
 
-      {tab === "network" ? (
+      {tab === "quadrant" ? (
+        <section>
+          {graphLoading ? (
+            <div className="flex justify-center items-center py-32">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+          ) : graphData ? (
+            <Suspense fallback={<div className="flex justify-center items-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+              <QuadrantScatter
+                industries={graphData.industries}
+                capabilities={graphData.capabilities}
+                dependencies={graphData.dependencies}
+                onSelectCapability={setSelectedCapabilityId}
+              />
+            </Suspense>
+          ) : graphError ? (
+            <div className="flex flex-col justify-center items-center py-32 text-muted-foreground gap-2">
+              <p>Failed to load capabilities: {graphError}</p>
+              <button onClick={() => { setGraphError(null); setGraphData(null); }} className="text-primary text-sm underline">Retry</button>
+            </div>
+          ) : (
+            <div className="flex justify-center items-center py-32 text-muted-foreground">
+              No capability data available. Run the enrichment pipeline first.
+            </div>
+          )}
+        </section>
+      ) : tab === "network" ? (
         <section className="relative" style={{ height: "calc(100vh - 260px)", minHeight: 500 }}>
           {graphLoading ? (
             <div className="flex justify-center items-center h-full">
