@@ -7,9 +7,10 @@ import {
 } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { z } from "zod/v4";
-import { enqueueEnrichmentJob, getQueuePositionFor } from "../services/alpha/queue";
+import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
 import { decomposeCapability } from "../services/sub-capability-generator";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -34,17 +35,24 @@ async function setEnrichment(capabilityId: number, status: string, stage: string
   }).where(eq(capabilitiesTable.id, capabilityId));
 }
 
-async function enqueueDraftEnrichment(capabilityId: number, industryId: number, revisionGuidance?: string) {
-  await enqueueEnrichmentJob(
-    "alpha",
-    { industryId, limitCapabilities: 1, limitEdges: 0 },
-    { capabilityId, industryId },
-  );
-  await enqueueEnrichmentJob(
-    "detail",
-    { capabilityId, force: true, revisionGuidance },
-    { capabilityId, industryId },
-  );
+// Fire-and-forget: invoke the enrichment agent for a single drafted capability.
+// The HTTP handler returns 202 immediately; the agent runs for ~5–7 min in the
+// background and writes results to the DB. Reviewer UI polls enrichmentStatus.
+function fireDraftEnrichment(capabilityId: number, industryId: number, revisionGuidance?: string): void {
+  void (async () => {
+    try {
+      await runEnrichmentGraph({
+        trigger: "rerun",
+        targetCapabilityIds: [capabilityId],
+        targetIndustryIds: [industryId],
+      });
+      if (revisionGuidance) {
+        logger.info({ capabilityId, revisionGuidance: revisionGuidance.slice(0, 100) }, "[review] draft enrichment with revision guidance — note: agent does not yet thread guidance through; reviewer comment is stored in capability.reviewNotes");
+      }
+    } catch (err) {
+      logger.error({ err, capabilityId }, "[review] draft enrichment agent run failed");
+    }
+  })();
 }
 
 const DraftBody = z.object({
@@ -77,7 +85,7 @@ router.post("/review/draft", async (req, res) => {
     enrichmentStage: "alpha",
     enrichmentUpdatedAt: new Date(),
   }).returning();
-  await enqueueDraftEnrichment(cap.id, industryId);
+  fireDraftEnrichment(cap.id, industryId);
   res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment queued (~60-90s once it starts).", submittedBy: reviewerLabel(req.reviewer) });
 });
 
@@ -104,19 +112,16 @@ router.get("/review/queue", async (_req, res) => {
     .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.reviewStatus, "pending_review"));
 
-  const withQueue = await Promise.all(
-    rows.map(async (r) => {
-      const pos = await getQueuePositionFor(r.id);
-      return {
-        ...r,
-        enrichmentReady: r.summaryNarrative != null,
-        hasEconomics: r.hasEconomics != null,
-        queueStatus: pos?.status ?? "idle",
-        queueAhead: pos?.ahead ?? 0,
-      };
-    }),
-  );
-  res.json(withQueue);
+  // Without the BullMQ queue, "queue position" no longer exists. Status comes
+  // from capability.enrichmentStatus, which the agent updates as it runs.
+  const out = rows.map(r => ({
+    ...r,
+    enrichmentReady: r.summaryNarrative != null,
+    hasEconomics: r.hasEconomics != null,
+    queueStatus: r.enrichmentStatus === "running" ? "running" : "idle",
+    queueAhead: 0,
+  }));
+  res.json(out);
 });
 
 router.post("/review/:id/retry", async (req, res) => {
@@ -132,7 +137,7 @@ router.post("/review/:id/retry", async (req, res) => {
     .slice(-1)[0]?.comment;
 
   await setEnrichment(id, "running", "alpha", null);
-  await enqueueDraftEnrichment(id, cap.industryId, lastReviewerComment);
+  fireDraftEnrichment(id, cap.industryId, lastReviewerComment);
   res.status(202).json({ ok: true, status: "running", message: "Enrichment retried." });
 });
 
@@ -192,13 +197,9 @@ router.post("/review/:id/reject", async (req, res) => {
     .returning({ id: capabilitiesTable.id });
   if (updated.length === 0) { res.status(409).json({ error: "status changed concurrently" }); return; }
 
-  await enqueueEnrichmentJob(
-    "detail",
-    { capabilityId: id, force: true, revisionGuidance: comment },
-    { capabilityId: id, industryId: cap.industryId },
-  );
+  fireDraftEnrichment(id, cap.industryId, comment);
 
-  res.json({ ok: true, status: "revising", message: "Comment queued. New draft will appear once the worker reaches it." });
+  res.json({ ok: true, status: "revising", message: "Comment queued. New draft will appear once the agent reaches it." });
 });
 
 router.get("/review/:id/notes", async (req, res) => {

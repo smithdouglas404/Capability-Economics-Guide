@@ -157,7 +157,7 @@ GUIDELINES:
 3. For each industry needing work, call the relevant tools. The natural flow when nothing exists is:
    classify_quadrants → map_value_chain → discover_companies → run_economic_alpha → run_economic_detail.
    But you do NOT have to follow that order. If quadrants are fresh, skip them. If only economics is stale, just call run_economic_alpha + run_economic_detail.
-4. For per-capability reruns (when the SCOPE names a capability id), the existing economics row has already been deleted by the caller. Call run_economic_alpha (with industryId of that cap) to repopulate, then run_economic_detail with that capabilityId and force=true so the narrative regenerates.
+4. For per-capability reruns (when the SCOPE names a capability id), the existing economics row has already been deleted by the caller. A full rerun MUST refresh BOTH sides of the CE-vs-Street comparison — the UI hides the comparison if either side is stale. Always call: classify_quadrants(industryId) to refresh the CE-side quadrant, run_economic_alpha(industryId) to repopulate the Street-side economics row, then run_economic_detail(capabilityId, force=true) to regenerate the narrative. Skipping classify_quadrants leaves the CE quadrant pinned to whatever an old run wrote, sometimes weeks ago.
 5. Each tool returns a JSON result envelope \`{ok, ...}\`. Use the result to decide the next step. If a tool fails, try a different approach or move on; don't loop on the same failing call.
 6. When done, optionally \`store_memory\` to record any pattern worth remembering, then call \`finish\` with a summary.
 7. Hard cap: ${MAX_ITERATIONS} tool turns per run. Don't dawdle.

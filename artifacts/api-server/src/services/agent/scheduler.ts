@@ -5,7 +5,6 @@ import { rotateTriangulations } from "../triangulation";
 import { computeCEI } from "../cei-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
-import { startAutoEnrich, stopAutoEnrich } from "../alpha/auto-enrich";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -227,7 +226,6 @@ export function startScheduler(): void {
 
   startConsolidator();
   startMarketplaceAutoArchive();
-  void startAutoEnrich().catch(err => { /* non-fatal — Redis may be down */ void err; });
 
   executeRun("startup");
 
@@ -241,7 +239,6 @@ export function stopScheduler(): void {
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
-  stopAutoEnrich();
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
 }

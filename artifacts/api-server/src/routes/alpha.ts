@@ -12,32 +12,15 @@ import {
   companyCapabilityMappingsTable,
   CREDIT_COSTS,
 } from "@workspace/db";
-import { eq, sql, and, inArray } from "drizzle-orm";
-import { enqueueEnrichmentJob, getQueueStats } from "../services/alpha/queue";
+import { eq, sql, and, inArray, desc } from "drizzle-orm";
 import { deductCredits } from "../middlewares/deductCredits";
 import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { requireReviewer } from "../middlewares/requireReviewer";
-import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { logger } from "../lib/logger";
 
 const router = Router();
-
-/**
- * Queue diagnostics — shows BullMQ job counts by state. Use this to see
- * whether the worker is draining: `active` should be 1 or 0 (concurrency=1),
- * `waiting` should trend to 0 if the worker is healthy, and `failed` climbing
- * means jobs are erroring out. `completed` should tick up as work finishes.
- */
-router.get("/queue-stats", async (_req: Request, res: Response) => {
-  try {
-    const stats = await getQueueStats();
-    res.json(stats);
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "queue-stats failed" });
-  }
-});
 
 router.get("/status", async (_req: Request, res: Response) => {
   try {
@@ -56,57 +39,25 @@ router.get("/status", async (_req: Request, res: Response) => {
   }
 });
 
-router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
-  const limitCapabilities = typeof req.body?.limitCapabilities === "number" ? req.body.limitCapabilities : 12;
-  const limitEdges = typeof req.body?.limitEdges === "number" ? req.body.limitEdges : 15;
-  const industryId = typeof req.body?.industryId === "number" ? req.body.industryId : undefined;
-  try {
-    const job = await enqueueEnrichmentJob(
-      "alpha",
-      { limitCapabilities, limitEdges, industryId },
-      { industryId },
-    );
-    res.status(202).json({ jobId: job.id, status: job.status, message: "Alpha enrichment queued" });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Alpha enqueue failed" });
-  }
-});
-
 /**
- * Synchronous bulk enrichment — bypasses BullMQ entirely. Runs
- * runAlphaEnrichment inline, returns when the batch is done. Takes a few
- * minutes per capability. Use `limitCapabilities` to bound the batch so the
- * HTTP request doesn't exceed Railway/proxy timeouts; callers can re-hit
- * this to continue draining. Escape hatch for when the queue is misbehaving.
+ * Bulk enrichment — invokes the LangGraph agent. The agent decides what's
+ * stale and which tools to call (classify_quadrants, map_value_chain,
+ * discover_companies, run_economic_alpha, run_economic_detail). Single code
+ * path for both manual triggers and per-capability rerun.
  */
-router.post("/enrich-sync", requireReviewer(), async (req: Request, res: Response) => {
-  const limitCapabilities = typeof req.body?.limitCapabilities === "number" ? req.body.limitCapabilities : 10;
-  const limitEdges = typeof req.body?.limitEdges === "number" ? req.body.limitEdges : 10;
+router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
   const industryId = typeof req.body?.industryId === "number" ? req.body.industryId : undefined;
   const start = Date.now();
   try {
-    logger.info({ limitCapabilities, limitEdges, industryId }, "[alpha/enrich-sync] starting");
-    const result = await runAlphaEnrichment({ limitCapabilities, limitEdges, industryId });
-    res.json({ ...result, mode: "sync", durationMs: Date.now() - start });
+    logger.info({ industryId }, "[alpha/enrich] invoking enrichment agent");
+    const result = await runEnrichmentGraph({
+      trigger: "manual",
+      targetIndustryIds: industryId != null ? [industryId] : undefined,
+    });
+    res.json({ ...result, durationMs: Date.now() - start });
   } catch (err) {
-    logger.error({ err }, "[alpha/enrich-sync] failed");
-    res.status(500).json({ error: err instanceof Error ? err.message : "sync enrichment failed", durationMs: Date.now() - start });
-  }
-});
-
-router.post("/enrich-detail", requireAdmin, async (req: Request, res: Response) => {
-  const limit = typeof req.body?.limit === "number" ? req.body.limit : 6;
-  const force = req.body?.force === true;
-  const capabilityId = typeof req.body?.capabilityId === "number" ? req.body.capabilityId : undefined;
-  try {
-    const job = await enqueueEnrichmentJob(
-      "detail",
-      { limit, force, capabilityId },
-      { capabilityId },
-    );
-    res.status(202).json({ jobId: job.id, status: job.status, message: "Detail enrichment queued" });
-  } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Detail enqueue failed" });
+    logger.error({ err }, "[alpha/enrich] failed");
+    res.status(500).json({ error: err instanceof Error ? err.message : "enrichment failed", durationMs: Date.now() - start });
   }
 });
 
@@ -129,6 +80,12 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     // fresh. Safe because detail enrichment writes to the same row that alpha
     // creates, and both are being re-run here.
     await db.delete(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
+
+    // Also delete the existing capability_quadrants row so classify_quadrants
+    // writes a fresh CE-side quadrant. Without this, the cap detail page picks
+    // the older row and the "CE vs Street" card shows stale data even after a
+    // successful rerun. Symptom: UI quadrant timestamp predates the alpha row.
+    await db.delete(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId));
 
     // Single agentic entry point — invokes the enrichment LangGraph for this
     // one capability. The graph runs all 5 stages (classify → value chain →
@@ -176,7 +133,7 @@ router.get("/capability/:id", async (req: Request, res: Response) => {
     if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
 
     const [econ] = await db.select().from(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
-    const [quad] = await db.select().from(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId));
+    const [quad] = await db.select().from(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId)).orderBy(desc(capabilityQuadrantsTable.generatedAt)).limit(1);
 
     // EVaR projection — only when all required inputs exist (no synthetic defaults)
     let evar: { mo12: number | null; mo24: number | null; mo36: number | null; ceQuadrant: string | null } = {

@@ -10,7 +10,7 @@ import {
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { enqueueEnrichmentJob } from "../services/alpha/queue";
+import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
@@ -212,11 +212,14 @@ Output ONLY the JSON array. No markdown, no commentary.`;
           submittedBy: "discovery_agent",
         })
         .returning();
-      await enqueueEnrichmentJob(
-        "detail",
-        { capabilityId: cap.id, force: true },
-        { capabilityId: cap.id, industryId: industry.id },
-      );
+      // Fire-and-forget — enrichment agent runs the full classify → value-chain
+      // → companies → alpha → detail flow for this single new cap. Industry
+      // creation HTTP returns immediately; agent finishes ~5–7 min later.
+      void runEnrichmentGraph({
+        trigger: "rerun",
+        targetCapabilityIds: [cap.id],
+        targetIndustryIds: [industry.id],
+      }).catch(err => console.error("[dynamic-industries] enrichment agent failed", err));
       await db.insert(capabilityThresholdsTable).values({
         capabilityId: cap.id,
         greenMin: Math.max(0, Math.min(100, c.greenMin)),

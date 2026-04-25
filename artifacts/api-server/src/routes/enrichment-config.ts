@@ -1,10 +1,8 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityEconomicsTable } from "@workspace/db";
-import { sql, desc, eq, gt, isNull, asc } from "drizzle-orm";
+import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityEconomicsTable, enrichmentRunsTable } from "@workspace/db";
+import { sql, desc, eq, gt, asc, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireReviewer } from "../middlewares/requireReviewer";
-import { isRedisConfigured } from "../services/alpha/redis";
-import { getQueueStats, getLifetimeJobCounts } from "../services/alpha/queue";
 import { getCachedSchemaStatus } from "../lib/schema-check";
 
 const router: IRouter = Router();
@@ -213,32 +211,32 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     configError = err instanceof Error ? err.message : String(err);
   }
 
-  // Redis queue depth + lifetime counters. The lifetime counters survive
-  // BullMQ's removeOnComplete:true (which wipes its built-in completed
-  // counter) by tracking INCRs on dedicated Redis keys. So the UI can show
-  // a real, monotonically-rising "jobs completed since deploy" number
-  // instead of the always-zero queue.completed lie.
-  let queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number } | null = null;
-  let lifetime: { completed: number; failed: number; capsEnriched: number; edgesEnriched: number } = { completed: 0, failed: 0, capsEnriched: 0, edgesEnriched: 0 };
-  let queueError: string | null = null;
-  if (isRedisConfigured()) {
-    try {
-      const [stats, lt] = await Promise.all([getQueueStats(), getLifetimeJobCounts()]);
-      queue = {
-        configured: true,
-        waiting: stats.waiting,
-        active: stats.active,
-        delayed: stats.delayed,
-        failed: stats.failed,
-        completed: stats.completed,
-      };
-      lifetime = lt;
-    } catch (err) {
-      queueError = err instanceof Error ? err.message : String(err);
-      queue = { configured: true, waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 };
-    }
-  } else {
-    queue = { configured: false, waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 };
+  // Agent run history — replaces the BullMQ queue depth tile. Reads recent
+  // enrichment_runs rows; "running" rows count as "active" runs, completed
+  // rows give a lifetime success/failure tally.
+  let runs: { running: number; completedToday: number; failedToday: number; lifetimeCompleted: number; lifetimeFailed: number; lastCompletedAt: string | null } = {
+    running: 0, completedToday: 0, failedToday: 0, lifetimeCompleted: 0, lifetimeFailed: 0, lastCompletedAt: null,
+  };
+  let runsError: string | null = null;
+  try {
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const [running] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(eq(enrichmentRunsTable.status, "running"));
+    const [completedToday] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(and(eq(enrichmentRunsTable.status, "completed"), gt(enrichmentRunsTable.completedAt, todayStart)));
+    const [completedErrToday] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(and(eq(enrichmentRunsTable.status, "completed_with_errors"), gt(enrichmentRunsTable.completedAt, todayStart)));
+    const [failedToday] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(and(eq(enrichmentRunsTable.status, "failed"), gt(enrichmentRunsTable.completedAt, todayStart)));
+    const [lifetimeOk] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(eq(enrichmentRunsTable.status, "completed"));
+    const [lifetimeFail] = await db.select({ c: sql<number>`count(*)::int` }).from(enrichmentRunsTable).where(eq(enrichmentRunsTable.status, "failed"));
+    const [lastCompleted] = await db.select({ at: enrichmentRunsTable.completedAt }).from(enrichmentRunsTable).where(eq(enrichmentRunsTable.status, "completed")).orderBy(desc(enrichmentRunsTable.completedAt)).limit(1);
+    runs = {
+      running: Number(running?.c ?? 0),
+      completedToday: Number(completedToday?.c ?? 0) + Number(completedErrToday?.c ?? 0),
+      failedToday: Number(failedToday?.c ?? 0),
+      lifetimeCompleted: Number(lifetimeOk?.c ?? 0),
+      lifetimeFailed: Number(lifetimeFail?.c ?? 0),
+      lastCompletedAt: lastCompleted?.at ? lastCompleted.at.toISOString() : null,
+    };
+  } catch (err) {
+    runsError = err instanceof Error ? err.message : String(err);
   }
 
   // Sub-capability decomposition parity — surfaces dev/staging drift. Counts
@@ -312,8 +310,7 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     capabilities: capStats,
     decompositionParity,
     autoEnrich: { config, configError },
-    queue: { ...queue, error: queueError },
-    lifetime,
+    runs: { ...runs, error: runsError },
     recentErrors,
     silentFailure,
     generatedAt: new Date().toISOString(),

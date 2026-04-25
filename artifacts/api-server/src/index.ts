@@ -3,7 +3,6 @@ import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
 import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
 import { eq, inArray, isNull, and } from "drizzle-orm";
-import { startEnrichmentWorker } from "./services/alpha/queue";
 import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
 
@@ -82,9 +81,6 @@ app.listen(port, (err) => {
 
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");
-
-  startEnrichmentWorker();
-  logger.info("Enrichment job worker started");
 
   // Sub-capability self-heal — drives every environment toward the same
   // canonical state on boot. If staging and dev drift (e.g., decomposition
