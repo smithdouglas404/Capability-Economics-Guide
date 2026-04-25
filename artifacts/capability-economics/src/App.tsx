@@ -42,7 +42,7 @@ import RoiTracker from "@/pages/roi-tracker";
 import NLQueryPage from "@/pages/nl-query";
 import RegulationsPage from "@/pages/regulations";
 import CollaborationPage from "@/pages/collaboration";
-import Ledger from "@/pages/ledger";
+import Console from "@/pages/console";
 
 const queryClient = new QueryClient();
 
@@ -128,9 +128,10 @@ function Router() {
       <Route path="/ask" component={NLQueryPage} />
       <Route path="/regulations" component={RegulationsPage} />
       <Route path="/collaborate" component={CollaborationPage} />
-      <Route path="/ledger" component={Ledger} />
-      {/* Legacy redirect — older links to /workbench send users to The Ledger. */}
-      <Route path="/workbench">{() => <Redirect to="/ledger" />}</Route>
+      <Route path="/console" component={Console} />
+      {/* Legacy redirects — older links to /workbench or /ledger land on The Console. */}
+      <Route path="/workbench">{() => <Redirect to="/console" />}</Route>
+      <Route path="/ledger">{() => <Redirect to="/console" />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

@@ -93,14 +93,14 @@ router.use(marketplaceListingsRouter);
 router.use(marketplacePurchasesRouter);
 router.use(featuredContentRouter);
 
-// ── Tier-gated routes (The Ledger+) ──
-const ledgerGate = requireTier("ledger");
-router.use("/simulation", ledgerGate);
-router.use("/war-room", ledgerGate);
-router.use("/trade-signals", ledgerGate);
-router.use("/innovation", ledgerGate);
-router.use("/benchmarking", ledgerGate);
-router.use("/roi", ledgerGate);
+// ── Tier-gated routes (The Console+) ──
+const consoleGate = requireTier("console");
+router.use("/simulation", consoleGate);
+router.use("/war-room", consoleGate);
+router.use("/trade-signals", consoleGate);
+router.use("/innovation", consoleGate);
+router.use("/benchmarking", consoleGate);
+router.use("/roi", consoleGate);
 
 router.use(simulationRouter);
 router.use(warRoomRouter);

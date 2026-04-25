@@ -72,8 +72,8 @@ export default function NLQuery() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-6">
         <Badge className="mb-2">AI</Badge>
-        <h1 className="text-3xl font-serif font-bold">Ask Anything</h1>
-        <p className="text-muted-foreground mt-1">Query your capability data using natural language. Ask about EVaR, moat scores, AI exposure, trade signals, and more.</p>
+        <h1 className="text-3xl font-serif font-bold">CE Search</h1>
+        <p className="text-muted-foreground mt-1">Natural-language query across the full capability dataset — EVaR, moat scores, AI exposure, trade signals, dependency impact, and more.</p>
       </div>
 
       {/* Chat Area */}

@@ -148,14 +148,14 @@ export default function Alpha() {
       <Tabs value={tab} onValueChange={setTab} className="w-full">
         <TabsList className="grid grid-cols-5 md:grid-cols-10 mb-6 h-auto">
           <TabsTrigger value="evar" className="flex flex-col items-center gap-1 py-2"><TrendingDown className="h-4 w-4" /><span className="text-[10px]">EVaR</span></TabsTrigger>
-          <TabsTrigger value="cascade" className="flex flex-col items-center gap-1 py-2"><Network className="h-4 w-4" /><span className="text-[10px]">Cascade</span></TabsTrigger>
-          <TabsTrigger value="narrative" className="flex flex-col items-center gap-1 py-2"><GitCompare className="h-4 w-4" /><span className="text-[10px]">Narrative Δ</span></TabsTrigger>
+          <TabsTrigger value="cascade" className="flex flex-col items-center gap-1 py-2"><Network className="h-4 w-4" /><span className="text-[10px]">Dep. Impact</span></TabsTrigger>
+          <TabsTrigger value="narrative" className="flex flex-col items-center gap-1 py-2"><GitCompare className="h-4 w-4" /><span className="text-[10px]">Narrative Gap</span></TabsTrigger>
           <TabsTrigger value="moat" className="flex flex-col items-center gap-1 py-2"><Shield className="h-4 w-4" /><span className="text-[10px]">Moat</span></TabsTrigger>
           <TabsTrigger value="fragility" className="flex flex-col items-center gap-1 py-2"><ShieldAlert className="h-4 w-4" /><span className="text-[10px]">Fragility</span></TabsTrigger>
           <TabsTrigger value="arbitrage" className="flex flex-col items-center gap-1 py-2"><Layers className="h-4 w-4" /><span className="text-[10px]">Arbitrage</span></TabsTrigger>
-          <TabsTrigger value="flows" className="flex flex-col items-center gap-1 py-2"><Waves className="h-4 w-4" /><span className="text-[10px]">Flows</span></TabsTrigger>
+          <TabsTrigger value="flows" className="flex flex-col items-center gap-1 py-2"><Waves className="h-4 w-4" /><span className="text-[10px]">Capital/Talent</span></TabsTrigger>
           <TabsTrigger value="talent" className="flex flex-col items-center gap-1 py-2"><Users className="h-4 w-4" /><span className="text-[10px]">Talent</span></TabsTrigger>
-          <TabsTrigger value="twin" className="flex flex-col items-center gap-1 py-2"><GitMerge className="h-4 w-4" /><span className="text-[10px]">M&A Twin</span></TabsTrigger>
+          <TabsTrigger value="twin" className="flex flex-col items-center gap-1 py-2"><GitMerge className="h-4 w-4" /><span className="text-[10px]">M&A Targets</span></TabsTrigger>
           <TabsTrigger value="thesis" className="flex flex-col items-center gap-1 py-2"><FileText className="h-4 w-4" /><span className="text-[10px]">Thesis</span></TabsTrigger>
         </TabsList>
 

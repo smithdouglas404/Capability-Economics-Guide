@@ -80,8 +80,8 @@ const DEFAULT_TIERS = [
     active: true,
   },
   {
-    slug: "ledger",
-    name: "The Ledger",
+    slug: "console",
+    name: "The Console",
     tagline: "Run the framework on your own situation.",
     description:
       "For operating executives who need simulation, benchmarking, trade signals, and the full CE Alpha intelligence suite to drive strategy decisions.",
@@ -99,13 +99,13 @@ const DEFAULT_TIERS = [
       "Competitive Benchmarking: filter by industry/region/capabilities, AI-powered company discovery",
       "Innovation Pipeline: track projects from ideation through scale with capability uplift",
       "ROI Tracker: quarterly spend, revenue impact, and efficiency gains per capability",
-      "All 10 CE Alpha tabs: EVaR, Cascade, Narrative Δ, Moat, Fragility, Arbitrage, Flows, Talent, M&A Twin, Thesis",
+      "All 10 CE Alpha tabs: EVaR, Dependency Impact, Narrative Gap, Moat, Fragility, Arbitrage, Capital & Talent Flows, Talent, M&A Targets, Thesis",
       "VCE: multi-day autonomous research campaigns",
       "Run custom assessments with SEC EDGAR, voice, document, and competitor analysis",
       "Organization profile and project workspace",
       "Submit up to 10 custom capabilities per month",
     ],
-    ctaLabel: "Start The Ledger",
+    ctaLabel: "Start The Console",
     highlight: true,
     active: true,
   },
@@ -122,7 +122,7 @@ const DEFAULT_TIERS = [
     displayOrder: 3,
     features: [
       "50,000 CEI credits/month",
-      "Everything in The Ledger, with no caps on submissions",
+      "Everything in The Console, with no caps on submissions",
       "Autonomous discovery agent: continuous capability research with Perplexity + GLM-5.1",
       "Full review-queue admin: approve, reject-with-comment, or terminate submissions",
       "Custom industries beyond the 6 included verticals",
@@ -137,19 +137,25 @@ const DEFAULT_TIERS = [
 ];
 
 async function ensureSeeded() {
-  // One-shot rename: the "workbench" tier was rebranded to "The Ledger" in
-  // April 2026. Migrate any existing row in place — but only if there isn't
-  // already a "ledger" row (which would mean the rename already ran on this
-  // DB). Idempotent and safe to re-run on every boot.
+  // One-shot rename chain: the operational tier moved from "workbench" → "ledger"
+  // → "console" over April 2026. Each migration is idempotent and gated on the
+  // newer slug not already existing, so re-running on every boot is safe and
+  // a fresh DB or one already on the latest slug is a no-op.
+  // Step 1: workbench → ledger (Apr 25 2026)
   await db.execute(sql`
     UPDATE membership_tiers
-    SET slug = 'ledger',
-        name = 'The Ledger',
-        cta_label = 'Start The Ledger',
-        tagline = 'Run the framework on your own situation.',
-        updated_at = NOW()
+    SET slug = 'ledger', name = 'The Ledger', cta_label = 'Start The Ledger',
+        tagline = 'Run the framework on your own situation.', updated_at = NOW()
     WHERE slug = 'workbench'
-      AND NOT EXISTS (SELECT 1 FROM membership_tiers WHERE slug = 'ledger')
+      AND NOT EXISTS (SELECT 1 FROM membership_tiers WHERE slug IN ('ledger', 'console'))
+  `);
+  // Step 2: ledger → console (Apr 25 2026, second pass)
+  await db.execute(sql`
+    UPDATE membership_tiers
+    SET slug = 'console', name = 'The Console', cta_label = 'Start The Console',
+        updated_at = NOW()
+    WHERE slug = 'ledger'
+      AND NOT EXISTS (SELECT 1 FROM membership_tiers WHERE slug = 'console')
   `);
 
   // Insert any DEFAULT_TIERS slug that isn't already in the DB. We deliberately

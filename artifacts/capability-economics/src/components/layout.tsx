@@ -36,19 +36,18 @@ const navGroups: NavGroup[] = [
     label: "Workspace",
     matchPaths: ["/companies", "/projects", "/watchlist", "/collaborate"],
     children: [
-      { href: "/companies", label: "Companies", icon: Building2, description: "Tracked organizations" },
+      { href: "/companies", label: "Portfolio", icon: Building2, description: "Tracked organizations" },
       { href: "/projects", label: "Projects", icon: Layers, description: "Your active engagements" },
       { href: "/watchlist", label: "Watchlist", icon: Bell, description: "Saved capabilities & alerts" },
-      { href: "/collaborate", label: "Collaboration", icon: MessageCircle, description: "Team activity & comments" },
+      { href: "/collaborate", label: "Strategy Decisions", icon: MessageCircle, description: "Recorded executive decisions & rationale" },
     ],
   },
   {
     label: "Assess",
-    matchPaths: ["/assess", "/review", "/insurance-example"],
+    matchPaths: ["/assess", "/review"],
     children: [
       { href: "/assess", label: "Run Assessment", icon: ScanSearch, description: "Start a capability assessment" },
       { href: "/review", label: "Review Queue", icon: Inbox, description: "Pending QA & approvals" },
-      { href: "/insurance-example", label: "Case Studies", icon: Shield, description: "Reference walkthroughs" },
     ],
   },
   {
@@ -60,7 +59,7 @@ const navGroups: NavGroup[] = [
     label: "Strategy",
     matchPaths: ["/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
     children: [
-      { href: "/war-room", label: "War Room", icon: Swords, description: "Live incident & response coordination" },
+      { href: "/war-room", label: "War Room", icon: Swords, description: "Real-time competitive capability comparison" },
       { href: "/simulation", label: "Simulate", icon: FlaskConical, description: "What-if scenario modeling" },
       { href: "/trade-signals", label: "Trade Signals", icon: Target, description: "Forward-looking signals" },
       { href: "/innovation", label: "Innovation Pipeline", icon: Rocket, description: "Emerging capabilities" },
@@ -73,8 +72,8 @@ const navGroups: NavGroup[] = [
     matchPaths: ["/insights", "/ask", "/alpha"],
     children: [
       { href: "/insights", label: "Insights Feed", icon: Lightbulb, description: "Curated narratives & analysis" },
-      { href: "/ask", label: "Ask", icon: MessageSquare, description: "Natural-language query" },
-      { href: "/alpha", label: "CE Alpha Suite", icon: Activity, description: "Product hub overview" },
+      { href: "/ask", label: "CE Search", icon: MessageSquare, description: "Natural-language query over the capability dataset" },
+      { href: "/alpha", label: "CE Alpha", icon: Activity, description: "Advanced analytics: EVaR, moat, dependency impact, M&A targets" },
     ],
   },
 ];

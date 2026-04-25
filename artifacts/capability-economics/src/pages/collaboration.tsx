@@ -144,8 +144,8 @@ export default function Collaboration() {
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <Badge className="mb-2">Strategy</Badge>
-          <h1 className="text-3xl font-serif font-bold">Collaborative Workspace</h1>
-          <p className="text-muted-foreground mt-1">Cross-functional strategy discussion, annotation, and decision logging on capabilities.</p>
+          <h1 className="text-3xl font-serif font-bold">Strategy Decisions</h1>
+          <p className="text-muted-foreground mt-1">Record executive invest / hold / divest decisions on capabilities, with rationale and discussion threads.</p>
         </div>
       </div>
 

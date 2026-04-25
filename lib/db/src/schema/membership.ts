@@ -120,8 +120,9 @@ export const CREDIT_COSTS = {
 export const TIER_ALLOCATIONS: Record<string, number> = {
   discovery: 50,
   briefing: 500,
-  ledger: 5000,
-  workbench: 5000, // legacy alias — remove once all rows are migrated
+  console: 5000,
+  ledger: 5000, // legacy alias
+  workbench: 5000, // legacy alias
   platform: 50000,
 };
 

@@ -117,12 +117,12 @@ export default function EnrichmentAdmin() {
   // the background, row shows up in Recent Runs below).
   const runEverything = async () => {
     if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
-    if (!confirm("Run enrichment now?\n\n• Kicks off The Ledger refresh (runs in background, ~10-15 min)\n• Runs next batch of 10 capability detail enrichments inline (5-15 min, this request blocks)\n\nRe-click to process the next batch of 10.")) return;
+    if (!confirm("Run enrichment now?\n\n• Kicks off The Console refresh (runs in background, ~10-15 min)\n• Runs next batch of 10 capability detail enrichments inline (5-15 min, this request blocks)\n\nRe-click to process the next batch of 10.")) return;
     setSyncRunning(true);
     setError(null);
     setLastResult(null);
     try {
-      // Fire-and-forget the The Ledger refresh — we don't wait on it.
+      // Fire-and-forget the The Console refresh — we don't wait on it.
       fetch(`${API_BASE}/enrichment/run`, { method: "POST", credentials: "include" }).catch(() => { /* surfaced in Recent Runs */ });
       // Await the sync alpha batch so the user sees real counts return.
       const res = await fetch(`${API_BASE}/alpha/enrich-sync`, {
@@ -133,7 +133,7 @@ export default function EnrichmentAdmin() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { setError(body.error || `Run failed (${res.status})`); return; }
-      setLastResult(`Enriched ${body.capabilitiesEnriched ?? 0} capabilities + ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s. The Ledger refresh running in background.`);
+      setLastResult(`Enriched ${body.capabilitiesEnriched ?? 0} capabilities + ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s. The Console refresh running in background.`);
       fetchAll();
     } catch (e) {
       setError(String(e));
@@ -542,7 +542,7 @@ export default function EnrichmentAdmin() {
           <Button
             onClick={runEverything}
             disabled={syncRunning || !isSignedIn}
-            title={!isSignedIn ? "Sign in to run enrichment" : "Runs The Ledger refresh in background + next 10 capability detail enrichments inline"}
+            title={!isSignedIn ? "Sign in to run enrichment" : "Runs The Console refresh in background + next 10 capability detail enrichments inline"}
             className="gap-2"
           >
             {syncRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -551,7 +551,7 @@ export default function EnrichmentAdmin() {
           <Button variant="outline" onClick={fetchAll} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
-          <a href="/ledger" className="ml-auto text-sm text-primary hover:underline self-center">View The Ledger →</a>
+          <a href="/console" className="ml-auto text-sm text-primary hover:underline self-center">View The Console →</a>
         </div>
         {alphaStatus && (
           <div className="mb-6 text-xs text-muted-foreground">

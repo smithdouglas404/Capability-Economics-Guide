@@ -33,7 +33,8 @@ type KycStatus = {
 const FALLBACK_LEVELS: Record<string, string> = {
   discovery: "email",
   briefing: "identity",
-  ledger: "biometric",
+  console: "biometric",
+  ledger: "biometric", // legacy alias
   workbench: "biometric", // legacy alias
   platform: "full",
 };
