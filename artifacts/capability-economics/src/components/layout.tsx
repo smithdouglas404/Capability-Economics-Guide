@@ -57,9 +57,9 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Strategy",
-    matchPaths: ["/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
+    matchPaths: ["/scorecard", "/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
     children: [
-      { href: "/war-room", label: "War Room", icon: Swords, description: "Real-time competitive capability comparison" },
+      { href: "/scorecard", label: "Capability Scorecard", icon: Swords, description: "Your scores vs. industry benchmarks, gap-by-gap" },
       { href: "/simulation", label: "Simulate", icon: FlaskConical, description: "What-if scenario modeling" },
       { href: "/trade-signals", label: "Trade Signals", icon: Target, description: "Forward-looking signals" },
       { href: "/innovation", label: "Innovation Pipeline", icon: Rocket, description: "Emerging capabilities" },

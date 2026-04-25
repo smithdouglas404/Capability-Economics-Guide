@@ -21,7 +21,7 @@ type MatrixRow = {
 
 type Alert = { type: string; message: string; severity: string; capabilityId: number };
 
-export default function WarRoom() {
+export default function CapabilityScorecard() {
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [orgName, setOrgName] = useState("");
@@ -52,9 +52,9 @@ export default function WarRoom() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2" variant="destructive">Live</Badge>
-          <h1 className="text-3xl font-serif font-bold">Competitive War Room</h1>
-          <p className="text-muted-foreground mt-1">{orgName || "Your organization"} vs. industry benchmarks — capability radar, moat gaps, and AI exposure.</p>
+          <Badge className="mb-2">Live</Badge>
+          <h1 className="text-3xl font-serif font-bold">Capability Scorecard</h1>
+          <p className="text-muted-foreground mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
         </div>
         <Button onClick={load} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
       </div>

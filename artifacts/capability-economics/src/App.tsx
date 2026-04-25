@@ -33,7 +33,7 @@ import KycPage from "@/pages/kyc";
 import Companies from "@/pages/companies";
 import Usage from "@/pages/usage";
 import Simulation from "@/pages/simulation";
-import WarRoom from "@/pages/war-room";
+import CapabilityScorecard from "@/pages/scorecard";
 import TradeSignalsPage from "@/pages/trade-signals";
 import InnovationPipeline from "@/pages/innovation-pipeline";
 import WatchlistPage from "@/pages/watchlist";
@@ -119,7 +119,9 @@ function Router() {
       <Route path="/companies" component={Companies} />
       <Route path="/usage" component={Usage} />
       <Route path="/simulation" component={Simulation} />
-      <Route path="/war-room" component={WarRoom} />
+      <Route path="/scorecard" component={CapabilityScorecard} />
+      {/* Legacy redirect — older /war-room links land on the renamed scorecard. */}
+      <Route path="/war-room">{() => <Redirect to="/scorecard" />}</Route>
       <Route path="/trade-signals" component={TradeSignalsPage} />
       <Route path="/innovation" component={InnovationPipeline} />
       <Route path="/watchlist" component={WatchlistPage} />

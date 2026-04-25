@@ -94,7 +94,7 @@ const DEFAULT_TIERS = [
       "5,000 CEI credits/month",
       "Everything in Briefing",
       "What-If Simulation Engine: model investments, see CEI/moat/fragility/EVaR projections",
-      "Competitive War Room: real-time capability comparison with gap alerts",
+      "Capability Scorecard: your scores vs. industry benchmarks with gap alerts",
       "Trade Signals: long/short signals from CE vs. street quadrant divergence",
       "Competitive Benchmarking: filter by industry/region/capabilities, AI-powered company discovery",
       "Innovation Pipeline: track projects from ideation through scale with capability uplift",
