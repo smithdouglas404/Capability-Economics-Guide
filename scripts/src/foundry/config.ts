@@ -5,15 +5,26 @@
  * code changes. Set FOUNDRY_BASE_URL + FOUNDRY_TOKEN as Replit Secrets.
  */
 
+// Accept multiple env-var names so whatever the user already configured works:
+//   token:    FOUNDRY_TOKEN | PALANTIR_TOKEN | PALANTIR_FOUNDRY_TOKEN
+//   baseUrl:  FOUNDRY_BASE_URL | PALANTIR_URL | PALANTIR_BASE_URL | FOUNDRY_URL
+function pickEnv(...names: string[]): string | undefined {
+  for (const n of names) {
+    const v = process.env[n];
+    if (v) return v;
+  }
+  return undefined;
+}
+
 export const FOUNDRY = {
   get baseUrl(): string {
-    const v = process.env.FOUNDRY_BASE_URL;
-    if (!v) throw new Error("FOUNDRY_BASE_URL env var not set");
+    const v = pickEnv("FOUNDRY_BASE_URL", "PALANTIR_URL", "PALANTIR_BASE_URL", "FOUNDRY_URL");
+    if (!v) throw new Error("Foundry URL env var not set (tried FOUNDRY_BASE_URL, PALANTIR_URL, PALANTIR_BASE_URL, FOUNDRY_URL)");
     return v.replace(/\/$/, "");
   },
   get token(): string {
-    const v = process.env.FOUNDRY_TOKEN;
-    if (!v) throw new Error("FOUNDRY_TOKEN env var not set");
+    const v = pickEnv("FOUNDRY_TOKEN", "PALANTIR_TOKEN", "PALANTIR_FOUNDRY_TOKEN");
+    if (!v) throw new Error("Foundry token env var not set (tried FOUNDRY_TOKEN, PALANTIR_TOKEN, PALANTIR_FOUNDRY_TOKEN)");
     return v;
   },
 };
