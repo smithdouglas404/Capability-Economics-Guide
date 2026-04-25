@@ -6,6 +6,9 @@ import {
   billingOrgMembersTable,
   billingOrgInvitesTable,
   membershipTiersTable,
+  userPersonasTable,
+  PERSONA_SLUGS,
+  type PersonaSlug,
 } from "@workspace/db";
 import { and, asc, desc, eq, isNull, gt } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -211,6 +214,33 @@ router.patch("/billing-orgs/:id/seats", async (req, res) => {
   }
 
   res.json({ ok: true, seatLimit: parsed.data.seatLimit });
+});
+
+/**
+ * Set the org's default persona — applied to new users at invite-acceptance
+ * time. Existing members are not retroactively switched. Pass slug=null to
+ * clear (then new invitees see the regular onboarding picker).
+ */
+router.patch("/billing-orgs/:id/default-persona", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const orgId = Number(req.params.id);
+  if (!Number.isFinite(orgId)) { res.status(400).json({ error: "bad id" }); return; }
+  const role = await requireOrgRole(auth.userId, orgId, "admin");
+  if (!role) { res.status(403).json({ error: "Forbidden — admin or owner only" }); return; }
+
+  const slug = (req.body as { slug?: unknown } | null)?.slug;
+  if (slug !== null && !(typeof slug === "string" && (PERSONA_SLUGS as readonly string[]).includes(slug))) {
+    res.status(400).json({ error: "Invalid slug — must be one of PERSONA_SLUGS or null", validSlugs: PERSONA_SLUGS });
+    return;
+  }
+
+  await db.update(billingOrganizationsTable).set({
+    defaultPersonaSlug: slug as string | null,
+    updatedAt: new Date(),
+  }).where(eq(billingOrganizationsTable.id, orgId));
+
+  res.json({ ok: true, defaultPersonaSlug: slug });
 });
 
 /** Owner can cancel the org subscription. */
@@ -421,12 +451,15 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
     eq(billingOrgMembersTable.userId, auth.userId),
   )).limit(1);
 
+  let orgDefaultPersona: string | null = null;
+
   if (!existing) {
     // Seat-check + member insert atomically so two concurrent accept calls can't both succeed.
     try {
       await db.transaction(async (tx) => {
         const [org] = await tx.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, invite.orgId)).for("update");
         if (!org) throw Object.assign(new Error("Org no longer exists"), { statusCode: 404 });
+        orgDefaultPersona = org.defaultPersonaSlug ?? null;
         const members = await tx.select().from(billingOrgMembersTable).where(eq(billingOrgMembersTable.orgId, invite.orgId));
         if (members.length >= org.seatLimit) {
           throw Object.assign(new Error("Seat limit reached — cannot accept invite"), { statusCode: 402 });
@@ -444,6 +477,22 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
       if (e.statusCode) { res.status(e.statusCode).json({ error: e.message }); return; }
       throw err;
     }
+  } else {
+    // User already a member — pull org's default persona for the application step below.
+    const [org] = await db.select().from(billingOrganizationsTable).where(eq(billingOrganizationsTable.id, invite.orgId)).limit(1);
+    orgDefaultPersona = org?.defaultPersonaSlug ?? null;
+  }
+
+  // Apply the org's default persona to this user, but only if they haven't
+  // already chosen one. Existing explicit picks are never overwritten.
+  if (orgDefaultPersona && (PERSONA_SLUGS as readonly string[]).includes(orgDefaultPersona)) {
+    const [existingPersona] = await db.select().from(userPersonasTable).where(eq(userPersonasTable.userId, auth.userId)).limit(1);
+    if (!existingPersona) {
+      await db.insert(userPersonasTable).values({
+        userId: auth.userId,
+        activePersonaSlug: orgDefaultPersona as PersonaSlug,
+      });
+    }
   }
 
   await db.update(billingOrgInvitesTable).set({
@@ -452,7 +501,7 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
   }).where(eq(billingOrgInvitesTable.id, invite.id));
 
   void syncOrgStripeSeats(invite.orgId);
-  res.json({ ok: true, orgId: invite.orgId });
+  res.json({ ok: true, orgId: invite.orgId, appliedDefaultPersona: orgDefaultPersona });
 });
 
 const TransferOwnershipBody = z.object({

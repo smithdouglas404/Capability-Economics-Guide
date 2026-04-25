@@ -57,7 +57,13 @@
       "Bash(npx skills *)",
       "Bash(find /tmp/skills-* -name \"SKILL.md\" -path '*/skills/*')",
       "Bash(env)",
-      "Bash(pnpm --filter @workspace/db run build)"
+      "Bash(pnpm --filter @workspace/db run build)",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/admin/enrichment/industries\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/healthz/schema\")",
+      "Bash(curl -s \"https://capabilityeconomics-staging.up.railway.app/api/admin/enrichment/health\")",
+      "Bash(python3 -c ' *)",
+      "Bash(git mv *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

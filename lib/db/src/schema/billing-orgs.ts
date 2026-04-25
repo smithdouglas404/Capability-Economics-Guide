@@ -24,6 +24,8 @@ export const billingOrganizationsTable = pgTable(
     // Stripe subscription that covers this org's seats (nullable until billing is wired)
     stripeSubscriptionId: text("stripe_subscription_id"),
     stripeCustomerId: text("stripe_customer_id"),
+    // Applied to invitees at acceptance time so they land in the org's preferred workspace.
+    defaultPersonaSlug: text("default_persona_slug"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

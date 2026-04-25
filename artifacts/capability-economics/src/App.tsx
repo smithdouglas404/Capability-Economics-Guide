@@ -43,6 +43,7 @@ import NLQueryPage from "@/pages/nl-query";
 import RegulationsPage from "@/pages/regulations";
 import CollaborationPage from "@/pages/collaboration";
 import Console from "@/pages/console";
+import OnboardingPersona from "@/pages/onboarding-persona";
 
 const queryClient = new QueryClient();
 
@@ -134,6 +135,7 @@ function Router() {
       {/* Legacy redirects — older links to /workbench or /ledger land on The Console. */}
       <Route path="/workbench">{() => <Redirect to="/console" />}</Route>
       <Route path="/ledger">{() => <Redirect to="/console" />}</Route>
+      <Route path="/onboarding/persona" component={OnboardingPersona} />
       <Route component={NotFound} />
     </Switch>
   );

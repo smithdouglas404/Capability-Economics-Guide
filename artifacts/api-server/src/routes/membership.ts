@@ -6,6 +6,8 @@ import {
   creditAccountsTable,
   creditTransactionsTable,
   kycVerificationsTable,
+  userPersonasTable,
+  DEFAULT_PERSONA_SLUG,
 } from "@workspace/db";
 import { asc, desc, eq, and, sql } from "drizzle-orm";
 import { z } from "zod/v4";
@@ -231,6 +233,9 @@ router.get("/me/membership", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
+  const [personaRow] = await db.select().from(userPersonasTable).where(eq(userPersonasTable.userId, auth.userId));
+  const personaSlug = personaRow?.activePersonaSlug ?? DEFAULT_PERSONA_SLUG;
+
   // Admins: if they don't already have a membership row, auto-provision a real
   // Platform-tier active row so (a) they show up in the Members list like any
   // other user, (b) they don't need to self-assign a tier, and (c) every gate
@@ -247,7 +252,7 @@ router.get("/me/membership", async (req, res) => {
     if (existing && existing.status === "active") {
       // Already provisioned — just return.
       const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, existing.tierId));
-      res.json({ membership: existing, tier: tier ?? null });
+      res.json({ membership: existing, tier: tier ?? null, personaSlug });
       return;
     }
 
@@ -277,7 +282,7 @@ router.get("/me/membership", async (req, res) => {
         updatedAt: new Date(),
       }).where(eq(userMembershipsTable.id, created!.id));
       const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
-      res.json({ membership: final, tier: platform });
+      res.json({ membership: final, tier: platform, personaSlug });
       return;
     }
   }
@@ -288,10 +293,10 @@ router.get("/me/membership", async (req, res) => {
     .where(eq(userMembershipsTable.userId, auth.userId))
     .orderBy(desc(userMembershipsTable.requestedAt))
     .limit(1);
-  if (rows.length === 0) { res.json({ membership: null }); return; }
+  if (rows.length === 0) { res.json({ membership: null, personaSlug }); return; }
   const m = rows[0]!;
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, m.tierId));
-  res.json({ membership: m, tier: tier ?? null });
+  res.json({ membership: m, tier: tier ?? null, personaSlug });
 });
 
 router.post("/me/membership/request", async (req, res) => {
