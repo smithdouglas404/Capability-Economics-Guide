@@ -44,6 +44,7 @@ interface EnrichmentHealth {
   decompositionParity: { totalTopLevel: number; decomposed: number; missing: number };
   autoEnrich: { config: { enabled: boolean; refreshDays: number; lastRunAt: string | null; lastRunEnqueued: number } | null; configError: string | null };
   queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number; error: string | null };
+  lifetime: { completed: number; failed: number; capsEnriched: number; edgesEnriched: number };
   recentErrors: Array<{ capabilityId: number; name: string; error: string; updatedAt: string | null }>;
   silentFailure: null | { lastTickAt: string; enqueuedCount: number; minutesSinceTick: number; newEconomicsSinceTick: number; message: string };
   generatedAt: string;
@@ -381,18 +382,22 @@ export default function EnrichmentAdmin() {
                 )}
               </div>
 
-              {/* Redis queue depth */}
+              {/* Worker activity — lifetime counts from Redis (survive removeOnComplete) */}
               <div className="p-3">
-                <div className="text-xs text-muted-foreground flex items-center gap-1"><Server className="w-3 h-3" /> Queue</div>
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Server className="w-3 h-3" /> Jobs run</div>
                 {!health.queue.configured ? (
                   <div className="text-sm text-red-700">REDIS_URL not set</div>
                 ) : health.queue.error ? (
                   <div className="text-sm text-red-700" title={health.queue.error}>unreachable</div>
                 ) : (
                   <>
-                    <div className="text-2xl font-mono">{health.queue.waiting + health.queue.active}</div>
+                    <div className="text-2xl font-mono">{health.lifetime.completed.toLocaleString()}</div>
                     <div className="text-[11px] text-muted-foreground mt-0.5">
-                      {health.queue.waiting} waiting · {health.queue.active} active · {health.queue.failed} failed
+                      since deploy
+                      {health.lifetime.failed > 0 && <> · <span className="text-red-700">{health.lifetime.failed} failed</span></>}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                      now: {health.queue.waiting} waiting · {health.queue.active} active
                     </div>
                   </>
                 )}

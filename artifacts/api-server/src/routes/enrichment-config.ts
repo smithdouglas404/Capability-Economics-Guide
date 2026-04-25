@@ -4,7 +4,7 @@ import { sql, desc, eq, gt, isNull, asc } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { isRedisConfigured } from "../services/alpha/redis";
-import { getQueueStats } from "../services/alpha/queue";
+import { getQueueStats, getLifetimeJobCounts } from "../services/alpha/queue";
 import { getCachedSchemaStatus } from "../lib/schema-check";
 
 const router: IRouter = Router();
@@ -213,14 +213,17 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     configError = err instanceof Error ? err.message : String(err);
   }
 
-  // Redis queue depth — only if redis is configured AND the queue can be
-  // reached. Failure here is informational (the worker just can't run), not
-  // fatal for the endpoint.
+  // Redis queue depth + lifetime counters. The lifetime counters survive
+  // BullMQ's removeOnComplete:true (which wipes its built-in completed
+  // counter) by tracking INCRs on dedicated Redis keys. So the UI can show
+  // a real, monotonically-rising "jobs completed since deploy" number
+  // instead of the always-zero queue.completed lie.
   let queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number } | null = null;
+  let lifetime: { completed: number; failed: number; capsEnriched: number; edgesEnriched: number } = { completed: 0, failed: 0, capsEnriched: 0, edgesEnriched: 0 };
   let queueError: string | null = null;
   if (isRedisConfigured()) {
     try {
-      const stats = await getQueueStats();
+      const [stats, lt] = await Promise.all([getQueueStats(), getLifetimeJobCounts()]);
       queue = {
         configured: true,
         waiting: stats.waiting,
@@ -229,6 +232,7 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
         failed: stats.failed,
         completed: stats.completed,
       };
+      lifetime = lt;
     } catch (err) {
       queueError = err instanceof Error ? err.message : String(err);
       queue = { configured: true, waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 };
@@ -309,6 +313,7 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     decompositionParity,
     autoEnrich: { config, configError },
     queue: { ...queue, error: queueError },
+    lifetime,
     recentErrors,
     silentFailure,
     generatedAt: new Date().toISOString(),

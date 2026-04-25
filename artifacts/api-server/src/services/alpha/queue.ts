@@ -149,6 +149,28 @@ export async function getQueuePositionFor(
   return { jobId: Number(queue[idx].id ?? 0), status: "queued", ahead: idx };
 }
 
+// Lifetime job counters live in Redis directly so they survive
+// removeOnComplete:true (which is what wipes BullMQ's own completed counter).
+// One INCR per success/failure — cheap, persistent, no schema change.
+const LIFETIME_KEY_COMPLETED = "enrichment:lifetime:completed";
+const LIFETIME_KEY_FAILED = "enrichment:lifetime:failed";
+const LIFETIME_KEY_CAPS_ENRICHED = "enrichment:lifetime:caps_enriched";
+const LIFETIME_KEY_EDGES_ENRICHED = "enrichment:lifetime:edges_enriched";
+
+export async function getLifetimeJobCounts(): Promise<{ completed: number; failed: number; capsEnriched: number; edgesEnriched: number }> {
+  if (!isRedisConfigured()) return { completed: 0, failed: 0, capsEnriched: 0, edgesEnriched: 0 };
+  try {
+    const r = getRedis();
+    const [c, f, ce, ee] = await r.mget(LIFETIME_KEY_COMPLETED, LIFETIME_KEY_FAILED, LIFETIME_KEY_CAPS_ENRICHED, LIFETIME_KEY_EDGES_ENRICHED);
+    return {
+      completed: c ? Number(c) : 0,
+      failed: f ? Number(f) : 0,
+      capsEnriched: ce ? Number(ce) : 0,
+      edgesEnriched: ee ? Number(ee) : 0,
+    };
+  } catch { return { completed: 0, failed: 0, capsEnriched: 0, edgesEnriched: 0 }; }
+}
+
 async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, unknown>> {
   const start = Date.now();
   const { jobType, payload, capabilityId } = job.data;
@@ -174,6 +196,13 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
           await setCapabilityEnrichment(capabilityId, "failed", "alpha", `alpha: ${errs[0].slice(0, 300)}`);
         }
       }
+      // Lifetime counters — persist beyond removeOnComplete.
+      try {
+        const redisClient = getRedis();
+        await redisClient.incr(LIFETIME_KEY_COMPLETED);
+        if (r.capabilitiesEnriched > 0) await redisClient.incrby(LIFETIME_KEY_CAPS_ENRICHED, r.capabilitiesEnriched);
+        if (r.edgesEnriched > 0) await redisClient.incrby(LIFETIME_KEY_EDGES_ENRICHED, r.edgesEnriched);
+      } catch { /* counter is informational; never fail the job for it */ }
       log.info({ jobId: job.id, durationMs: Date.now() - start }, "[queue] job completed");
       return r as unknown as Record<string, unknown>;
     } else if (jobType === "detail") {
@@ -192,6 +221,7 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
           await setCapabilityEnrichment(capabilityId, "ready", "done", null);
         }
       }
+      try { await getRedis().incr(LIFETIME_KEY_COMPLETED); } catch { /* informational */ }
       log.info({ jobId: job.id, durationMs: Date.now() - start }, "[queue] job completed");
       return r as unknown as Record<string, unknown>;
     } else {
@@ -199,6 +229,7 @@ async function processJob(job: Job<EnrichmentJobData>): Promise<Record<string, u
     }
   } catch (err) {
     const message = String(err).slice(0, 1000);
+    try { await getRedis().incr(LIFETIME_KEY_FAILED); } catch { /* informational */ }
     if (capabilityId != null) {
       await setCapabilityEnrichment(capabilityId, "failed", stage, `${stage}: ${message.slice(0, 300)}`);
     }
