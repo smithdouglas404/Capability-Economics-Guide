@@ -1,5 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
+import { logFeatureUsed } from "../services/persona-events";
 import {
   companiesTable,
   companyScoresTable,
@@ -48,6 +50,7 @@ function stripMarkdown(md: string): string {
 }
 
 router.post("/diligence/generate", async (req: Request, res: Response) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/diligence/generate" });
   try {
     const companyId = parseInt(String(req.body?.companyId ?? ""), 10);
     if (!Number.isFinite(companyId)) {

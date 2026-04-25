@@ -1,5 +1,7 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { runScreener, type ScreenerFilters } from "../services/screener";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -8,6 +10,7 @@ const router: IRouter = Router();
  * Returns { rows, count, filters }. Public read; sorted server-side by composite desc.
  */
 router.get("/screener", async (req, res) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/screener" });
   const filters: ScreenerFilters = {
     industryId: req.query.industryId ? Number(req.query.industryId) : undefined,
     scoreMin: req.query.scoreMin ? Number(req.query.scoreMin) : undefined,

@@ -28,5 +28,7 @@ export * from "./billing-orgs";
 export * from "./marketplace";
 export * from "./featured-content";
 export * from "./personas";
+export * from "./persona-events";
 export * from "./pe-portfolios";
 export * from "./saved-views";
+export * from "./curriculum";

@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { db, organizationsTable, industriesTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
 import { randomUUID } from "crypto";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
-router.post("/sandbox/clone", async (_req, res) => {
+router.post("/sandbox/clone", async (req, res) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/sandbox/clone" });
   const [industry] = await db
     .select()
     .from(industriesTable)

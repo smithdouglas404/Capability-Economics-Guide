@@ -119,6 +119,7 @@ export const CREDIT_COSTS = {
 
 export const TIER_ALLOCATIONS: Record<string, number> = {
   discovery: 50,
+  edu: 500,
   briefing: 500,
   console: 5000,
   ledger: 5000, // legacy alias

@@ -60,6 +60,7 @@ import Methodology from "@/pages/methodology";
 import Citations from "@/pages/citations";
 import Bookmarks from "@/pages/bookmarks";
 import Curriculum from "@/pages/curriculum";
+import CurriculumPack from "@/pages/curriculum-pack";
 import Boardroom from "@/pages/boardroom";
 import Datasets from "@/pages/datasets";
 import Export from "@/pages/export";
@@ -180,6 +181,7 @@ function Router() {
       <Route path="/citations" component={Citations} />
       <Route path="/bookmarks" component={Bookmarks} />
       <Route path="/curriculum" component={Curriculum} />
+      <Route path="/curriculum/:slug" component={CurriculumPack} />
       <Route path="/boardroom" component={Boardroom} />
       <Route path="/datasets" component={Datasets} />
       <Route path="/export" component={Export} />

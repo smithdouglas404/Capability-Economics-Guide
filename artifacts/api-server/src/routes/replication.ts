@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import {
   ceiComponentsTable,
@@ -9,6 +10,7 @@ import {
 } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
 import { CEI_METHODOLOGY } from "../services/cei-engine";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -38,6 +40,7 @@ def ema_velocity(group):
 `;
 
 router.post("/replication/bundle", async (req, res) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/replication/bundle" });
   try {
     const industryId = req.body?.industryId !== undefined ? Number(req.body.industryId) : undefined;
     if (industryId === undefined || Number.isNaN(industryId)) {

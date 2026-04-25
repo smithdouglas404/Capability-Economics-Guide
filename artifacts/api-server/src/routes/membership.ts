@@ -56,6 +56,31 @@ const DEFAULT_TIERS = [
     active: true,
   },
   {
+    slug: "edu",
+    name: "Educator",
+    tagline: "Free for verified .edu emails. The platform as your textbook.",
+    description:
+      "For professors, students, and academic researchers. All Briefing-tier capabilities, granted automatically when your primary email is on a recognized .edu domain.",
+    monthlyPriceCents: 0,
+    annualPriceCents: 0,
+    isContactSales: false,
+    priceLocked: true,
+    displayOrder: 1,
+    features: [
+      "500 CEI credits/month",
+      "Index Board (Bloomberg-style capability grid across all 6 industries)",
+      "Sandbox org: clone TeachCorp for student exercises (zero impact on real data)",
+      "Citation export: BibTeX and RIS for research papers",
+      "Curriculum packs: ready-to-teach case studies + assignments",
+      "Bookmarks and present mode for in-class projection",
+      "Watchlist + Insights feed",
+      "Cross-industry capability comparison",
+    ],
+    ctaLabel: "Apply with .edu email",
+    highlight: false,
+    active: true,
+  },
+  {
     slug: "briefing",
     name: "Briefing",
     tagline: "Read the framework. See the data.",
@@ -293,7 +318,50 @@ router.get("/me/membership", async (req, res) => {
     .where(eq(userMembershipsTable.userId, auth.userId))
     .orderBy(desc(userMembershipsTable.requestedAt))
     .limit(1);
-  if (rows.length === 0) { res.json({ membership: null, personaSlug }); return; }
+
+  // Edu auto-grant: any verified .edu primary email gets an active Edu-tier
+  // membership and lands in the Academic persona on first sign-in. Idempotent —
+  // we only create the row when the user has none yet.
+  if (rows.length === 0) {
+    const userEmail = (req.headers["x-user-email"] as string | undefined) ?? null;
+    if (userEmail && /\.edu(?:\.[a-z]{2,3})?$/i.test(userEmail.trim())) {
+      await ensureSeeded();
+      const [edu] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.slug, "edu"));
+      if (edu) {
+        const userName = (req.headers["x-user-name"] as string | undefined) ?? null;
+        const [created] = await db.insert(userMembershipsTable).values({
+          userId: auth.userId,
+          userEmail,
+          userName,
+          tierId: edu.id,
+          entityType: "individual",
+          entityName: userName ?? userEmail,
+          entityIndustry: "Education",
+          paymentMethod: "invoice",
+          paymentRef: "EDU",
+          notes: `Auto-granted Educator tier — verified .edu email (${userEmail}).`,
+        }).returning();
+        await db.update(userMembershipsTable).set({
+          status: "active",
+          paymentStatus: "comped",
+          approvedAt: new Date(),
+          approvedBy: "system",
+          updatedAt: new Date(),
+        }).where(eq(userMembershipsTable.id, created!.id));
+        if (!personaRow) {
+          await db.insert(userPersonasTable).values({
+            userId: auth.userId,
+            activePersonaSlug: "academic",
+          });
+        }
+        const [final] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, created!.id));
+        res.json({ membership: final, tier: edu, personaSlug: personaRow?.activePersonaSlug ?? "academic" });
+        return;
+      }
+    }
+    res.json({ membership: null, personaSlug });
+    return;
+  }
   const m = rows[0]!;
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, m.tierId));
   res.json({ membership: m, tier: tier ?? null, personaSlug });

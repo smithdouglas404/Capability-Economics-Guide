@@ -8,6 +8,7 @@ import {
   type PersonaSlug,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { logPersonaEvent } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -51,6 +52,12 @@ router.put("/me/persona", async (req, res) => {
       priorPersonaSlug: existing.activePersonaSlug,
       setAt: new Date(),
     }).where(eq(userPersonasTable.userId, auth.userId));
+    void logPersonaEvent({
+      userId: auth.userId,
+      eventType: "switched",
+      personaSlug: slug,
+      priorPersonaSlug: existing.activePersonaSlug,
+    });
     res.json({ activePersonaSlug: slug, priorPersonaSlug: existing.activePersonaSlug });
     return;
   }
@@ -58,6 +65,11 @@ router.put("/me/persona", async (req, res) => {
   await db.insert(userPersonasTable).values({
     userId: auth.userId,
     activePersonaSlug: slug,
+  });
+  void logPersonaEvent({
+    userId: auth.userId,
+    eventType: "first_set",
+    personaSlug: slug,
   });
   res.json({ activePersonaSlug: slug, priorPersonaSlug: null });
 });

@@ -8,7 +8,7 @@ import {
   FileText, Lightbulb, Trophy, BookOpen, Network, Mic, File, Briefcase,
   ChevronUp, ChevronDown, Minus, Zap, Building2, GitBranch, Layers,
   LayoutDashboard, ShieldCheck, Gift, CreditCard, BookMarked, BookOpenCheck,
-  Settings, Store,
+  Settings, Store, UserCircle2, ArrowRight,
 } from "lucide-react";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
@@ -147,6 +147,232 @@ const CONTENT_TYPES = [
   { key: "caseStudy", label: "Case Study", icon: FileText, staleDays: 2, perIndustry: true },
 ];
 
+type PersonaFunnel = {
+  since: string;
+  totals: { signups: number; switches: number; featureUseRows: number };
+  signups: Array<{ personaSlug: string; count: number; pctOfTotal: number }>;
+  switches: Array<{ fromSlug: string; toSlug: string; count: number }>;
+  featureUse: Array<{ personaSlug: string; feature: string; count: number }>;
+  activeUsers: Array<{ personaSlug: string; users: number }>;
+};
+
+const PERSONA_LABEL: Record<string, string> = {
+  pe_vc: "PE / VC",
+  researcher: "Researcher",
+  academic: "Academic",
+  corporate_exec: "Corporate Exec",
+  entrepreneur: "Entrepreneur",
+  "(none)": "— (no prior persona)",
+};
+
+const PERSONA_COLOR: Record<string, string> = {
+  pe_vc: "bg-purple-500",
+  researcher: "bg-blue-500",
+  academic: "bg-emerald-500",
+  corporate_exec: "bg-amber-500",
+  entrepreneur: "bg-rose-500",
+};
+
+const PERSONA_RANGES: Array<{ key: string; label: string; days: number | null }> = [
+  { key: "7", label: "Last 7d", days: 7 },
+  { key: "30", label: "Last 30d", days: 30 },
+  { key: "90", label: "Last 90d", days: 90 },
+  { key: "all", label: "All time", days: null },
+];
+
+function personaLabel(slug: string): string {
+  return PERSONA_LABEL[slug] ?? slug;
+}
+
+function PersonaFunnelTab() {
+  const [rangeKey, setRangeKey] = useState<string>("30");
+  const range = PERSONA_RANGES.find((r) => r.key === rangeKey) ?? PERSONA_RANGES[1];
+  const since = range.days
+    ? new Date(Date.now() - range.days * 24 * 60 * 60 * 1000).toISOString()
+    // Far back enough to functionally mean "all time" without breaking the param.
+    : new Date("2020-01-01").toISOString();
+  const { data, loading, refetch } = useApi<PersonaFunnel>(
+    `/admin/personas/funnel?since=${encodeURIComponent(since)}`,
+    [rangeKey],
+  );
+
+  const maxActive = Math.max(1, ...(data?.activeUsers.map((r) => r.users) ?? [0]));
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          {PERSONA_RANGES.map((r) => (
+            <Button
+              key={r.key}
+              size="sm"
+              variant={r.key === rangeKey ? "default" : "outline"}
+              onClick={() => setRangeKey(r.key)}
+            >
+              {r.label}
+            </Button>
+          ))}
+        </div>
+        <Button size="sm" variant="ghost" onClick={refetch} className="gap-1.5">
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Gift className="w-5 h-5" /> Signups by persona
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                {data?.totals.signups ?? 0} total
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground uppercase">
+                  <th className="px-4 py-2 text-left">Persona</th>
+                  <th className="px-4 py-2 text-right">Signups</th>
+                  <th className="px-4 py-2 text-right">% of total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">Loading...</td></tr>
+                ) : !data?.signups.length ? (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">No signups in this window.</td></tr>
+                ) : data.signups.map((row) => (
+                  <tr key={row.personaSlug} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{personaLabel(row.personaSlug)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{row.count}</td>
+                    <td className="px-4 py-3 text-right font-mono text-muted-foreground">{row.pctOfTotal.toFixed(1)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Activity className="w-5 h-5" /> Switches between personas
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                {data?.switches.length ?? 0} pairs
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground uppercase">
+                  <th className="px-4 py-2 text-left">From → To</th>
+                  <th className="px-4 py-2 text-right">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={2} className="px-4 py-6 text-center text-muted-foreground">Loading...</td></tr>
+                ) : !data?.switches.length ? (
+                  <tr><td colSpan={2} className="px-4 py-6 text-center text-muted-foreground">No persona switches in this window.</td></tr>
+                ) : data.switches.map((row, i) => (
+                  <tr key={`${row.fromSlug}-${row.toSlug}-${i}`} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-muted-foreground">{personaLabel(row.fromSlug)}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="font-medium">{personaLabel(row.toSlug)}</span>
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Top features by persona
+              <span className="text-sm font-normal text-muted-foreground ml-2">Top 20 by hits</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground uppercase">
+                  <th className="px-4 py-2 text-left">Persona</th>
+                  <th className="px-4 py-2 text-left">Feature</th>
+                  <th className="px-4 py-2 text-right">Hits</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">Loading...</td></tr>
+                ) : !data?.featureUse.length ? (
+                  <tr><td colSpan={3} className="px-4 py-6 text-center text-muted-foreground">No feature usage in this window.</td></tr>
+                ) : data.featureUse.map((row, i) => (
+                  <tr key={`${row.personaSlug}-${row.feature}-${i}`} className="border-b border-border/50 hover:bg-muted/30">
+                    <td className="px-4 py-3 font-medium">{personaLabel(row.personaSlug)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{row.feature}</td>
+                    <td className="px-4 py-3 text-right font-mono">{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Users className="w-5 h-5" /> Active users by persona
+              <span className="text-sm font-normal text-muted-foreground ml-2">Distinct users with any event</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <p className="text-sm text-muted-foreground">Loading...</p>
+            ) : !data?.activeUsers.length ? (
+              <p className="text-sm text-muted-foreground">No active users in this window.</p>
+            ) : (
+              <div className="space-y-3">
+                {data.activeUsers.map((row) => {
+                  const widthPct = (row.users / maxActive) * 100;
+                  const colorClass = PERSONA_COLOR[row.personaSlug] ?? "bg-muted-foreground";
+                  return (
+                    <div key={row.personaSlug}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="font-medium">{personaLabel(row.personaSlug)}</span>
+                        <span className="font-mono text-muted-foreground">{row.users}</span>
+                      </div>
+                      <div className="h-3 w-full rounded bg-muted overflow-hidden">
+                        <div
+                          className={`h-full ${colorClass} transition-all`}
+                          style={{ width: `${widthPct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Window: events since <span className="font-mono">{data?.since ?? since}</span>.
+        Signups counted as <span className="font-mono">first_set</span> + <span className="font-mono">applied_from_org_invite</span>.
+        Active users are distinct user ids with at least one persona event in the window.
+      </p>
+    </div>
+  );
+}
+
 /** Small red-dot badge, shown in the tab trigger next to "Approvals" when there are pending requests. */
 function PendingDot({ count }: { count: number }) {
   if (count <= 0) return null;
@@ -273,6 +499,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="enrichment" className="gap-2"><Zap className="w-4 h-4" /> Enrichment</TabsTrigger>
           <TabsTrigger value="assessments" className="gap-2"><Users className="w-4 h-4" /> Assessments</TabsTrigger>
           <TabsTrigger value="marketplace" className="gap-2"><Store className="w-4 h-4" /> Marketplace</TabsTrigger>
+          <TabsTrigger value="personas" className="gap-2"><UserCircle2 className="w-4 h-4" /> Personas</TabsTrigger>
           <TabsTrigger value="system" className="gap-2"><Settings className="w-4 h-4" /> System</TabsTrigger>
         </TabsList>
 
@@ -713,6 +940,11 @@ export default function AdminDashboard() {
         {/* ─────────────────────── Marketplace tab ─────────────────────── */}
         <TabsContent value="marketplace">
           <MarketplaceModeration />
+        </TabsContent>
+
+        {/* ─────────────────────── Personas tab ─────────────────────── */}
+        <TabsContent value="personas">
+          <PersonaFunnelTab />
         </TabsContent>
 
         {/* ─────────────────────── System tab ─────────────────────── */}

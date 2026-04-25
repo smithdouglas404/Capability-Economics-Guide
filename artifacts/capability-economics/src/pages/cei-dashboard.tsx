@@ -944,7 +944,7 @@ export default function CEIDashboard() {
                                       {t.affectedCapabilityNames.length > 0 && (
                                         <div className="flex flex-wrap gap-1">
                                           {t.affectedCapabilityNames.slice(0, 6).map(n => (
-                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded">{n}</span>
+                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded">{n}</span>
                                           ))}
                                           {t.affectedCapabilityNames.length > 6 && (
                                             <span className="text-[9px] text-muted-foreground">+{t.affectedCapabilityNames.length - 6}</span>
@@ -1132,7 +1132,7 @@ export default function CEIDashboard() {
                                             })}
                                             className={`px-1.5 py-0.5 text-[10px] rounded-sm border transition ${
                                               selected
-                                                ? "bg-violet-600 text-white border-violet-600"
+                                                ? "bg-primary text-primary-foreground border-primary"
                                                 : "bg-background border-border hover:bg-muted"
                                             }`}
                                           >
@@ -1214,7 +1214,7 @@ export default function CEIDashboard() {
                                           {ev.affectedCapabilityIds.slice(0, 4).map(cid => {
                                             const cap = capabilityList?.find(c => c.id === cid);
                                             return (
-                                              <span key={cid} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded" title={cap?.name ?? `#${cid}`}>
+                                              <span key={cid} className="text-[9px] px-1 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded" title={cap?.name ?? `#${cid}`}>
                                                 {cap?.name ?? `#${cid}`}
                                               </span>
                                             );
@@ -1232,7 +1232,7 @@ export default function CEIDashboard() {
                                     <td className="py-1.5 pr-3">
                                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                                         ev.source === "world_scan" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-                                        : ev.source === "catalog" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                                        : ev.source === "catalog" ? "bg-primary/10 text-primary border border-primary/20"
                                         : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                       }`}>
                                         {ev.source === "world_scan" ? "🌐 scan" : ev.source === "catalog" ? "📚 catalog" : "👤 admin"}

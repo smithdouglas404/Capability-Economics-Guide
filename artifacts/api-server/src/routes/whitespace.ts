@@ -1,11 +1,14 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { capabilitiesTable, ceiComponentsTable, industriesTable, capabilityEconomicsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
 router.get("/whitespace", async (req, res) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/whitespace" });
   try {
     const industryId = req.query.industryId ? parseInt(String(req.query.industryId), 10) : undefined;
     const velocityMin = req.query.velocityMin !== undefined ? Number(req.query.velocityMin) : 0.0;

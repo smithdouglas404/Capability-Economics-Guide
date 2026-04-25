@@ -210,9 +210,9 @@ const statusColors = {
 };
 
 const severityConfig: Record<string, { bg: string; text: string; icon: React.ElementType; border: string }> = {
-  critical: { bg: "bg-red-50", text: "text-red-700", icon: AlertTriangle, border: "border-l-red-500" },
-  warning: { bg: "bg-amber-50", text: "text-amber-700", icon: Shield, border: "border-l-amber-500" },
-  info: { bg: "bg-blue-50", text: "text-blue-700", icon: Lightbulb, border: "border-l-blue-500" },
+  critical: { bg: "bg-card", text: "text-red-700", icon: AlertTriangle, border: "border-l-red-500" },
+  warning: { bg: "bg-card", text: "text-amber-700", icon: Shield, border: "border-l-amber-500" },
+  info: { bg: "bg-card", text: "text-primary", icon: Lightbulb, border: "border-l-primary" },
 };
 
 const container = {
@@ -276,7 +276,7 @@ export default function Insights() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/30 py-12 border-b">
+      <section className="py-12 border-b">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-4">
             <Sparkles className="w-3 h-3 mr-1" />
@@ -341,7 +341,7 @@ export default function Insights() {
         {activeTab === "overview" && (
           <div className="space-y-8">
             <div className="grid md:grid-cols-4 gap-4">
-              <Card className="rounded-none border-l-4 border-l-red-500">
+              <Card className="rounded-none border-l-2 border-l-red-500">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -355,7 +355,7 @@ export default function Insights() {
                   <p className="text-xs text-muted-foreground mt-2">Capabilities below minimum viable threshold</p>
                 </CardContent>
               </Card>
-              <Card className="rounded-none border-l-4 border-l-amber-500">
+              <Card className="rounded-none border-l-2 border-l-amber-500">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -369,7 +369,7 @@ export default function Insights() {
                   <p className="text-xs text-muted-foreground mt-2">Capabilities approaching danger zone</p>
                 </CardContent>
               </Card>
-              <Card className="rounded-none border-l-4 border-l-emerald-500">
+              <Card className="rounded-none border-l-2 border-l-emerald-500">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -383,7 +383,7 @@ export default function Insights() {
                   <p className="text-xs text-muted-foreground mt-2">Meeting or exceeding industry benchmarks</p>
                 </CardContent>
               </Card>
-              <Card className="rounded-none border-l-4 border-l-primary">
+              <Card className="rounded-none border-l-2 border-l-primary">
                 <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
                     <div>
@@ -400,13 +400,11 @@ export default function Insights() {
             </div>
 
             {selectedIndustry && (
-              <Card className="rounded-none bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+              <Card className="rounded-none">
                 <CardContent className="py-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <Sparkles className="w-5 h-5 text-primary" />
-                      </div>
+                      <Sparkles className="w-5 h-5 text-primary" />
                       <div>
                         <h3 className="font-semibold text-foreground">AI Capability Analysis</h3>
                         <p className="text-sm text-muted-foreground">Generate fresh AI-powered insights for this industry using real-time capability data</p>
@@ -433,7 +431,7 @@ export default function Insights() {
                     const SevIcon = config.icon;
                     return (
                       <motion.div key={idx} variants={item}>
-                        <Card className={`rounded-none border-l-4 ${config.border}`}>
+                        <Card className={`rounded-none border-l-2 ${config.border}`}>
                           <CardContent className="py-4">
                             <div className="flex items-start gap-3">
                               <div className={`p-1.5 rounded-md ${config.bg}`}>
@@ -519,7 +517,7 @@ export default function Insights() {
                       const SevIcon = config.icon;
                       return (
                         <motion.div key={insight.id} variants={item}>
-                          <Card className={`rounded-none border-l-4 ${config.border}`}>
+                          <Card className={`rounded-none border-l-2 ${config.border}`}>
                             <CardContent className="py-3">
                               <div className="flex items-start gap-2">
                                 <SevIcon className={`w-4 h-4 ${config.text} mt-0.5 shrink-0`} />

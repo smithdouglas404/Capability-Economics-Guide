@@ -14,6 +14,7 @@ import { isClerkAdmin } from "./requireAdmin";
 
 const TIER_RANK: Record<string, number> = {
   discovery: 0,
+  edu: 1, // verified .edu — same gating power as Briefing
   briefing: 1,
   console: 2,
   ledger: 2, // legacy alias

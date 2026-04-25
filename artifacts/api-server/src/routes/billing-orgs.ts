@@ -16,6 +16,7 @@ import { getAuth } from "@clerk/express";
 import { sendOrgInviteEmail } from "../services/email";
 import { logger } from "../lib/logger";
 import { createOrgCheckoutSession, updateOrgSubscriptionSeats, createBillingPortalSession, cancelSubscription, isStripeConfigured } from "../services/stripe";
+import { logPersonaEvent } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -491,6 +492,12 @@ router.post("/billing-orgs/accept-invite", async (req, res) => {
       await db.insert(userPersonasTable).values({
         userId: auth.userId,
         activePersonaSlug: orgDefaultPersona as PersonaSlug,
+      });
+      void logPersonaEvent({
+        userId: auth.userId,
+        eventType: "applied_from_org_invite",
+        personaSlug: orgDefaultPersona,
+        context: { orgId: invite.orgId },
       });
     }
   }

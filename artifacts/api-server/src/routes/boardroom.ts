@@ -1,5 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
+import { logFeatureUsed } from "../services/persona-events";
 import {
   organizationsTable,
   organizationCapabilitiesTable,
@@ -36,6 +38,7 @@ function fmtUsdK(n: number | null | undefined): string {
 }
 
 router.post("/boardroom/generate", async (req: Request, res: Response) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/boardroom/generate" });
   try {
     const sessionToken = String(req.body?.sessionToken ?? "").trim();
     const roleSlug = req.body?.roleSlug ? String(req.body.roleSlug).trim() : null;

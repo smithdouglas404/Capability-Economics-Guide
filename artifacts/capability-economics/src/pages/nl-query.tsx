@@ -97,7 +97,7 @@ export default function NLQuery() {
                 <div className={`max-w-[80%] rounded-lg p-3 ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                    : "bg-card border border-border"
                 }`}>
                   <div className="whitespace-pre-wrap text-sm">
                     {msg.content.split(/(\*\*.*?\*\*)/).map((part, j) =>
@@ -117,7 +117,7 @@ export default function NLQuery() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-muted rounded-lg p-3">
+                <div className="bg-card border border-border rounded-lg p-3">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               </div>

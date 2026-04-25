@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -23,6 +24,7 @@ const PortfolioBody = z.object({
 router.get("/pipeline/portfolios", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  void logFeatureUsed({ userId: auth.userId, feature: "/pipeline/portfolios" });
   const rows = await db.select().from(pePortfoliosTable)
     .where(eq(pePortfoliosTable.userId, auth.userId))
     .orderBy(desc(pePortfoliosTable.updatedAt));

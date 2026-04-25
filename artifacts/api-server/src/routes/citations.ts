@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
+import { getAuth } from "@clerk/express";
 import { db, sourceTriangulationsTable, dataSourcesTable, capabilitiesTable } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
+import { logFeatureUsed } from "../services/persona-events";
 
 const router: IRouter = Router();
 
@@ -15,6 +17,7 @@ function extractYear(value: string | null | undefined): string {
 }
 
 router.get("/citations/export", async (req, res) => {
+  void logFeatureUsed({ userId: getAuth(req)?.userId, feature: "/citations/export" });
   const capabilityId = Number(req.query.capabilityId);
   const format = String(req.query.format ?? "bibtex").toLowerCase();
   if (!Number.isFinite(capabilityId)) { res.status(400).json({ error: "capabilityId required" }); return; }

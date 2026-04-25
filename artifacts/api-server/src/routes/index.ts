@@ -12,6 +12,7 @@ import contentRouter from "./content";
 import assessRouter from "./assess";
 import secRouter from "./sec";
 import adminRouter from "./admin";
+import adminPersonasRouter from "./admin-personas";
 import enrichmentRouter from "./enrichment";
 import { enrichmentAliasRouter } from "./enrichment";
 import enrichmentConfigRouter from "./enrichment-config";
@@ -59,6 +60,7 @@ import marketplacePurchasesRouter from "./marketplace-purchases";
 import featuredContentRouter from "./featured-content";
 import whitespaceRouter from "./whitespace";
 import pitchSnippetsRouter from "./pitch-snippets";
+import curriculumRouter from "./curriculum";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -82,6 +84,7 @@ router.use(secRouter);
 // the public read-only GET /admin/enrichment/config the admin UI relies on.
 router.use(enrichmentConfigRouter);
 router.use(adminRouter);
+router.use(adminPersonasRouter);
 router.use(educationalContentRouter);
 router.use(caseStudiesRouter);
 router.use(vceRouter);
@@ -116,6 +119,7 @@ router.use(marketplacePurchasesRouter);
 router.use(featuredContentRouter);
 router.use(whitespaceRouter);
 router.use(pitchSnippetsRouter);
+router.use(curriculumRouter);
 
 // ── Tier-gated routes (The Console+) ──
 const consoleGate = requireTier("console");
