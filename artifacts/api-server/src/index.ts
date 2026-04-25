@@ -5,6 +5,7 @@ import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTa
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { startEnrichmentWorker } from "./services/alpha/queue";
 import { verifySchema } from "./lib/schema-check";
+import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
 
 const rawPort = process.env["PORT"];
 
@@ -84,4 +85,11 @@ app.listen(port, (err) => {
 
   startEnrichmentWorker();
   logger.info("Enrichment job worker started");
+
+  // Sub-capability self-heal — drives every environment toward the same
+  // canonical state on boot. If staging and dev drift (e.g., decomposition
+  // ran on one but not the other), this is what closes the gap. Idempotent
+  // and cheap when nothing's missing — see sub-cap-backfill.ts.
+  void backfillMissingSubCapabilities()
+    .catch(err => logger.error({ err }, "[sub-cap-backfill] threw"));
 });

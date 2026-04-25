@@ -41,6 +41,7 @@ interface RedisHealth {
 interface EnrichmentHealth {
   schema: { ok: boolean | null; missing: string[]; note?: string };
   capabilities: { total: number; withEconomics: number; withoutEconomics: number };
+  decompositionParity: { totalTopLevel: number; decomposed: number; missing: number };
   autoEnrich: { config: { enabled: boolean; refreshDays: number; lastRunAt: string | null; lastRunEnqueued: number } | null; configError: string | null };
   queue: { configured: boolean; waiting: number; active: number; delayed: number; failed: number; completed: number; error: string | null };
   recentErrors: Array<{ capabilityId: number; name: string; error: string; updatedAt: string | null }>;
@@ -333,7 +334,7 @@ export default function EnrichmentAdmin() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-0 divide-x divide-y md:divide-y-0">
               {/* Real pending count — capability_economics row presence is truth */}
               <div className="p-3">
                 <div className="text-xs text-muted-foreground flex items-center gap-1"><Database className="w-3 h-3" /> Capabilities enriched</div>
@@ -379,6 +380,22 @@ export default function EnrichmentAdmin() {
                       {health.queue.waiting} waiting · {health.queue.active} active · {health.queue.failed} failed
                     </div>
                   </>
+                )}
+              </div>
+
+              {/* Sub-capability parity — top-level caps with vs without children */}
+              <div className="p-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-1"><Database className="w-3 h-3" /> Decomposition</div>
+                <div className="text-2xl font-mono">
+                  {health.decompositionParity.decomposed}
+                  <span className="text-sm text-muted-foreground font-mono ml-1">/ {health.decompositionParity.totalTopLevel}</span>
+                </div>
+                {health.decompositionParity.missing > 0 ? (
+                  <div className="text-[11px] text-amber-700 mt-0.5">
+                    {health.decompositionParity.missing} parents missing — runs on next boot
+                  </div>
+                ) : (
+                  <div className="text-[11px] text-green-700 mt-0.5">all decomposed</div>
                 )}
               </div>
 

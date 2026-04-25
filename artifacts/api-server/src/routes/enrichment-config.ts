@@ -237,9 +237,40 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     queue = { configured: false, waiting: 0, active: 0, delayed: 0, failed: 0, completed: 0 };
   }
 
+  // Sub-capability decomposition parity — surfaces dev/staging drift. Counts
+  // approved top-level caps that have no children. The boot backfill should
+  // drive this to zero on every restart.
+  let decompositionParity: { totalTopLevel: number; decomposed: number; missing: number } = {
+    totalTopLevel: 0, decomposed: 0, missing: 0,
+  };
+  try {
+    const decompCounts = await db.execute(sql`
+      WITH parents AS (
+        SELECT id FROM capabilities
+        WHERE parent_capability_id IS NULL AND review_status = 'approved'
+      ),
+      have_children AS (
+        SELECT DISTINCT parent_capability_id AS id FROM capabilities WHERE parent_capability_id IS NOT NULL
+      )
+      SELECT
+        (SELECT COUNT(*)::int FROM parents) AS total,
+        (SELECT COUNT(*)::int FROM parents p WHERE p.id IN (SELECT id FROM have_children)) AS decomposed
+    `);
+    const decompRows = (decompCounts as unknown as { rows?: { total: number; decomposed: number }[] }).rows ?? [];
+    if (decompRows.length > 0) {
+      const r = decompRows[0]!;
+      decompositionParity = {
+        totalTopLevel: Number(r.total),
+        decomposed: Number(r.decomposed),
+        missing: Number(r.total) - Number(r.decomposed),
+      };
+    }
+  } catch { /* table may be missing; surfaced via schema check */ }
+
   res.json({
     schema: schema ?? { ok: null, missing: [], note: "boot check has not run yet" },
     capabilities: capStats,
+    decompositionParity,
     autoEnrich: { config, configError },
     queue: { ...queue, error: queueError },
     recentErrors,
