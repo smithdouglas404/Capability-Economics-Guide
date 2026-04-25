@@ -507,42 +507,54 @@ export default function Insights() {
                 <h2 className="text-xl font-serif text-foreground flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-red-500" />
                   Active Alerts
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    ({redCount} critical · {yellowCount} at risk)
+                  </span>
                 </h2>
-                {loadingInsights ? (
+                {loadingThresholds ? (
                   <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
                 ) : (
                   <motion.div variants={container} initial="hidden" animate="show" className="space-y-3 max-h-[430px] overflow-y-auto pr-1">
-                    {insights?.map(insight => {
-                      const config = severityConfig[insight.severity] || severityConfig.info;
-                      const SevIcon = config.icon;
-                      return (
-                        <motion.div key={insight.id} variants={item}>
-                          <Card className={`rounded-none border-l-2 ${config.border}`}>
-                            <CardContent className="py-3">
-                              <div className="flex items-start gap-2">
-                                <SevIcon className={`w-4 h-4 ${config.text} mt-0.5 shrink-0`} />
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-sm font-semibold text-foreground truncate">{insight.title}</span>
-                                    <span className={`shrink-0 px-1.5 py-0.5 rounded-sm text-xs font-medium ${config.bg} ${config.text}`}>{insight.severity}</span>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground line-clamp-2">{insight.content}</p>
-                                  {insight.recommendation && (
-                                    <p className="text-xs text-primary mt-1 font-medium flex items-center gap-1">
-                                      <ArrowRight className="w-3 h-3" />
-                                      {insight.recommendation.length > 100 ? insight.recommendation.substring(0, 97) + "..." : insight.recommendation}
+                    {thresholds
+                      ?.filter(t => t.status !== "green")
+                      .sort((a, b) => (a.status === "red" ? 0 : 1) - (b.status === "red" ? 0 : 1))
+                      .map(t => {
+                        const isRed = t.status === "red";
+                        const borderCls = isRed ? "border-l-red-500" : "border-l-amber-500";
+                        const textCls = isRed ? "text-red-700" : "text-amber-700";
+                        const SevIcon = isRed ? AlertTriangle : Shield;
+                        const gap = (t.status === "red" ? t.yellowMin : t.greenMin) - t.benchmarkScore;
+                        return (
+                          <motion.div key={t.id} variants={item}>
+                            <Card className={`rounded-none border-l-2 ${borderCls}`}>
+                              <CardContent className="py-3">
+                                <div className="flex items-start gap-2">
+                                  <SevIcon className={`w-4 h-4 ${textCls} mt-0.5 shrink-0`} />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-sm font-semibold text-foreground truncate">{t.capabilityName}</span>
+                                      <span className={`shrink-0 px-1.5 py-0.5 rounded-sm text-xs font-medium bg-card border ${textCls}`}>
+                                        {isRed ? "critical" : "at risk"}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                      Score <span className="font-mono">{t.benchmarkScore.toFixed(1)}</span>
+                                      {" "}vs. threshold <span className="font-mono">{(isRed ? t.yellowMin : t.greenMin).toFixed(0)}</span>
+                                      {" "}— {gap.toFixed(1)} points {gap > 0 ? "below" : "above"}
                                     </p>
-                                  )}
+                                    {t.description && (
+                                      <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.description}</p>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </motion.div>
-                      );
-                    })}
-                    {(!insights || insights.length === 0) && (
+                              </CardContent>
+                            </Card>
+                          </motion.div>
+                        );
+                      })}
+                    {(redCount === 0 && yellowCount === 0) && (
                       <div className="text-center py-8 text-muted-foreground text-sm">
-                        No insights available. Select an industry and generate AI insights.
+                        No active threshold breaches. Every capability is on track.
                       </div>
                     )}
                   </motion.div>
