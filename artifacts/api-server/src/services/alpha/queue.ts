@@ -48,7 +48,15 @@ function getQueueInternal(): Queue<EnrichmentJobData> {
     defaultJobOptions: {
       attempts: 3,
       backoff: { type: "exponential", delay: 5000 },
-      removeOnComplete: { age: 24 * 60 * 60, count: 1000 },
+      // removeOnComplete: true — drop completed jobs immediately so the
+      // deterministic jobId (`alpha-ind-1`, `cap-42`, etc.) is freed for
+      // re-enqueue on the next scheduler tick or admin click. Without this,
+      // BullMQ keeps completed jobs in Redis and silently collapses every
+      // future add() with the same jobId, so the queue *appears* to enqueue
+      // but the worker never sees the new payload. Dedupe protection for
+      // in-flight work is preserved — BullMQ still rejects duplicates
+      // against `active`/`waiting` states regardless of this setting.
+      removeOnComplete: true,
       // removeOnFail: true — drop failed jobs immediately so a single
       // poison job doesn't permanently block the deterministic jobId from
       // being re-enqueued. Retry attempts (3 above) still happen before this
@@ -205,6 +213,16 @@ export function startEnrichmentWorker(): void {
     log.warn("[queue] REDIS_URL not configured — enrichment worker NOT started");
     return;
   }
+
+  // One-shot cleanup of zombie completed jobs from before the
+  // removeOnComplete:true change. Without this, the deterministic jobIds
+  // (alpha-ind-1, etc.) stay claimed in Redis for up to 24h and dedupe
+  // every fresh enqueue. Running this on every boot is harmless —
+  // queue.clean() is idempotent and only touches the requested status.
+  void getQueueInternal().clean(0, 1000, "completed").then(removed => {
+    if (removed.length > 0) log.info({ removed: removed.length }, "[queue] purged stale completed jobs");
+  }).catch(err => log.warn({ err: String(err) }, "[queue] startup clean failed"));
+
   workerInstance = new Worker<EnrichmentJobData>(
     QUEUE_NAME,
     processJob,
