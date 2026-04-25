@@ -1,7 +1,28 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useAuth, useUser } from "@clerk/react";
 import { useGetDashboard, useListRoles, getGetDashboardQueryKey } from "@workspace/api-client-react";
 import type { GapAnalysis, Assessment, DashboardDataRadarDataItem } from "@workspace/api-client-react";
+
+const ROLE_SLUG_KEYWORDS: Array<{ slug: string; keys: string[] }> = [
+  { slug: "ceo",  keys: ["ceo", "chief executive", "founder", "managing director", "president"] },
+  { slug: "cfo",  keys: ["cfo", "chief financial", "finance", "treasurer", "controller"] },
+  { slug: "coo",  keys: ["coo", "chief operating", "operations", "chief operations"] },
+  { slug: "cio",  keys: ["cio", "chief information", "information"] },
+  { slug: "cto",  keys: ["cto", "chief technology", "technology", "engineering"] },
+  { slug: "cmo",  keys: ["cmo", "chief marketing", "marketing", "growth"] },
+  { slug: "chro", keys: ["chro", "chief human", "people", "talent", "human resources"] },
+  { slug: "cpo",  keys: ["cpo", "chief product", "product"] },
+];
+
+function entityRoleToSlug(entityRole: string | null | undefined): string | null {
+  if (!entityRole) return null;
+  const lower = entityRole.toLowerCase();
+  for (const { slug, keys } of ROLE_SLUG_KEYWORDS) {
+    if (keys.some((k) => lower.includes(k))) return slug;
+  }
+  return null;
+}
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,14 +44,54 @@ import {
 import { Link, useLocation } from "wouter";
 
 export default function Dashboard() {
-  const [, navigate] = useLocation();
-  const [roleFilter, setRoleFilter] = useState<string>("all");
+  const [location, navigate] = useLocation();
+  const { isSignedIn, isLoaded: authLoaded } = useUser();
+  const { getToken } = useAuth();
+
+  const initialUrlRole = (() => {
+    if (typeof window === "undefined") return "";
+    const sp = new URLSearchParams(window.location.search);
+    return sp.get("roleSlug")?.trim() ?? "";
+  })();
+
+  const [roleFilter, setRoleFilter] = useState<string>(initialUrlRole || "all");
+  const [rolePrefilled, setRolePrefilled] = useState<boolean>(!!initialUrlRole);
 
   const sessionToken = typeof window !== "undefined"
     ? localStorage.getItem("ce_session_token")
     : null;
 
   const { data: roles } = useListRoles();
+
+  useEffect(() => {
+    if (rolePrefilled) return;
+    if (!authLoaded || !isSignedIn) return;
+    if (!roles || roles.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch("/api/me/membership", {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const entityRole: string | null = data?.membership?.entityRole ?? null;
+        const slug = entityRoleToSlug(entityRole);
+        if (!cancelled && slug && roles.some((r) => r.slug === slug)) {
+          setRoleFilter(slug);
+        }
+      } catch {
+        /* graceful */
+      } finally {
+        if (!cancelled) setRolePrefilled(true);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoaded, isSignedIn, roles, rolePrefilled]);
+
+  void location;
   const dashboardParams = roleFilter !== "all" ? { roleSlug: roleFilter } : undefined;
   const { data: dashboard, isLoading, error } = useGetDashboard(
     sessionToken || "",

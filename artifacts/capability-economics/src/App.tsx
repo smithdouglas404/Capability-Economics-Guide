@@ -52,6 +52,26 @@ import Thesis from "@/pages/thesis";
 import PortfolioMonitor from "@/pages/portfolio-monitor";
 import ExitSignals from "@/pages/exit-signals";
 import Comparables from "@/pages/comparables";
+import Board from "@/pages/board";
+import Lookup from "@/pages/lookup";
+import CrossIndustry from "@/pages/cross-industry";
+import Sandbox from "@/pages/sandbox";
+import Methodology from "@/pages/methodology";
+import Citations from "@/pages/citations";
+import Bookmarks from "@/pages/bookmarks";
+import Curriculum from "@/pages/curriculum";
+import Boardroom from "@/pages/boardroom";
+import Datasets from "@/pages/datasets";
+import Export from "@/pages/export";
+import ApiConsole from "@/pages/api-console";
+import Ontology from "@/pages/ontology";
+import Replication from "@/pages/replication";
+import OpportunityMap from "@/pages/opportunity-map";
+import Whitespace from "@/pages/whitespace";
+import BuildPath from "@/pages/build-path";
+import InvestorMatch from "@/pages/investor-match";
+import CompetitorScan from "@/pages/competitor-scan";
+import PitchSnippets from "@/pages/pitch-snippets";
 
 const queryClient = new QueryClient();
 
@@ -152,6 +172,26 @@ function Router() {
       <Route path="/portfolio-monitor" component={PortfolioMonitor} />
       <Route path="/exit-signals" component={ExitSignals} />
       <Route path="/comparables" component={Comparables} />
+      <Route path="/board" component={Board} />
+      <Route path="/lookup" component={Lookup} />
+      <Route path="/cross-industry" component={CrossIndustry} />
+      <Route path="/sandbox" component={Sandbox} />
+      <Route path="/methodology" component={Methodology} />
+      <Route path="/citations" component={Citations} />
+      <Route path="/bookmarks" component={Bookmarks} />
+      <Route path="/curriculum" component={Curriculum} />
+      <Route path="/boardroom" component={Boardroom} />
+      <Route path="/datasets" component={Datasets} />
+      <Route path="/export" component={Export} />
+      <Route path="/api-console" component={ApiConsole} />
+      <Route path="/ontology" component={Ontology} />
+      <Route path="/replication" component={Replication} />
+      <Route path="/opportunity-map" component={OpportunityMap} />
+      <Route path="/whitespace" component={Whitespace} />
+      <Route path="/build-path" component={BuildPath} />
+      <Route path="/investor-match" component={InvestorMatch} />
+      <Route path="/competitor-scan" component={CompetitorScan} />
+      <Route path="/pitch-snippets" component={PitchSnippets} />
       <Route component={NotFound} />
     </Switch>
   );

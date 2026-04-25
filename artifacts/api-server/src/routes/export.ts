@@ -8,9 +8,141 @@ import {
   companiesTable,
   companyScoresTable,
   companyCapabilityFingerprintTable,
+  dataSourcesTable,
 } from "@workspace/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, gte } from "drizzle-orm";
 import { runScreener, type ScreenerFilters } from "../services/screener";
+
+type DatasetSlug = "cei_components" | "capabilities" | "companies" | "data_sources";
+
+const DATASET_SLUGS: DatasetSlug[] = ["cei_components", "capabilities", "companies", "data_sources"];
+
+function isDataset(s: string): s is DatasetSlug {
+  return (DATASET_SLUGS as string[]).includes(s);
+}
+
+function csvEscape(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString();
+  const s = typeof value === "object" ? JSON.stringify(value) : String(value);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
+  const header = columns.map(csvEscape).join(",");
+  const body = rows.map((r) => columns.map((c) => csvEscape(r[c])).join(",")).join("\n");
+  return rows.length ? `${header}\n${body}\n` : `${header}\n`;
+}
+
+async function loadDataset(
+  dataset: DatasetSlug,
+  industryId?: number,
+  since?: Date,
+): Promise<{ columns: string[]; rows: Record<string, unknown>[] }> {
+  if (dataset === "cei_components") {
+    const filters = [];
+    if (industryId !== undefined) filters.push(eq(ceiComponentsTable.industryId, industryId));
+    if (since) filters.push(gte(ceiComponentsTable.updatedAt, since));
+    const where = filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters);
+    const rows = await db.select().from(ceiComponentsTable).where(where).limit(10000);
+    const caps = await db.select().from(capabilitiesTable);
+    const inds = await db.select().from(industriesTable);
+    const capMap = new Map(caps.map((c) => [c.id, c.name]));
+    const indMap = new Map(inds.map((i) => [i.id, i.name]));
+    return {
+      columns: ["id", "capabilityId", "capability", "industryId", "industry", "consensusScore", "confidence", "velocity", "economicMultiplier", "updatedAt"],
+      rows: rows.map((r) => ({
+        id: r.id,
+        capabilityId: r.capabilityId,
+        capability: capMap.get(r.capabilityId) ?? null,
+        industryId: r.industryId,
+        industry: indMap.get(r.industryId) ?? null,
+        consensusScore: r.consensusScore,
+        confidence: r.confidence,
+        velocity: r.velocity,
+        economicMultiplier: r.economicMultiplier,
+        updatedAt: r.updatedAt,
+      })),
+    };
+  }
+  if (dataset === "capabilities") {
+    const where = industryId !== undefined ? eq(capabilitiesTable.industryId, industryId) : undefined;
+    const rows = await db.select().from(capabilitiesTable).where(where).limit(10000);
+    const inds = await db.select().from(industriesTable);
+    const indMap = new Map(inds.map((i) => [i.id, i.name]));
+    return {
+      columns: ["id", "name", "slug", "industryId", "industry", "isLeaf", "parentId", "benchmarkScore"],
+      rows: rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        industryId: r.industryId,
+        industry: indMap.get(r.industryId) ?? null,
+        isLeaf: r.isLeaf,
+        parentId: r.parentCapabilityId ?? null,
+        benchmarkScore: r.benchmarkScore ?? null,
+      })),
+    };
+  }
+  if (dataset === "companies") {
+    const where = industryId !== undefined ? eq(companiesTable.industryId, industryId) : undefined;
+    const companies = await db.select().from(companiesTable).where(where).limit(10000);
+    const ids = companies.map((c) => c.id);
+    const scores = ids.length ? await db.select().from(companyScoresTable).where(inArray(companyScoresTable.companyId, ids)) : [];
+    const scoreMap = new Map(scores.map((s) => [s.companyId, s]));
+    const inds = await db.select().from(industriesTable);
+    const indMap = new Map(inds.map((i) => [i.id, i.name]));
+    return {
+      columns: ["id", "name", "industryId", "industry", "country", "ownership", "publicTicker", "websiteUrl", "composite", "moatScore", "aiDisruptability", "capabilityCoverage", "ceiWeighted", "forecastedValue"],
+      rows: companies.map((c) => {
+        const s = scoreMap.get(c.id);
+        return {
+          id: c.id,
+          name: c.name,
+          industryId: c.industryId,
+          industry: indMap.get(c.industryId) ?? null,
+          country: c.country,
+          ownership: c.ownership,
+          publicTicker: c.publicTicker,
+          websiteUrl: c.websiteUrl,
+          composite: s?.composite ?? null,
+          moatScore: s?.moatScore ?? null,
+          aiDisruptability: s?.aiDisruptability ?? null,
+          capabilityCoverage: s?.capabilityCoverage ?? null,
+          ceiWeighted: s?.ceiWeighted ?? null,
+          forecastedValue: s?.forecastedValue ?? null,
+        };
+      }),
+    };
+  }
+  // data_sources
+  const rows = await db.select().from(dataSourcesTable).limit(10000);
+  return {
+    columns: ["id", "title", "url", "publisher", "publishedDate", "accessedDate", "sourceType", "description"],
+    rows: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      url: r.url,
+      publisher: r.publisher,
+      publishedDate: r.publishedDate,
+      accessedDate: r.accessedDate,
+      sourceType: r.sourceType,
+      description: r.description,
+    })),
+  };
+}
+
+function parseDatasetParams(req: { query: Record<string, unknown> }): { dataset: DatasetSlug; industryId?: number; since?: Date } | { error: string } {
+  const dataset = String(req.query.dataset ?? "");
+  if (!dataset) return { error: "Missing dataset param" };
+  if (!isDataset(dataset)) return { error: `Unknown dataset: ${dataset}. Supported: ${DATASET_SLUGS.join(", ")}` };
+  const industryId = req.query.industryId ? Number(req.query.industryId) : undefined;
+  const sinceRaw = typeof req.query.since === "string" ? req.query.since : undefined;
+  const since = sinceRaw ? new Date(sinceRaw) : undefined;
+  if (since && Number.isNaN(since.getTime())) return { error: "Invalid since param — expected ISO date string" };
+  return { dataset, industryId, since };
+}
 
 const router: IRouter = Router();
 
@@ -128,6 +260,51 @@ router.get("/export/xlsx", async (req, res) => {
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
     res.send(Buffer.from(buf));
+  } catch (err) {
+    res.status(500).json({ error: "Export failed", message: (err as Error).message });
+  }
+});
+
+/**
+ * CSV export. dataset=cei_components|capabilities|companies|data_sources.
+ * Optional industryId and since (ISO date for cei_components).
+ */
+router.get("/export/csv", async (req, res) => {
+  const parsed = parseDatasetParams({ query: req.query as Record<string, unknown> });
+  if ("error" in parsed) { res.status(400).json({ error: parsed.error }); return; }
+  try {
+    const { columns, rows } = await loadDataset(parsed.dataset, parsed.industryId, parsed.since);
+    const body = toCsv(rows, columns);
+    const filename = `${parsed.dataset}-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(body);
+  } catch (err) {
+    res.status(500).json({ error: "Export failed", message: (err as Error).message });
+  }
+});
+
+/**
+ * JSON export. Same params as csv. Pretty-printed.
+ */
+router.get("/export/json", async (req, res) => {
+  const parsed = parseDatasetParams({ query: req.query as Record<string, unknown> });
+  if ("error" in parsed) { res.status(400).json({ error: parsed.error }); return; }
+  try {
+    const { columns, rows } = await loadDataset(parsed.dataset, parsed.industryId, parsed.since);
+    const filename = `${parsed.dataset}-${new Date().toISOString().slice(0, 10)}.json`;
+    const payload = {
+      dataset: parsed.dataset,
+      generatedAt: new Date().toISOString(),
+      industryId: parsed.industryId ?? null,
+      since: parsed.since?.toISOString() ?? null,
+      rowCount: rows.length,
+      columns,
+      rows,
+    };
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(JSON.stringify(payload, null, 2));
   } catch (err) {
     res.status(500).json({ error: "Export failed", message: (err as Error).message });
   }
