@@ -41,10 +41,9 @@ async function glmJson(prompt: string, maxTokens = 3000): Promise<string> {
         "X-Title": "Capability Economics Thesis",
       },
       body: JSON.stringify({
-        model: "z-ai/glm-5.1",
+        model: "anthropic/claude-sonnet-4.5",
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
-        reasoning: { enabled: false, exclude: true },
         messages: [{ role: "user", content: prompt }],
       }),
       signal: controller.signal,

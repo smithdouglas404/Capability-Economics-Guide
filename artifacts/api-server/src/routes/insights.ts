@@ -286,8 +286,8 @@ Only output the JSON array, no other text.`;
           "X-Title": "Capability Economics",
         },
         body: JSON.stringify({
-          model: "z-ai/glm-5.1",
-          max_tokens: 8192,
+          model: "anthropic/claude-haiku-4.5",
+          max_tokens: 4096,
           messages: [{ role: "user", content: prompt }],
         }),
         signal: controller.signal,
@@ -317,7 +317,7 @@ Only output the JSON array, no other text.`;
         content: insight.content,
         severity: insight.severity || "info",
         recommendation: insight.recommendation,
-        metadata: { source: "openrouter", model: "z-ai/glm-5.1", generatedAt: new Date().toISOString() },
+        metadata: { source: "openrouter", model: "anthropic/claude-haiku-4.5", generatedAt: new Date().toISOString() },
       });
     }
 

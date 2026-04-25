@@ -147,6 +147,29 @@ function buildSystemPrompt(state: State): string {
     ? `\n\nSCOPE — this run is scoped to:\n${scope.map(s => `- ${s}`).join("\n")}\n`
     : `\n\nSCOPE — full coverage. You decide which industries need work based on \`query_database({queryType:"enrichment_status"})\`.\n`;
 
+  const isPerCapRerun = (state.targetCapabilityIds?.length ?? 0) > 0;
+
+  if (isPerCapRerun) {
+    // Per-cap reruns are deterministic — no agent judgement needed. The route
+    // has already (a) deleted the existing economics + quadrants rows for the
+    // target cap and (b) re-run classify_quadrants synchronously for that one
+    // cap. The agent's only remaining job is alpha + detail.
+    const capId = state.targetCapabilityIds![0]!;
+    const indId = state.targetIndustryIds?.[0];
+    const indFragment = indId != null ? `${indId}` : "<the cap's industryId>";
+    return `You are the Capability Economics enrichment agent. The user clicked "Rerun economics" on capability id=${capId}${indId != null ? ` (industry id=${indId})` : ""}. The caller has already (a) deleted the existing capability_economics row, (b) re-run classify_quadrants for this cap so capability_quadrants is fresh.
+
+YOUR JOB IS A FIXED 3-STEP SEQUENCE. DO NOT SKIP, DO NOT REORDER, DO NOT ASK. EXECUTE EXACTLY THIS:
+
+STEP 1 — call run_economic_alpha({"industryId": ${indFragment}, "limitCapabilities": 1}). Repopulates the Street-side economics row (TAM, EVaR inputs, half-life, margin, consensusQuadrant, consensusSummary). limitCapabilities:1 keeps the call to just this cap.
+
+STEP 2 — call run_economic_detail({"capabilityId": ${capId}, "force": true}). Generates the narrative fields (summaryNarrative, traditionalNarrative, economicNarrative, aiNarrative, metricInterpretations, dependencyRationales, roleConsequences, playbook, benchmarkInterpretation, aiSubstitutes).
+
+STEP 3 — call finish({"summary": "<one sentence summarising what was written>"}).
+
+Each tool returns {ok: true, ...} on success or {ok: false, error: "..."} on failure. If any step fails with ok:false, surface the error in finish but still call finish. Do NOT call classify_quadrants (route already did it), query_database, recall_memories, store_memory, map_value_chain, or discover_companies.`;
+  }
+
   return `You are the Capability Economics enrichment agent. Your job is to keep every capability's economic profile current — quadrants, value-chain stages, leading companies, economic alpha (TAM/EVaR/half-life), and detail narratives (Traditional View, Economic View, Key Metrics, dependencies, playbook).
 
 You have access to the SAME functions the "Rerun economic" button uses. Each function is exposed as a tool. Call them in whatever order makes sense.
@@ -157,10 +180,9 @@ GUIDELINES:
 3. For each industry needing work, call the relevant tools. The natural flow when nothing exists is:
    classify_quadrants → map_value_chain → discover_companies → run_economic_alpha → run_economic_detail.
    But you do NOT have to follow that order. If quadrants are fresh, skip them. If only economics is stale, just call run_economic_alpha + run_economic_detail.
-4. For per-capability reruns (when the SCOPE names a capability id), the existing economics row has already been deleted by the caller. A full rerun MUST refresh BOTH sides of the CE-vs-Street comparison — the UI hides the comparison if either side is stale. Always call: classify_quadrants(industryId) to refresh the CE-side quadrant, run_economic_alpha(industryId) to repopulate the Street-side economics row, then run_economic_detail(capabilityId, force=true) to regenerate the narrative. Skipping classify_quadrants leaves the CE quadrant pinned to whatever an old run wrote, sometimes weeks ago.
-5. Each tool returns a JSON result envelope \`{ok, ...}\`. Use the result to decide the next step. If a tool fails, try a different approach or move on; don't loop on the same failing call.
-6. When done, optionally \`store_memory\` to record any pattern worth remembering, then call \`finish\` with a summary.
-7. Hard cap: ${MAX_ITERATIONS} tool turns per run. Don't dawdle.
+4. Each tool returns a JSON result envelope \`{ok, ...}\`. Use the result to decide the next step. If a tool fails, try a different approach or move on; don't loop on the same failing call.
+5. When done, optionally \`store_memory\` to record any pattern worth remembering, then call \`finish\` with a summary.
+6. Hard cap: ${MAX_ITERATIONS} tool turns per run. Don't dawdle.
 
 You are NOT a chatbot. Always respond with a tool_call until you call \`finish\`.${scopeBlock}`;
 }

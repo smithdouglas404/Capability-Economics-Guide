@@ -240,10 +240,10 @@ Return ONLY valid JSON in this format, no commentary:
       "HTTP-Referer": "https://capabilityeconomics.com",
       "X-Title": "Capability Economics",
     },
-    body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "anthropic/claude-sonnet-4.5", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
   });
   const glmQData = await glmQResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-  if (glmQData.error) throw new Error(`GLM error: ${glmQData.error.message}`);
+  if (glmQData.error) throw new Error(`Synthesis error: ${glmQData.error.message}`);
   const response = { content: [{ type: "text" as const, text: glmQData.choices?.[0]?.message?.content ?? "" }] };
 
   let questions: string[] = [];
@@ -472,10 +472,10 @@ Rules:
       "HTTP-Referer": "https://capabilityeconomics.com",
       "X-Title": "Capability Economics",
     },
-    body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 8192, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "anthropic/claude-sonnet-4.5", max_tokens: 8192, messages: [{ role: "user", content: prompt }] }),
   });
   const glmAData = await glmAResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-  if (glmAData.error) throw new Error(`GLM analysis error: ${glmAData.error.message}`);
+  if (glmAData.error) throw new Error(`Synthesis error: ${glmAData.error.message}`);
 
   const rawText = glmAData.choices?.[0]?.message?.content ?? "{}";
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);

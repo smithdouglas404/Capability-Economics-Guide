@@ -221,13 +221,18 @@ router.get("/admin/backfill-ai-narratives/status", (_req, res) => {
 
 router.get("/admin/models", (_req, res) => {
   res.json([
-    { task: "C-suite questions + chart dimensions", model: "z-ai/glm-5.1", reason: "Reasoning model — provocative, assumption-challenging" },
+    { task: "Capability detail (alpha + detail enrichment)", model: "anthropic/claude-sonnet-4.5", reason: "Marquee output — TAM/EVaR + traditional/economic/AI narratives + playbook" },
+    { task: "Quadrants / value chain / company profiles", model: "anthropic/claude-sonnet-4.5", reason: "Customer-facing graph data — named vendors, $ figures, sharper synthesis" },
+    { task: "C-suite questions + chart dimensions", model: "anthropic/claude-sonnet-4.5", reason: "Provocative, assumption-challenging — paired with Sonnet for scenario/metrics" },
     { task: "C-suite scenario + metrics", model: "anthropic/claude-sonnet-4.5", reason: "Grounded narrative with real numbers" },
-    { task: "Case study content", model: "anthropic/claude-sonnet-4.5", reason: "ROI data, 5-year projections, KPI credibility" },
+    { task: "Case study content + studies route", model: "anthropic/claude-sonnet-4.5", reason: "ROI data, 5-year projections, KPI credibility" },
     { task: "Capability ontology relationships", model: "deepseek/deepseek-chat", reason: "Most precise logical relationship typing" },
-    { task: "Assessment clarifying questions", model: "z-ai/glm-5.1", reason: "Strategic interrogation, reveals hidden gaps" },
-    { task: "Assessment full analysis", model: "z-ai/glm-5.1 (8192 tokens)", reason: "Deepest reasoning — roadmap, gaps, competitor scoring" },
-    { task: "Capability insights + alerts", model: "z-ai/glm-5.1", reason: "Strategic reasoning for actionable insights" },
+    { task: "Assessment clarifying questions", model: "anthropic/claude-sonnet-4.5", reason: "Strategic interrogation, reveals hidden gaps (premium feature)" },
+    { task: "Assessment full analysis", model: "anthropic/claude-sonnet-4.5 (8192 tokens)", reason: "Deepest reasoning — roadmap, gaps, competitor scoring (premium feature)" },
+    { task: "Investment thesis memo", model: "anthropic/claude-sonnet-4.5", reason: "Premium feature — credit-deducted output" },
+    { task: "Dynamic industry generation", model: "anthropic/claude-sonnet-4.5", reason: "One-time discovery, sharper capability decomposition" },
+    { task: "VCE (Value Chain Economics) synthesis", model: "anthropic/claude-sonnet-4.5", reason: "Premium feature — capability-economics analysis depth" },
+    { task: "Capability insights + alerts", model: "anthropic/claude-haiku-4.5", reason: "Per-capability alerts, runs frequently — speed + cost over depth" },
     { task: "Industry leaderboard", model: "anthropic/claude-haiku-4.5", reason: "Bulk extraction, speed over depth" },
     { task: "White papers", model: "anthropic/claude-haiku-4.5", reason: "Citation-style output, runs every 15 days" },
   ]);

@@ -18,6 +18,7 @@ import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
+import { enrichCapabilityQuadrants } from "../services/enrichment/index";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -87,13 +88,22 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     // successful rerun. Symptom: UI quadrant timestamp predates the alpha row.
     await db.delete(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId));
 
-    // Single agentic entry point — invokes the enrichment LangGraph for this
-    // one capability. The graph runs all 5 stages (classify → value chain →
-    // companies → alpha → detail) in one orchestrated state machine, sharing
-    // memory + Letta context with the CEI agent. Replaces the legacy two-step
-    // alpha+detail call so the rerun button executes the same code path as
-    // the cron tick.
-    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] invoking enrichment graph");
+    // Pre-call classify_quadrants for THIS cap only — deterministic, in-code,
+    // not subject to the agent's judgement. Sonnet has skipped the equivalent
+    // tool three times in testing when other quadrant rows already existed in
+    // the industry; pulling it out of the agent loop guarantees the CE-side
+    // row gets refreshed every time. Single-cap subset = ~30s, not the full
+    // 12-cap industry sweep that the tool default would run.
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, cap.industryId));
+    if (industry) {
+      logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] pre-calling classify_quadrants for single cap");
+      const r = await enrichCapabilityQuadrants(cap.industryId, industry.name, [{ id: cap.id, name: cap.name, benchmarkScore: cap.benchmarkScore ?? 50 }], 0);
+      logger.info({ classified: r.classified, errors: r.errors.length }, "[alpha/rerun] classify_quadrants result");
+    }
+
+    // Then invoke the enrichment agent for alpha + detail. With quadrants
+    // already written, the agent's job collapses to two tool calls.
+    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] invoking enrichment agent for alpha + detail");
     await runEnrichmentGraph({
       trigger: "rerun",
       targetCapabilityIds: [capId],

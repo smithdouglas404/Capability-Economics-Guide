@@ -35,9 +35,11 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
 }
 
 async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, jsonMode = false): Promise<string> {
-  // Prefer GLM 5.1 always. For JSON mode we disable reasoning emission (see glmCallOnce)
-  // so reasoning tokens don't consume max_tokens and truncate the JSON. GLM 4.6 is fallback.
-  const models = ["z-ai/glm-5.1"];
+  // VCE synthesis runs on Claude Sonnet 4.5 — comparable JSON reliability,
+  // ~2.5x faster than GLM 5.1, and noticeably richer narrative content (named
+  // vendors, specific $ figures, multi-thread synthesis). Function name kept
+  // as `glmCall` to avoid sweeping renames; body is model-agnostic.
+  const models = ["anthropic/claude-sonnet-4.5"];
   let lastErr: unknown = null;
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {

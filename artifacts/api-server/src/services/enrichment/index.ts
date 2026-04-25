@@ -74,7 +74,7 @@ async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> 
         "X-Title": "Capability Economics",
       },
       body: JSON.stringify({
-        model: "z-ai/glm-5.1",
+        model: "anthropic/claude-sonnet-4.5",
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -444,125 +444,25 @@ export async function runEnrichment(): Promise<EnrichmentResult> {
   enrichmentRunning = true;
 
   try {
-    // Delegate to the LangGraph orchestrator. Single agentic entry point —
-    // shares memory + Letta context + SSE events with the CEI agent.
+    // Delegate to the LangGraph agent — single agentic entry point. The agent
+    // writes per-table totals into enrichment_runs at finalize; we read those
+    // back to build the EnrichmentResult shape callers expect.
     const { runEnrichmentGraph } = await import("./graph");
     const graphResult = await runEnrichmentGraph({ trigger: "manual" });
-    const totals = Object.values(graphResult.perIndustry).reduce(
-      (acc, r) => ({
-        quadrantsClassified: acc.quadrantsClassified + r.classified,
-        valueChainStagesCreated: acc.valueChainStagesCreated + r.valueChainStages,
-        companiesProfiled: acc.companiesProfiled + r.companiesProfiled,
-        companyMappingsCreated: acc.companyMappingsCreated + r.companiesMapped,
-      }),
-      { quadrantsClassified: 0, valueChainStagesCreated: 0, companiesProfiled: 0, companyMappingsCreated: 0 },
-    );
+    const [run] = await db
+      .select()
+      .from(enrichmentRunsTable)
+      .where(eq(enrichmentRunsTable.id, graphResult.runId));
     return {
-      ...totals,
+      quadrantsClassified: run?.quadrantsClassified ?? 0,
+      valueChainStagesCreated: run?.valueChainStagesCreated ?? 0,
+      companiesProfiled: run?.companiesProfiled ?? 0,
+      companyMappingsCreated: 0,
       errors: graphResult.errors,
-      durationMs: 0, // graph tracks this in enrichmentRunsTable
+      durationMs: run?.durationMs ?? 0,
     };
   } finally {
     enrichmentRunning = false;
   }
 }
 
-/** @deprecated Kept for the boot-cleanup transition; new code calls runEnrichmentGraph directly. */
-export { runEnrichment as legacyRunEnrichment };
-
-async function _runEnrichmentInner(): Promise<EnrichmentResult> {
-  const start = Date.now();
-  const result: EnrichmentResult = {
-    quadrantsClassified: 0,
-    valueChainStagesCreated: 0,
-    companiesProfiled: 0,
-    companyMappingsCreated: 0,
-    errors: [],
-    durationMs: 0,
-  };
-
-  const [runRecord] = await db.insert(enrichmentRunsTable).values({
-    status: "running",
-  }).returning({ id: enrichmentRunsTable.id });
-
-  try {
-    return await _executeEnrichment(runRecord.id, result, start);
-  } catch (e) {
-    result.durationMs = Date.now() - start;
-    result.errors.push(`Fatal enrichment error: ${e}`);
-    await db.update(enrichmentRunsTable).set({
-      completedAt: new Date(),
-      quadrantsClassified: result.quadrantsClassified,
-      valueChainStagesCreated: result.valueChainStagesCreated,
-      companiesProfiled: result.companiesProfiled,
-      companyMappingsCreated: result.companyMappingsCreated,
-      durationMs: result.durationMs,
-      errors: result.errors,
-      status: "failed",
-    }).where(eq(enrichmentRunsTable.id, runRecord.id));
-    return result;
-  }
-}
-
-async function _executeEnrichment(
-  runId: number,
-  result: EnrichmentResult,
-  start: number,
-): Promise<EnrichmentResult> {
-  const industries = await db.select().from(industriesTable);
-  const allCaps = await db.select().from(capabilitiesTable);
-
-  log.info(`Enrichment started: ${industries.length} industries, ${allCaps.length} capabilities`);
-
-  for (const industry of industries) {
-    const industryCaps = allCaps
-      .filter(c => c.industryId === industry.id)
-      .map(c => ({ id: c.id, name: c.name, benchmarkScore: c.benchmarkScore }));
-
-    log.info(`Enriching ${industry.name}: ${industryCaps.length} capabilities`);
-
-    try {
-      const qResult = await enrichCapabilityQuadrants(industry.id, industry.name, industryCaps, runId);
-      result.quadrantsClassified += qResult.classified;
-      result.errors.push(...qResult.errors);
-      log.info(`  Quadrants: ${qResult.classified} classified`);
-    } catch (e) {
-      result.errors.push(`Quadrant enrichment ${industry.name}: ${e}`);
-    }
-
-    try {
-      const vcResult = await enrichValueChainStages(industry.id, industry.name, industryCaps, runId);
-      result.valueChainStagesCreated += vcResult.created;
-      result.errors.push(...vcResult.errors);
-      log.info(`  Value chain: ${vcResult.created} stages`);
-    } catch (e) {
-      result.errors.push(`Value chain enrichment ${industry.name}: ${e}`);
-    }
-
-    try {
-      const compResult = await enrichCompanyProfiles(industry.id, industry.name, industryCaps, runId);
-      result.companiesProfiled += compResult.profiled;
-      result.companyMappingsCreated += compResult.mapped;
-      result.errors.push(...compResult.errors);
-      log.info(`  Companies: ${compResult.profiled} profiled, ${compResult.mapped} mappings`);
-    } catch (e) {
-      result.errors.push(`Company enrichment ${industry.name}: ${e}`);
-    }
-  }
-
-  result.durationMs = Date.now() - start;
-  log.info(`Enrichment complete in ${(result.durationMs / 1000).toFixed(1)}s: ${result.quadrantsClassified} quadrants, ${result.valueChainStagesCreated} stages, ${result.companiesProfiled} companies, ${result.companyMappingsCreated} mappings, ${result.errors.length} errors`);
-
-  await db.update(enrichmentRunsTable).set({
-    completedAt: new Date(),
-    quadrantsClassified: result.quadrantsClassified,
-    valueChainStagesCreated: result.valueChainStagesCreated,
-    companiesProfiled: result.companiesProfiled,
-    companyMappingsCreated: result.companyMappingsCreated,
-    durationMs: result.durationMs,
-    errors: result.errors.length > 0 ? result.errors : null,
-    status: result.errors.length > 0 ? "completed_with_errors" : "completed",
-  }).where(eq(enrichmentRunsTable.id, runId));
-
-  return result;
-}

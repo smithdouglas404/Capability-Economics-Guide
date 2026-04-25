@@ -245,7 +245,7 @@ Constraints:
           "X-Title": "Capability Economics",
         },
         body: JSON.stringify({
-          model: "z-ai/glm-5.1",
+          model: "anthropic/claude-sonnet-4.5",
           max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -260,10 +260,10 @@ Constraints:
     const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("No JSON object in GLM response");
+    if (start === -1 || end === -1) throw new Error("No JSON object in synthesis response");
     studyJson = JSON.parse(cleaned.substring(start, end + 1));
   } catch (err) {
-    res.status(502).json({ error: "GLM synthesis failed", details: String(err) });
+    res.status(502).json({ error: "Synthesis failed", details: String(err) });
     return;
   }
 
@@ -299,7 +299,7 @@ Constraints:
       fiveYearOutlook: studyJson.fiveYearOutlook,
       kpis: studyJson.kpis,
       sources,
-      model: "z-ai/glm-5.1+sonar-pro",
+      model: "anthropic/claude-sonnet-4.5+sonar-pro",
     })
     .returning();
 

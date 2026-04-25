@@ -333,7 +333,7 @@ Questions must challenge conventional thinking and be specific to ${role.title} 
             "HTTP-Referer": "https://capabilityeconomics.com",
             "X-Title": "Capability Economics",
           },
-          body: JSON.stringify({ model: "z-ai/glm-5.1", max_tokens: 4096, messages: [{ role: "user", content: glmPrompt }] }),
+          body: JSON.stringify({ model: "anthropic/claude-sonnet-4.5", max_tokens: 4096, messages: [{ role: "user", content: glmPrompt }] }),
         });
         const glmData = await glmResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
         if (glmData.error) throw new Error(`GLM error: ${glmData.error.message}`);
@@ -504,7 +504,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
             "X-Title": "Capability Economics",
           },
           body: JSON.stringify({
-            model: "z-ai/glm-5.1",
+            model: "anthropic/claude-sonnet-4.5",
             max_tokens: 4096,
             messages: [{ role: "user", content: prompt }],
           }),
