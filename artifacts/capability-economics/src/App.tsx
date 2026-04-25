@@ -44,6 +44,7 @@ import RegulationsPage from "@/pages/regulations";
 import CollaborationPage from "@/pages/collaboration";
 import Console from "@/pages/console";
 import OnboardingPersona from "@/pages/onboarding-persona";
+import Dashboard from "@/pages/dashboard";
 import Pipeline from "@/pages/pipeline";
 import Screener from "@/pages/screener";
 import Diligence from "@/pages/diligence";
@@ -165,6 +166,7 @@ function Router() {
       <Route path="/workbench">{() => <Redirect to="/console" />}</Route>
       <Route path="/ledger">{() => <Redirect to="/console" />}</Route>
       <Route path="/onboarding/persona" component={OnboardingPersona} />
+      <Route path="/dashboard" component={Dashboard} />
       <Route path="/pipeline" component={Pipeline} />
       <Route path="/screener" component={Screener} />
       <Route path="/diligence" component={Diligence} />
