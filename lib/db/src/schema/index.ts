@@ -28,3 +28,4 @@ export * from "./billing-orgs";
 export * from "./marketplace";
 export * from "./featured-content";
 export * from "./personas";
+export * from "./pe-portfolios";

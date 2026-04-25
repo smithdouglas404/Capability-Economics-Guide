@@ -44,6 +44,14 @@ import RegulationsPage from "@/pages/regulations";
 import CollaborationPage from "@/pages/collaboration";
 import Console from "@/pages/console";
 import OnboardingPersona from "@/pages/onboarding-persona";
+import Pipeline from "@/pages/pipeline";
+import Screener from "@/pages/screener";
+import Diligence from "@/pages/diligence";
+import MaTwins from "@/pages/ma-twins";
+import Thesis from "@/pages/thesis";
+import PortfolioMonitor from "@/pages/portfolio-monitor";
+import ExitSignals from "@/pages/exit-signals";
+import Comparables from "@/pages/comparables";
 
 const queryClient = new QueryClient();
 
@@ -136,6 +144,14 @@ function Router() {
       <Route path="/workbench">{() => <Redirect to="/console" />}</Route>
       <Route path="/ledger">{() => <Redirect to="/console" />}</Route>
       <Route path="/onboarding/persona" component={OnboardingPersona} />
+      <Route path="/pipeline" component={Pipeline} />
+      <Route path="/screener" component={Screener} />
+      <Route path="/diligence" component={Diligence} />
+      <Route path="/ma-twins" component={MaTwins} />
+      <Route path="/thesis" component={Thesis} />
+      <Route path="/portfolio-monitor" component={PortfolioMonitor} />
+      <Route path="/exit-signals" component={ExitSignals} />
+      <Route path="/comparables" component={Comparables} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -8,6 +8,7 @@ import {
   AlertTriangle, CheckCircle2, Copy, Download, Key, KeyRound, Loader2, LogOut,
   PauseCircle, Trash2, UserCircle, Users, UserPlus, XCircle,
 } from "lucide-react";
+import { PERSONA_LIST, PERSONA_META } from "@/lib/persona-nav";
 
 const API_BASE = "/api";
 
@@ -44,6 +45,7 @@ type OrgSummary = {
     tierId: number | null;
     stripeSubscriptionId: string | null;
     stripeCustomerId: string | null;
+    defaultPersonaSlug: string | null;
   };
   role: string;
   joinedAt: string;
@@ -264,6 +266,24 @@ export default function AccountPage() {
       });
       if (!res.ok) throw new Error(await res.text());
       setSeatInput(m => ({ ...m, [orgId]: "" }));
+      await load();
+    } catch (e) {
+      alert((e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const setDefaultPersona = async (orgId: number, slug: string | null) => {
+    setBusyId(`default-persona-${orgId}`);
+    try {
+      const res = await fetch(`${API_BASE}/billing-orgs/${orgId}/default-persona`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      if (!res.ok) throw new Error(await res.text());
       await load();
     } catch (e) {
       alert((e as Error).message);
@@ -556,6 +576,45 @@ export default function AccountPage() {
                                 {busyId === `portal-${org.id}` ? <Loader2 className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
                                 <span className="ml-1">Manage billing</span>
                               </Button>
+                            </div>
+
+                            <div className="border-t pt-3 mt-2">
+                              <Label className="text-xs">Default persona for new invitees</Label>
+                              <p className="text-xs text-muted-foreground mb-2">
+                                {org.defaultPersonaSlug
+                                  ? <>New members land in <span className="font-mono">{PERSONA_META[org.defaultPersonaSlug as keyof typeof PERSONA_META]?.label ?? org.defaultPersonaSlug}</span> on first sign-in. Existing members keep their current persona.</>
+                                  : "No default — new invitees see the persona picker on first sign-in."
+                                }
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {PERSONA_LIST.map((p) => {
+                                  const isActive = org.defaultPersonaSlug === p.slug;
+                                  return (
+                                    <Button
+                                      key={p.slug}
+                                      size="sm"
+                                      variant={isActive ? "default" : "outline"}
+                                      onClick={() => setDefaultPersona(org.id, p.slug)}
+                                      disabled={busyId === `default-persona-${org.id}`}
+                                      className="rounded-none h-7 text-xs"
+                                      data-testid={`org-default-persona-${p.slug}`}
+                                    >
+                                      {p.shortLabel}
+                                    </Button>
+                                  );
+                                })}
+                                {org.defaultPersonaSlug && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setDefaultPersona(org.id, null)}
+                                    disabled={busyId === `default-persona-${org.id}`}
+                                    className="rounded-none h-7 text-xs text-muted-foreground"
+                                  >
+                                    Clear
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}
