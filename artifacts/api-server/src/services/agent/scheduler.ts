@@ -227,7 +227,7 @@ export function startScheduler(): void {
 
   startConsolidator();
   startMarketplaceAutoArchive();
-  startAutoEnrich();
+  void startAutoEnrich().catch(err => { /* non-fatal — Redis may be down */ void err; });
 
   executeRun("startup");
 
