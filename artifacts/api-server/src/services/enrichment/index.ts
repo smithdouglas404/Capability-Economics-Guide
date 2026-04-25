@@ -120,7 +120,7 @@ function extractJson(text: string): unknown {
   throw new Error("No JSON found in GLM response");
 }
 
-async function enrichCapabilityQuadrants(
+export async function enrichCapabilityQuadrants(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string; benchmarkScore: number }>,
@@ -201,7 +201,7 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
   return { classified, errors };
 }
 
-async function enrichValueChainStages(
+export async function enrichValueChainStages(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string }>,
@@ -326,7 +326,7 @@ Return ONLY a JSON array. No markdown.`;
   return { created, errors };
 }
 
-async function enrichCompanyProfiles(
+export async function enrichCompanyProfiles(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string }>,
@@ -444,11 +444,31 @@ export async function runEnrichment(): Promise<EnrichmentResult> {
   enrichmentRunning = true;
 
   try {
-    return await _runEnrichmentInner();
+    // Delegate to the LangGraph orchestrator. Single agentic entry point —
+    // shares memory + Letta context + SSE events with the CEI agent.
+    const { runEnrichmentGraph } = await import("./graph");
+    const graphResult = await runEnrichmentGraph({ trigger: "manual" });
+    const totals = Object.values(graphResult.perIndustry).reduce(
+      (acc, r) => ({
+        quadrantsClassified: acc.quadrantsClassified + r.classified,
+        valueChainStagesCreated: acc.valueChainStagesCreated + r.valueChainStages,
+        companiesProfiled: acc.companiesProfiled + r.companiesProfiled,
+        companyMappingsCreated: acc.companyMappingsCreated + r.companiesMapped,
+      }),
+      { quadrantsClassified: 0, valueChainStagesCreated: 0, companiesProfiled: 0, companyMappingsCreated: 0 },
+    );
+    return {
+      ...totals,
+      errors: graphResult.errors,
+      durationMs: 0, // graph tracks this in enrichmentRunsTable
+    };
   } finally {
     enrichmentRunning = false;
   }
 }
+
+/** @deprecated Kept for the boot-cleanup transition; new code calls runEnrichmentGraph directly. */
+export { runEnrichment as legacyRunEnrichment };
 
 async function _runEnrichmentInner(): Promise<EnrichmentResult> {
   const start = Date.now();

@@ -19,6 +19,7 @@ import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { runAlphaEnrichment, runDetailEnrichment } from "../services/alpha/enrich";
+import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -129,14 +130,18 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     // creates, and both are being re-run here.
     await db.delete(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
 
-    // Alpha: creates the capability_economics row with TAM/SAM/quadrant/etc.
-    // Scoped to this capability's industry with limit=1 so only this cap enriches.
-    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] starting alpha");
-    await runAlphaEnrichment({ industryId: cap.industryId, limitCapabilities: 1, limitEdges: 0 });
-
-    // Detail: populates narrative fields on the row alpha just created.
-    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] starting detail");
-    await runDetailEnrichment({ capabilityId: capId, force: true });
+    // Single agentic entry point — invokes the enrichment LangGraph for this
+    // one capability. The graph runs all 5 stages (classify → value chain →
+    // companies → alpha → detail) in one orchestrated state machine, sharing
+    // memory + Letta context with the CEI agent. Replaces the legacy two-step
+    // alpha+detail call so the rerun button executes the same code path as
+    // the cron tick.
+    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] invoking enrichment graph");
+    await runEnrichmentGraph({
+      trigger: "rerun",
+      targetCapabilityIds: [capId],
+      targetIndustryIds: [cap.industryId],
+    });
 
     // Sync the status column. Path A (this synchronous rerun) historically
     // wrote capability_economics but never updated enrichment_status, so the

@@ -112,18 +112,18 @@ async function tick() {
       byIndustry.set(row.industryId, arr);
     }
 
+    // Single agentic entry point — fire one graph invocation per tick that
+    // covers ALL stale industries in one orchestrated run. The graph handles
+    // alpha + detail + quadrants + value chain + companies + memory in a
+    // single state machine instead of separate fire-and-forget BullMQ jobs.
     let enqueued = 0;
-    for (const [industryId, capIds] of byIndustry) {
-      try {
-        await enqueueEnrichmentJob(
-          "alpha",
-          { industryId, limitCapabilities: capIds.length, limitEdges: 15 },
-          { industryId },
-        );
-        enqueued += capIds.length;
-      } catch (err) {
-        logger.error({ err, industryId }, "[auto-enrich] enqueue failed");
-      }
+    const targetIndustryIds = [...byIndustry.keys()];
+    try {
+      const { runEnrichmentGraph } = await import("./graph-trigger");
+      await runEnrichmentGraph(targetIndustryIds);
+      enqueued = stale.length;
+    } catch (err) {
+      logger.error({ err, targetIndustryIds }, "[auto-enrich] graph invocation failed");
     }
 
     await db.update(enrichmentConfigTable)
