@@ -97,7 +97,7 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, cap.industryId));
     if (industry) {
       logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] pre-calling classify_quadrants for single cap");
-      const r = await enrichCapabilityQuadrants(cap.industryId, industry.name, [{ id: cap.id, name: cap.name, benchmarkScore: cap.benchmarkScore ?? 50 }], 0);
+      const r = await enrichCapabilityQuadrants(cap.industryId, industry.name, [{ id: cap.id, name: cap.name, benchmarkScore: cap.benchmarkScore ?? 50 }], null);
       logger.info({ classified: r.classified, errors: r.errors.length }, "[alpha/rerun] classify_quadrants result");
     }
 

@@ -124,7 +124,7 @@ export async function enrichCapabilityQuadrants(
   industryId: number,
   industryName: string,
   capabilities: Array<{ id: number; name: string; benchmarkScore: number }>,
-  runId: number,
+  runId: number | null,
 ): Promise<{ classified: number; errors: string[] }> {
   let classified = 0;
   const errors: string[] = [];
