@@ -144,7 +144,7 @@ export interface DiditLivenessResult {
 
 export async function checkPassiveLiveness(imageBuffer: Buffer, filename: string): Promise<DiditLivenessResult> {
   const formData = new FormData();
-  formData.append("user_image", new Blob([imageBuffer]), filename);
+  formData.append("user_image", new Blob([new Uint8Array(imageBuffer)]), filename);
 
   const resp = await fetch(`${DIDIT_BASE_URL}/v3/passive-liveness/`, {
     method: "POST",

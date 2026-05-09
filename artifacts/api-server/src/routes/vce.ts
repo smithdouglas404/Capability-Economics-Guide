@@ -20,6 +20,11 @@ import {
 
 const router = Router();
 
+function paramInt(v: string | string[] | undefined): number {
+  const s = Array.isArray(v) ? v[0] : v;
+  return parseInt(s ?? "", 10);
+}
+
 const createSchema = z.object({
   clientName: z.string().min(2).max(120),
   industryId: z.number().int().positive().optional(),
@@ -52,7 +57,7 @@ router.get("/vce/assessments", async (_req: Request, res: Response) => {
 });
 
 router.get("/vce/assessments/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const [assessment] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, id));
@@ -74,7 +79,7 @@ const answerSchema = z.object({
 });
 
 router.post("/vce/assessments/:id/answer", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = answerSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", issues: parsed.error.issues }); return; }
@@ -92,7 +97,7 @@ router.post("/vce/assessments/:id/answer", async (req: Request, res: Response) =
 
 // Run the NEXT scheduled cycle for this campaign
 router.post("/vce/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const result = await runNextCycle(id);
@@ -102,8 +107,8 @@ router.post("/vce/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.V
 
 // Run a SPECIFIC cycle (e.g. retry a failed one)
 router.post("/vce/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
-  const cycleId = parseInt(req.params.cycleId);
+  const id = paramInt(req.params.id);
+  const cycleId = paramInt(req.params.cycleId);
   if (!Number.isInteger(id) || !Number.isInteger(cycleId)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const result = await runCycleById(id, cycleId);
@@ -112,7 +117,7 @@ router.post("/vce/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COS
 });
 
 router.post("/vce/assessments/:id/finalize", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     const report = await finalizeAssessment(id);
@@ -175,7 +180,7 @@ const reviewSchema = z.object({
 });
 
 router.patch("/vce/research/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = reviewSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", issues: parsed.error.issues }); return; }
@@ -199,7 +204,7 @@ const questionPatchSchema = z.object({
 });
 
 router.patch("/vce/questions/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = questionPatchSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", issues: parsed.error.issues }); return; }
@@ -214,7 +219,7 @@ router.patch("/vce/questions/:id", async (req: Request, res: Response) => {
 });
 
 router.delete("/vce/assessments/:id", async (req: Request, res: Response) => {
-  const id = parseInt(req.params.id);
+  const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
     await db.delete(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, id));

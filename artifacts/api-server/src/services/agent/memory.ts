@@ -160,7 +160,7 @@ export async function updateMemory(memoryId: string, newContent: string): Promis
   const client = getMem0Client();
   if (!client) return false;
   try {
-    await client.update(memoryId, newContent);
+    await client.update(memoryId, { text: newContent });
     await db.update(agentMemoriesTable)
       .set({ content: newContent })
       .where(eq(agentMemoriesTable.mem0Id, memoryId));

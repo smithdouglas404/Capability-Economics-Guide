@@ -517,10 +517,16 @@ Rules:
   res.json({ analysis, roadmap });
 });
 
+function singleParam(v: string | string[] | undefined): string {
+  if (v == null) return "";
+  return Array.isArray(v) ? (v[0] ?? "") : v;
+}
+
 router.get("/assess/:sessionId", async (req: Request, res: Response) => {
+  const sessionId = singleParam(req.params.sessionId);
   const rows = await db.select()
     .from(capabilityAssessmentsTable)
-    .where(eq(capabilityAssessmentsTable.sessionId, req.params.sessionId))
+    .where(eq(capabilityAssessmentsTable.sessionId, sessionId))
     .limit(1);
 
   if (!rows.length) {
@@ -561,9 +567,10 @@ router.post("/assess/share", async (req: Request, res: Response) => {
 });
 
 router.get("/assess/share/:token", async (req: Request, res: Response) => {
+  const token = singleParam(req.params.token);
   const rows = await db.select()
     .from(capabilityAssessmentsTable)
-    .where(eq(capabilityAssessmentsTable.shareToken, req.params.token))
+    .where(eq(capabilityAssessmentsTable.shareToken, token))
     .limit(1);
 
   if (!rows.length) {
@@ -600,7 +607,7 @@ router.get("/assess", async (req: Request, res: Response) => {
 });
 
 router.patch("/assess/:sessionId", async (req: Request, res: Response) => {
-  const { sessionId } = req.params;
+  const sessionId = singleParam(req.params.sessionId);
   const {
     companyName, companyCik, industry, opportunity,
     voiceTranscript, documentText, jobPostingText, competitors,

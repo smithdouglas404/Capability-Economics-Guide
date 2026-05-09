@@ -21,28 +21,34 @@ const router: IRouter = Router();
 
 router.get("/workbench/companies", async (req, res) => {
   const industryId = parseInt(String(req.query.industryId ?? ""), 10);
-  if (!industryId) return res.status(400).json({ error: "industryId required" });
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
   const limit = Math.min(200, parseInt(String(req.query.limit ?? "100"), 10) || 100);
   const rows = await listCompaniesForIndustry(industryId, { limit });
   res.json({ companies: rows });
 });
 
 router.get("/workbench/companies/:id", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
   const detail = await getCompanyDetail(id);
-  if (!detail) return res.status(404).json({ error: "not found" });
+  if (!detail) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
   res.json(detail);
 });
 
 router.get("/workbench/companies/:id/similar", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
   const limit = Math.min(20, parseInt(String(req.query.limit ?? "10"), 10) || 10);
   const sims = await findSimilarCompanies(id, { limit });
   res.json({ similar: sims });
 });
 
 router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
-  const id = parseInt(req.params.id, 10);
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
   await computeCompanyScores(id);
   const detail = await getCompanyDetail(id);
   res.json({ ok: true, scores: detail?.scores ?? null });
@@ -50,7 +56,10 @@ router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
 
 router.post("/workbench/companies/_ingest", async (req, res) => {
   const industryId = parseInt(String(req.body?.industryId ?? ""), 10);
-  if (!industryId) return res.status(400).json({ error: "industryId required" });
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
   const limit = Math.min(50, parseInt(String(req.body?.limit ?? "25"), 10) || 25);
   setImmediate(async () => {
     try {
@@ -67,13 +76,16 @@ router.post("/workbench/companies/_ingest", async (req, res) => {
 
 router.post("/workbench/companies/_recompute", async (req, res) => {
   const industryId = parseInt(String(req.body?.industryId ?? ""), 10);
-  if (!industryId) return res.status(400).json({ error: "industryId required" });
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
   const r = await recomputeAllScoresForIndustry(industryId);
   res.json({ ok: true, ...r });
 });
 
 router.get("/workbench/value-chain/:industryId", async (req, res) => {
-  const industryId = parseInt(req.params.industryId, 10);
+  const industryId = parseInt(String(Array.isArray(req.params.industryId) ? req.params.industryId[0] : req.params.industryId), 10);
   const profile = await valueChainStageProfile(industryId);
   // Augment with rolled-up CEI per stage.
   const caps = await db.select({
@@ -132,7 +144,10 @@ router.post("/workbench/value-chain/_backfill-stages", async (req, res) => {
 
 router.post("/workbench/external-signals/_ingest", async (req, res) => {
   const industryId = parseInt(String(req.body?.industryId ?? ""), 10);
-  if (!industryId) return res.status(400).json({ error: "industryId required" });
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
   setImmediate(async () => {
     try {
       const r = await ingestExternalSignalsForIndustry(industryId, { concurrency: 3, staleDays: 30 });
@@ -146,7 +161,7 @@ router.post("/workbench/external-signals/_ingest", async (req, res) => {
 
 // Quadrant: x = velocity, y = score, size = confidence × source-count.
 router.get("/workbench/quadrant/:industryId", async (req, res) => {
-  const industryId = parseInt(req.params.industryId, 10);
+  const industryId = parseInt(String(Array.isArray(req.params.industryId) ? req.params.industryId[0] : req.params.industryId), 10);
   const rows = await db.select({
     id: capabilitiesTable.id,
     name: capabilitiesTable.name,

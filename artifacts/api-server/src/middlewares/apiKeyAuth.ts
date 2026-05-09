@@ -34,7 +34,6 @@ export function apiKeyAuth() {
           orgPermissions: [],
           actor: null,
           __type: "authenticated",
-          // @ts-expect-error — informational, lets downstream code see this came from an API key
           apiKeyId: result.keyId,
         } as unknown as typeof reqWithAuth.auth;
       }

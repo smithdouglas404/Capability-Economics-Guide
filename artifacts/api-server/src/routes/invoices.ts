@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { getAuth } from "@clerk/express";
 import { db, userMembershipsTable, membershipTiersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -6,6 +6,16 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { writeInvoicePdf, type InvoiceData } from "../services/invoice-pdf";
 
 const router: IRouter = Router();
+
+function invoiceEntityType(raw: string): InvoiceData["customer"]["entityType"] {
+  return raw === "individual" ? "individual" : "company";
+}
+
+function invoicePaymentMethod(raw: string): InvoiceData["payment"]["method"] {
+  if (raw === "crypto") return "crypto";
+  if (raw === "invoice") return "invoice";
+  return "card";
+}
 
 function buildInvoiceData(opts: {
   membership: typeof userMembershipsTable.$inferSelect;
@@ -26,7 +36,7 @@ function buildInvoiceData(opts: {
       name: membership.userName,
       email: membership.userEmail,
       entityName: membership.entityName,
-      entityType: membership.entityType,
+      entityType: invoiceEntityType(membership.entityType),
     },
     lineItem: {
       description: `${tier?.name ?? "Membership"} — ${tier?.tagline ?? "Capability Economics"}`,
@@ -34,7 +44,7 @@ function buildInvoiceData(opts: {
       periodLabel,
     },
     payment: {
-      method: membership.paymentMethod,
+      method: invoicePaymentMethod(membership.paymentMethod),
       status: membership.paymentStatus,
       reference: membership.paymentRef,
       paidAt: membership.approvedAt,
@@ -47,7 +57,7 @@ function buildInvoiceData(opts: {
   };
 }
 
-async function streamPdfResponse(res: Parameters<typeof writeInvoicePdf>[1] & { setHeader: (k: string, v: string) => void; status: (code: number) => { json: (b: unknown) => void } }, data: InvoiceData) {
+async function streamPdfResponse(res: Response, data: InvoiceData) {
   try {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="invoice-${data.invoiceNumber}.pdf"`);
@@ -66,7 +76,7 @@ async function streamPdfResponse(res: Parameters<typeof writeInvoicePdf>[1] & { 
 router.get("/me/memberships/:id/invoice.pdf", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
-  const id = Number(req.params.id);
+  const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
   const [m] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
   if (!m || m.userId !== auth.userId) { res.status(404).json({ error: "not found" }); return; }
@@ -76,7 +86,7 @@ router.get("/me/memberships/:id/invoice.pdf", async (req, res) => {
 
 /** Admin can download invoices for any membership. */
 router.get("/admin/memberships/:id/invoice.pdf", requireAdmin, async (req, res) => {
-  const id = Number(req.params.id);
+  const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
   const [m] = await db.select().from(userMembershipsTable).where(eq(userMembershipsTable.id, id));
   if (!m) { res.status(404).json({ error: "not found" }); return; }

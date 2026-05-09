@@ -202,7 +202,7 @@ const COMPETITOR_COLORS = [
 
 export default function Assess() {
   const [step, setStep] = useState<Step>("input");
-  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
   const [orgSessionToken] = useState<string | null>(() => localStorage.getItem("ce_session_token"));
   const [companyName, setCompanyName] = useState("");
   const [industry, setIndustry] = useState("");
@@ -299,7 +299,7 @@ export default function Assess() {
   const opptyFinalRef = useRef<string>("");
 
   const startRecording = useCallback(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
     if (!SRClass) {
       alert("Voice recording requires Chrome or Edge.");
@@ -340,7 +340,7 @@ export default function Assess() {
   }, []);
 
   const startQVoice = useCallback((idx: number) => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
     if (!SRClass) { alert("Voice input requires Chrome or Edge."); return; }
     (qVoiceRecRef.current as { stop?: () => void } | null)?.stop?.();
@@ -386,7 +386,7 @@ export default function Assess() {
   }, []);
 
   const startOpptyRecording = useCallback(() => {
-    const w = window as Record<string, unknown>;
+    const w = window as unknown as Record<string, unknown>;
     const SRClass = (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => unknown) | undefined;
     if (!SRClass) { alert("Voice input requires Chrome or Edge."); return; }
     (opptyRecRef.current as { stop?: () => void } | null)?.stop?.();

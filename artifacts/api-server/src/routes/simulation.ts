@@ -125,7 +125,7 @@ router.post("/simulation/run", async (req, res) => {
         const downCap = capMap.get(dep.capabilityId);
         const edge = edgeMap.get(dep.id);
         if (!edge || !downCap) continue;
-        const deltaImpact = -matDelta * edge.disruptionProbability * 0.1;
+        const deltaImpact = -matDelta * (edge.disruptionProbability ?? 0) * 0.1;
         cascadeEffects.push({
           fromId: inv.capabilityId, fromName: capName,
           toId: dep.capabilityId, toName: downCap.name,

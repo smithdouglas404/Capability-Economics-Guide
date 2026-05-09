@@ -70,7 +70,8 @@ router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
  * Requires a signed-in Clerk user, matching "Enrich Now".
  */
 router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response) => {
-  const capId = parseInt(req.params.id);
+  const idRaw = req.params.id;
+  const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
   if (!Number.isFinite(capId)) { res.status(400).json({ error: "bad id" }); return; }
   const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId));
   if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
@@ -136,7 +137,8 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
 // Capability detail aggregator — used by the capability detail page
 router.get("/capability/:id", async (req: Request, res: Response) => {
   try {
-    const capId = parseInt(req.params.id);
+    const idRaw = req.params.id;
+    const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
     if (isNaN(capId)) { res.status(400).json({ error: "bad id" }); return; }
 
     const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId));
@@ -546,7 +548,7 @@ router.get("/moat", async (req: Request, res: Response) => {
           },
           halfLifeMonths: halfLife, upstreamDeps: upstream, downstreamDeps: downstream,
           hhi: hhi != null ? Math.round(hhi * 100) / 100 : null,
-          rationale: q.rationale, sources: e.sources,
+          rationale: q.rationale, sources: e.consensusSources ?? null,
           enriched: true,
         };
       })
@@ -648,7 +650,7 @@ router.get("/fragility", async (_req: Request, res: Response) => {
           topUpstreamRiskMm: topEdgeExpectedImpact != null ? Math.round(topEdgeExpectedImpact) : null,
           scoredEdgesCount, totalUpstreamEdges: ups.length,
           halfLifeMonths: halfLife,
-          rationale: q.rationale, sources: e.sources, enriched: true,
+          rationale: q.rationale, sources: e.consensusSources ?? null, enriched: true,
         };
       })
       .filter((x): x is NonNullable<typeof x> => !!x)
@@ -741,7 +743,7 @@ router.get("/arbitrage", async (_req: Request, res: Response) => {
           companies: mappingsByCap.get(e.capabilityId) ?? 0,
           rationale: e.rationale,
           consensusSummary: e.consensusSummary,
-          sources: e.sources,
+          sources: e.consensusSources ?? null,
         };
       })
       .filter((x): x is NonNullable<typeof x> => !!x)

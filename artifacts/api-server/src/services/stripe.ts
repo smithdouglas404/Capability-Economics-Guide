@@ -5,7 +5,7 @@ export function getStripe(): Stripe {
   if (stripeClient) return stripeClient;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY not set");
-  stripeClient = new Stripe(key, { apiVersion: "2025-09-30.clover" });
+  stripeClient = new Stripe(key, { apiVersion: "2026-03-25.dahlia" });
   return stripeClient;
 }
 
@@ -30,8 +30,8 @@ export async function createCheckoutSession(input: CheckoutSessionInput): Promis
   const stripe = getStripe();
   const isSubscription = input.subscription !== false; // default to subscriptions for new flows
 
-  const recurring: Stripe.Checkout.SessionCreateParams.LineItem.PriceData["recurring"] | undefined = isSubscription
-    ? { interval: input.billingPeriod === "annual" ? "year" : "month" }
+  const recurring = isSubscription
+    ? { interval: input.billingPeriod === "annual" ? ("year" as const) : ("month" as const) }
     : undefined;
 
   return stripe.checkout.sessions.create({

@@ -105,18 +105,37 @@ router.get("/macro-events/active", async (_req, res) => {
 const VALID_TYPES: EventType[] = ["war", "regulation", "tech_shift", "economic", "disaster", "other"];
 const VALID_DIRECTIONS: SentimentDirection[] = ["positive", "negative", "neutral"];
 
+const VALID_MACRO_SOURCES = ["admin", "world_scan", "manual"] as const;
+
 router.post("/macro-events", requireAdmin, async (req, res) => {
   try {
     const body = req.body as Record<string, unknown>;
     const eventType = String(body.eventType ?? "other") as EventType;
-    if (!VALID_TYPES.includes(eventType)) return res.status(400).json({ error: "Invalid eventType" });
+    if (!VALID_TYPES.includes(eventType)) {
+      res.status(400).json({ error: "Invalid eventType" });
+      return;
+    }
     const sentimentDirection = String(body.sentimentDirection ?? "negative") as SentimentDirection;
-    if (!VALID_DIRECTIONS.includes(sentimentDirection)) return res.status(400).json({ error: "Invalid sentimentDirection" });
+    if (!VALID_DIRECTIONS.includes(sentimentDirection)) {
+      res.status(400).json({ error: "Invalid sentimentDirection" });
+      return;
+    }
     const severity = Number(body.severity);
-    if (!Number.isFinite(severity) || severity < 0 || severity > 10) return res.status(400).json({ error: "severity must be 0-10" });
+    if (!Number.isFinite(severity) || severity < 0 || severity > 10) {
+      res.status(400).json({ error: "severity must be 0-10" });
+      return;
+    }
     const title = String(body.title ?? "").trim();
-    if (!title) return res.status(400).json({ error: "title required" });
+    if (!title) {
+      res.status(400).json({ error: "title required" });
+      return;
+    }
     const description = String(body.description ?? "").trim();
+
+    const rawSource = typeof body.source === "string" ? body.source.trim() : "";
+    const source = (VALID_MACRO_SOURCES as readonly string[]).includes(rawSource)
+      ? (rawSource as (typeof VALID_MACRO_SOURCES)[number])
+      : "admin";
 
     const event = await createMacroEvent({
       eventType,
@@ -127,7 +146,7 @@ router.post("/macro-events", requireAdmin, async (req, res) => {
       affectedCapabilityIds: Array.isArray(body.affectedCapabilityIds) ? (body.affectedCapabilityIds as number[]).map(Number).filter(Number.isFinite) : [],
       sentimentDirection,
       decayDays: Number.isFinite(Number(body.decayDays)) ? Number(body.decayDays) : 14,
-      source: typeof body.source === "string" && body.source ? String(body.source) : "admin",
+      source,
       createdBy: "admin",
     });
     res.json({ event });
@@ -139,8 +158,11 @@ router.post("/macro-events", requireAdmin, async (req, res) => {
 
 router.delete("/macro-events/:id", requireAdmin, async (req, res) => {
   try {
-    const id = Number(req.params.id);
-    if (!Number.isFinite(id)) return res.status(400).json({ error: "Invalid id" });
+    const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
     const ok = await deleteMacroEvent(id);
     res.json({ deleted: ok });
   } catch (err) {

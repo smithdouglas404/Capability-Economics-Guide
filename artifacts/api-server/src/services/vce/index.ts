@@ -173,10 +173,19 @@ Return ONLY valid JSON:
   }>(raw);
   if (!report?.executiveSummary) throw new Error("Final report synthesis failed");
 
+  const finalReport = {
+    summary: report.executiveSummary,
+    capabilityGaps: report.capabilityGaps,
+    recommendations: report.recommendations,
+    quadrantInsights: report.quadrantInsights,
+    risks: report.risks,
+    nextSteps: report.nextSteps,
+  };
+
   await db.update(vceAssessmentsTable).set({
     status: "finalized",
     executiveSummary: report.executiveSummary,
-    finalReport: report,
+    finalReport,
     updatedAt: new Date(),
   }).where(eq(vceAssessmentsTable.id, assessmentId));
 

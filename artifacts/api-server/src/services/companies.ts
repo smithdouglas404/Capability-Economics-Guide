@@ -9,6 +9,7 @@ import {
   ceiComponentsTable,
 } from "@workspace/db/schema";
 import { and, eq, gt, sql, desc } from "drizzle-orm";
+import { logLlmCall } from "./llm-usage";
 
 async function getIndustryCapMetrics(industryId: number) {
   return db.select({

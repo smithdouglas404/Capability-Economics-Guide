@@ -204,7 +204,22 @@ router.get("/cei/capability-tree", async (req, res) => {
       }
     }
 
-    const buildNode = (cap: typeof caps[number]) => {
+    type CapRow = (typeof caps)[number];
+    type TreeNode = {
+      id: number;
+      name: string;
+      slug: string;
+      industryId: number;
+      isLeaf: boolean | null;
+      parentCapabilityId: number | null;
+      score: number | null;
+      confidence: number | null;
+      velocity: number | null;
+      updatedAt: Date | null;
+      children: TreeNode[];
+    };
+
+    const buildNode = (cap: CapRow): TreeNode => {
       const comp = compByCap.get(cap.id);
       const kids = (childrenByParent.get(cap.id) ?? [])
         .map(buildNode)
