@@ -49,6 +49,7 @@ import SystemStatus from "@/pages/system-status";
 import LifecycleDocs from "@/pages/lifecycle-docs";
 import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
+import CoveragePage from "@/pages/coverage";
 
 const queryClient = new QueryClient();
 
@@ -102,6 +103,7 @@ function Router() {
       <Route path="/alpha" component={Alpha} />
       <Route path="/cei" component={CEIDashboard} />
       <Route path="/methodology" component={Methodology} />
+      <Route path="/coverage" component={CoveragePage} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />
