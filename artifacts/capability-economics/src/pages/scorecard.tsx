@@ -19,6 +19,13 @@ type MatrixRow = {
   aiExposure: number | null;
   velocity: number;
   consensusScore: number;
+  confidence: number | null;
+  ciLow: number | null;
+  ciHigh: number | null;
+  lastUpdatedAt: string | null;
+  sourceCount: number;
+  citations: string[];
+  sourceBreakdown: Array<{ sourceLabel: string; rawScore: number; weight: number; methodology?: string }>;
   lifecycleStage: LifecycleStage;
 };
 
@@ -260,6 +267,12 @@ export default function CapabilityScorecard() {
                         value={row.benchmark}
                         precision={0}
                         model="Bayesian posterior · v1.1"
+                        sourceCount={row.sourceCount}
+                        lastUpdatedAt={row.lastUpdatedAt}
+                        citations={row.citations}
+                        ciLow={row.ciLow}
+                        ciHigh={row.ciHigh}
+                        sourceBreakdown={row.sourceBreakdown}
                         side="left"
                       />
                     </td>
@@ -284,6 +297,9 @@ export default function CapabilityScorecard() {
                           value={row.moatScore}
                           precision={0}
                           model="Capability defensibility v1.1"
+                          sourceCount={row.sourceCount}
+                          lastUpdatedAt={row.lastUpdatedAt}
+                          citations={row.citations}
                           side="left"
                           className={row.moatScore >= 60 ? "text-emerald-500" : row.moatScore >= 30 ? "text-amber-500" : "text-destructive"}
                         />
@@ -298,6 +314,9 @@ export default function CapabilityScorecard() {
                           precision={0}
                           unit="%"
                           model="AI disruption model v1.1"
+                          sourceCount={row.sourceCount}
+                          lastUpdatedAt={row.lastUpdatedAt}
+                          citations={row.citations}
                           side="left"
                           className={row.aiExposure > 50 ? "text-destructive" : ""}
                         />

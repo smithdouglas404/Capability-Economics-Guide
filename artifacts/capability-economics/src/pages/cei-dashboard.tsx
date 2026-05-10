@@ -86,6 +86,10 @@ interface FreshnessItem {
   consensusScore: number | null;
   confidence: number | null;
   velocity: number | null;
+  ciLow?: number | null;
+  ciHigh?: number | null;
+  citations?: string[];
+  sourceBreakdown?: Array<{ sourceLabel: string; rawScore: number; weight: number; methodology?: string }>;
   lifecycleStage: import("@/components/lifecycle-chip").LifecycleStage;
 }
 interface FreshnessResponse {
@@ -1529,6 +1533,10 @@ export default function CEIDashboard() {
                                             precision={1}
                                             sourceCount={item.sourceCount}
                                             lastUpdatedAt={item.lastTriangulatedAt}
+                                            citations={item.citations}
+                                            ciLow={item.ciLow}
+                                            ciHigh={item.ciHigh}
+                                            sourceBreakdown={item.sourceBreakdown}
                                             model="Bayesian posterior · v1.1"
                                             side="left"
                                           />
@@ -1575,6 +1583,10 @@ export default function CEIDashboard() {
                                           precision={1}
                                           sourceCount={item.sourceCount}
                                           lastUpdatedAt={item.lastTriangulatedAt}
+                                          citations={item.citations}
+                                          ciLow={item.ciLow}
+                                          ciHigh={item.ciHigh}
+                                          sourceBreakdown={item.sourceBreakdown}
                                           model="Bayesian posterior · v1.1"
                                           side="left"
                                         />

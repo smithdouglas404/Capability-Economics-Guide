@@ -95,17 +95,20 @@ router.get("/cei/freshness", async (_req, res) => {
       capabilityId: sourceTriangulationsTable.capabilityId,
       sourceLabel: sourceTriangulationsTable.sourceLabel,
       queriedAt: sourceTriangulationsTable.queriedAt,
+      citations: sourceTriangulationsTable.citations,
     }).from(sourceTriangulationsTable);
 
-    const lastByCap = new Map<number, { lastAt: Date; sources: Set<string> }>();
+    const lastByCap = new Map<number, { lastAt: Date; sources: Set<string>; urls: Set<string> }>();
     for (const t of triRows) {
-      const e = lastByCap.get(t.capabilityId);
+      let e = lastByCap.get(t.capabilityId);
       if (!e) {
-        lastByCap.set(t.capabilityId, { lastAt: t.queriedAt, sources: new Set([t.sourceLabel]) });
+        e = { lastAt: t.queriedAt, sources: new Set([t.sourceLabel]), urls: new Set() };
+        lastByCap.set(t.capabilityId, e);
       } else {
         e.sources.add(t.sourceLabel);
         if (t.queriedAt > e.lastAt) e.lastAt = t.queriedAt;
       }
+      for (const u of (t.citations ?? [])) if (u) e.urls.add(u);
     }
 
     const components = await db.select().from(ceiComponentsTable);
@@ -131,6 +134,15 @@ router.get("/cei/freshness", async (_req, res) => {
         consensusScore: comp?.consensusScore ?? null,
         confidence: comp?.confidence ?? null,
         velocity: comp?.velocity ?? null,
+        ciLow: comp?.ciLow ?? null,
+        ciHigh: comp?.ciHigh ?? null,
+        citations: tri ? Array.from(tri.urls).slice(0, 12) : [],
+        sourceBreakdown: (comp?.sourceScores ?? []).map(s => ({
+          sourceLabel: s.sourceLabel,
+          rawScore: s.rawScore,
+          weight: s.weight,
+          methodology: s.methodology,
+        })),
         lifecycleStage: deriveLifecycleStage({
           consensusScore: comp?.consensusScore ?? null,
           velocity: comp?.velocity ?? null,

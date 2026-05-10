@@ -24,6 +24,9 @@ type CompanyRow = {
     publicTicker: string | null;
     ownership: string | null;
     websiteUrl: string | null;
+    sourceUrls?: string[] | null;
+    citationsCount?: number | null;
+    updatedAt?: string | null;
   };
   scores: null | {
     composite: number;
@@ -38,6 +41,8 @@ type CompanyRow = {
     capabilityCoverage: number;
     ceiWeighted: number;
     riskProfile: number;
+    lastComputedAt?: string | null;
+    details?: { avgConf?: number; avgVelocity?: number; capCount?: number } | null;
   };
 };
 type StageRow = {
@@ -281,6 +286,19 @@ export default function Companies() {
                                 {row.company.country && <span className="text-[10px] text-muted-foreground">{row.company.country}</span>}
                               </div>
                             </td>
+                            {(() => {
+                              const cites = (row.company.sourceUrls ?? []) as string[];
+                              const sCount = row.company.citationsCount ?? cites.length;
+                              const lastAt = s?.lastComputedAt ?? row.company.updatedAt ?? null;
+                              const conf = s?.details?.avgConf ?? null;
+                              const hw = (v: number) => conf !== null ? Math.max(0, (1 - conf) * 30) : null;
+                              const ci = (v: number) => {
+                                const h = hw(v);
+                                return h !== null
+                                  ? { ciLow: Math.max(0, v - h), ciHigh: Math.min(100, v + h) }
+                                  : { ciLow: undefined, ciHigh: undefined };
+                              };
+                              return <>
                             <td className="py-2 pr-2 w-32">
                               <div className="mb-1">
                                 {s ? (
@@ -289,6 +307,10 @@ export default function Companies() {
                                     value={s.composite}
                                     precision={1}
                                     model="Moneyball composite v1.0"
+                                    citations={cites}
+                                    sourceCount={sCount}
+                                    lastUpdatedAt={lastAt}
+                                    {...ci(s.composite)}
                                     sourceBreakdown={[
                                       { sourceLabel: "Forecasted value", rawScore: s.forecastedValue, weight: 0.25 },
                                       { sourceLabel: "Quality of asset", rawScore: s.qualityOfAsset, weight: 0.20 },
@@ -306,39 +328,41 @@ export default function Companies() {
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Forecasted value`} value={s.forecastedValue} precision={0} model="DCF + capability rollup v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Forecasted value`} value={s.forecastedValue} precision={0} model="DCF + capability rollup v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.forecastedValue)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Quality of asset`} value={s.qualityOfAsset} precision={0} model="Quality composite v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Quality of asset`} value={s.qualityOfAsset} precision={0} model="Quality composite v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.qualityOfAsset)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Moat`} value={s.moatScore} precision={0} model="Defensibility v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Moat`} value={s.moatScore} precision={0} model="Defensibility v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.moatScore)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Actionability`} value={s.actionability} precision={0} model="Deal-readiness v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Actionability`} value={s.actionability} precision={0} model="Deal-readiness v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.actionability)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Acquisition probability`} value={s.acquisitionProbability} precision={0} model="M&A signal v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Acquisition probability`} value={s.acquisitionProbability} precision={0} model="M&A signal v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.acquisitionProbability)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-24">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — AI disruptability`} value={s.aiDisruptability} precision={0} model="AI exposure v1.1" className={`font-mono text-xs ${s.aiDisruptability > 50 ? "text-red-500" : ""}`} />
+                                <ScoreWithProvenance label={`${row.company.name} — AI disruptability`} value={s.aiDisruptability} precision={0} model="AI exposure v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.aiDisruptability)} className={`font-mono text-xs ${s.aiDisruptability > 50 ? "text-red-500" : ""}`} />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
                             <td className="py-2 pr-2 w-20">
                               {s ? (
-                                <ScoreWithProvenance label={`${row.company.name} — Aged index`} value={s.agedIndex} precision={0} model="Time-decay weighted v1.1" className="font-mono text-xs" />
+                                <ScoreWithProvenance label={`${row.company.name} — Aged index`} value={s.agedIndex} precision={0} model="Time-decay weighted v1.1" citations={cites} sourceCount={sCount} lastUpdatedAt={lastAt} {...ci(s.agedIndex)} className="font-mono text-xs" />
                               ) : <span className="font-mono text-xs">—</span>}
                             </td>
+                            </>;
+                            })()}
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.revenueUsd)}</td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.fundingUsd)}</td>
                           </tr>

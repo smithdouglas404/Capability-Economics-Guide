@@ -7,6 +7,7 @@ import {
   capabilitiesTable,
   capabilityEconomicsTable,
   ceiComponentsTable,
+  sourceTriangulationsTable,
 } from "@workspace/db";
 import { eq, and, inArray, avg, count } from "drizzle-orm";
 import { deriveLifecycleStage } from "../services/lifecycle";
@@ -93,6 +94,23 @@ router.get("/war-room/compare", async (req, res) => {
       ? await db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
       : [];
 
+    // Pull triangulation citations so each row can expose Perplexity source URLs.
+    const triRows = capIds.length
+      ? await db.select({
+          capabilityId: sourceTriangulationsTable.capabilityId,
+          sourceLabel: sourceTriangulationsTable.sourceLabel,
+          citations: sourceTriangulationsTable.citations,
+          queriedAt: sourceTriangulationsTable.queriedAt,
+        }).from(sourceTriangulationsTable).where(inArray(sourceTriangulationsTable.capabilityId, capIds))
+      : [];
+    const citationsByCap = new Map<number, { urls: Set<string>; sources: Set<string> }>();
+    for (const t of triRows) {
+      let e = citationsByCap.get(t.capabilityId);
+      if (!e) { e = { urls: new Set(), sources: new Set() }; citationsByCap.set(t.capabilityId, e); }
+      e.sources.add(t.sourceLabel);
+      for (const u of (t.citations ?? [])) if (u) e.urls.add(u);
+    }
+
     // Build comparison matrix
     const orgCapMap = new Map(orgCaps.map((c) => [c.capabilityId, c]));
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
@@ -103,6 +121,15 @@ router.get("/war-room/compare", async (req, res) => {
       const benchmark = cap.benchmarkScore;
       const econ = econMap.get(cap.id);
       const comp = compMap.get(cap.id);
+      const tri = citationsByCap.get(cap.id);
+      const citationUrls = tri ? Array.from(tri.urls).slice(0, 12) : [];
+      const sourceCount = tri?.sources.size ?? (comp?.sourceScores?.length ?? 0);
+      const sourceBreakdown = (comp?.sourceScores ?? []).map(s => ({
+        sourceLabel: s.sourceLabel,
+        rawScore: s.rawScore,
+        weight: s.weight,
+        methodology: s.methodology,
+      }));
 
       return {
         capabilityId: cap.id,
@@ -119,6 +146,14 @@ router.get("/war-room/compare", async (req, res) => {
         aiExposure: econ?.aiExposureScore ?? null,
         velocity: comp?.velocity ?? null,
         consensusScore: comp?.consensusScore ?? benchmark ?? null,
+        // Provenance — surfaced for ScoreWithProvenance tooltips.
+        confidence: comp?.confidence ?? null,
+        ciLow: comp?.ciLow ?? null,
+        ciHigh: comp?.ciHigh ?? null,
+        lastUpdatedAt: comp?.updatedAt?.toISOString() ?? null,
+        sourceCount,
+        citations: citationUrls,
+        sourceBreakdown,
         lifecycleStage: deriveLifecycleStage({
           consensusScore: comp?.consensusScore ?? null,
           velocity: comp?.velocity ?? null,
