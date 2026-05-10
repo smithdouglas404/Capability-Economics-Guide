@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers } from "lucide-react";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
+import { ScoreWithProvenance } from "@/components/score-with-provenance";
 
 type CompaniesViewState = { industryId: number | null; tab: string };
 
@@ -281,7 +282,26 @@ export default function Companies() {
                               </div>
                             </td>
                             <td className="py-2 pr-2 w-32">
-                              <div className="font-mono text-xs mb-1">{s ? s.composite.toFixed(1) : "—"}</div>
+                              <div className="mb-1">
+                                {s ? (
+                                  <ScoreWithProvenance
+                                    label={`${row.company.name} — CE Composite`}
+                                    value={s.composite}
+                                    precision={1}
+                                    model="Moneyball composite v1.0"
+                                    sourceBreakdown={[
+                                      { sourceLabel: "Forecasted value", rawScore: s.forecastedValue, weight: 0.25 },
+                                      { sourceLabel: "Quality of asset", rawScore: s.qualityOfAsset, weight: 0.20 },
+                                      { sourceLabel: "Moat", rawScore: s.moatScore, weight: 0.20 },
+                                      { sourceLabel: "Actionability", rawScore: s.actionability, weight: 0.15 },
+                                      { sourceLabel: "CEI-weighted", rawScore: s.ceiWeighted, weight: 0.20 },
+                                    ]}
+                                    className="font-mono text-xs"
+                                  />
+                                ) : (
+                                  <span className="font-mono text-xs">—</span>
+                                )}
+                              </div>
                               {s && <ScoreBar value={s.composite} color="bg-primary" />}
                             </td>
                             <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.forecastedValue.toFixed(0) ?? "—"}</div></td>

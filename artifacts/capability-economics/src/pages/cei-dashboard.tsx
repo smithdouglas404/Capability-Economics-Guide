@@ -9,6 +9,7 @@ import { HelpCircle, BookOpenCheck } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
+import { ScoreWithProvenance } from "@/components/score-with-provenance";
 
 type CEIViewState = {
   selectedIndustry: string | null;
@@ -1689,7 +1690,22 @@ export default function CEIDashboard() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-2xl font-mono font-bold text-primary">{ind.indexValue.toFixed(0)}</div>
+                      <ScoreWithProvenance
+                        label={`${ind.industryName} — Industry CEI`}
+                        value={ind.indexValue}
+                        precision={0}
+                        ciLow={ind.ciLow}
+                        ciHigh={ind.ciHigh}
+                        sourceCount={ind.capabilityCount}
+                        lastUpdatedAt={cei.timestamp}
+                        model={`Bayesian posterior · ${cei.methodology ?? "v1.1"}`}
+                        gdpWeight={ind.weight}
+                        gdpWeightSourceUrl={ind.weightSourceUrl}
+                        gdpWeightSourceYear={ind.weightSourceYear}
+                        citations={ind.weightSourceUrl ? [ind.weightSourceUrl] : []}
+                        className="text-2xl font-mono font-bold text-primary"
+                        side="left"
+                      />
                       {ind.ciLow !== null && ind.ciHigh !== null && (
                         <div className="text-[10px] font-mono text-muted-foreground/70" title="95% credible interval">
                           95% CI {ind.ciLow.toFixed(0)}–{ind.ciHigh.toFixed(0)}
