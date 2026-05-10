@@ -144,9 +144,15 @@ export async function runConsolidation(): Promise<{
   let errorMessage: string | null = null;
 
   try {
-    // 1. Group recent observations/patterns by capability+industry
+    // 1. Group recent OBSERVATIONS (not patterns) by industry+capability+topic.
+    // Filtering on memoryType='observation' is critical — including pattern rows
+    // would re-count already-consolidated memories, distorting MIN_REPEAT_FOR_VALIDATION
+    // and producing duplicative pattern outputs cycle after cycle.
     const recentMemories = await db.select().from(agentMemoriesTable)
-      .where(sql`${agentMemoriesTable.createdAt} > NOW() - INTERVAL '30 days'`)
+      .where(and(
+        sql`${agentMemoriesTable.createdAt} > NOW() - INTERVAL '30 days'`,
+        eq(agentMemoriesTable.memoryType, "observation"),
+      ))
       .orderBy(desc(agentMemoriesTable.createdAt))
       .limit(500);
     observationsScanned = recentMemories.length;
@@ -157,7 +163,11 @@ export async function runConsolidation(): Promise<{
       const indName = (meta.industryName as string) || "";
       const capName = (meta.capabilityName as string) || "";
       if (!indName || !capName) continue;
-      const key = `${indName}::${capName}`;
+      // Topic axis — defaults to "general" when the upstream observation didn't tag one.
+      // Once observation producers populate metadata.topic (regulation, M&A, talent, etc.)
+      // patterns will become topic-specific automatically.
+      const topic = (typeof meta.topic === "string" && meta.topic.trim()) ? meta.topic.trim() : "general";
+      const key = `${indName}::${capName}::${topic}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(m);
     }
@@ -166,7 +176,7 @@ export async function runConsolidation(): Promise<{
     for (const [key, items] of groups) {
       if (items.length < MIN_REPEAT_FOR_VALIDATION) continue;
 
-      const [indName, capName] = key.split("::");
+      const [indName, capName, topic] = key.split("::");
       const scores = items
         .map(i => (i.metadata as { score?: number })?.score)
         .filter((s): s is number => typeof s === "number");
@@ -183,8 +193,9 @@ export async function runConsolidation(): Promise<{
         : 0;
       const stability = 1 / (1 + Math.sqrt(variance));
 
+      const topicTag = topic && topic !== "general" ? ` · topic=${topic}` : "";
       const statsHeader =
-        `VALIDATED PATTERN (${items.length} observations / last 30d, avg score ${avgScore.toFixed(1)}, ` +
+        `VALIDATED PATTERN (${items.length} observations / last 30d${topicTag}, avg score ${avgScore.toFixed(1)}, ` +
         `σ²=${variance.toFixed(2)}, stability ${stability.toFixed(2)}, avg confidence ${avgConf.toFixed(2)})`;
 
       // Try Claude synthesis; fall back to a deterministic line if the LLM is unreachable
@@ -215,6 +226,7 @@ export async function runConsolidation(): Promise<{
           {
             industryName: indName,
             capabilityName: capName,
+            topic,
             avgScore,
             avgConfidence: avgConf,
             stability,
