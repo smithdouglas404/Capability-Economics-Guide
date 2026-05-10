@@ -213,7 +213,7 @@ export default function Companies() {
             <SavedViewsMenu
               viewsApi={viewsApi}
               currentState={{ industryId, tab }}
-              onApply={(s) => { applyView(s); const m = viewsApi.views.find(v => v.stateJson.industryId === s.industryId && v.stateJson.tab === s.tab); setActiveViewId(m?.id ?? null); }}
+              onApply={(s, id) => { if (s && typeof s === "object") applyView(s); setActiveViewId(id); }}
               activeViewId={activeViewId}
             />
           </div>

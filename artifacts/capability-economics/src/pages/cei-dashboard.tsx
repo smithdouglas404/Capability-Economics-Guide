@@ -854,10 +854,9 @@ export default function CEIDashboard() {
                 <SavedViewsMenu
                   viewsApi={viewsApi}
                   currentState={{ selectedIndustry, freshnessStageFilter, showFreshness, showMacroPanel, showAgentActivity }}
-                  onApply={(s) => {
-                    applyCEIView(s);
-                    const m = viewsApi.views.find(v => JSON.stringify(v.stateJson) === JSON.stringify(s));
-                    setActiveViewId(m?.id ?? null);
+                  onApply={(s, id) => {
+                    if (s && typeof s === "object") applyCEIView(s);
+                    setActiveViewId(id);
                   }}
                   activeViewId={activeViewId}
                 />

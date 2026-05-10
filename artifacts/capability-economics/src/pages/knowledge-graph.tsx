@@ -920,12 +920,13 @@ export default function KnowledgeGraph() {
               <SavedViewsMenu
                 viewsApi={viewsApi}
                 currentState={{ tab, selectedIndustryId }}
-                onApply={(s) => {
-                  if (s.tab) setTab(s.tab);
-                  setSelectedIndustryId(s.selectedIndustryId ?? null);
-                  setSelectedCapabilityId(null);
-                  const m = viewsApi.views.find(v => v.stateJson.tab === s.tab && v.stateJson.selectedIndustryId === s.selectedIndustryId);
-                  setActiveViewId(m?.id ?? null);
+                onApply={(s, id) => {
+                  if (s && typeof s === "object") {
+                    if (s.tab && ["quadrant","network","industries","compare"].includes(s.tab)) setTab(s.tab);
+                    setSelectedIndustryId(typeof s.selectedIndustryId === "number" ? s.selectedIndustryId : null);
+                    setSelectedCapabilityId(null);
+                  }
+                  setActiveViewId(id);
                 }}
                 activeViewId={activeViewId}
               />

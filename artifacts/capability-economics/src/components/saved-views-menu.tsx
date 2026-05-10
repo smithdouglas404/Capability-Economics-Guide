@@ -29,8 +29,10 @@ type Props<S> = {
   viewsApi: UseSavedViewResult<S>;
   /** Current in-memory dashboard state (whatever the dashboard hands us). */
   currentState: S;
-  /** Apply a saved view to the dashboard. */
-  onApply: (state: S) => void;
+  /** Apply a saved view to the dashboard. The view id is passed so the
+   *  parent can track active selection deterministically (instead of
+   *  having to fingerprint state). */
+  onApply: (state: S, viewId: number | null) => void;
   /** Optional id of the currently-applied saved view, for the active checkmark. */
   activeViewId?: number | null;
   /** Disable the menu (e.g. when not signed in). */
@@ -53,7 +55,7 @@ export function SavedViewsMenu<S>({ viewsApi, currentState, onApply, activeViewI
         setSaveOpen(false);
         setName("");
         setMakeDefault(false);
-        onApply(r.stateJson);
+        onApply(r.stateJson, r.id);
       }
     } finally {
       setSaving(false);
@@ -90,7 +92,7 @@ export function SavedViewsMenu<S>({ viewsApi, currentState, onApply, activeViewI
               className="group flex items-center gap-1 px-1 py-0.5 hover:bg-muted/50 rounded-sm"
             >
               <button
-                onClick={() => onApply(v.stateJson)}
+                onClick={() => onApply(v.stateJson, v.id)}
                 className="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 text-left text-sm"
               >
                 {activeViewId === v.id ? (

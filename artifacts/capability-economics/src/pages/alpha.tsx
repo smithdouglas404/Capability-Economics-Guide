@@ -145,7 +145,7 @@ export default function Alpha() {
             <SavedViewsMenu
               viewsApi={viewsApi}
               currentState={{ tab }}
-              onApply={(s) => { if (typeof s.tab === "string") setTab(s.tab); const m = viewsApi.views.find(v => v.stateJson.tab === s.tab); setActiveViewId(m?.id ?? null); }}
+              onApply={(s, id) => { if (s && typeof s.tab === "string") setTab(s.tab); setActiveViewId(id); }}
               activeViewId={activeViewId}
             />
             <TraceabilityDialog />
