@@ -76,8 +76,18 @@ async function mem0Fetch(
   return res.json();
 }
 
-function isMem0Available(): boolean {
+export function isMem0Available(): boolean {
   return !!(process.env.MEM0_BASE_URL && process.env.MEM0_API_KEY);
+}
+
+/**
+ * Lightweight liveness probe — used by `/api/health/services`. Issues the
+ * cheapest authenticated read available (list 1 memory) and throws on any
+ * non-2xx so callers can classify the failure.
+ */
+export async function mem0Ping(): Promise<void> {
+  if (!isMem0Available()) throw new Error("Mem0 not configured");
+  await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=1`, "GET");
 }
 
 // ---------------------------------------------------------------------------

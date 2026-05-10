@@ -282,4 +282,37 @@ export function getLettaStatus(): {
   };
 }
 
+/**
+ * Live liveness check used by `/api/health/services`. Hits the Letta server's
+ * health endpoint with a short timeout. Distinguishes "not configured" (no
+ * env vars), "down" (configured but unreachable / 5xx / auth failed), and
+ * "ok" — and updates the cached `lettaConnected` flag as a side effect so
+ * subsequent agent ops have an accurate view.
+ */
+export async function lettaPing(): Promise<{
+  configured: boolean;
+  ok: boolean;
+  error: string | null;
+}> {
+  if (!LETTA_ENABLED) return { configured: false, ok: false, error: null };
+  try {
+    if (!lettaClient) {
+      const { default: Letta } = await import("@letta-ai/letta-client");
+      lettaClient = new Letta({
+        baseURL: LETTA_BASE_URL,
+        ...(LETTA_API_KEY ? { apiKey: LETTA_API_KEY } : {}),
+      });
+    }
+    await Promise.race([
+      lettaClient.health(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Letta /health timed out")), 4000)),
+    ]);
+    lettaConnected = true;
+    return { configured: true, ok: true, error: null };
+  } catch (err) {
+    lettaConnected = false;
+    return { configured: true, ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 initLettaClient().catch(() => {});

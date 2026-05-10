@@ -18,6 +18,7 @@ import {
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { DegradedServiceBanner } from "@/components/degraded-banner";
 
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
@@ -142,6 +143,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      <DegradedServiceBanner />
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-4">
 

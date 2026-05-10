@@ -1,8 +1,29 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { getCachedSchemaStatus, verifySchema } from "../lib/schema-check";
+import { getAllServiceHealth } from "../services/health/probes";
 
 const router: IRouter = Router();
+
+/**
+ * Aggregated upstream service health — Mem0, Letta, OpenRouter, Anthropic,
+ * Perplexity, Foundry, Stripe, Clerk. Cached 60s per service; never blocks
+ * page load. Drives the dismissible degraded-mode banner and `/system-status`
+ * detail page on the frontend.
+ */
+router.get("/health/services", async (_req, res) => {
+  try {
+    const result = await getAllServiceHealth();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({
+      overall: "down",
+      services: [],
+      generatedAt: new Date().toISOString(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
 
 router.get("/healthz", (_req, res) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
