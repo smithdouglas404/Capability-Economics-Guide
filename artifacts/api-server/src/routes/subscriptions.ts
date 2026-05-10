@@ -63,7 +63,7 @@ router.get("/me/notifications/recent", async (req, res) => {
 });
 
 const createBody = z.object({
-  targetType: z.enum(["capability_threshold", "lifecycle_change", "macro_event", "quadrant_transition"]),
+  targetType: z.enum(["capability_threshold", "lifecycle_change", "velocity_signflip", "macro_event", "quadrant_transition"]),
   targetId: z.number().int().positive().nullable().optional(),
   condition: z.record(z.string(), z.unknown()),
   channel: z.enum(["email", "slack", "webhook"]).optional(),

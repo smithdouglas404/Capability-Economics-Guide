@@ -9,7 +9,7 @@ const API_BASE = "/api";
 
 type Subscription = {
   id: number;
-  targetType: "capability_threshold" | "lifecycle_change" | "macro_event" | "quadrant_transition";
+  targetType: "capability_threshold" | "lifecycle_change" | "velocity_signflip" | "macro_event" | "quadrant_transition";
   targetId: number | null;
   condition: Record<string, unknown>;
   channel: "email" | "slack" | "webhook";
@@ -33,14 +33,13 @@ type Delivery = {
 
 type CapabilityLite = { id: number; name: string };
 type IndustryLite = { id: number; name: string };
-type CompanyLite = { id: number; name: string };
-type IndustryWithCaps = { id: number; name: string };
 
 const TARGET_TYPE_LABEL: Record<Subscription["targetType"], string> = {
   capability_threshold: "Capability score threshold",
   lifecycle_change: "Capability lifecycle change",
+  velocity_signflip: "Capability velocity sign flip",
   macro_event: "Macro event",
-  quadrant_transition: "Company quadrant transition",
+  quadrant_transition: "Capability quadrant transition",
 };
 
 export default function NotificationsPanel() {
@@ -48,7 +47,6 @@ export default function NotificationsPanel() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [capabilities, setCapabilities] = useState<CapabilityLite[]>([]);
   const [industries, setIndustries] = useState<IndustryLite[]>([]);
-  const [companies, setCompanies] = useState<CompanyLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -56,7 +54,6 @@ export default function NotificationsPanel() {
   const [newType, setNewType] = useState<Subscription["targetType"]>("capability_threshold");
   const [newCapId, setNewCapId] = useState<string>("");
   const [newIndustryId, setNewIndustryId] = useState<string>("");
-  const [newCompanyId, setNewCompanyId] = useState<string>("");
 
   // When deep-linked from /account/notifications or ?tab=notifications,
   // scroll this panel into view on mount.
@@ -78,12 +75,11 @@ export default function NotificationsPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [sRes, dRes, cRes, iRes, coRes] = await Promise.all([
+      const [sRes, dRes, cRes, iRes] = await Promise.all([
         fetch(`${API_BASE}/me/subscriptions`, { credentials: "include" }),
         fetch(`${API_BASE}/me/notifications/recent`, { credentials: "include" }),
         fetch(`${API_BASE}/capabilities?limit=400`, { credentials: "include" }),
         fetch(`${API_BASE}/industries`, { credentials: "include" }),
-        fetch(`${API_BASE}/companies?limit=200`, { credentials: "include" }),
       ]);
       if (sRes.ok) setSubs((await sRes.json() as { subscriptions: Subscription[] }).subscriptions);
       if (dRes.ok) setDeliveries((await dRes.json() as { deliveries: Delivery[] }).deliveries);
@@ -94,11 +90,6 @@ export default function NotificationsPanel() {
       if (iRes.ok) {
         const j = await iRes.json() as { industries?: IndustryLite[] } | IndustryLite[];
         setIndustries(Array.isArray(j) ? j : (j.industries ?? []));
-      }
-      if (coRes.ok) {
-        const j = await coRes.json() as { companies?: Array<{ company: CompanyLite }> | CompanyLite[] };
-        const arr = Array.isArray(j.companies) ? j.companies : [];
-        setCompanies(arr.map(x => "company" in x ? x.company : x as CompanyLite));
       }
     } finally {
       setLoading(false);
@@ -115,7 +106,7 @@ export default function NotificationsPanel() {
       if (!capId) { alert("Pick a capability"); return; }
       targetId = capId;
       condition = { capabilityId: capId, direction: newDirection, threshold: Number(newThreshold) };
-    } else if (newType === "lifecycle_change") {
+    } else if (newType === "lifecycle_change" || newType === "velocity_signflip") {
       const capId = Number(newCapId);
       if (!capId) { alert("Pick a capability"); return; }
       targetId = capId;
@@ -195,6 +186,7 @@ export default function NotificationsPanel() {
       return `${capName(s.targetId)} ${(c as { direction: string }).direction} ${(c as { threshold: number }).threshold}`;
     }
     if (s.targetType === "lifecycle_change") return `${capName(s.targetId)} lifecycle change`;
+    if (s.targetType === "velocity_signflip") return `${capName(s.targetId)} velocity sign flip`;
     if (s.targetType === "macro_event") return `${indName(s.targetId)} · severity ≥ ${(c as { minSeverity: number }).minSeverity}`;
     if (s.targetType === "quadrant_transition") return `${s.targetId ? capName(s.targetId) : "Any capability"} quadrant change`;
     return s.label ?? "Alert";
@@ -224,8 +216,9 @@ export default function NotificationsPanel() {
               <select className="w-full border border-border px-2 py-1.5 rounded-none text-sm" value={newType} onChange={e => setNewType(e.target.value as Subscription["targetType"])}>
                 <option value="capability_threshold">Capability score crosses threshold</option>
                 <option value="lifecycle_change">Capability lifecycle changes</option>
+                <option value="velocity_signflip">Capability velocity flips sign</option>
                 <option value="macro_event">Macro event affects watched industry</option>
-                <option value="quadrant_transition">Company changes quadrant</option>
+                <option value="quadrant_transition">Capability changes consensus quadrant</option>
               </select>
             </div>
             <div>
@@ -234,7 +227,7 @@ export default function NotificationsPanel() {
             </div>
           </div>
 
-          {(newType === "capability_threshold" || newType === "lifecycle_change") && (
+          {(newType === "capability_threshold" || newType === "lifecycle_change" || newType === "velocity_signflip") && (
             <div className="grid md:grid-cols-3 gap-2">
               <div>
                 <Label className="text-xs">Capability</Label>

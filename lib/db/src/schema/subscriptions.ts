@@ -7,8 +7,9 @@ import { z } from "zod/v4";
  * one row can represent any of:
  *   - capability_threshold: { capabilityId, direction: "above"|"below", threshold }
  *   - lifecycle_change:     { capabilityId }
+ *   - velocity_signflip:    { capabilityId }
  *   - macro_event:          { industryId?, minSeverity }
- *   - quadrant_transition:  { companyId? }
+ *   - quadrant_transition:  { capabilityId?, industryId? }  (capability-level)
  *
  * Channels: email | slack | webhook (the latter two are Platform-tier only,
  * gated at the route layer).
@@ -20,7 +21,7 @@ export const userSubscriptionsTable = pgTable("user_subscriptions", {
   id: serial("id").primaryKey(),
   userId: text("user_id").notNull(),
   targetType: text("target_type", {
-    enum: ["capability_threshold", "lifecycle_change", "macro_event", "quadrant_transition"],
+    enum: ["capability_threshold", "lifecycle_change", "velocity_signflip", "macro_event", "quadrant_transition"],
   }).notNull(),
   targetId: integer("target_id"),
   condition: jsonb("condition").$type<Record<string, unknown>>().notNull().default({}),

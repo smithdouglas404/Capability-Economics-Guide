@@ -31,12 +31,13 @@ import { deriveLifecycleStage } from "./lifecycle";
 
 type CondCapThreshold = { capabilityId: number; direction: "above" | "below"; threshold: number };
 type CondLifecycle = { capabilityId: number };
+type CondVelocitySignflip = { capabilityId: number };
 type CondMacro = { industryId?: number; minSeverity: number };
 type CondQuadrant = { capabilityId?: number; industryId?: number };
 
 export interface CreateSubscriptionInput {
   userId: string;
-  targetType: "capability_threshold" | "lifecycle_change" | "macro_event" | "quadrant_transition";
+  targetType: "capability_threshold" | "lifecycle_change" | "velocity_signflip" | "macro_event" | "quadrant_transition";
   targetId?: number | null;
   condition: Record<string, unknown>;
   channel?: "email" | "slack" | "webhook";
@@ -103,7 +104,7 @@ interface CapState {
 export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Promise<void> {
   const subs = await db.select().from(userSubscriptionsTable).where(and(
     eq(userSubscriptionsTable.active, 1),
-    sql`${userSubscriptionsTable.targetType} IN ('capability_threshold','lifecycle_change')`,
+    sql`${userSubscriptionsTable.targetType} IN ('capability_threshold','lifecycle_change','velocity_signflip')`,
   ));
   if (!subs.length) return;
   const currByCapId = await snapshotCapStates();
@@ -134,6 +135,26 @@ export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Prom
           subject: `${cap ?? "Capability"} lifecycle: ${prev.lifecycle} → ${curr.lifecycle}`,
           body: `${cap ?? `Capability #${cond.capabilityId}`} moved from ${prev.lifecycle} to ${curr.lifecycle} on the latest CEI snapshot.`,
           payload: { capabilityId: cond.capabilityId, previousStage: prev.lifecycle, currentStage: curr.lifecycle },
+        });
+      } else if (sub.targetType === "velocity_signflip") {
+        // Fires when a capability's velocity changes sign across snapshots
+        // (positive ↔ negative). Zero is treated as neutral — only true
+        // sign flips trigger. Distinct from lifecycle_change because
+        // velocity can flip without crossing a lifecycle stage boundary.
+        const cond = sub.condition as unknown as CondVelocitySignflip;
+        const curr = currByCapId.get(cond.capabilityId);
+        const prev = prevByCapId.get(cond.capabilityId);
+        if (!curr || !prev) continue;
+        const sign = (v: number): -1 | 0 | 1 => v > 0 ? 1 : v < 0 ? -1 : 0;
+        const ps = sign(prev.velocity);
+        const cs = sign(curr.velocity);
+        if (ps === 0 || cs === 0 || ps === cs) continue;
+        const cap = await getCapabilityName(cond.capabilityId);
+        const dir = cs > 0 ? "decelerating → accelerating" : "accelerating → decelerating";
+        await dispatch(sub, {
+          subject: `${cap ?? "Capability"} velocity flipped (${dir})`,
+          body: `${cap ?? `Capability #${cond.capabilityId}`} velocity went from ${prev.velocity.toFixed(2)} to ${curr.velocity.toFixed(2)} on the latest CEI snapshot.`,
+          payload: { capabilityId: cond.capabilityId, previousVelocity: prev.velocity, currentVelocity: curr.velocity },
         });
       }
     } catch (err) {
