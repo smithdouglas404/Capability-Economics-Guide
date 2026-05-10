@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Swords, AlertTriangle, Shield, Brain, TrendingDown, RefreshCw } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
+import { ScoreWithProvenance } from "@/components/score-with-provenance";
 
 const API_BASE = "/api";
 
@@ -241,34 +242,78 @@ export default function CapabilityScorecard() {
                   <tr key={row.capabilityId} className="border-b hover:bg-muted/30">
                     <td className="py-2 px-2 font-medium">{row.capabilityName}</td>
                     <td className="py-2 px-2"><LifecycleChip stage={row.lifecycleStage} /></td>
-                    <td className="text-right py-2 px-2">{row.myScore?.toFixed(0) ?? "—"}</td>
-                    <td className="text-right py-2 px-2">{row.benchmark.toFixed(0)}</td>
+                    <td className="text-right py-2 px-2">
+                      {row.myScore !== null ? (
+                        <ScoreWithProvenance
+                          label={`${row.capabilityName} — Your maturity score`}
+                          value={row.myScore}
+                          precision={0}
+                          model="Self-assessment v1.1"
+                          sourceCount={1}
+                          side="left"
+                        />
+                      ) : "—"}
+                    </td>
+                    <td className="text-right py-2 px-2">
+                      <ScoreWithProvenance
+                        label={`${row.capabilityName} — Industry benchmark`}
+                        value={row.benchmark}
+                        precision={0}
+                        model="Bayesian posterior · v1.1"
+                        side="left"
+                      />
+                    </td>
                     <td className="text-right py-2 px-2">
                       {row.gap !== null ? (
-                        <span className={row.gap >= 0 ? "text-emerald-500" : "text-destructive"}>
-                          {row.gap >= 0 ? "+" : ""}{row.gap.toFixed(0)}
-                        </span>
+                        <ScoreWithProvenance
+                          label={`${row.capabilityName} — Gap vs benchmark`}
+                          value={row.gap}
+                          precision={0}
+                          model="myScore − benchmark"
+                          className={row.gap >= 0 ? "text-emerald-500" : "text-destructive"}
+                          side="left"
+                        >
+                          <span>{row.gap >= 0 ? "+" : ""}{row.gap.toFixed(0)}</span>
+                        </ScoreWithProvenance>
                       ) : "—"}
                     </td>
                     <td className="text-right py-2 px-2">
                       {row.moatScore !== null ? (
-                        <Badge variant="outline" className={`text-xs ${row.moatScore >= 60 ? "text-emerald-500" : row.moatScore >= 30 ? "text-amber-500" : "text-destructive"}`}>
-                          {row.moatScore.toFixed(0)}
-                        </Badge>
+                        <ScoreWithProvenance
+                          label={`${row.capabilityName} — Moat score`}
+                          value={row.moatScore}
+                          precision={0}
+                          model="Capability defensibility v1.1"
+                          side="left"
+                          className={row.moatScore >= 60 ? "text-emerald-500" : row.moatScore >= 30 ? "text-amber-500" : "text-destructive"}
+                        />
                       ) : "—"}
                     </td>
                     <td className="text-right py-2 px-2">{row.evar12mo !== null ? `$${row.evar12mo.toFixed(1)}M` : "—"}</td>
                     <td className="text-right py-2 px-2">
                       {row.aiExposure !== null ? (
-                        <Badge variant={row.aiExposure > 50 ? "destructive" : "outline"} className="text-xs">
-                          {row.aiExposure.toFixed(0)}%
-                        </Badge>
+                        <ScoreWithProvenance
+                          label={`${row.capabilityName} — AI exposure`}
+                          value={row.aiExposure}
+                          precision={0}
+                          unit="%"
+                          model="AI disruption model v1.1"
+                          side="left"
+                          className={row.aiExposure > 50 ? "text-destructive" : ""}
+                        />
                       ) : "—"}
                     </td>
                     <td className="text-right py-2 px-2">
-                      <span className={row.velocity > 0 ? "text-emerald-500" : row.velocity < 0 ? "text-destructive" : "text-muted-foreground"}>
-                        {row.velocity > 0 ? "+" : ""}{row.velocity.toFixed(2)}
-                      </span>
+                      <ScoreWithProvenance
+                        label={`${row.capabilityName} — Velocity`}
+                        value={row.velocity}
+                        precision={2}
+                        model="Trailing-12mo Δ score / 100"
+                        side="left"
+                        className={row.velocity > 0 ? "text-emerald-500" : row.velocity < 0 ? "text-destructive" : "text-muted-foreground"}
+                      >
+                        <span>{row.velocity > 0 ? "+" : ""}{row.velocity.toFixed(2)}</span>
+                      </ScoreWithProvenance>
                     </td>
                   </tr>
                 ))}

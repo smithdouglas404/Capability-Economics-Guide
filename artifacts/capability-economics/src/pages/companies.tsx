@@ -304,15 +304,41 @@ export default function Companies() {
                               </div>
                               {s && <ScoreBar value={s.composite} color="bg-primary" />}
                             </td>
-                            <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.forecastedValue.toFixed(0) ?? "—"}</div></td>
-                            <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.qualityOfAsset.toFixed(0) ?? "—"}</div></td>
-                            <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.moatScore.toFixed(0) ?? "—"}</div></td>
-                            <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.actionability.toFixed(0) ?? "—"}</div></td>
-                            <td className="py-2 pr-2 w-24"><div className="font-mono text-xs">{s?.acquisitionProbability.toFixed(0) ?? "—"}</div></td>
                             <td className="py-2 pr-2 w-24">
-                              <div className={`font-mono text-xs ${s && s.aiDisruptability > 50 ? "text-red-500" : ""}`}>{s?.aiDisruptability.toFixed(0) ?? "—"}</div>
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Forecasted value`} value={s.forecastedValue} precision={0} model="DCF + capability rollup v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
                             </td>
-                            <td className="py-2 pr-2 w-20"><div className="font-mono text-xs">{s?.agedIndex.toFixed(0) ?? "—"}</div></td>
+                            <td className="py-2 pr-2 w-24">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Quality of asset`} value={s.qualityOfAsset} precision={0} model="Quality composite v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
+                            <td className="py-2 pr-2 w-24">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Moat`} value={s.moatScore} precision={0} model="Defensibility v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
+                            <td className="py-2 pr-2 w-24">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Actionability`} value={s.actionability} precision={0} model="Deal-readiness v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
+                            <td className="py-2 pr-2 w-24">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Acquisition probability`} value={s.acquisitionProbability} precision={0} model="M&A signal v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
+                            <td className="py-2 pr-2 w-24">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — AI disruptability`} value={s.aiDisruptability} precision={0} model="AI exposure v1.1" className={`font-mono text-xs ${s.aiDisruptability > 50 ? "text-red-500" : ""}`} />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
+                            <td className="py-2 pr-2 w-20">
+                              {s ? (
+                                <ScoreWithProvenance label={`${row.company.name} — Aged index`} value={s.agedIndex} precision={0} model="Time-decay weighted v1.1" className="font-mono text-xs" />
+                              ) : <span className="font-mono text-xs">—</span>}
+                            </td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.revenueUsd)}</td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.fundingUsd)}</td>
                           </tr>

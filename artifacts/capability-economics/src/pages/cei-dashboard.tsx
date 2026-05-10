@@ -1521,7 +1521,19 @@ export default function CEIDashboard() {
                                       <td className="py-1.5 px-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
                                         {item.ageHours! < 1 ? `${Math.round(item.ageHours! * 60)}m` : item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago
                                       </td>
-                                      <td className="py-1.5 px-2 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
+                                      <td className="py-1.5 px-2 text-right font-mono">
+                                        {item.consensusScore !== null ? (
+                                          <ScoreWithProvenance
+                                            label={`${item.capability} — Consensus score`}
+                                            value={item.consensusScore}
+                                            precision={1}
+                                            sourceCount={item.sourceCount}
+                                            lastUpdatedAt={item.lastTriangulatedAt}
+                                            model="Bayesian posterior · v1.1"
+                                            side="left"
+                                          />
+                                        ) : "—"}
+                                      </td>
                                     </tr>
                                   ))}
                               </tbody>
@@ -1555,7 +1567,19 @@ export default function CEIDashboard() {
                                         ? `${item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago`
                                         : <span className="text-red-600">never</span>}
                                     </td>
-                                    <td className="py-1.5 px-2 text-right font-mono">{item.consensusScore?.toFixed(1) ?? "—"}</td>
+                                    <td className="py-1.5 px-2 text-right font-mono">
+                                      {item.consensusScore !== null ? (
+                                        <ScoreWithProvenance
+                                          label={`${item.capability} — Consensus score`}
+                                          value={item.consensusScore}
+                                          precision={1}
+                                          sourceCount={item.sourceCount}
+                                          lastUpdatedAt={item.lastTriangulatedAt}
+                                          model="Bayesian posterior · v1.1"
+                                          side="left"
+                                        />
+                                      ) : "—"}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
