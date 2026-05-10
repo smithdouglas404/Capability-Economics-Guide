@@ -835,7 +835,7 @@ export default function KnowledgeGraph() {
               )}
               <Card className="rounded-none">
                 <CardContent className="pt-6">
-                  <div className="chart-mobile" style={{ ['--chart-desktop-h' as never]: '300px' }}>
+                  <div className="chart-mobile" style={{ '--chart-desktop-h': '300px' } as React.CSSProperties}>
                     {radarData.length >= 3 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="65%">
