@@ -61,8 +61,12 @@ Each has a CE replacement listed below.
 
 Every score below: (a) is built from one of the seven verbs, (b) maps to a
 column we will write in `company_scores`, (c) is a pure function in
-`services/posterior.ts` (renamed from the soon-to-be-deprecated
-`services/companies.ts` Moneyball block).
+`services/companies.ts` (the company-scoring "Moneyball block") and
+`services/cei-engine.ts` (the Bayesian capability posterior). The §9
+implementation footprint plans extracting these into a dedicated
+`services/posterior.ts`; until that rename lands, treat `companies.ts`
++ `cei-engine.ts` as the canonical home and read the §3 trace lines as
+the contract regardless of file location.
 
 ### 3.1 Posterior CEI Coverage `posteriorCeiCoverage`
 - **Was:** `ceiWeighted` + `capabilityCoverage` (two overlapping scores).
@@ -272,7 +276,7 @@ This is a vocabulary shift; the math is from the prior redesign spec
 
 | Change | Effort |
 |---|---|
-| Rename `services/companies.ts` Moneyball block → `services/posterior.ts` | 1 h |
+| Rename `services/companies.ts` Moneyball block → `services/posterior.ts` (NOT YET DONE — code currently lives in `companies.ts` + `cei-engine.ts`) | 1 h |
 | Rename `company_scores` columns to §3 names (drizzle migration) | 1 h |
 | Update `/companies` page column headers + subtitle + tooltips | 1 h |
 | Update CE pitch deck slide vocabulary (Moneyball → CFI) | 1 h |
