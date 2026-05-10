@@ -13,6 +13,7 @@ import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
 import nowpaymentsWebhookRouter from "./routes/nowpayments-webhook";
 import { logger } from "./lib/logger";
+import { buildFrameAncestorsCsp } from "./lib/embed-csp";
 
 const app: Express = express();
 
@@ -89,7 +90,17 @@ if (frontendDist) {
   app.use(express.static(frontendDist, { index: false, maxAge: "1h" }));
 
   // SPA fallback: any non-/api GET returns index.html so client-side routing works.
-  app.get(/^\/(?!api(?:\/|$)).*/, (_req: Request, res: Response, next: NextFunction) => {
+  app.get(/^\/(?!api(?:\/|$)).*/, (req: Request, res: Response, next: NextFunction) => {
+    // Iframe-friendly headers for the embed widget shells. Uses the same
+    // helper as /api/embed/* so a `?domains=` allowlist is honored on the
+    // HTML response too — without this, a Platform-tier customer passing
+    // ?domains=acme.com would still ship `frame-ancestors *` to the iframe
+    // shell. Also strips X-Frame-Options in case a future helmet/proxy
+    // flips on SAMEORIGIN.
+    if (req.path.startsWith("/embed/")) {
+      res.setHeader("Content-Security-Policy", buildFrameAncestorsCsp(req.query.domains));
+      res.removeHeader("X-Frame-Options");
+    }
     res.sendFile(path.join(frontendDist, "index.html"), (err) => {
       if (err) next(err);
     });

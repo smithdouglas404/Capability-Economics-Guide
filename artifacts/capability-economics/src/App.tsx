@@ -50,6 +50,9 @@ import LifecycleDocs from "@/pages/lifecycle-docs";
 import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
 import CoveragePage from "@/pages/coverage";
+import ExplorePage from "@/pages/explore";
+import EmbedCei from "@/pages/embed-cei";
+import EmbedCapability from "@/pages/embed-capability";
 
 const queryClient = new QueryClient();
 
@@ -104,6 +107,9 @@ function Router() {
       <Route path="/cei" component={CEIDashboard} />
       <Route path="/methodology" component={Methodology} />
       <Route path="/coverage" component={CoveragePage} />
+      <Route path="/explore" component={ExplorePage} />
+      <Route path="/embed/cei" component={EmbedCei} />
+      <Route path="/embed/capability/:id" component={EmbedCapability} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />

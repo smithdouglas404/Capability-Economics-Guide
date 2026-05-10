@@ -29,6 +29,10 @@ export const capabilitiesTable = pgTable("capabilities", {
   vcCapitalUsd: real("vc_capital_usd").notNull().default(0),
   startupCount: integer("startup_count").notNull().default(0),
   externalSignalsUpdatedAt: timestamp("external_signals_updated_at"),
+  // Curated "public preview" flag — when true, the capability is visible
+  // unauthenticated through /explore and /embed/capability/:id. Used to
+  // expose 5–10 hand-picked capabilities to prospects without paywalling.
+  publicPreview: boolean("public_preview").notNull().default(false),
 });
 
 export const capabilityMetricsTable = pgTable("capability_metrics", {

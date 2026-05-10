@@ -128,6 +128,11 @@ function useCreditBalance(): { balance: number | null; tierSlug: string | null }
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  // /embed/* renders bare for iframe consumers — no chrome, no nav, no
+  // banners. The embed pages bring their own minimal "powered by" footer.
+  if (location.startsWith("/embed/")) {
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>;
+  }
   const { isSignedIn, isLoaded, user } = useUser();
   const { isAdmin } = useIsAdmin();
   const { status: membershipStatus } = useMembershipStatus();
