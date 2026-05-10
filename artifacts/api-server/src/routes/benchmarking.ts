@@ -15,6 +15,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray, sql, desc } from "drizzle-orm";
 import { ingestCompaniesForIndustry, computeCompanyScores } from "../services/companies";
+import { forSession, forSessionRow } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -481,7 +482,7 @@ router.get("/benchmarking/sessions", async (req, res) => {
     const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
     if (!token) { res.json([]); return; }
     const rows = await db.select().from(benchmarkSessionsTable)
-      .where(eq(benchmarkSessionsTable.sessionToken, token))
+      .where(forSession("benchmark_sessions", token))
       .orderBy(desc(benchmarkSessionsTable.createdAt))
       .limit(50);
     res.json(rows);
@@ -497,10 +498,7 @@ router.get("/benchmarking/sessions/:id", async (req, res) => {
     const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [session] = await db.select().from(benchmarkSessionsTable)
-      .where(and(
-        eq(benchmarkSessionsTable.id, Number(req.params.id)),
-        eq(benchmarkSessionsTable.sessionToken, token),
-      ));
+      .where(forSessionRow("benchmark_sessions", token, Number(req.params.id)));
     if (!session) { res.status(404).json({ error: "Not found" }); return; }
     res.json(session);
   } catch (err) {

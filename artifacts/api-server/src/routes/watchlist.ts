@@ -9,6 +9,7 @@ import {
   ceiComponentsTable,
 } from "@workspace/db";
 import { eq, and, inArray, desc } from "drizzle-orm";
+import { forSession, forSessionRow, resolveSessionToken } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -18,7 +19,7 @@ router.get("/watchlist", async (req, res) => {
     const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
     if (!token) { res.json({ watchlist: null, items: [], alerts: [] }); return; }
 
-    let [watchlist] = await db.select().from(watchlistsTable).where(eq(watchlistsTable.sessionToken, token));
+    let [watchlist] = await db.select().from(watchlistsTable).where(forSession("watchlists", token));
     if (!watchlist) {
       [watchlist] = await db.insert(watchlistsTable).values({ sessionToken: token, name: "My Watchlist" }).returning();
     }
@@ -54,7 +55,7 @@ router.post("/watchlist/items", async (req, res) => {
   try {
     const { sessionToken, capabilityId, industryId, thresholdType, thresholdValue, notificationChannel } = req.body;
 
-    let [watchlist] = await db.select().from(watchlistsTable).where(eq(watchlistsTable.sessionToken, sessionToken));
+    let [watchlist] = await db.select().from(watchlistsTable).where(forSession("watchlists", sessionToken));
     if (!watchlist) {
       [watchlist] = await db.insert(watchlistsTable).values({ sessionToken, name: "My Watchlist" }).returning();
     }
@@ -78,7 +79,7 @@ router.post("/watchlist/items", async (req, res) => {
 // Pre-fix this accepted any item id and would happily delete another tenant's row.
 router.delete("/watchlist/items/:id", async (req, res) => {
   try {
-    const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+    const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const itemId = Number(req.params.id);
     const [item] = await db.select({ watchlistId: watchlistItemsTable.watchlistId })
@@ -87,7 +88,7 @@ router.delete("/watchlist/items/:id", async (req, res) => {
     if (!item) { res.status(404).json({ error: "Not found" }); return; }
     const [wl] = await db.select({ id: watchlistsTable.id })
       .from(watchlistsTable)
-      .where(and(eq(watchlistsTable.id, item.watchlistId), eq(watchlistsTable.sessionToken, token)));
+      .where(forSessionRow("watchlists", token, item.watchlistId));
     if (!wl) { res.status(404).json({ error: "Not found" }); return; }
     await db.delete(watchlistItemsTable).where(eq(watchlistItemsTable.id, itemId));
     res.json({ ok: true });

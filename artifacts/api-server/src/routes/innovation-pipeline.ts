@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { innovationProjectsTable } from "@workspace/db";
 import { and, eq, desc } from "drizzle-orm";
-import { resolveSessionToken } from "../lib/tenant-scope";
+import { resolveSessionToken, forSession, forSessionRow } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/innovation/projects", async (req, res) => {
     const token = resolveSessionToken(req);
     if (!token) { res.json([]); return; }
     const rows = await db.select().from(innovationProjectsTable)
-      .where(eq(innovationProjectsTable.sessionToken, token))
+      .where(forSession("innovation_projects", token))
       .orderBy(desc(innovationProjectsTable.updatedAt));
     res.json(rows);
   } catch (err) {
@@ -33,10 +33,7 @@ router.get("/innovation/projects/:id", async (req, res) => {
     const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [row] = await db.select().from(innovationProjectsTable)
-      .where(and(
-        eq(innovationProjectsTable.id, Number(req.params.id)),
-        eq(innovationProjectsTable.sessionToken, token),
-      ));
+      .where(forSessionRow("innovation_projects", token, Number(req.params.id)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (err) {
@@ -77,7 +74,7 @@ router.post("/innovation/projects/:id/advance", async (req, res) => {
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const { newStage, decision, notes } = req.body as { newStage: string; decision: string; notes?: string };
     const [existing] = await db.select().from(innovationProjectsTable)
-      .where(and(eq(innovationProjectsTable.id, id), eq(innovationProjectsTable.sessionToken, token)));
+      .where(forSessionRow("innovation_projects", token, id));
     if (!existing) { res.status(404).json({ error: "Not found" }); return; }
 
     const history = [
@@ -92,7 +89,7 @@ router.post("/innovation/projects/:id/advance", async (req, res) => {
 
     const [updated] = await db.update(innovationProjectsTable)
       .set({ stage: newStage, stageHistory: history, updatedAt: new Date() })
-      .where(and(eq(innovationProjectsTable.id, id), eq(innovationProjectsTable.sessionToken, token)))
+      .where(forSessionRow("innovation_projects", token, id))
       .returning();
     res.json(updated);
   } catch (err) {
@@ -111,7 +108,7 @@ router.patch("/innovation/projects/:id", async (req, res) => {
     delete updates.id;
     const [updated] = await db.update(innovationProjectsTable)
       .set(updates)
-      .where(and(eq(innovationProjectsTable.id, id), eq(innovationProjectsTable.sessionToken, token)))
+      .where(forSessionRow("innovation_projects", token, id))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
@@ -126,10 +123,7 @@ router.delete("/innovation/projects/:id", async (req, res) => {
     const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const deleted = await db.delete(innovationProjectsTable)
-      .where(and(
-        eq(innovationProjectsTable.id, Number(req.params.id)),
-        eq(innovationProjectsTable.sessionToken, token),
-      ))
+      .where(forSessionRow("innovation_projects", token, Number(req.params.id)))
       .returning({ id: innovationProjectsTable.id });
     if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });

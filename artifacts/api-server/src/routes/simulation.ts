@@ -9,7 +9,7 @@ import {
   capabilityDependenciesTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { resolveSessionToken } from "../lib/tenant-scope";
+import { resolveSessionToken, forSession, forSessionRow } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -19,7 +19,7 @@ router.get("/simulation/scenarios", async (req, res) => {
     const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
     if (!token) { res.json([]); return; }
     const rows = await db.select().from(simulationScenariosTable)
-      .where(eq(simulationScenariosTable.sessionToken, token))
+      .where(forSession("simulation_scenarios", token))
       .orderBy(simulationScenariosTable.createdAt);
     res.json(rows);
   } catch (err) {
@@ -34,7 +34,7 @@ router.get("/simulation/scenarios/:id", async (req, res) => {
     const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [row] = await db.select().from(simulationScenariosTable)
-      .where(and(eq(simulationScenariosTable.id, id), eq(simulationScenariosTable.sessionToken, token)));
+      .where(forSessionRow("simulation_scenarios", token, id));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (err) {
@@ -175,10 +175,7 @@ router.delete("/simulation/scenarios/:id", async (req, res) => {
     const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const deleted = await db.delete(simulationScenariosTable)
-      .where(and(
-        eq(simulationScenariosTable.id, Number(req.params.id)),
-        eq(simulationScenariosTable.sessionToken, token),
-      ))
+      .where(forSessionRow("simulation_scenarios", token, Number(req.params.id)))
       .returning({ id: simulationScenariosTable.id });
     if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
