@@ -62,15 +62,37 @@ router.get("/me/notifications/recent", async (req, res) => {
   res.json({ deliveries });
 });
 
-const createBody = z.object({
-  targetType: z.enum(["capability_threshold", "lifecycle_change", "velocity_signflip", "macro_event", "quadrant_transition"]),
+// Per-targetType condition shapes — keep these strict so malformed
+// subscriptions are rejected at create time instead of silently never firing.
+const condCapThreshold = z.object({
+  capabilityId: z.number().int().positive(),
+  direction: z.enum(["above", "below"]),
+  threshold: z.number(),
+});
+const condLifecycle = z.object({ capabilityId: z.number().int().positive() });
+const condVelocitySignflip = z.object({ capabilityId: z.number().int().positive() });
+const condMacro = z.object({
+  industryId: z.number().int().positive().optional(),
+  minSeverity: z.number().int().min(1).max(10),
+});
+const condQuadrant = z.object({
+  capabilityId: z.number().int().positive().optional(),
+  industryId: z.number().int().positive().optional(),
+});
+
+const createBody = z.discriminatedUnion("targetType", [
+  z.object({ targetType: z.literal("capability_threshold"), condition: condCapThreshold }),
+  z.object({ targetType: z.literal("lifecycle_change"), condition: condLifecycle }),
+  z.object({ targetType: z.literal("velocity_signflip"), condition: condVelocitySignflip }),
+  z.object({ targetType: z.literal("macro_event"), condition: condMacro }),
+  z.object({ targetType: z.literal("quadrant_transition"), condition: condQuadrant }),
+]).and(z.object({
   targetId: z.number().int().positive().nullable().optional(),
-  condition: z.record(z.string(), z.unknown()),
   channel: z.enum(["email", "slack", "webhook"]).optional(),
   channelTarget: z.string().url().nullable().optional(),
   frequency: z.enum(["realtime", "daily_digest"]).optional(),
   label: z.string().max(200).nullable().optional(),
-});
+}));
 
 router.post("/me/subscriptions", async (req, res) => {
   const userId = getUserId(req);

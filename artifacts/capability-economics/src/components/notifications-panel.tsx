@@ -193,7 +193,7 @@ export default function NotificationsPanel() {
   };
 
   return (
-    <Card className="rounded-none" ref={sectionRef as unknown as React.Ref<HTMLDivElement>}>
+    <Card className="rounded-none" ref={sectionRef}>
       <CardHeader>
         <CardTitle className="text-base font-serif flex items-center gap-2">
           <Bell className="w-5 h-5 text-primary" />

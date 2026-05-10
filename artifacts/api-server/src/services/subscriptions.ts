@@ -424,6 +424,11 @@ export async function sendDailyDigests(): Promise<{ usersNotified: number; items
 
   for (const [userId, items] of byUser) {
     if (!isEmailConfigured()) {
+      // Persist skipped status so the same rows aren't re-processed forever.
+      const ids = items.map(i => i.id);
+      await db.update(notificationDeliveriesTable)
+        .set({ status: "skipped", errorMessage: "email provider not configured" })
+        .where(sql`${notificationDeliveriesTable.id} = ANY(${ids})`);
       itemsSkipped += items.length;
       continue;
     }
