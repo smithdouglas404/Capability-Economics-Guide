@@ -68,13 +68,12 @@ export function DegradedServiceBanner() {
         <span className="hidden sm:inline opacity-80 truncate">
           Affecting: {names}
         </span>
-        <Link href="/system-status">
-          <a
-            className="underline underline-offset-2 hover:opacity-80 ml-auto"
-            data-testid="degraded-banner-details"
-          >
-            Details
-          </a>
+        <Link
+          href="/system-status"
+          className="underline underline-offset-2 hover:opacity-80 ml-auto"
+          data-testid="degraded-banner-details"
+        >
+          Details
         </Link>
         <button
           type="button"
