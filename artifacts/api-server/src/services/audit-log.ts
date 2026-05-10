@@ -16,6 +16,9 @@ export type AuditAction =
   | "tier.update"
   | "api_key.issue"
   | "api_key.revoke"
+  | "api_key.update"
+  | "data_api.quota_exhausted"
+  | "data_api.rate_limited"
   | "impersonate.start"
   | "data.export.csv"
   | "data.export.parquet";

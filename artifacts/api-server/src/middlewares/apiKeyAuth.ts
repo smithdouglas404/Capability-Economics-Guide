@@ -35,6 +35,10 @@ export function apiKeyAuth() {
           actor: null,
           __type: "authenticated",
           apiKeyId: result.keyId,
+          // Marker so downstream guards (requireSession) can distinguish a
+          // bearer-API-key caller from a real Clerk browser session and refuse
+          // sensitive operations like minting more keys.
+          viaApiKey: true,
         } as unknown as typeof reqWithAuth.auth;
       }
     } catch {

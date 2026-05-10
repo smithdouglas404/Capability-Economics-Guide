@@ -8,6 +8,7 @@ import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxy
 import { apiKeyAuth } from "./middlewares/apiKeyAuth";
 import { rateLimitMiddleware } from "./middlewares/rateLimit";
 import router from "./routes";
+import v1Router from "./routes/v1";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
 import nowpaymentsWebhookRouter from "./routes/nowpayments-webhook";
@@ -56,6 +57,12 @@ app.use(apiKeyAuth());
 app.use("/api", rateLimitMiddleware());
 
 app.use("/api", router);
+
+// Public Data License API — versioned, stable URLs, per-key auth + metering.
+// Mounted at top level so customers can integrate against /v1/* independent
+// of the in-app /api namespace. The v1 router has its own per-key rate
+// limiter (see middlewares/requireApiKey.ts) and skips the /api tier limiter.
+app.use("/v1", v1Router);
 
 // Serve the built capability-economics SPA when a frontend bundle is available.
 // FRONTEND_DIST_PATH lets ops override the location; otherwise we try the
