@@ -4,6 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers } from "lucide-react";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
+import { useSavedView } from "@/hooks/use-saved-view";
+
+type CompaniesViewState = { industryId: number | null; tab: string };
 
 type Industry = { id: number; name: string };
 type CompanyRow = {
@@ -89,6 +93,23 @@ export default function Companies() {
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("shortlist");
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const viewsApi = useSavedView<CompaniesViewState>("companies");
+  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [defaultApplied, setDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (defaultApplied || !viewsApi.ready) return;
+    if (viewsApi.defaultView) {
+      const s = viewsApi.defaultView.stateJson;
+      if ("industryId" in s) setIndustryId(s.industryId);
+      if (typeof s.tab === "string") setTab(s.tab);
+      setActiveViewId(viewsApi.defaultView.id);
+    }
+    setDefaultApplied(true);
+  }, [viewsApi.ready, viewsApi.defaultView, defaultApplied]);
+  const applyView = (s: CompaniesViewState) => {
+    if ("industryId" in s) setIndustryId(s.industryId);
+    if (typeof s.tab === "string") setTab(s.tab);
+  };
   const [productsByCo, setProductsByCo] = useState<Record<number, Array<{ id: number; name: string; description: string; status: string; category: string | null; websiteUrl: string | null; capabilities: Array<{ capabilityId: number; capabilityName: string; weight: number }> }>>>({});
 
   const toggleExpand = async (id: number) => {
@@ -189,6 +210,12 @@ export default function Companies() {
             <Button variant="outline" size="sm" onClick={triggerIngest}><RefreshCw className="w-4 h-4 mr-1" />Ingest companies</Button>
             <Button variant="outline" size="sm" onClick={triggerSignals}><Zap className="w-4 h-4 mr-1" />Scrape patents/VC</Button>
             <Button variant="outline" size="sm" onClick={recompute}>Recompute scores</Button>
+            <SavedViewsMenu
+              viewsApi={viewsApi}
+              currentState={{ industryId, tab }}
+              onApply={(s) => { applyView(s); const m = viewsApi.views.find(v => v.stateJson.industryId === s.industryId && v.stateJson.tab === s.tab); setActiveViewId(m?.id ?? null); }}
+              activeViewId={activeViewId}
+            />
           </div>
         </div>
 

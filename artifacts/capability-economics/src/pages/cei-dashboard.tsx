@@ -7,6 +7,16 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { HelpCircle, BookOpenCheck } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
+import { useSavedView } from "@/hooks/use-saved-view";
+
+type CEIViewState = {
+  selectedIndustry: string | null;
+  freshnessStageFilter: LifecycleStage | "all";
+  showFreshness: boolean;
+  showMacroPanel: boolean;
+  showAgentActivity: boolean;
+};
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
@@ -720,6 +730,29 @@ export default function CEIDashboard() {
   const { data: capabilityTree } = useApi<CapabilityTreeResponse>(treeUrl ?? `${API_BASE}/cei/capability-tree?industryId=__none__`);
   useEffect(() => { setExpandedParents(new Set()); }, [selectedIndustry]);
   const [showAgentActivity, setShowAgentActivity] = useState(true);
+  const viewsApi = useSavedView<CEIViewState>("cei");
+  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [defaultApplied, setDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (defaultApplied || !viewsApi.ready) return;
+    if (viewsApi.defaultView) {
+      const s = viewsApi.defaultView.stateJson;
+      if (s.selectedIndustry !== undefined) setSelectedIndustry(s.selectedIndustry);
+      if (s.freshnessStageFilter) setFreshnessStageFilter(s.freshnessStageFilter);
+      if (typeof s.showFreshness === "boolean") setShowFreshness(s.showFreshness);
+      if (typeof s.showMacroPanel === "boolean") setShowMacroPanel(s.showMacroPanel);
+      if (typeof s.showAgentActivity === "boolean") setShowAgentActivity(s.showAgentActivity);
+      setActiveViewId(viewsApi.defaultView.id);
+    }
+    setDefaultApplied(true);
+  }, [viewsApi.ready, viewsApi.defaultView, defaultApplied]);
+  const applyCEIView = (s: CEIViewState) => {
+    if (s.selectedIndustry !== undefined) setSelectedIndustry(s.selectedIndustry);
+    if (s.freshnessStageFilter) setFreshnessStageFilter(s.freshnessStageFilter);
+    if (typeof s.showFreshness === "boolean") setShowFreshness(s.showFreshness);
+    if (typeof s.showMacroPanel === "boolean") setShowMacroPanel(s.showMacroPanel);
+    if (typeof s.showAgentActivity === "boolean") setShowAgentActivity(s.showAgentActivity);
+  };
 
   useEffect(() => {
     const cycleEvent = agentEvents.find(e => e.type === "cei_updated" || e.type === "cycle_complete");
@@ -817,9 +850,21 @@ export default function CEIDashboard() {
                   The world's first composite index measuring organizational capability maturity across industries — powered by multi-source Bayesian triangulation.
                 </p>
               </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-muted-foreground/70">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Autonomous
+              <div className="flex items-center gap-2">
+                <SavedViewsMenu
+                  viewsApi={viewsApi}
+                  currentState={{ selectedIndustry, freshnessStageFilter, showFreshness, showMacroPanel, showAgentActivity }}
+                  onApply={(s) => {
+                    applyCEIView(s);
+                    const m = viewsApi.views.find(v => JSON.stringify(v.stateJson) === JSON.stringify(s));
+                    setActiveViewId(m?.id ?? null);
+                  }}
+                  activeViewId={activeViewId}
+                />
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-muted-foreground/70">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Autonomous
+                </div>
               </div>
             </div>
 

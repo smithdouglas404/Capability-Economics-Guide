@@ -6,6 +6,10 @@ import { LifecycleChip, type LifecycleStage } from "@/components/lifecycle-chip"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
+import { useSavedView } from "@/hooks/use-saved-view";
+
+type KGViewState = { tab: "quadrant" | "network" | "industries" | "compare"; selectedIndustryId: number | null };
 import {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
   ChevronRight, ArrowLeft, BarChart3, GitBranch, Users,
@@ -64,7 +68,20 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
 export default function KnowledgeGraph() {
   const [selectedIndustryId, setSelectedIndustryId] = useState<number | null>(null);
   const [selectedCapabilityId, setSelectedCapabilityId] = useState<number | null>(null);
+  const viewsApi = useSavedView<KGViewState>("knowledge-graph");
+  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [defaultApplied, setDefaultApplied] = useState(false);
   const [radarParentId, setRadarParentId] = useState<number | null>(null);
+  useEffect(() => {
+    if (defaultApplied || !viewsApi.ready) return;
+    if (viewsApi.defaultView) {
+      const s = viewsApi.defaultView.stateJson;
+      if (s.tab) setTab(s.tab);
+      if (s.selectedIndustryId !== undefined) setSelectedIndustryId(s.selectedIndustryId);
+      setActiveViewId(viewsApi.defaultView.id);
+    }
+    setDefaultApplied(true);
+  }, [viewsApi.ready, viewsApi.defaultView, defaultApplied]);
   interface CapImpact { eventId: number; title: string; description: string; severity: number; sentimentDirection: "positive" | "negative" | "neutral"; decayFactor: number; source: string; via: "explicit" | "parent" | "child" }
   const [capImpacts, setCapImpacts] = useState<Record<number, CapImpact[]>>({});
   useEffect(() => {
@@ -899,6 +916,20 @@ export default function KnowledgeGraph() {
               <BarChart3 className="w-4 h-4 mr-2" />
               Cross-Industry Comparison
             </Button>
+            <div className="ml-auto">
+              <SavedViewsMenu
+                viewsApi={viewsApi}
+                currentState={{ tab, selectedIndustryId }}
+                onApply={(s) => {
+                  if (s.tab) setTab(s.tab);
+                  setSelectedIndustryId(s.selectedIndustryId ?? null);
+                  setSelectedCapabilityId(null);
+                  const m = viewsApi.views.find(v => v.stateJson.tab === s.tab && v.stateJson.selectedIndustryId === s.selectedIndustryId);
+                  setActiveViewId(m?.id ?? null);
+                }}
+                activeViewId={activeViewId}
+              />
+            </div>
           </div>
         </div>
       </section>

@@ -9,6 +9,10 @@ import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, W
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SavedViewsMenu } from "@/components/saved-views-menu";
+import { useSavedView } from "@/hooks/use-saved-view";
+
+type AlphaViewState = { tab: string };
 
 const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -82,6 +86,18 @@ export default function Alpha() {
   const [enriching, setEnriching] = useState(false);
   const [enrichMsg, setEnrichMsg] = useState<string | null>(null);
   const [tab, setTab] = useState("evar");
+  const viewsApi = useSavedView<AlphaViewState>("alpha");
+  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [defaultApplied, setDefaultApplied] = useState(false);
+  useEffect(() => {
+    if (defaultApplied || !viewsApi.ready) return;
+    if (viewsApi.defaultView) {
+      const s = viewsApi.defaultView.stateJson;
+      if (typeof s.tab === "string") setTab(s.tab);
+      setActiveViewId(viewsApi.defaultView.id);
+    }
+    setDefaultApplied(true);
+  }, [viewsApi.ready, viewsApi.defaultView, defaultApplied]);
 
   async function loadStatus() {
     try {
@@ -125,7 +141,13 @@ export default function Alpha() {
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <SavedViewsMenu
+              viewsApi={viewsApi}
+              currentState={{ tab }}
+              onApply={(s) => { if (typeof s.tab === "string") setTab(s.tab); const m = viewsApi.views.find(v => v.stateJson.tab === s.tab); setActiveViewId(m?.id ?? null); }}
+              activeViewId={activeViewId}
+            />
             <TraceabilityDialog />
             <Button onClick={() => runEnrich(58, 30)} disabled={enriching} size="lg">
               {enriching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
