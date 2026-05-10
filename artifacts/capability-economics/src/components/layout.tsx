@@ -26,11 +26,15 @@ import { MobileNotice } from "@/components/mobile";
 
 // Pages explicitly tuned for mobile. Everything else gets the
 // "best on desktop" notice on small screens.
-const MOBILE_TUNED_PATHS = new Set<string>([
-  "/", "/cei", "/alpha", "/knowledge-graph", "/companies",
+const MOBILE_TUNED_PREFIXES = [
+  "/cei", "/alpha", "/knowledge-graph", "/companies",
   "/scorecard", "/insights", "/membership", "/account",
   "/methodology", "/coverage", "/marketplace",
-]);
+];
+function isMobileTuned(path: string): boolean {
+  if (path === "/") return true;
+  return MOBILE_TUNED_PREFIXES.some(p => path === p || path.startsWith(p + "/"));
+}
 
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
@@ -567,7 +571,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1">
-        {!MOBILE_TUNED_PATHS.has(location) && <MobileNotice />}
+        {!isMobileTuned(location) && <MobileNotice />}
         {children}
       </main>
       <footer className="border-t border-border/40 py-10 bg-background">
