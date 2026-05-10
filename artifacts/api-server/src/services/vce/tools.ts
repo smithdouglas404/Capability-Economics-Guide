@@ -74,6 +74,33 @@ export function extractJSON<T>(raw: string): T | null {
   try { return JSON.parse(candidate.slice(s, end + 1)) as T; } catch { return null; }
 }
 
+// Salvage retry: when an LLM returns text we can't parse as JSON, ask the
+// model once to repair it. Caps at one retry to bound cost. Returns null only
+// after both the direct parse AND the repair attempt fail — callers can then
+// fall back to a stub or surface an error to the user instead of silently
+// dropping the work.
+export async function parseJsonWithRepair<T>(raw: string, opts?: { schemaHint?: string; label?: string }): Promise<T | null> {
+  const direct = extractJSON<T>(raw);
+  if (direct !== null) return direct;
+  if (!raw || raw.trim().length < 2) return null;
+  const label = opts?.label ?? "json";
+  const fixPrompt = `Your previous output was supposed to be valid JSON${opts?.schemaHint ? ` matching this exact shape:\n${opts.schemaHint}\n` : ""} but it failed to parse. Repair it and return ONLY the corrected JSON object — no prose, no markdown fences, no commentary. Preserve every fact and number from the original; only fix structural issues (missing braces, trailing commas, unterminated strings, mixed quotes, leaked reasoning, etc.).
+
+Original output:
+"""
+${raw.slice(0, 12000)}
+"""`;
+  try {
+    const fixed = await glmCall(fixPrompt, 3000, 90_000, true);
+    const repaired = extractJSON<T>(fixed);
+    if (repaired === null) console.warn(`[parseJsonWithRepair:${label}] repair attempt also unparseable`);
+    return repaired;
+  } catch (e) {
+    console.warn(`[parseJsonWithRepair:${label}] repair call threw:`, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 export const glmReasonTool = tool(
   async ({ prompt, maxTokens, jsonMode }: { prompt: string; maxTokens?: number; jsonMode?: boolean }) => {
     return await glmCall(prompt, maxTokens ?? 4096, 180_000, jsonMode ?? false);
@@ -157,8 +184,11 @@ Claim: """${claim}"""
 
 Cited research: """${sources.slice(0, 8000)}"""`;
     const out = await glmCall(prompt, 900, 180_000, true);
-    const parsed = extractJSON<{ supported: boolean; supportingEvidence: string[]; contradictions: string[]; unsupportedLeaps: string[]; evidenceCount: number; crossValidated: boolean; confidence: number }>(out);
-    return JSON.stringify(parsed ?? { supported: false, supportingEvidence: [], contradictions: ["parse failure"], unsupportedLeaps: [], evidenceCount: 0, crossValidated: false, confidence: 0.4 });
+    const parsed = await parseJsonWithRepair<{ supported: boolean; supportingEvidence: string[]; contradictions: string[]; unsupportedLeaps: string[]; evidenceCount: number; crossValidated: boolean; confidence: number }>(out, {
+      label: "cross_validate",
+      schemaHint: `{ "supported": boolean, "supportingEvidence": string[], "contradictions": string[], "unsupportedLeaps": string[], "evidenceCount": number, "crossValidated": boolean, "confidence": number }`,
+    });
+    return JSON.stringify(parsed ?? { supported: false, supportingEvidence: [], contradictions: ["parse failure (after repair retry)"], unsupportedLeaps: [], evidenceCount: 0, crossValidated: false, confidence: 0.4 });
   },
   {
     name: "cross_validate",
@@ -188,8 +218,11 @@ Return ONLY JSON:
   "confidence": 0.5-0.95
 }`;
     const out = await glmCall(prompt, 1800, 180_000, true);
-    const parsed = extractJSON<{ title: string; summary: string; body: string; confidence: number }>(out);
-    return JSON.stringify(parsed ?? { title, summary: "Synthesis failed", body: out.slice(0, 4000), confidence: 0.4 });
+    const parsed = await parseJsonWithRepair<{ title: string; summary: string; body: string; confidence: number }>(out, {
+      label: "synthesize_finding",
+      schemaHint: `{ "title": string, "summary": string, "body": string, "confidence": number }`,
+    });
+    return JSON.stringify(parsed ?? { title, summary: "Synthesis failed (parse + repair both failed) — raw model output preserved below.", body: out.slice(0, 4000), confidence: 0.4 });
   },
   {
     name: "synthesize_finding",
@@ -217,7 +250,10 @@ Already asked questions (do not repeat or paraphrase):
 
 Return ONLY JSON: { "questions": [ { "question": "...", "rationale": "why we need it", "priority": 1-5 } ] }`;
     const out = await glmCall(prompt, 1200, 180_000, true);
-    const parsed = extractJSON<{ questions: { question: string; rationale: string; priority: number }[] }>(out);
+    const parsed = await parseJsonWithRepair<{ questions: { question: string; rationale: string; priority: number }[] }>(out, {
+      label: "propose_followup_question",
+      schemaHint: `{ "questions": [ { "question": string, "rationale": string, "priority": number } ] }`,
+    });
     return JSON.stringify(parsed?.questions ?? []);
   },
   {

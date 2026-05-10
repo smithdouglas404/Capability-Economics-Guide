@@ -191,7 +191,18 @@ export default function VCEPage() {
               </Card>
               <div>
                 {selectedId ? <CampaignDetail id={selectedId} onChanged={loadAll} /> : (
-                  <Card><CardContent className="py-16 text-center text-muted-foreground">Select a campaign to view its cycle timeline, intake Q&A, and findings.</CardContent></Card>
+                  assessments.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-16 text-center space-y-3">
+                        <Bot className="w-10 h-10 mx-auto text-muted-foreground/40" />
+                        <p className="text-sm font-medium">No research campaigns yet</p>
+                        <p className="text-sm text-muted-foreground max-w-md mx-auto">Launch a new campaign from the New Campaign tab. The agent will generate intake questions, then run one research cycle per day until the campaign ends.</p>
+                        <Button size="sm" variant="outline" onClick={() => setTab("new")}><Send className="w-4 h-4 mr-2" />Start a campaign</Button>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <Card><CardContent className="py-16 text-center text-muted-foreground">Select a campaign on the left to view its cycle timeline, intake Q&amp;A, and findings.</CardContent></Card>
+                  )
                 )}
               </div>
             </div>
@@ -217,6 +228,27 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant="outline" className={`${map[status] ?? ""} text-xs border-transparent`}>{status}</Badge>;
 }
 
+// A real, citation-grounded sample brief so a buyer clicking "Try with sample"
+// sees the agent doing real work end-to-end without having to write their own.
+// Public sources: BHP FY24 results (bhp.com), IEA Critical Minerals Outlook 2024
+// (iea.org), Wood Mackenzie copper deficit forecasts (woodmac.com).
+const SAMPLE_BRIEF = {
+  clientName: "Atlas Copper Holdings",
+  valueCase: `Atlas Copper Holdings is a mid-tier copper producer (~280kt Cu/yr) operating two open-pit mines in Chile and one underground mine in Zambia. Average head grade has fallen from 0.82% to 0.54% over the past decade, mirroring the industry-wide grade decline (BHP FY24 results show similar patterns at Escondida, where grade dropped ~30% over 10 years). All-in sustaining cost (AISC) has risen to $3.10/lb against a 2025 LME copper price of ~$4.20/lb.
+
+The board has earmarked $1.2B for capability investment over the next 3 years and is debating where to deploy it. Three theses are on the table:
+
+1. AUTONOMOUS HAULAGE: Catch up to Rio Tinto and BHP, who have ~80% of haul fleets autonomous at flagship operations. Atlas is at 0%. Vendor quotes suggest 15-22% opex reduction on haulage.
+
+2. ORE-SORTING & SENSOR-BASED PRE-CONCENTRATION: Lift effective head grade by rejecting waste before milling. Limited mid-tier deployments to date; technology risk is real.
+
+3. RENEWABLE POWER + STORAGE PPAs: Power is 28% of AISC. BHP has signed 100% renewable PPAs at Escondida (2022). Atlas is on grid power at $0.11/kWh; PPA quotes are $0.06-0.08/kWh.
+
+Strategic question: where does $1.2B go to defend margin against grade decline AND position for the IEA-projected copper demand doubling by 2040 (IEA Critical Minerals Outlook 2024)? What capability gap is most exposed if copper enters the structural deficit Wood Mackenzie forecasts post-2027?
+
+Constraints: must keep net debt / EBITDA below 1.8x; community license-to-operate in Zambia is fragile; CTO retiring in 18 months.`,
+};
+
 function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; onCreated: (a: Assessment) => void }) {
   const [clientName, setClientName] = useState("");
   const [industryId, setIndustryId] = useState<string>("none");
@@ -225,6 +257,13 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
   const [durationDays, setDurationDays] = useState(7);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function loadSample() {
+    setClientName(SAMPLE_BRIEF.clientName);
+    setValueCase(SAMPLE_BRIEF.valueCase);
+    setSource("typed");
+    setError(null);
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -261,14 +300,21 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
   return (
     <Card className="max-w-3xl">
       <CardHeader>
-        <CardTitle>Launch Research Campaign</CardTitle>
-        <p className="text-sm text-muted-foreground">A multi-day LangGraph agent will plan each cycle, run deep web research, cross-validate findings, and ask the client follow-up questions. Findings + questions all land in the single-pane inbox.</p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle>Launch Research Campaign</CardTitle>
+            <p className="text-sm text-muted-foreground mt-1">A multi-day agent plans each cycle, runs deep web research, cross-validates every claim against its sources, and asks the client follow-up questions. Findings and questions all land in the single-pane inbox for review.</p>
+          </div>
+          <Button type="button" size="sm" variant="outline" onClick={loadSample} className="flex-shrink-0">
+            <Sparkles className="w-3.5 h-3.5 mr-1.5" />Try with sample brief
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
             <Label>Client name</Label>
-            <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="e.g. Newcrest Mining" />
+            <Input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Company or division being assessed" />
           </div>
           <div>
             <Label>Industry (optional)</Label>
@@ -299,8 +345,17 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
               <button type="button" onClick={() => setSource("voice_transcript")} className={`px-2 py-1 rounded inline-flex items-center gap-1 ${source === "voice_transcript" ? "bg-violet-100 text-violet-700" : "text-muted-foreground"}`}><Mic className="w-3 h-3" />Voice transcript</button>
             </div>
           </div>
-          <Textarea value={valueCase} onChange={e => setValueCase(e.target.value)} className="min-h-[220px] font-mono text-sm" placeholder="Describe the client situation, the value at stake, the strategic question, incumbents, threats, opportunities, what they think they have or lack..." />
-          <p className="text-xs text-muted-foreground mt-1">{valueCase.length} chars · min 40</p>
+          <Textarea value={valueCase} onChange={e => setValueCase(e.target.value)} className="min-h-[220px] font-mono text-sm" placeholder={`Paste a partner-level brief on the situation. The richer this is, the sharper the research.
+
+Cover at minimum:
+• Where the business is today — scale, geography, current capability stack
+• The strategic question on the table — the decision that needs to be made
+• What's at stake — the dollar value, time horizon, and downside if you're wrong
+• What they've already tried, ruled out, or believe to be true
+• Constraints — capital, talent, regulatory, political, timing
+
+Numbers and named competitors make the agent dramatically more useful than vague prose.`} />
+          <p className="text-xs text-muted-foreground mt-1">{valueCase.length} characters · minimum 40 · no upper limit, but ~3,000-8,000 characters tends to produce the strongest research plans</p>
         </div>
 
         {error && <div className="rounded-none border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
@@ -429,11 +484,30 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
       )}
 
       {/* All findings (drilldown — primary review happens in single pane) */}
-      {researchItems.length > 0 && (
+      {researchItems.length > 0 ? (
         <Card>
           <CardHeader><CardTitle className="text-base">All Findings ({researchItems.length}) · {approvedCount} approved</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {researchItems.map(item => <FindingCard key={item.id} item={item} onChanged={load} />)}
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader><CardTitle className="text-base">All Findings</CardTitle></CardHeader>
+          <CardContent className="py-10 text-center space-y-2">
+            <Bot className="w-8 h-8 mx-auto text-muted-foreground/40" />
+            {cycles.some(c => c.status === "completed") ? (
+              <>
+                <p className="text-sm font-medium">No findings produced yet</p>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">The completed cycle(s) didn&apos;t yield any persistable findings — usually a research-tier outage or a parse failure that survived the repair retry. Check the cycle timeline above for error details, then run the next cycle.</p>
+              </>
+            ) : !nextCycle ? (
+              <p className="text-sm text-muted-foreground">No cycles scheduled. Add cycles or finalize the campaign with whatever was approved.</p>
+            ) : !allIntakeAnswered && intakeQs.length > 0 ? (
+              <p className="text-sm text-muted-foreground">Answer the intake questions above, then click <span className="font-medium">Run Next Cycle</span> to start research.</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Click <span className="font-medium">Run Next Cycle</span> above to kick off the first research pass.</p>
+            )}
           </CardContent>
         </Card>
       )}

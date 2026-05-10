@@ -15,6 +15,7 @@ import {
   synthesizeFindingTool,
   proposeFollowupQuestionTool,
   extractJSON,
+  parseJsonWithRepair,
 } from "./tools";
 
 interface PlannedQuery {
@@ -109,9 +110,12 @@ Decompose the objective into ${MAX_QUERIES_PER_CYCLE} precise web research queri
 
 Return ONLY JSON: { "queries": [ { "kind": "...", "title": "...", "query": "specific question to ask Perplexity sonar-deep-research", "recencyHint": "optional" } ] }`;
   const out = await glmReasonTool.invoke({ prompt, maxTokens: 1500, jsonMode: true });
-  const parsed = extractJSON<{ queries: PlannedQuery[] }>(out);
+  const parsed = await parseJsonWithRepair<{ queries: PlannedQuery[] }>(out, {
+    label: "decompose",
+    schemaHint: `{ "queries": [ { "kind": string, "title": string, "query": string, "recencyHint": string? } ] }`,
+  });
   const plan = (parsed?.queries ?? []).slice(0, MAX_QUERIES_PER_CYCLE);
-  if (plan.length === 0) return { researchPlan: [], errors: [...state.errors, "decompose: no queries produced"], toolCalls: state.toolCalls + 1 };
+  if (plan.length === 0) return { researchPlan: [], errors: [...state.errors, "decompose: no queries produced (LLM output unparseable even after repair retry)"], toolCalls: state.toolCalls + 1 };
   await db.update(vceCyclesTable).set({ status: "researching" }).where(eq(vceCyclesTable.id, state.cycleId));
   return { researchPlan: plan, toolCalls: state.toolCalls + 1 };
 }
@@ -156,11 +160,18 @@ async function critiqueAndSynthesizeNode(state: S): Promise<Partial<S>> {
         prior: priorContext,
       });
       calls++;
-      const synth = JSON.parse(synthRaw) as { title: string; summary: string; body: string; confidence: number };
-      if (!synth.summary || !synth.body) { errors.push(`synthesize [${f.title}]: empty`); continue; }
+      // synthesizeFindingTool already runs JSON repair internally; the wire
+      // payload is JSON.stringify of either the parsed object or the stub
+      // fallback, so a plain JSON.parse here is safe. Guard with extractJSON
+      // anyway so a future tool change can't crash the cycle.
+      const synth = (extractJSON<{ title: string; summary: string; body: string; confidence: number }>(synthRaw)
+        ?? await parseJsonWithRepair<{ title: string; summary: string; body: string; confidence: number }>(synthRaw, { label: "synth-wire" }));
+      if (!synth || !synth.summary || !synth.body) { errors.push(`synthesize [${f.title}]: empty or unparseable after repair`); continue; }
       const valRaw = await crossValidateTool.invoke({ claim: synth.body, sources: f.research });
       calls++;
-      const validation = JSON.parse(valRaw) as ValidatedFinding["validation"];
+      const validation = (extractJSON<ValidatedFinding["validation"]>(valRaw)
+        ?? await parseJsonWithRepair<ValidatedFinding["validation"]>(valRaw, { label: "validate-wire" })
+        ?? { supported: false, supportingEvidence: [], contradictions: ["validation parse failed"], unsupportedLeaps: [], evidenceCount: f.sources.length, crossValidated: false, confidence: 0.4 });
       validated.push({ ...f, synthesis: synth, validation });
     } catch (e) {
       errors.push(`critique [${f.title}]: ${e instanceof Error ? e.message : "fail"}`);
@@ -201,8 +212,10 @@ async function askFollowupsNode(state: S): Promise<Partial<S>> {
     clientContext: `${state.clientName} (${state.industryName}). ${state.valueCase.slice(0, 400)}`,
     alreadyAsked: state.allPriorQuestions || "(none)",
   });
-  const qs = JSON.parse(raw) as NewQuestion[];
-  const filtered = (qs ?? []).filter(q => q.question && q.question.length > 8).slice(0, 5);
+  const qs = (extractJSON<NewQuestion[]>(raw)
+    ?? await parseJsonWithRepair<NewQuestion[]>(raw, { label: "followups-wire", schemaHint: `[ { "question": string, "rationale": string, "priority": number } ]` })
+    ?? []);
+  const filtered = qs.filter(q => q && q.question && q.question.length > 8).slice(0, 5);
   if (filtered.length > 0) {
     await db.insert(vceQuestionsTable).values(filtered.map((q, i) => ({
       assessmentId: state.assessmentId,

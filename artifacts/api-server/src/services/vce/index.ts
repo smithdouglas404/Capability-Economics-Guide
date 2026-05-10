@@ -7,7 +7,7 @@ import {
   industriesTable,
 } from "@workspace/db";
 import { eq, and, asc, inArray } from "drizzle-orm";
-import { glmReasonTool, extractJSON } from "./tools";
+import { glmReasonTool, parseJsonWithRepair } from "./tools";
 import { runCycle as graphRunCycle } from "./graph";
 
 // ----- Campaign / intake setup -----
@@ -71,10 +71,13 @@ Return ONLY JSON:
 { "objective": "campaign objective paragraph", "questions": [ { "question": "...", "rationale": "...", "priority": 1-5 } ] }`;
 
   const raw = await glmReasonTool.invoke({ prompt, maxTokens: 2000, jsonMode: true });
-  const parsed = extractJSON<{ objective: string; questions: { question: string; rationale: string; priority: number }[] }>(raw);
+  const parsed = await parseJsonWithRepair<{ objective: string; questions: { question: string; rationale: string; priority: number }[] }>(raw, {
+    label: "intake",
+    schemaHint: `{ "objective": string, "questions": [ { "question": string, "rationale": string, "priority": number } ] }`,
+  });
   if (!parsed?.questions || parsed.questions.length === 0) {
-    console.error("[VCE intake] parse failed. Raw:", raw.slice(0, 1500));
-    throw new Error("Intake parse failed (GLM returned unparseable output)");
+    console.error("[VCE intake] parse failed even after repair retry. Raw:", raw.slice(0, 1500));
+    throw new Error("Intake question generation failed: the language model returned output we couldn't parse, and the repair retry also failed. Try launching the campaign again — if it persists, the value case may need to be shorter or more focused.");
   }
 
   const rows = parsed.questions.slice(0, 7).map((q, i) => ({
@@ -163,15 +166,18 @@ Return ONLY valid JSON:
   "nextSteps": ["..."]
 }`;
   const raw = await glmReasonTool.invoke({ prompt, maxTokens: 6144, jsonMode: true });
-  const report = extractJSON<{
+  const report = await parseJsonWithRepair<{
     executiveSummary: string;
     capabilityGaps: { name: string; gap: string; impact: string }[];
     recommendations: { title: string; rationale: string; impact: string; horizon: string }[];
     quadrantInsights: { hot: string[]; emerging: string[]; cooling: string[]; tableStakes: string[] };
     risks: string[];
     nextSteps: string[];
-  }>(raw);
-  if (!report?.executiveSummary) throw new Error("Final report synthesis failed");
+  }>(raw, {
+    label: "finalize",
+    schemaHint: `{ "executiveSummary": string, "capabilityGaps": [ {"name":string,"gap":string,"impact":string} ], "recommendations": [ {"title":string,"rationale":string,"impact":string,"horizon":string} ], "quadrantInsights": {"hot":string[],"emerging":string[],"cooling":string[],"tableStakes":string[]}, "risks": string[], "nextSteps": string[] }`,
+  });
+  if (!report?.executiveSummary) throw new Error("Final report synthesis failed: the language model returned output we couldn't parse, and the repair retry also failed. Try finalizing again, or remove a few approved findings to shorten the prompt.");
 
   const finalReport = {
     summary: report.executiveSummary,
