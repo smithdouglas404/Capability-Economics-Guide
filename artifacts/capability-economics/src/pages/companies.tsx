@@ -124,7 +124,9 @@ export default function Companies() {
   useEffect(() => {
     fetch("/api/industries").then(r => r.json()).then((rows: Industry[]) => {
       setIndustries(rows);
-      if (rows.length && !industryId) setIndustryId(rows[0].id);
+      // Functional updater so we don't clobber an industryId that was already
+      // set by the default-view auto-apply effect (which may run earlier).
+      if (rows.length) setIndustryId(prev => prev ?? rows[0].id);
     });
   }, []);
 
