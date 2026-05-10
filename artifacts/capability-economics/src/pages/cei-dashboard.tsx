@@ -1557,8 +1557,8 @@ export default function CEIDashboard() {
                       <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }} />
                       <Tooltip
                         contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4, fontSize: 12 }}
-                        formatter={(value: number, name: string) => {
-                          if (name === "ciRange" || name === "95% CI") return null as unknown as [string, string];
+                        formatter={(value: number, name: string): [string, string] | null => {
+                          if (name === "ciRange" || name === "95% CI") return null;
                           return [value.toFixed(1), name === "value" ? "CEI Score" : "Weight %"];
                         }}
                       />
