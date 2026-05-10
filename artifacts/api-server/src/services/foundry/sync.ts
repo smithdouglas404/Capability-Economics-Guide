@@ -255,6 +255,13 @@ async function updateAlertStateAfterSync(result: SyncResult, reason: string): Pr
   if (result.status !== "http_401") {
     // Non-401 failures don't escalate the rotation alert (could be 5xx /
     // network — caller should investigate but rotating the token won't help).
+    // They DO break the 401 streak though, so clear the counter so stale
+    // metadata doesn't linger until the next ok/401.
+    if (alertState.consecutive401 > 0 || alertState.active) {
+      alertState.active = false;
+      alertState.consecutive401 = 0;
+      alertState.firstFailureAt = null;
+    }
     return;
   }
 

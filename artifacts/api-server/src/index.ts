@@ -96,9 +96,11 @@ app.listen(port, (err) => {
   // surface in Foundry within seconds. No-ops if Foundry env vars aren't set.
   // Rebuild the in-memory token-rotation alert from the persisted sync log
   // tail BEFORE the boot-tick fires, so the banner stays visible across
-  // restarts even if the boot sync hasn't run yet.
-  void rehydrateFoundryAlertState();
-  startFoundryHourlySync();
-  // Fire one sync at boot so Foundry catches up after a redeploy.
-  fireFoundrySync("api-server boot");
+  // restarts even if the boot sync hasn't run yet. Awaited so the boot
+  // sync's alert evaluation doesn't race against rehydration.
+  void (async () => {
+    await rehydrateFoundryAlertState();
+    startFoundryHourlySync();
+    fireFoundrySync("api-server boot");
+  })();
 });
