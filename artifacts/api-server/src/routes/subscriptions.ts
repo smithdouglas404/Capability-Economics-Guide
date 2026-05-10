@@ -8,40 +8,11 @@ import {
   setSubscriptionActive,
   recentDeliveries,
   sendDailyDigests,
+  userIsPlatformTier,
 } from "../services/subscriptions";
-import { db } from "@workspace/db";
-import {
-  userMembershipsTable,
-  membershipTiersTable,
-  billingOrgMembersTable,
-  billingOrganizationsTable,
-} from "@workspace/db";
-import { and, eq } from "drizzle-orm";
-import { isClerkAdmin, requireAdmin } from "../middlewares/requireAdmin";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
-
-/**
- * Slack/webhook channels are Platform-tier only. Email works for every tier.
- * Mirrors the rank logic in middlewares/requireTier.ts (kept inline so this
- * route module has zero coupling to that middleware's auth response shape).
- */
-async function userIsPlatformTier(userId: string): Promise<boolean> {
-  if (await isClerkAdmin(userId)) return true;
-  const [personal, orgs] = await Promise.all([
-    db.select({ slug: membershipTiersTable.slug })
-      .from(userMembershipsTable)
-      .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
-      .where(and(eq(userMembershipsTable.userId, userId), eq(userMembershipsTable.status, "active"))),
-    db.select({ slug: membershipTiersTable.slug })
-      .from(billingOrgMembersTable)
-      .innerJoin(billingOrganizationsTable, eq(billingOrgMembersTable.orgId, billingOrganizationsTable.id))
-      .innerJoin(membershipTiersTable, eq(billingOrganizationsTable.tierId, membershipTiersTable.id))
-      .where(and(eq(billingOrgMembersTable.userId, userId), eq(billingOrganizationsTable.status, "active"))),
-  ]);
-  const slugs = [...personal, ...orgs].map(r => r.slug);
-  return slugs.includes("platform");
-}
 
 function getUserId(req: Parameters<typeof getAuth>[0]): string | null {
   if (process.env.ADMIN_AUTH_BYPASS === "1") return getAuth(req)?.userId ?? "dev-admin";

@@ -264,8 +264,8 @@ export default function NotificationsPanel() {
                 </select>
               </div>
               <div>
-                <Label className="text-xs">Min severity (0-10)</Label>
-                <Input className="rounded-none h-9" type="number" min={0} max={10} value={newMinSeverity} onChange={e => setNewMinSeverity(e.target.value)} />
+                <Label className="text-xs">Min severity (1-10)</Label>
+                <Input className="rounded-none h-9" type="number" min={1} max={10} value={newMinSeverity} onChange={e => setNewMinSeverity(e.target.value)} />
               </div>
             </div>
           )}

@@ -1,5 +1,12 @@
 import { db } from "@workspace/db";
 import {
+  userMembershipsTable,
+  membershipTiersTable,
+  billingOrgMembersTable,
+  billingOrganizationsTable,
+} from "@workspace/db";
+import { isClerkAdmin } from "../middlewares/requireAdmin";
+import {
   userSubscriptionsTable,
   notificationDeliveriesTable,
   capabilitiesTable,
@@ -18,11 +25,14 @@ import { deriveLifecycleStage } from "./lifecycle";
  * Subscription evaluation + delivery.
  *
  * Hooked into:
- *   - computeCEI()      → after a snapshot is persisted, evaluates capability
- *                         threshold + lifecycle change subscriptions.
+ *   - computeCEI()       → after a snapshot is persisted, evaluates capability
+ *                          threshold, lifecycle change, and velocity sign-flip
+ *                          subscriptions.
  *   - createMacroEvent() → fires macro_event subscriptions matching the new
- *                         event's industry and severity.
- *   - computeCompanyScores() → fires quadrant_transition subscriptions.
+ *                          event's industry and severity.
+ *   - alpha/enrich.ts    → after a new capability_economics row is inserted,
+ *                          fires capability-scoped quadrant_transition subs
+ *                          when consensus_quadrant changes.
  *
  * Realtime subscriptions deliver immediately. daily_digest subs are queued
  * (status="queued") in notification_deliveries and flushed by
@@ -278,6 +288,28 @@ interface DispatchPayload {
   payload: Record<string, unknown>;
 }
 
+/**
+ * Slack/webhook channels are Platform-tier only. Email works for every tier.
+ * Used both at create time (route layer) and at dispatch time (here) so that
+ * a downgrade since creation immediately stops slack/webhook delivery.
+ */
+export async function userIsPlatformTier(userId: string): Promise<boolean> {
+  if (await isClerkAdmin(userId)) return true;
+  const [personal, orgs] = await Promise.all([
+    db.select({ slug: membershipTiersTable.slug })
+      .from(userMembershipsTable)
+      .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
+      .where(and(eq(userMembershipsTable.userId, userId), eq(userMembershipsTable.status, "active"))),
+    db.select({ slug: membershipTiersTable.slug })
+      .from(billingOrgMembersTable)
+      .innerJoin(billingOrganizationsTable, eq(billingOrgMembersTable.orgId, billingOrganizationsTable.id))
+      .innerJoin(membershipTiersTable, eq(billingOrganizationsTable.tierId, membershipTiersTable.id))
+      .where(and(eq(billingOrgMembersTable.userId, userId), eq(billingOrganizationsTable.status, "active"))),
+  ]);
+  const slugs = [...personal, ...orgs].map(r => r.slug);
+  return slugs.includes("platform");
+}
+
 async function dispatch(sub: UserSubscription, content: DispatchPayload): Promise<void> {
   // Daily digest: queue and let the digest job send a single email.
   if (sub.frequency === "daily_digest") {
@@ -314,7 +346,13 @@ async function dispatch(sub: UserSubscription, content: DispatchPayload): Promis
         }
       }
     } else if (sub.channel === "slack" || sub.channel === "webhook") {
-      if (!sub.channelTarget) {
+      // Re-check Platform tier at dispatch time so a downgrade since
+      // creation immediately stops slack/webhook delivery.
+      const stillPlatform = await userIsPlatformTier(sub.userId);
+      if (!stillPlatform) {
+        status = "skipped";
+        errorMessage = "tier downgraded: slack/webhook requires Platform";
+      } else if (!sub.channelTarget) {
         status = "failed";
         errorMessage = "missing channelTarget url";
       } else if (!isSafeOutboundUrl(sub.channelTarget)) {
