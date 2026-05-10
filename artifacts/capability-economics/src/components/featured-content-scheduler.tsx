@@ -85,7 +85,7 @@ export default function FeaturedContentScheduler() {
     const start = p.slot.startsAt ? new Date(p.slot.startsAt).getTime() : -Infinity;
     const end = p.slot.endsAt ? new Date(p.slot.endsAt).getTime() : Infinity;
     if (now < start) return { label: "Scheduled", cls: "bg-blue-500/10 text-blue-700 border border-blue-500/20", Icon: Calendar };
-    if (now > end) return { label: "Expired", cls: "bg-slate-500/10 text-slate-600 border border-slate-500/20", Icon: Clock };
+    if (now > end) return { label: "Expired", cls: "bg-muted/40 text-muted-foreground border border-border/40", Icon: Clock };
     return { label: "Live", cls: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20", Icon: CheckCircle2 };
   };
 

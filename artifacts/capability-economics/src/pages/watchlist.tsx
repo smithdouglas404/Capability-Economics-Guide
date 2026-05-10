@@ -125,7 +125,7 @@ export default function Watchlist() {
       {unacknowledged.length > 0 && (
         <div className="space-y-2">
           {unacknowledged.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+            <div key={a.id} className="flex items-center gap-3 p-3 rounded-none bg-destructive/10 border border-destructive/30">
               <Bell className="w-5 h-5 text-destructive shrink-0 animate-pulse" />
               <div className="flex-1">
                 <p className="text-sm font-medium">{a.message}</p>
@@ -209,7 +209,7 @@ export default function Watchlist() {
           {items.length > 0 ? (
             <div className="space-y-2">
               {items.map((item) => (
-                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${item.triggered ? "border-destructive/50 bg-destructive/5" : ""}`}>
+                <div key={item.id} className={`flex items-center justify-between p-3 rounded-none border ${item.triggered ? "border-destructive/50 bg-destructive/5" : ""}`}>
                   <div>
                     <span className="font-medium text-sm">{item.capabilityName}</span>
                     <p className="text-xs text-muted-foreground">

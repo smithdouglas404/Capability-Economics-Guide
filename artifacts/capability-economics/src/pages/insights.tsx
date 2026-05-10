@@ -404,7 +404,7 @@ export default function Insights() {
                 <CardContent className="py-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
+                      <div className="p-2 rounded-none bg-primary/10">
                         <Sparkles className="w-5 h-5 text-primary" />
                       </div>
                       <div>
@@ -436,7 +436,7 @@ export default function Insights() {
                         <Card className={`rounded-none border-l-4 ${config.border}`}>
                           <CardContent className="py-4">
                             <div className="flex items-start gap-3">
-                              <div className={`p-1.5 rounded-md ${config.bg}`}>
+                              <div className={`p-1.5 rounded-none ${config.bg}`}>
                                 <SevIcon className={`w-4 h-4 ${config.text}`} />
                               </div>
                               <div className="flex-1">
@@ -639,7 +639,7 @@ export default function Insights() {
                             {entries.map((entry, idx) => (
                               <div key={entry.id} className={`flex items-center gap-4 p-3 rounded-sm border ${entry.companyName === "Industry Average" ? "bg-muted/30" : ""}`}>
                                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                                  idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-slate-100 text-slate-700" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground"
+                                  idx === 0 ? "bg-amber-100 text-amber-700" : idx === 1 ? "bg-muted text-muted-foreground" : idx === 2 ? "bg-orange-100 text-orange-700" : "bg-muted text-muted-foreground"
                                 }`}>
                                   {entry.companyName === "Industry Average" ? "—" : `#${entry.rank}`}
                                 </div>

@@ -197,7 +197,7 @@ export default function RoiTracker() {
           <CardContent>
             <div className="space-y-3">
               {summary.capabilities.sort((a, b) => b.roi - a.roi).map((c) => (
-                <div key={c.capabilityId} className="border rounded-lg p-3">
+                <div key={c.capabilityId} className="border rounded-none p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">{c.capabilityName}</span>
                     <Badge variant={c.roi >= 0 ? "default" : "destructive"}>{c.roi}% ROI</Badge>

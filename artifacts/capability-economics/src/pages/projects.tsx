@@ -112,7 +112,7 @@ export default function Projects() {
               All Projects
             </Button>
             <div className="flex items-start gap-4">
-              <div className="p-3 rounded-lg bg-primary/10 text-primary">
+              <div className="p-3 rounded-none bg-primary/10 text-primary">
                 <Icon className="w-8 h-8" />
               </div>
               <div className="flex-1">
@@ -347,7 +347,7 @@ export default function Projects() {
                   <Card key={role} className={`rounded-none border-l-4 ${roleColors[role]}`}>
                     <CardHeader>
                       <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-muted">
+                        <div className="p-2 rounded-none bg-muted">
                           <RoleIcon className="w-5 h-5" />
                         </div>
                         <div>
@@ -524,7 +524,7 @@ export default function Projects() {
                           className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
                         >
                           <div className="flex items-start gap-4">
-                            <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                            <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                               <Icon className="w-6 h-6" />
                             </div>
                             <div className="flex-1">

@@ -254,7 +254,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border rounded-none overflow-hidden">
       <div className="flex items-center justify-between p-3 bg-muted/20">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">

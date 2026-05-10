@@ -110,7 +110,7 @@ export default function Simulation() {
               </div>
 
               {investments.map((inv, idx) => (
-                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                <div key={idx} className="border rounded-none p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <select
                       className="text-sm border rounded px-2 py-1 flex-1 mr-2 bg-background"

@@ -66,14 +66,14 @@ export default function CapabilityScorecard() {
       {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
         <div className="space-y-2">
           {criticalAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-destructive/10 border border-destructive/30">
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
               <span className="text-sm">{a.message}</span>
               <Badge variant="destructive" className="ml-auto">Critical</Badge>
             </div>
           ))}
           {warningAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-amber-500/10 border border-amber-500/30">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
               <span className="text-sm">{a.message}</span>
               <Badge variant="outline" className="ml-auto text-amber-500">Warning</Badge>

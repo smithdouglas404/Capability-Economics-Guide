@@ -136,14 +136,14 @@ export default function Dashboard() {
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <Target className="w-8 h-8 text-primary mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.averageMaturity}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.averageMaturity}</div>
               <div className="text-xs text-muted-foreground mt-1">Avg Maturity Score</div>
             </CardContent>
           </Card>
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <BarChart3 className="w-8 h-8 text-accent mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.averageBenchmark}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.averageBenchmark}</div>
               <div className="text-xs text-muted-foreground mt-1">Avg Benchmark</div>
             </CardContent>
           </Card>
@@ -154,7 +154,7 @@ export default function Dashboard() {
               ) : (
                 <TrendingDown className="w-8 h-8 text-rose-500 mx-auto mb-2" />
               )}
-              <div className="text-3xl font-serif font-semibold text-foreground">
+              <div className="text-3xl font-serif tracking-tight text-foreground">
                 {summary.averageMaturity >= summary.averageBenchmark ? "+" : ""}
                 {Math.round((summary.averageMaturity - summary.averageBenchmark) * 10) / 10}
               </div>
@@ -164,7 +164,7 @@ export default function Dashboard() {
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <CheckCircle2 className="w-8 h-8 text-primary mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.assessedCapabilities}/{summary.totalCapabilities}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.assessedCapabilities}/{summary.totalCapabilities}</div>
               <div className="text-xs text-muted-foreground mt-1">Assessed</div>
             </CardContent>
           </Card>

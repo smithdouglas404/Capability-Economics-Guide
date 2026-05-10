@@ -98,7 +98,7 @@ export default function NLQuery() {
 
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-lg p-3 ${
+                <div className={`max-w-[80%] rounded-none p-3 ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
@@ -121,7 +121,7 @@ export default function NLQuery() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-muted rounded-lg p-3">
+                <div className="bg-muted rounded-none p-3">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               </div>

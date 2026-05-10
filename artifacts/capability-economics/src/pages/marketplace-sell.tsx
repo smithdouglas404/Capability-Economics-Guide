@@ -37,11 +37,11 @@ const fmtMoney = (c: number) => `$${(c / 100).toFixed(2)}`;
 
 const statusBadge = (s: Listing["status"]) => {
   const map = {
-    draft:          { label: "Draft",          cls: "bg-slate-500/10 text-slate-700 border border-slate-500/20", Icon: FileText },
+    draft:          { label: "Draft",          cls: "bg-muted/40 text-muted-foreground border border-border/40", Icon: FileText },
     pending_review: { label: "In review",      cls: "bg-amber-500/10 text-amber-700 border border-amber-500/20", Icon: Clock },
     approved:       { label: "Live",           cls: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20", Icon: CheckCircle2 },
     rejected:       { label: "Rejected",       cls: "bg-red-500/10 text-red-700 border border-red-500/20", Icon: XCircle },
-    archived:       { label: "Archived",       cls: "bg-slate-500/10 text-slate-500 border border-slate-500/20", Icon: XCircle },
+    archived:       { label: "Archived",       cls: "bg-muted/40 text-muted-foreground/60 border border-border/40", Icon: XCircle },
   }[s];
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${map.cls}`}>

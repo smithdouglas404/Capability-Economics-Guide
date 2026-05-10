@@ -221,7 +221,7 @@ export default function Regulations() {
               {selectedReg.results.length > 0 ? (
                 <div className="space-y-2">
                   {selectedReg.results.sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)).map((r, i) => (
-                    <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${
+                    <div key={i} className={`flex items-center justify-between p-3 rounded-none border ${
                       r.compliant === true ? "border-emerald-500/30 bg-emerald-500/5" :
                       r.compliant === false ? "border-destructive/30 bg-destructive/5" :
                       ""

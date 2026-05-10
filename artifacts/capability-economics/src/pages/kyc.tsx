@@ -290,7 +290,7 @@ export default function KycPage() {
           <ShieldCheck className="w-4 h-4" />
           Identity verification for <Badge variant="outline" className="capitalize">{tierSlug}</Badge>
         </div>
-        <h1 className="text-3xl font-serif font-bold tracking-tight mb-2">Verify your identity</h1>
+        <h1 className="text-3xl font-serif tracking-tight mb-2">Verify your identity</h1>
         <p className="text-muted-foreground">
           To activate the {tierSlug} tier we run identity checks via Didit. Your data is encrypted in transit and only stored to satisfy KYC/AML obligations.
         </p>

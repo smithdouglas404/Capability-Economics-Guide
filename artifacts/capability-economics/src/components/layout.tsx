@@ -148,11 +148,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Brand lockup */}
           <Link href="/">
             <div className="flex items-center gap-2.5 cursor-pointer shrink-0">
-              <div className="w-7 h-7 bg-foreground flex items-center justify-center text-background font-serif font-bold text-sm">
+              <div className="w-7 h-7 bg-foreground flex items-center justify-center text-background font-serif tracking-tight text-sm">
                 CE
               </div>
               <div className="hidden sm:flex items-baseline gap-1.5">
-                <span className="font-serif font-semibold text-base tracking-tight">Capability Economics</span>
+                <span className="font-serif text-base tracking-tight">Capability Economics</span>
                 <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Alpha</span>
               </div>
             </div>

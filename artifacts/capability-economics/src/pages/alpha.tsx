@@ -69,11 +69,11 @@ function fmtMoney(mm: number | null | undefined): string {
 }
 
 function QuadrantChip({ q }: { q: string | null | undefined }) {
-  if (!q) return <span className="text-xs text-zinc-500">—</span>;
+  if (!q) return <span className="text-xs text-muted-foreground">—</span>;
   const color = q === "hot" ? "bg-red-500/15 text-red-600 border-red-500/30"
     : q === "emerging" ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
     : q === "cooling" ? "bg-blue-500/15 text-blue-600 border-blue-500/30"
-    : "bg-zinc-500/15 text-zinc-600 border-zinc-500/30";
+    : "bg-muted/40 text-muted-foreground border-border/40";
   return <Badge className={`${color} border capitalize text-xs font-medium`} variant="outline">{q.replace("_", " ")}</Badge>;
 }
 
@@ -119,8 +119,8 @@ export default function Alpha() {
             <Zap className="h-4 w-4" />
             <span className="font-medium tracking-wider uppercase">CE Alpha</span>
           </div>
-          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Capability-level intelligence no one else ships</h1>
-          <p className="mt-2 max-w-3xl text-zinc-600 dark:text-zinc-400">
+          <h1 className="text-3xl font-bold text-foreground">Capability-level intelligence no one else ships</h1>
+          <p className="mt-2 max-w-3xl text-muted-foreground">
             Seven forward-causal analyses that decompose enterprise value down to the capability — each priced, timed, and tied to a real dependency graph. PitchBook and CBI stop at companies and sectors. We don't.
           </p>
         </div>
@@ -132,7 +132,7 @@ export default function Alpha() {
               Run Alpha Enrichment
             </Button>
           </div>
-          {enrichMsg && <p className="text-xs text-zinc-500 max-w-xs text-right">{enrichMsg}</p>}
+          {enrichMsg && <p className="text-xs text-muted-foreground max-w-xs text-right">{enrichMsg}</p>}
         </div>
       </div>
 
@@ -195,7 +195,7 @@ function TraceabilityDialog() {
             Click the <Info className="inline h-3 w-3" /> icon next to any enriched row in Moat, Fragility, or Arbitrage to see the GLM rationale and the underlying Perplexity citation URLs for that specific capability.
           </Section>
           <Section title="EVaR — Expected Value at Risk">
-            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+            <code className="block bg-muted/50 p-2 rounded text-xs">
               EVaR(t) = revenueExposure × margin × max(halfLifeDecay(t), marketErosion(t))<br/>
               halfLifeDecay(t) = 1 − 0.5^(t / halfLifeMonths)<br/>
               marketErosion(t) = 1 − (1 − velocity × (0.6 + 0.8 × disruptionIntensity))^(t / 12)
@@ -203,13 +203,13 @@ function TraceabilityDialog() {
             Inputs: <code>revenueExposure</code>, <code>margin</code>, <code>halfLifeMonths</code>, <code>commoditizationVelocity</code>, <code>disruptionIntensity</code> — all from Perplexity-cited research, parsed by GLM into a typed JSON object stored in <code>capability_economics</code>.
           </Section>
           <Section title="Moat Score">
-            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+            <code className="block bg-muted/50 p-2 rounded text-xs">
               moat = 0.30·halfLifeC + 0.25·depthC + 0.20·economicImpactC + 0.15·stickinessC + 0.10·concentrationC
             </code>
             Components missing in the data are dropped and the remaining weights are renormalized — no zero defaults. Tier: ≥70 fortress, ≥50 defensible, ≥30 contestable, else exposed.
           </Section>
           <Section title="Fragility Score">
-            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+            <code className="block bg-muted/50 p-2 rounded text-xs">
               fragility = 0.25·decaySpeed + 0.20·upstreamDepth + 0.15·supplierConc + 0.25·edgeShock + 0.15·disruptionPressure<br/>
               edgeShock = min(100, max(expectedImpact / revenueExposure) × 100)<br/>
               expectedImpact = dollarImpactMm × disruptionProbability   (per upstream edge, GLM-scored)
@@ -217,7 +217,7 @@ function TraceabilityDialog() {
             Edge shock is null when no upstream edge has been GLM-priced for that capability — it does not silently become 0.
           </Section>
           <Section title="Arbitrage — long/short signal">
-            <code className="block bg-zinc-100 dark:bg-zinc-900 p-2 rounded text-xs">
+            <code className="block bg-muted/50 p-2 rounded text-xs">
               ceValue   = revenueExposure × margin × QUADRANT_MULTIPLE[ceQuadrant]<br/>
               consensus = revenueExposure × margin × QUADRANT_MULTIPLE[consensusQuadrant]<br/>
               spread    = ceValue − consensus<br/>
@@ -258,8 +258,8 @@ function TraceabilityDialog() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">{title}</h3>
-      <div className="text-zinc-600 dark:text-zinc-400">{children}</div>
+      <h3 className="font-semibold text-foreground mb-1">{title}</h3>
+      <div className="text-muted-foreground">{children}</div>
     </div>
   );
 }
@@ -269,20 +269,20 @@ function SourcesPopover({ rationale, sources }: { rationale?: string | null; sou
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="text-zinc-400 hover:text-amber-600" aria-label="Show sources" onClick={e => e.stopPropagation()}>
+        <button className="text-muted-foreground/60 hover:text-amber-600" aria-label="Show sources" onClick={e => e.stopPropagation()}>
           <Info className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-96 max-h-80 overflow-y-auto text-xs">
         {rationale && (
           <div className="mb-2">
-            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">GLM rationale</div>
-            <p className="text-zinc-600 dark:text-zinc-400 italic">{rationale}</p>
+            <div className="font-semibold text-foreground mb-1">GLM rationale</div>
+            <p className="text-muted-foreground italic">{rationale}</p>
           </div>
         )}
         {sources && sources.length > 0 && (
           <div>
-            <div className="font-semibold text-zinc-900 dark:text-zinc-100 mb-1">Perplexity sources</div>
+            <div className="font-semibold text-foreground mb-1">Perplexity sources</div>
             <ul className="space-y-1">
               {sources.slice(0, 12).map((s, i) => (
                 <li key={i}>
@@ -313,8 +313,8 @@ function StatusCard({ label, value, accent }: { label: string; value: number; ac
   return (
     <Card className={accent ? "border-emerald-500/40" : ""}>
       <CardContent className="p-4">
-        <div className="text-xs text-zinc-500 uppercase tracking-wide">{label}</div>
-        <div className={`text-2xl font-bold mt-1 ${accent ? "text-emerald-600 dark:text-emerald-400" : "text-zinc-900 dark:text-zinc-100"}`}>{value}</div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">{label}</div>
+        <div className={`text-2xl font-bold mt-1 ${accent ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>{value}</div>
       </CardContent>
     </Card>
   );
@@ -361,7 +361,7 @@ function EvarTab() {
     return pts;
   }, [selected, halfLifeAdj, velocityAdj]);
 
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading EVaR…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading EVaR…</div>;
   if (!data || data.items.length === 0) {
     return <EmptyPrompt title="No EVaR data yet" msg="Run Alpha Enrichment to compute per-capability revenue-at-risk curves." />;
   }
@@ -372,15 +372,15 @@ function EvarTab() {
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
-          <div className="text-xs text-zinc-500 uppercase">Total EVaR @ 12mo</div>
+          <div className="text-xs text-muted-foreground uppercase">Total EVaR @ 12mo</div>
           <div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalEvar12)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <div className="text-xs text-zinc-500 uppercase">Total EVaR @ 24mo</div>
+          <div className="text-xs text-muted-foreground uppercase">Total EVaR @ 24mo</div>
           <div className="text-xl font-bold mt-1 text-amber-600">{fmtMoney(data.totals.totalEvar24)}</div>
         </CardContent></Card>
         <Card><CardContent className="p-4">
-          <div className="text-xs text-zinc-500 uppercase">Total EVaR @ 36mo</div>
+          <div className="text-xs text-muted-foreground uppercase">Total EVaR @ 36mo</div>
           <div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.totalEvar36)}</div>
         </CardContent></Card>
       </div>
@@ -391,8 +391,8 @@ function EvarTab() {
           <CardContent className="p-0">
             <div className="max-h-[480px] overflow-auto">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
-                  <tr className="text-left text-xs uppercase text-zinc-500">
+                <thead className="sticky top-0 bg-muted/30 border-b">
+                  <tr className="text-left text-xs uppercase text-muted-foreground">
                     <th className="py-2 px-3">Capability</th>
                     <th className="py-2 px-2">Industry</th>
                     <th className="py-2 px-2 text-right">EVaR 12mo</th>
@@ -403,10 +403,10 @@ function EvarTab() {
                 <tbody>
                   {data.items.map(it => (
                     <tr key={it.capabilityId}
-                        className={`border-b cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}
+                        className={`border-b cursor-pointer hover:bg-muted/30 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}
                         onClick={() => setSelectedId(it.capabilityId)}>
                       <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
-                      <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                      <td className="py-2 px-2 text-muted-foreground text-xs">{it.industryName}</td>
                       <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.evar12)}</td>
                       <td className="py-2 px-2 text-right tabular-nums font-semibold text-red-600">{fmtMoney(it.evar36)}</td>
                       <td className="py-2 px-2"><QuadrantChip q={it.quadrant} /></td>
@@ -421,16 +421,16 @@ function EvarTab() {
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="text-base truncate">{selected?.capabilityName ?? "Select a capability"}</CardTitle>
-            <div className="text-xs text-zinc-500">{selected?.industryName}</div>
+            <div className="text-xs text-muted-foreground">{selected?.industryName}</div>
           </CardHeader>
           <CardContent>
             {selected ? (
               <>
                 <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-zinc-500">Revenue exposure:</span> <span className="font-medium">{fmtMoney(selected.revenueExposureMm)}</span></div>
-                  <div><span className="text-zinc-500">Margin:</span> <span className="font-medium">{selected.marginStructurePct?.toFixed(0) ?? "—"}%</span></div>
-                  <div><span className="text-zinc-500">Half-life:</span> <span className="font-medium">{Math.round(selected.halfLifeMonths * halfLifeAdj)}mo</span></div>
-                  <div><span className="text-zinc-500">Velocity:</span> <span className="font-medium">{((selected.commoditizationVelocity ?? 0) * velocityAdj * 100).toFixed(0)}%/yr</span></div>
+                  <div><span className="text-muted-foreground">Revenue exposure:</span> <span className="font-medium">{fmtMoney(selected.revenueExposureMm)}</span></div>
+                  <div><span className="text-muted-foreground">Margin:</span> <span className="font-medium">{selected.marginStructurePct?.toFixed(0) ?? "—"}%</span></div>
+                  <div><span className="text-muted-foreground">Half-life:</span> <span className="font-medium">{Math.round(selected.halfLifeMonths * halfLifeAdj)}mo</span></div>
+                  <div><span className="text-muted-foreground">Velocity:</span> <span className="font-medium">{((selected.commoditizationVelocity ?? 0) * velocityAdj * 100).toFixed(0)}%/yr</span></div>
                 </div>
                 <EvarSparkline curve={curve} maxEvar={maxEvar} />
                 <div className="mt-4 space-y-3">
@@ -443,9 +443,9 @@ function EvarTab() {
                     <Slider value={[velocityAdj]} min={0.5} max={2} step={0.05} onValueChange={(v: number[]) => setVelocityAdj(v[0])} />
                   </div>
                 </div>
-                {selected.rationale && <p className="mt-4 text-xs text-zinc-600 dark:text-zinc-400 italic border-l-2 border-amber-500/50 pl-3">{selected.rationale}</p>}
+                {selected.rationale && <p className="mt-4 text-xs text-muted-foreground italic border-l-2 border-amber-500/50 pl-3">{selected.rationale}</p>}
               </>
-            ) : <div className="text-zinc-400 text-sm">Pick a row to see its decay curve.</div>}
+            ) : <div className="text-muted-foreground/60 text-sm">Pick a row to see its decay curve.</div>}
           </CardContent>
         </Card>
       </div>
@@ -461,14 +461,14 @@ function EvarSparkline({ curve, maxEvar }: { curve: { month: number; evar: numbe
   const linePath = `M ${curve.map(p => `${xs(p.month)},${ys(p.evar)}`).join(" L ")}`;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-40">
-      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" className="text-zinc-300 dark:text-zinc-700" />
-      <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" className="text-zinc-300 dark:text-zinc-700" />
+      <line x1={pad} y1={h - pad} x2={w - pad} y2={h - pad} stroke="currentColor" className="text-border" />
+      <line x1={pad} y1={pad} x2={pad} y2={h - pad} stroke="currentColor" className="text-border" />
       <path d={bandPath} className="fill-amber-400/20" />
       <path d={linePath} fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600" />
       {[12, 24, 36].map(m => (
         <g key={m}>
-          <line x1={xs(m)} y1={h - pad} x2={xs(m)} y2={pad} stroke="currentColor" strokeDasharray="2 3" className="text-zinc-400/40" />
-          <text x={xs(m)} y={h - 4} textAnchor="middle" className="fill-zinc-500 text-[9px]">{m}mo</text>
+          <line x1={xs(m)} y1={h - pad} x2={xs(m)} y2={pad} stroke="currentColor" strokeDasharray="2 3" className="text-muted-foreground/60/40" />
+          <text x={xs(m)} y={h - 4} textAnchor="middle" className="fill-muted-foreground text-[9px]">{m}mo</text>
         </g>
       ))}
     </svg>
@@ -509,7 +509,7 @@ function CascadeTab() {
     })();
   }, [selectedId]);
 
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading cascade graph…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Loading cascade graph…</div>;
   if (!roots || roots.length === 0) {
     return <EmptyPrompt title="No cascade data yet" msg="Dependency edges need scoring. Run Alpha Enrichment." />;
   }
@@ -530,12 +530,12 @@ function CascadeTab() {
           <div className="max-h-[520px] overflow-auto">
             {roots.map(r => (
               <button key={r.id} onClick={() => setSelectedId(r.id)}
-                className={`w-full text-left px-4 py-2 border-b hover:bg-zinc-50 dark:hover:bg-zinc-900 ${selectedId === r.id ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+                className={`w-full text-left px-4 py-2 border-b hover:bg-muted/30 ${selectedId === r.id ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div className="font-medium text-sm">{r.name}</div>
                   <div className="text-xs tabular-nums text-red-600 font-semibold whitespace-nowrap">{fmtMoney(r.totalDownstreamImpactMm)}</div>
                 </div>
-                <div className="text-xs text-zinc-500">{r.dependentCount} dependents</div>
+                <div className="text-xs text-muted-foreground">{r.dependentCount} dependents</div>
               </button>
             ))}
           </div>
@@ -547,7 +547,7 @@ function CascadeTab() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <CardTitle className="text-base">Cascade from {cascade?.root.name ?? "…"}</CardTitle>
-              {cascade && <div className="text-xs text-zinc-500 mt-1">Expected downstream impact: <span className="font-semibold text-red-600">{fmtMoney(cascade.totalExpectedImpactMm)}</span></div>}
+              {cascade && <div className="text-xs text-muted-foreground mt-1">Expected downstream impact: <span className="font-semibold text-red-600">{fmtMoney(cascade.totalExpectedImpactMm)}</span></div>}
             </div>
             <div className="w-40">
               <div className="flex justify-between text-xs mb-1"><span>Horizon</span><span className="tabular-nums">{horizon}mo</span></div>
@@ -556,7 +556,7 @@ function CascadeTab() {
           </div>
         </CardHeader>
         <CardContent>
-          {cascade ? <CascadeGraph nodes={visibleNodes} edges={visibleEdges} rootId={cascade.root.id} /> : <div className="text-zinc-400 text-sm p-8">Select a root capability…</div>}
+          {cascade ? <CascadeGraph nodes={visibleNodes} edges={visibleEdges} rootId={cascade.root.id} /> : <div className="text-muted-foreground/60 text-sm p-8">Select a root capability…</div>}
           {visibleEdges.length > 0 && (
             <div className="mt-4 max-h-48 overflow-auto text-xs space-y-1 border-t pt-2">
               {visibleEdges.slice(0, 10).map(e => {
@@ -565,10 +565,10 @@ function CascadeTab() {
                 return (
                   <div key={e.id} className="flex items-center gap-2 py-1">
                     <span className="font-medium truncate max-w-[120px]">{from?.name}</span>
-                    <ArrowRight className="h-3 w-3 text-zinc-400" />
+                    <ArrowRight className="h-3 w-3 text-muted-foreground/60" />
                     <span className="font-medium truncate max-w-[120px]">{to?.name}</span>
-                    <span className="text-zinc-500">p={((e.disruptionProbability ?? 0) * 100).toFixed(0)}%</span>
-                    <span className="text-zinc-500">{e.timeToImpactMonths}mo</span>
+                    <span className="text-muted-foreground">p={((e.disruptionProbability ?? 0) * 100).toFixed(0)}%</span>
+                    <span className="text-muted-foreground">{e.timeToImpactMonths}mo</span>
                     <span className="ml-auto tabular-nums font-semibold text-red-600">{fmtMoney(e.dollarImpactMm)}</span>
                   </div>
                 );
@@ -603,7 +603,7 @@ function CascadeGraph({ nodes, edges, rootId }: { nodes: CascadeNode[]; edges: C
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxHeight: 380 }}>
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto">
-          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-zinc-400" />
+          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-muted-foreground/60" />
         </marker>
       </defs>
       {edges.map(e => {
@@ -611,11 +611,11 @@ function CascadeGraph({ nodes, edges, rootId }: { nodes: CascadeNode[]; edges: C
         if (!from || !to) return null;
         const strokeW = 1 + 3 * ((e.dollarImpactMm ?? 0) / maxImpact);
         const prob = e.disruptionProbability ?? 0.3;
-        const color = prob > 0.6 ? "stroke-red-500" : prob > 0.35 ? "stroke-amber-500" : "stroke-zinc-400";
+        const color = prob > 0.6 ? "stroke-red-500" : prob > 0.35 ? "stroke-amber-500" : "stroke-border";
         return (
           <g key={e.id}>
             <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} className={color} strokeWidth={strokeW} strokeOpacity={0.7} markerEnd="url(#arrow)" />
-            <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 4} textAnchor="middle" className="fill-zinc-600 dark:fill-zinc-400 text-[9px]">
+            <text x={(from.x + to.x) / 2} y={(from.y + to.y) / 2 - 4} textAnchor="middle" className="fill-muted-foreground text-[9px]">
               {fmtMoney(e.dollarImpactMm)}
             </text>
           </g>
@@ -626,8 +626,8 @@ function CascadeGraph({ nodes, edges, rootId }: { nodes: CascadeNode[]; edges: C
         const isRoot = n.id === rootId;
         return (
           <g key={n.id}>
-            <circle cx={p.x} cy={p.y} r={isRoot ? 10 : 6} className={isRoot ? "fill-amber-500 stroke-amber-700" : "fill-zinc-700 stroke-zinc-900 dark:fill-zinc-300 dark:stroke-zinc-100"} strokeWidth="1.5" />
-            <text x={p.x} y={p.y - 14} textAnchor="middle" className="fill-zinc-800 dark:fill-zinc-200 text-[10px] font-medium">
+            <circle cx={p.x} cy={p.y} r={isRoot ? 10 : 6} className={isRoot ? "fill-amber-500 stroke-amber-700" : "fill-foreground stroke-background"} strokeWidth="1.5" />
+            <text x={p.x} y={p.y - 14} textAnchor="middle" className="fill-foreground text-[10px] font-medium">
               {n.name.length > 22 ? n.name.slice(0, 20) + "…" : n.name}
             </text>
           </g>
@@ -650,7 +650,7 @@ function NarrativeTab() {
     })();
   }, []);
 
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Scanning for narrative divergence…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Scanning for narrative divergence…</div>;
   if (!items || items.length === 0) {
     return <EmptyPrompt title="No disagreements yet" msg="Once enrichment compares our CE quadrant to street consensus, divergences show here as long/short signals." />;
   }
@@ -672,26 +672,26 @@ function NarrativeColumn({ title, subtitle, items, color }: { title: string; sub
     <Card className={`border ${accent}`}>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
-        <div className="text-xs text-zinc-500 uppercase tracking-wide">{subtitle} • {items.length}</div>
+        <div className="text-xs text-muted-foreground uppercase tracking-wide">{subtitle} • {items.length}</div>
       </CardHeader>
       <CardContent className="space-y-3 max-h-[600px] overflow-auto">
-        {items.length === 0 && <div className="text-xs text-zinc-400">No signals.</div>}
+        {items.length === 0 && <div className="text-xs text-muted-foreground/60">No signals.</div>}
         {items.map(it => (
-          <div key={it.capabilityId} className="border rounded-md p-3">
+          <div key={it.capabilityId} className="border rounded-none p-3">
             <div className="flex justify-between items-start gap-2 mb-1">
               <div>
                 <div className="font-semibold text-sm">{it.capabilityName}</div>
-                <div className="text-xs text-zinc-500">{it.industryName}</div>
+                <div className="text-xs text-muted-foreground">{it.industryName}</div>
               </div>
               <div className={`text-xs font-bold ${accent}`}>{Math.abs(it.deltaSteps)}-step Δ</div>
             </div>
             <div className="flex items-center gap-2 text-xs mb-2">
-              <span className="text-zinc-500">CE:</span><QuadrantChip q={it.ceQuadrant} />
-              <ArrowRight className="h-3 w-3 text-zinc-400" />
-              <span className="text-zinc-500">Street:</span><QuadrantChip q={it.consensusQuadrant} />
+              <span className="text-muted-foreground">CE:</span><QuadrantChip q={it.ceQuadrant} />
+              <ArrowRight className="h-3 w-3 text-muted-foreground/60" />
+              <span className="text-muted-foreground">Street:</span><QuadrantChip q={it.consensusQuadrant} />
             </div>
-            {it.consensusSummary && <p className="text-xs text-zinc-600 dark:text-zinc-400 italic mb-2">"{it.consensusSummary}"</p>}
-            {it.rationale && <p className="text-xs text-zinc-700 dark:text-zinc-300">{it.rationale}</p>}
+            {it.consensusSummary && <p className="text-xs text-muted-foreground italic mb-2">"{it.consensusSummary}"</p>}
+            {it.rationale && <p className="text-xs text-muted-foreground">{it.rationale}</p>}
             {it.sources && it.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {it.sources.slice(0, 3).map((s, i) => {
@@ -717,17 +717,17 @@ function StubTab({ title, desc, method, needsEnrichment }: { title: string; desc
           <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
           <div>
             <CardTitle>{title}</CardTitle>
-            <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{desc}</p>
+            <p className="text-sm text-muted-foreground mt-1">{desc}</p>
           </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-xs uppercase tracking-wider text-zinc-500 mb-2">Methodology</div>
-        <ol className="text-sm space-y-1.5 list-decimal pl-5 text-zinc-700 dark:text-zinc-300">
+        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Methodology</div>
+        <ol className="text-sm space-y-1.5 list-decimal pl-5 text-muted-foreground">
           {method.map((m, i) => <li key={i}>{m}</li>)}
         </ol>
         {needsEnrichment && (
-          <div className="mt-4 flex items-center gap-2 text-xs text-zinc-500">
+          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3 w-3" />
             Unlocked after EVaR + Cascade enrichment completes for tracked industries.
           </div>
@@ -744,8 +744,8 @@ function EmptyPrompt({ title, msg }: { title: string; msg: string }) {
         <div className="mx-auto w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center mb-3">
           <Zap className="h-5 w-5 text-amber-600" />
         </div>
-        <div className="font-semibold text-zinc-900 dark:text-zinc-100">{title}</div>
-        <p className="text-sm text-zinc-500 mt-1">{msg}</p>
+        <div className="font-semibold text-foreground">{title}</div>
+        <p className="text-sm text-muted-foreground mt-1">{msg}</p>
       </CardContent>
     </Card>
   );
@@ -779,7 +779,7 @@ function MoatTab() {
   useEffect(() => { (async () => {
     try { const r = await fetch(`${apiBase}/api/alpha/moat`); if (r.ok) setData(await r.json()); } finally { setLoading(false); }
   })(); }, []);
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing moat scores…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing moat scores…</div>;
   if (!data || data.items.length === 0) return <EmptyPrompt title="No enriched capabilities yet" msg="Run Alpha Enrichment — Moat scores require Perplexity-cited half-life and quadrant data per capability." />;
 
   const items = data.items;
@@ -790,7 +790,7 @@ function MoatTab() {
       <div className="grid grid-cols-4 gap-3">
         {(["fortress", "defensible", "contestable", "exposed"] as const).map(t => (
           <Card key={t}><CardContent className="p-4">
-            <div className="text-xs text-zinc-500 uppercase">{t}</div>
+            <div className="text-xs text-muted-foreground uppercase">{t}</div>
             <div className={`text-2xl font-bold mt-1 ${tierBadge(t).split(" ").find(x => x.startsWith("text-"))}`}>{tierCounts[t] ?? 0}</div>
           </CardContent></Card>
         ))}
@@ -799,15 +799,15 @@ function MoatTab() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base">Moat Score = how hard to replicate this capability</CardTitle>
-            <p className="text-xs text-zinc-500 mt-1">Enriched capabilities only. Capabilities without GLM-cited economics are excluded — never shown with placeholder values.</p>
+            <p className="text-xs text-muted-foreground mt-1">Enriched capabilities only. Capabilities without GLM-cited economics are excluded — never shown with placeholder values.</p>
           </div>
           <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
-                <tr className="text-left text-xs uppercase text-zinc-500">
+              <thead className="sticky top-0 bg-muted/30 border-b">
+                <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
                   <th className="py-2 px-2">Industry</th>
                   <th className="py-2 px-2 text-right">Score</th>
@@ -822,7 +822,7 @@ function MoatTab() {
                 {items.map(it => (
                   <tr key={it.capabilityId} className="border-b">
                     <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
-                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{it.industryName}</td>
                     <td className="py-2 px-2 text-right tabular-nums font-bold">{it.moatScore}</td>
                     <td className="py-2 px-2"><Badge variant="outline" className={`${tierBadge(it.tier)} border text-xs capitalize`}>{it.tier}</Badge></td>
                     <td className="py-2 px-2 text-right tabular-nums text-xs">{it.halfLifeMonths != null ? `${Math.round(it.halfLifeMonths)}mo` : "—"}</td>
@@ -851,7 +851,7 @@ function MoatBar({ c }: { c: MoatItem["components"] }) {
   const present = segs.filter(s => s.val != null) as Array<{ label: string; val: number; color: string; w: number }>;
   const wSum = present.reduce((s, x) => s + x.w, 0) || 1;
   return (
-    <div className="flex h-2 rounded-full overflow-hidden bg-zinc-200 dark:bg-zinc-800" title={present.map(s => `${s.label}: ${s.val.toFixed(0)}`).join(" • ")}>
+    <div className="flex h-2 rounded-full overflow-hidden bg-muted" title={present.map(s => `${s.label}: ${s.val.toFixed(0)}`).join(" • ")}>
       {present.map((s, i) => <div key={i} className={s.color} style={{ width: `${(s.val * s.w / wSum)}%` }} />)}
     </div>
   );
@@ -880,7 +880,7 @@ function FragilityTab() {
   const [data, setData] = useState<FragilityResp | null>(null);
   const [loading, setLoading] = useState(true);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/fragility`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing fragility…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Computing fragility…</div>;
   if (!data || data.items.length === 0) return <EmptyPrompt title="No enriched capabilities yet" msg="Run Alpha Enrichment to compute fragility from real half-life + edge-shock data." />;
 
   const items = data.items;
@@ -891,7 +891,7 @@ function FragilityTab() {
       <div className="grid grid-cols-4 gap-3">
         {(["critical", "elevated", "moderate", "stable"] as const).map(s => (
           <Card key={s} className={s === "critical" ? "border-red-500/50" : ""}><CardContent className="p-4">
-            <div className="text-xs text-zinc-500 uppercase">{s}</div>
+            <div className="text-xs text-muted-foreground uppercase">{s}</div>
             <div className={`text-2xl font-bold mt-1 ${severityColor(s).split(" ").find(x => x.startsWith("text-"))}`}>{counts[s] ?? 0}</div>
           </CardContent></Card>
         ))}
@@ -900,15 +900,15 @@ function FragilityTab() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base">Capabilities ranked by fragility (higher = more vulnerable)</CardTitle>
-            <p className="text-xs text-zinc-500 mt-1">Components are renormalized over only the inputs that exist — missing data never silently becomes 0.</p>
+            <p className="text-xs text-muted-foreground mt-1">Components are renormalized over only the inputs that exist — missing data never silently becomes 0.</p>
           </div>
           <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
-                <tr className="text-left text-xs uppercase text-zinc-500">
+              <thead className="sticky top-0 bg-muted/30 border-b">
+                <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
                   <th className="py-2 px-2">Industry</th>
                   <th className="py-2 px-2 text-right">Score</th>
@@ -923,11 +923,11 @@ function FragilityTab() {
                 {items.map(it => (
                   <tr key={it.capabilityId} className="border-b">
                     <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
-                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{it.industryName}</td>
                     <td className="py-2 px-2 text-right tabular-nums font-bold text-red-600">{it.fragilityScore}</td>
                     <td className="py-2 px-2"><Badge variant="outline" className={`${severityColor(it.severity)} border text-xs capitalize`}>{it.severity}</Badge></td>
                     <td className="py-2 px-2 text-right tabular-nums text-xs" title={`${it.scoredEdgesCount} of ${it.totalUpstreamEdges} upstream edges priced`}>
-                      {it.topUpstreamRiskMm != null ? fmtMoney(it.topUpstreamRiskMm) : <span className="text-zinc-400">— ({it.scoredEdgesCount}/{it.totalUpstreamEdges} priced)</span>}
+                      {it.topUpstreamRiskMm != null ? fmtMoney(it.topUpstreamRiskMm) : <span className="text-muted-foreground/60">— ({it.scoredEdgesCount}/{it.totalUpstreamEdges} priced)</span>}
                     </td>
                     <td className="py-2 px-2 text-right tabular-nums text-xs">{it.halfLifeMonths != null ? `${Math.round(it.halfLifeMonths)}mo` : "—"}</td>
                     <td className="py-2 px-2 w-44">
@@ -935,7 +935,7 @@ function FragilityTab() {
                         {(["decaySpeed", "upstreamDepth", "supplierConcentration", "edgeShock", "disruptionPressure"] as const).map(k => {
                           const v = it.components[k];
                           return v == null
-                            ? <div key={k} className="w-full rounded-sm border border-dashed border-zinc-300 dark:border-zinc-700" style={{ height: "100%" }} title={`${k}: not enriched`} />
+                            ? <div key={k} className="w-full rounded-sm border border-dashed border-border" style={{ height: "100%" }} title={`${k}: not enriched`} />
                             : <div key={k} title={`${k}: ${v}`} className="bg-red-500/60 w-full rounded-sm" style={{ height: `${Math.max(4, v)}%` }} />;
                         })}
                       </div>
@@ -972,21 +972,21 @@ function ArbitrageTab() {
   const [loading, setLoading] = useState(true);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/arbitrage`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
 
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping arbitrage spreads…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping arbitrage spreads…</div>;
   if (!data || data.items.length === 0) return <EmptyPrompt title="No arbitrage spreads yet" msg="Run Alpha Enrichment — needs CE quadrant, consensus quadrant, revenue exposure, and margin per capability." />;
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Long exposure</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.longExposureMm)}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Short exposure</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.shortExposureMm)}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Neutral (low conf.)</div><div className="text-xl font-bold mt-1 text-zinc-500">{data.totals.neutralCount}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Pairs scored</div><div className="text-xl font-bold mt-1">{data.totals.pairs}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Long exposure</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.longExposureMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Short exposure</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.shortExposureMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Neutral (low conf.)</div><div className="text-xl font-bold mt-1 text-muted-foreground">{data.totals.neutralCount}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Pairs scored</div><div className="text-xl font-bold mt-1">{data.totals.pairs}</div></CardContent></Card>
       </div>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">CE quadrant valuation vs street consensus valuation</CardTitle>
-          <p className="text-xs text-zinc-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). Multiples: hot 15×, emerging 10×, table-stakes 4×, declining 1×.
             Direction requires consensus confidence ≥ {data.methodology.minConfidenceForSignal} — otherwise neutral.
           </p>
@@ -994,8 +994,8 @@ function ArbitrageTab() {
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b">
-                <tr className="text-left text-xs uppercase text-zinc-500">
+              <thead className="sticky top-0 bg-muted/30 border-b">
+                <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
                   <th className="py-2 px-2">Industry</th>
                   <th className="py-2 px-2">CE quadrant</th>
@@ -1012,16 +1012,16 @@ function ArbitrageTab() {
                 {data.items.map(it => (
                   <tr key={it.capabilityId} className="border-b">
                     <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
-                    <td className="py-2 px-2 text-zinc-500 text-xs">{it.industryName}</td>
-                    <td className="py-2 px-2"><QuadrantChip q={it.ceQuadrant} /><span className="ml-1 text-[10px] text-zinc-500">{it.ceMultiple}×</span></td>
-                    <td className="py-2 px-2"><QuadrantChip q={it.consensusQuadrant} /><span className="ml-1 text-[10px] text-zinc-500">{it.consensusMultiple}×</span></td>
+                    <td className="py-2 px-2 text-muted-foreground text-xs">{it.industryName}</td>
+                    <td className="py-2 px-2"><QuadrantChip q={it.ceQuadrant} /><span className="ml-1 text-[10px] text-muted-foreground">{it.ceMultiple}×</span></td>
+                    <td className="py-2 px-2"><QuadrantChip q={it.consensusQuadrant} /><span className="ml-1 text-[10px] text-muted-foreground">{it.consensusMultiple}×</span></td>
                     <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.ceValueMm)}</td>
-                    <td className="py-2 px-2 text-right tabular-nums text-zinc-600">{fmtMoney(it.consensusValueMm)}</td>
+                    <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">{fmtMoney(it.consensusValueMm)}</td>
                     <td className={`py-2 px-2 text-right tabular-nums font-bold ${it.spreadMm > 0 ? "text-emerald-600" : it.spreadMm < 0 ? "text-red-600" : ""}`}>
                       {it.spreadMm > 0 ? "+" : ""}{fmtMoney(it.spreadMm)}
-                      {it.spreadPct != null && <span className="ml-1 text-[10px] text-zinc-500">({it.spreadPct > 0 ? "+" : ""}{it.spreadPct}%)</span>}
+                      {it.spreadPct != null && <span className="ml-1 text-[10px] text-muted-foreground">({it.spreadPct > 0 ? "+" : ""}{it.spreadPct}%)</span>}
                     </td>
-                    <td className="py-2 px-2"><Badge variant="outline" className={`text-xs capitalize ${it.direction === "long" ? "text-emerald-600 border-emerald-500/40" : it.direction === "short" ? "text-red-600 border-red-500/40" : "text-zinc-500"}`}>{it.direction}</Badge></td>
+                    <td className="py-2 px-2"><Badge variant="outline" className={`text-xs capitalize ${it.direction === "long" ? "text-emerald-600 border-emerald-500/40" : it.direction === "short" ? "text-red-600 border-red-500/40" : "text-muted-foreground"}`}>{it.direction}</Badge></td>
                     <td className="py-2 px-2 text-right tabular-nums text-xs">{(it.confidence * 100).toFixed(0)}%</td>
                     <td className="py-2 px-2 text-right"><SourcesPopover rationale={it.rationale} sources={it.sources} /></td>
                   </tr>
@@ -1043,7 +1043,7 @@ function FlowsTab() {
   const [loading, setLoading] = useState(true);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/flows`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
 
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Aggregating capital flows…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Aggregating capital flows…</div>;
   if (!data || data.stages.length === 0) return <EmptyPrompt title="No capital flow data" msg="Run base enrichment to populate value-chain stages." />;
 
   const maxStage = Math.max(...data.stages.map(s => s.totalCapitalMm), 1);
@@ -1052,9 +1052,9 @@ function FlowsTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Total tracked capital</div><div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalCapitalMm)}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Accelerating (&gt;10%/yr)</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.acceleratingMm)}</div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Decelerating (&lt;-5%/yr)</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.deceleratingMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Total tracked capital</div><div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalCapitalMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Accelerating (&gt;10%/yr)</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.acceleratingMm)}</div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Decelerating (&lt;-5%/yr)</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.deceleratingMm)}</div></CardContent></Card>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
@@ -1063,7 +1063,7 @@ function FlowsTab() {
             {data.stages.map(s => (
               <div key={s.name}>
                 <div className="flex justify-between text-xs mb-1"><span className="font-medium">{s.name}</span><span className="tabular-nums">{fmtMoney(s.totalCapitalMm)} <span className={s.avgTrend > 0 ? "text-emerald-600" : "text-red-600"}>{s.avgTrend > 0 ? "+" : ""}{s.avgTrend}%</span></span></div>
-                <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div className={`h-full ${s.avgTrend > 0 ? "bg-emerald-500" : "bg-red-500"}`} style={{ width: `${(s.totalCapitalMm / maxStage) * 100}%` }} />
                 </div>
               </div>
@@ -1076,7 +1076,7 @@ function FlowsTab() {
             {data.industries.map(i => (
               <div key={i.id}>
                 <div className="flex justify-between text-xs mb-1"><span className="font-medium">{i.name}</span><span className="tabular-nums">{fmtMoney(i.totalCapitalMm)} <span className={i.avgTrend > 0 ? "text-emerald-600" : "text-red-600"}>{i.avgTrend > 0 ? "+" : ""}{i.avgTrend}%</span></span></div>
-                <div className="h-2 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div className={`h-full ${i.avgTrend > 0 ? "bg-emerald-500" : "bg-red-500"}`} style={{ width: `${(i.totalCapitalMm / maxInd) * 100}%` }} />
                 </div>
               </div>
@@ -1089,14 +1089,14 @@ function FlowsTab() {
         <CardContent className="p-0">
           <div className="max-h-80 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b text-xs uppercase text-zinc-500">
+              <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                 <tr><th className="text-left py-2 px-3">Stage</th><th className="text-left py-2 px-2">Industry</th><th className="text-right py-2 px-2">Capital</th><th className="text-right py-2 px-2">Trend</th></tr>
               </thead>
               <tbody>
                 {data.links.slice(0, 30).map((l, i) => (
                   <tr key={i} className="border-b">
                     <td className="py-2 px-3 font-medium">{l.source.replace("stage:", "")}</td>
-                    <td className="py-2 px-2 text-zinc-500">{l.target.replace("industry:", "")}</td>
+                    <td className="py-2 px-2 text-muted-foreground">{l.target.replace("industry:", "")}</td>
                     <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(l.valueMm)}</td>
                     <td className={`py-2 px-2 text-right tabular-nums ${l.trendPct > 0 ? "text-emerald-600" : "text-red-600"}`}>{l.trendPct > 0 ? "+" : ""}{l.trendPct}%</td>
                   </tr>
@@ -1118,7 +1118,7 @@ function TalentTab() {
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/talent`); if (r.ok) { const d = await r.json(); setItems(d.items); if (d.items[0]) setSelectedId(d.items[0].capabilityId); } } finally { setLoading(false); } })(); }, []);
-  if (loading) return <div className="flex items-center gap-2 text-zinc-500 p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping talent density…</div>;
+  if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping talent density…</div>;
   if (!items || items.length === 0) return <EmptyPrompt title="No talent mappings yet" msg="Need company-capability mappings to compute supply/demand." />;
 
   const selected = items.find(i => i.capabilityId === selectedId);
@@ -1129,13 +1129,13 @@ function TalentTab() {
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-auto">
             {items.map(it => (
-              <button key={it.capabilityId} onClick={() => setSelectedId(it.capabilityId)} className={`w-full text-left px-4 py-2 border-b hover:bg-zinc-50 dark:hover:bg-zinc-900 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
+              <button key={it.capabilityId} onClick={() => setSelectedId(it.capabilityId)} className={`w-full text-left px-4 py-2 border-b hover:bg-muted/30 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}>
                 <div className="flex justify-between items-start gap-2">
                   <div>
                     <div className="font-medium text-sm">{it.capabilityName}</div>
-                    <div className="text-xs text-zinc-500">{it.industryName} • {it.companies} cos · {Math.round(it.masteryRatio * 100)}% mastery</div>
+                    <div className="text-xs text-muted-foreground">{it.industryName} • {it.companies} cos · {Math.round(it.masteryRatio * 100)}% mastery</div>
                   </div>
-                  <Badge variant="outline" className={`text-[10px] capitalize ${it.status === "bottleneck" ? "border-red-500/50 text-red-600" : it.status === "saturated" ? "border-zinc-400 text-zinc-500" : it.status === "competitive" ? "border-amber-500/50 text-amber-600" : "border-blue-500/50 text-blue-600"}`}>{it.status}</Badge>
+                  <Badge variant="outline" className={`text-[10px] capitalize ${it.status === "bottleneck" ? "border-red-500/50 text-red-600" : it.status === "saturated" ? "border-border text-muted-foreground" : it.status === "competitive" ? "border-amber-500/50 text-amber-600" : "border-blue-500/50 text-blue-600"}`}>{it.status}</Badge>
                 </div>
               </button>
             ))}
@@ -1143,40 +1143,40 @@ function TalentTab() {
         </CardContent>
       </Card>
       <Card className="lg:col-span-3">
-        <CardHeader><CardTitle className="text-base">{selected?.capabilityName ?? "—"}</CardTitle><div className="text-xs text-zinc-500">{selected?.industryName}</div></CardHeader>
+        <CardHeader><CardTitle className="text-base">{selected?.capabilityName ?? "—"}</CardTitle><div className="text-xs text-muted-foreground">{selected?.industryName}</div></CardHeader>
         <CardContent>
           {selected ? (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3 text-center">
-                <div><div className="text-xs text-zinc-500">Companies</div><div className="text-2xl font-bold">{selected.companies}</div></div>
-                <div><div className="text-xs text-zinc-500">Core mastery</div><div className="text-2xl font-bold text-emerald-600">{selected.coreCount}</div></div>
-                <div><div className="text-xs text-zinc-500">Bottleneck</div><div className="text-2xl font-bold text-red-600">{selected.bottleneckScore}</div></div>
+                <div><div className="text-xs text-muted-foreground">Companies</div><div className="text-2xl font-bold">{selected.companies}</div></div>
+                <div><div className="text-xs text-muted-foreground">Core mastery</div><div className="text-2xl font-bold text-emerald-600">{selected.coreCount}</div></div>
+                <div><div className="text-xs text-muted-foreground">Bottleneck</div><div className="text-2xl font-bold text-red-600">{selected.bottleneckScore}</div></div>
               </div>
               <div>
-                <div className="text-xs uppercase text-zinc-500 mb-1">By funding stage</div>
+                <div className="text-xs uppercase text-muted-foreground mb-1">By funding stage</div>
                 <div className="flex flex-wrap gap-1">
                   {selected.stageMix.map(s => <Badge key={s.stage} variant="secondary" className="text-xs">{s.stage}: {s.count}</Badge>)}
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-zinc-500 mb-1">By sector</div>
+                <div className="text-xs uppercase text-muted-foreground mb-1">By sector</div>
                 <div className="flex flex-wrap gap-1">
                   {selected.sectorMix.map(s => <Badge key={s.sector} variant="outline" className="text-xs">{s.sector}: {s.count}</Badge>)}
                 </div>
               </div>
               <div>
-                <div className="text-xs uppercase text-zinc-500 mb-1">Top companies (by FEVI)</div>
+                <div className="text-xs uppercase text-muted-foreground mb-1">Top companies (by FEVI)</div>
                 <div className="space-y-1">
                   {selected.topCompanies.map(c => (
                     <div key={c.name} className="flex justify-between border-b py-1.5 text-sm">
-                      <div><span className="font-medium">{c.name}</span> <span className="text-xs text-zinc-500">{c.country} • {c.stage ?? "—"}</span></div>
+                      <div><span className="font-medium">{c.name}</span> <span className="text-xs text-muted-foreground">{c.country} • {c.stage ?? "—"}</span></div>
                       <div className="text-xs"><Badge variant="outline" className="mr-1">{c.strength}</Badge>FEVI {c.fevi.toFixed(1)}</div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-          ) : <div className="text-zinc-400 text-sm">Pick a capability…</div>}
+          ) : <div className="text-muted-foreground/60 text-sm">Pick a capability…</div>}
         </CardContent>
       </Card>
     </div>
@@ -1219,14 +1219,14 @@ function TwinTab() {
       <Card>
         <CardContent className="p-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[200px]">
-            <div className="text-xs text-zinc-500 mb-1">Acquirer (A)</div>
+            <div className="text-xs text-muted-foreground mb-1">Acquirer (A)</div>
             <Select value={aId} onValueChange={setAId}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>{industries.map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <div className="text-xs text-zinc-500 mb-1">Target (B)</div>
+            <div className="text-xs text-muted-foreground mb-1">Target (B)</div>
             <Select value={bId} onValueChange={setBId}>
               <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>{industries.map(i => <SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent>
@@ -1239,18 +1239,18 @@ function TwinTab() {
       {data && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Shared</div><div className="text-xl font-bold mt-1 text-emerald-600">{data.summary.sharedCount}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Only in A</div><div className="text-xl font-bold mt-1">{data.summary.onlyACount}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Only in B</div><div className="text-xl font-bold mt-1">{data.summary.onlyBCount}</div></CardContent></Card>
-            <Card><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Synergy</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.summary.totalSynergyMm)}</div></CardContent></Card>
-            <Card className={data.summary.clashCount > 0 ? "border-red-500/40" : ""}><CardContent className="p-4"><div className="text-xs text-zinc-500 uppercase">Clash zones</div><div className="text-xl font-bold mt-1 text-red-600">{data.summary.clashCount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Shared</div><div className="text-xl font-bold mt-1 text-emerald-600">{data.summary.sharedCount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Only in A</div><div className="text-xl font-bold mt-1">{data.summary.onlyACount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Only in B</div><div className="text-xl font-bold mt-1">{data.summary.onlyBCount}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Synergy</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.summary.totalSynergyMm)}</div></CardContent></Card>
+            <Card className={data.summary.clashCount > 0 ? "border-red-500/40" : ""}><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Clash zones</div><div className="text-xl font-bold mt-1 text-red-600">{data.summary.clashCount}</div></CardContent></Card>
           </div>
           <Card>
             <CardHeader><CardTitle className="text-base">Synergy / clash zones (overlap = {(data.summary.jaccard * 100).toFixed(1)}%)</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto">
                 <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-zinc-50 dark:bg-zinc-900 border-b text-xs uppercase text-zinc-500">
+                  <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                     <tr><th className="text-left py-2 px-3">Capability</th><th className="py-2 px-2">A quadrant</th><th className="py-2 px-2">B quadrant</th><th className="text-right py-2 px-2">Synergy</th><th className="py-2 px-2">Status</th></tr>
                   </thead>
                   <tbody>
@@ -1307,7 +1307,7 @@ function ThesisTab() {
       <Card>
         <CardContent className="p-4 flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[260px]">
-            <div className="text-xs text-zinc-500 mb-1">Capability</div>
+            <div className="text-xs text-muted-foreground mb-1">Capability</div>
             <Select value={capId} onValueChange={setCapId}>
               <SelectTrigger><SelectValue placeholder="Pick capability" /></SelectTrigger>
               <SelectContent>{caps.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
@@ -1317,16 +1317,16 @@ function ThesisTab() {
         </CardContent>
       </Card>
       {err && <div className="text-sm text-red-600 px-2">{err}</div>}
-      {loading && <Card><CardContent className="p-8 text-center text-sm text-zinc-500"><Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />Composing thesis from EVaR + Cascade + Narrative + company data… (~30s)</CardContent></Card>}
+      {loading && <Card><CardContent className="p-8 text-center text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin mx-auto mb-2" />Composing thesis from EVaR + Cascade + Narrative + company data… (~30s)</CardContent></Card>}
       {memo && (
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between gap-2">
               <div>
                 <CardTitle className="text-base">{memo.capabilityName}</CardTitle>
-                <div className="text-xs text-zinc-500 mt-1">{memo.industryName} • Generated {new Date(memo.generatedAt).toLocaleString()}</div>
+                <div className="text-xs text-muted-foreground mt-1">{memo.industryName} • Generated {new Date(memo.generatedAt).toLocaleString()}</div>
               </div>
-              <div className="text-xs text-zinc-500 text-right">
+              <div className="text-xs text-muted-foreground text-right">
                 <div>{memo.inputs.upstream}↑ {memo.inputs.downstream}↓ deps</div>
                 <div>{memo.inputs.topCompanies?.length ?? 0} companies</div>
               </div>

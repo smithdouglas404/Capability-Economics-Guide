@@ -60,7 +60,7 @@ const statusBadge = (s: Payment["status"]) => {
     active: { label: "Active", cls: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20", Icon: CheckCircle2 },
     pending: { label: "Pending", cls: "bg-amber-500/10 text-amber-700 border border-amber-500/20", Icon: PauseCircle },
     rejected: { label: "Rejected", cls: "bg-red-500/10 text-red-700 border border-red-500/20", Icon: XCircle },
-    cancelled: { label: "On Hold", cls: "bg-slate-500/10 text-slate-700 border border-slate-500/20", Icon: PauseCircle },
+    cancelled: { label: "On Hold", cls: "bg-muted/40 text-muted-foreground border border-border/40", Icon: PauseCircle },
   }[s];
   return (
     <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${map.cls}`}>

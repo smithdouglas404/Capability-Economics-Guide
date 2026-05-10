@@ -249,7 +249,7 @@ export default function MembershipAdmin() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-serif font-bold mb-1">Membership tiers</h2>
+        <h2 className="text-2xl font-serif tracking-tight mb-1">Membership tiers</h2>
         <p className="text-sm text-muted-foreground">Edit pricing, descriptions, and what's included on each tier. Changes are live immediately on the public /membership page.</p>
       </div>
       {tiers.map((t) => <TierEditor key={t.id} tier={t} onSaved={load} />)}

@@ -77,7 +77,7 @@ const QUAD_LABELS: Record<QuadPoint["quadrant"], { label: string; color: string 
   hot: { label: "Hot", color: "bg-red-500" },
   emerging: { label: "Emerging", color: "bg-blue-500" },
   cooling: { label: "Cooling", color: "bg-amber-500" },
-  table_stakes: { label: "Table Stakes", color: "bg-slate-500" },
+  table_stakes: { label: "Table Stakes", color: "bg-muted-foreground/50" },
 };
 
 export default function Companies() {
@@ -312,7 +312,7 @@ export default function Companies() {
                   <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">→ velocity</div>
                   <div className="absolute top-2 left-2 text-xs font-medium text-amber-600">Cooling</div>
                   <div className="absolute top-2 right-12 text-xs font-medium text-red-600">Hot</div>
-                  <div className="absolute bottom-8 left-2 text-xs font-medium text-slate-600">Table-stakes</div>
+                  <div className="absolute bottom-8 left-2 text-xs font-medium text-muted-foreground">Table-stakes</div>
                   <div className="absolute bottom-8 right-12 text-xs font-medium text-blue-600">Emerging</div>
                   {quad.map((p) => {
                     const x = 50 + (p.velocity / 0.5) * 50; // velocity range ±0.5

@@ -167,19 +167,19 @@ export default function InnovationPipeline() {
 
             {/* ROI Comparison */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Investment</p>
                 <p className="text-lg font-bold">{selectedProject.investmentUsdK ? `$${selectedProject.investmentUsdK}K` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Projected ROI</p>
                 <p className="text-lg font-bold">{selectedProject.projectedRoiPct != null ? `${selectedProject.projectedRoiPct}%` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Actual ROI</p>
                 <p className="text-lg font-bold text-primary">{selectedProject.actualRoiPct != null ? `${selectedProject.actualRoiPct}%` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Stages Passed</p>
                 <p className="text-lg font-bold">{selectedProject.stageHistory?.length ?? 0}</p>
               </div>

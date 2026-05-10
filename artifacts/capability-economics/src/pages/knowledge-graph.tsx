@@ -38,7 +38,7 @@ function StrengthBadge({ strength }: { strength: string }) {
   const colors: Record<string, string> = {
     strong: "bg-emerald-100 text-emerald-700 border-emerald-200",
     moderate: "bg-amber-100 text-amber-700 border-amber-200",
-    weak: "bg-slate-100 text-slate-500 border-slate-200",
+    weak: "bg-muted/40 text-muted-foreground border-border/40",
   };
   return (
     <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${colors[strength] || colors.moderate}`}>
@@ -51,7 +51,7 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
   const colors: Record<string, string> = {
     high: "bg-primary/10 text-primary border-primary/20",
     medium: "bg-amber-100 text-amber-700 border-amber-200",
-    low: "bg-slate-100 text-slate-500 border-slate-200",
+    low: "bg-muted/40 text-muted-foreground border-border/40",
   };
   return (
     <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${colors[relevance] || colors.medium}`}>
@@ -701,7 +701,7 @@ export default function KnowledgeGraph() {
                                   <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-red-600 rounded-full ring-2 ring-background animate-pulse cursor-help">
                                     {impacts.length}
                                   </span>
-                                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-80 p-3 bg-popover border border-border shadow-xl rounded-md text-left opacity-0 group-hover/bubble:opacity-100 pointer-events-none group-hover/bubble:pointer-events-auto transition-opacity">
+                                  <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 w-80 p-3 bg-popover border border-border shadow-xl rounded-none text-left opacity-0 group-hover/bubble:opacity-100 pointer-events-none group-hover/bubble:pointer-events-auto transition-opacity">
                                     <div className="text-xs font-semibold text-red-600 mb-2 uppercase tracking-wide">
                                       {impacts.length} active macro {impacts.length === 1 ? "event" : "events"}
                                     </div>
@@ -1027,7 +1027,7 @@ export default function KnowledgeGraph() {
                       className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
                     >
                       <div className="flex items-start gap-4">
-                        <div className="p-3 rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                        <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                           <Icon className="w-6 h-6" />
                         </div>
                         <div className="flex-1">
