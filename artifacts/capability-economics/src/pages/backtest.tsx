@@ -259,7 +259,15 @@ export default function BacktestPage() {
                       <td className="p-3 text-muted-foreground font-mono text-xs whitespace-nowrap">
                         {fmtDate(evt.eventDate)}
                       </td>
-                      <td className="p-3 font-medium">{evt.title}</td>
+                      <td className="p-3 font-medium">
+                        <div>{evt.title}</div>
+                        {(() => {
+                          const inds = Array.from(new Set(evt.capResults.map((c) => c.industryName).filter(Boolean)));
+                          return inds.length > 0 ? (
+                            <div className="text-xs text-muted-foreground font-normal mt-0.5">{inds.join(", ")}</div>
+                          ) : null;
+                        })()}
+                      </td>
                       <td className="p-3 text-xs text-muted-foreground capitalize">
                         {evt.eventType.replace(/_/g, " ")}
                       </td>
