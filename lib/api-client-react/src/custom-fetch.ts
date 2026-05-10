@@ -1,3 +1,5 @@
+import { subscribeToEventStream, type SubscribeOptions } from "./sse";
+
 export type CustomFetchOptions = RequestInit & {
   responseType?: "json" | "text" | "blob" | "auto";
 };
@@ -368,4 +370,44 @@ export async function customFetch<T = unknown>(
   }
 
   return (await parseSuccessBody(response, responseType, requestInfo)) as T;
+}
+
+// ---------------------------------------------------------------------------
+// Server-Sent Events (text/event-stream)
+// ---------------------------------------------------------------------------
+
+/**
+ * `customFetch` for `text/event-stream` responses. Honors `setBaseUrl()` and
+ * `setAuthTokenGetter()` exactly like the JSON variant, then delegates the
+ * actual streaming + parsing to `subscribeToEventStream`. This is the
+ * transport entry point you should use for SSE — `useEventStream` calls it
+ * under the hood so React consumers automatically pick up shared
+ * configuration.
+ *
+ * Returns a promise that resolves when the stream terminates (either
+ * because the caller aborted via `signal`, the server closed the
+ * connection, or an error occurred). Failures are reported through
+ * `onClose`, never via rejection — keeping a single termination path makes
+ * reconnect loops simpler.
+ */
+export async function customFetchEventStream(
+  input: string | URL,
+  options: SubscribeOptions,
+): Promise<void> {
+  // Reuse the JSON path's URL resolution so users only have to configure
+  // `setBaseUrl` once and SSE benefits automatically.
+  const resolved = applyBaseUrl(typeof input === "string" ? input : input.toString());
+  const url = typeof resolved === "string" ? resolved : resolveUrl(resolved);
+
+  // Merge caller-supplied headers with the auth token so SSE behaves
+  // identically to the JSON transport for token-gated APIs (e.g. Expo).
+  const headers = new Headers(options.headers);
+  if (_authTokenGetter && !headers.has("authorization")) {
+    const token = await _authTokenGetter();
+    if (token) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+  }
+
+  return subscribeToEventStream(url, { ...options, headers });
 }

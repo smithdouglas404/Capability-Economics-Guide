@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { subscribeToEventStream, type ParsedSSEEvent } from "./sse";
+import { customFetchEventStream } from "./custom-fetch";
+import { type ParsedSSEEvent } from "./sse";
 
 export type EventStreamStatus = "connecting" | "open" | "closed";
 
@@ -109,7 +110,10 @@ export function useEventStream<T = unknown>(
         safeSetStatus("connecting");
         let serverRetryHint: number | null = null;
 
-        await subscribeToEventStream(url, {
+        // Routed through customFetchEventStream so the hook automatically
+        // picks up `setBaseUrl()` / `setAuthTokenGetter()` configuration —
+        // same as the JSON transport.
+        await customFetchEventStream(url, {
           signal: abort.signal,
           headers: headersRef.current,
           lastEventId: cursor,
