@@ -143,7 +143,7 @@ export default function AgentMemoryShowcase() {
   const lettaConnected = tools?.integrations?.letta?.connected ?? false;
 
   return (
-    <section className="py-24 bg-muted/30 border-t" aria-label="Autonomous agent institutional memory">
+    <section className="py-24 bg-muted/10 border-t border-border/40" aria-label="Autonomous agent institutional memory">
       <div className="container mx-auto px-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -155,16 +155,14 @@ export default function AgentMemoryShowcase() {
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <Brain className="w-5 h-5 text-primary" aria-hidden="true" />
-                <span className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-                  Autonomous Agent Memory
-                </span>
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Autonomous Agent Memory</span>
               </div>
-              <h2 className="text-3xl md:text-4xl font-serif mb-2 text-foreground">
+              <h2 className="text-3xl md:text-4xl font-serif tracking-tight mb-2 text-foreground">
                 Institutional Intelligence
               </h2>
-              <p className="text-muted-foreground text-base max-w-lg">
+              <p className="text-foreground/60 font-serif italic text-base max-w-lg">
                 The CEI agent builds persistent memory across research cycles — learning patterns, recording observations, and evolving its decision-making over time.
               </p>
             </div>

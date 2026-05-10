@@ -78,9 +78,12 @@ export default function Usage() {
     <div className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
-            <Badge className="mb-2">Live</Badge>
-            <h1 className="font-serif text-4xl">LLM Usage &amp; Spend</h1>
-            <p className="text-muted-foreground mt-1 max-w-3xl">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Live</span>
+            </div>
+            <h1 className="font-serif text-4xl tracking-tight">LLM Usage &amp; Spend</h1>
+            <p className="text-muted-foreground text-sm mt-1 max-w-3xl">
               Every call to Perplexity, OpenRouter, and other model providers is logged with
               tokens, latency, and cost. Pricing per million tokens is applied per model;
               the projection below extrapolates current burn to a 30-day month.

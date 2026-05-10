@@ -796,11 +796,12 @@ export default function Console() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="mb-6">
-          <span className="inline-block px-2 py-0.5 text-xs font-semibold tracking-wider uppercase rounded bg-primary/10 text-primary mb-2">
-            The Console
-          </span>
-          <h1 className="text-4xl font-serif font-medium text-foreground">The Capability Lens</h1>
-          <p className="text-muted-foreground mt-2 max-w-3xl">
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">The Console</span>
+          </div>
+          <h1 className="text-4xl font-serif tracking-tight text-foreground">The Capability Lens</h1>
+          <p className="text-muted-foreground text-sm mt-2 max-w-3xl">
             Live agentic intelligence synthesized by our LangGraph agent (Perplexity research → GLM 5.1 synthesis → DB).
             All data sourced from autonomous research runs — no seed data, no mock fallbacks.
           </p>

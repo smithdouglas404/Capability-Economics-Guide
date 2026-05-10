@@ -128,13 +128,17 @@ export default function VCEPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
           <div>
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">AI Agent</span>
+            </div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center text-white">
+              <div className="w-10 h-10 bg-foreground flex items-center justify-center text-background">
                 <Bot className="w-5 h-5" />
               </div>
-              <h1 className="font-serif text-3xl font-bold">Virtual Capability Engineer</h1>
+              <h1 className="font-serif text-3xl tracking-tight">Virtual Capability Engineer</h1>
             </div>
-            <p className="text-muted-foreground max-w-3xl">
+            <p className="text-muted-foreground text-sm max-w-3xl">
               A LangGraph-orchestrated agent that runs a multi-day research campaign — planning each cycle, executing PhD-grade web research with Perplexity sonar-deep-research, cross-validating findings with GLM 5.1, and proposing follow-up questions to the client. Findings and questions land in a single review pane.
             </p>
           </div>

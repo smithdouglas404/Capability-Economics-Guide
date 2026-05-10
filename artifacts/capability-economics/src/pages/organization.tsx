@@ -139,15 +139,16 @@ export default function OrganizationSetup() {
   if (step === "create" && !sessionToken) {
     return (
       <div className="min-h-screen bg-background pb-24">
-        <section className="bg-muted/30 py-16 border-b">
+        <section className="bg-muted/10 py-16 border-b border-border/40">
           <div className="container mx-auto px-4 max-w-3xl">
-            <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-4">
-              Step 1 of 2
+            <div className="inline-flex items-center gap-2 mb-4">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Step 1 of 2</span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-serif font-medium tracking-tight mb-4 text-foreground">
+            <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
               Set Up Your Organization
             </h1>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-lg text-foreground/60 font-serif italic">
               Create your organization profile to begin assessing your capabilities against industry benchmarks.
             </p>
           </div>
@@ -233,15 +234,16 @@ export default function OrganizationSetup() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/30 py-12 border-b">
+      <section className="bg-muted/10 py-12 border-b border-border/40">
         <div className="container mx-auto px-4 max-w-5xl">
-          <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-4">
-            Step 2 of 2
+          <div className="inline-flex items-center gap-2 mb-4">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Step 2 of 2</span>
           </div>
-          <h1 className="text-3xl md:text-4xl font-serif font-medium tracking-tight mb-4 text-foreground">
+          <h1 className="text-3xl md:text-4xl font-serif tracking-tight mb-4 text-foreground">
             Assess Your Capabilities
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-foreground/60 font-serif italic">
             Rate your organization's maturity for each capability. You can also upload a CSV file with your assessments.
           </p>
 

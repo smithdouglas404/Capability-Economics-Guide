@@ -289,7 +289,10 @@ export default function Membership() {
             className="grid lg:grid-cols-[1fr_auto] gap-10 lg:gap-16 items-end"
           >
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-5">
+              <div className="inline-flex items-center gap-2 mb-5">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              </div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-5">
                 Vol. I &nbsp;·&nbsp; Membership
               </div>
               <h1 className="font-serif text-5xl lg:text-7xl leading-[0.95] tracking-tight">

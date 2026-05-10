@@ -179,9 +179,12 @@ export default function Benchmarking() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">Benchmark</Badge>
-          <h1 className="text-3xl font-serif font-bold">Competitive Benchmarking</h1>
-          <p className="text-muted-foreground mt-1">
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Benchmark</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Competitive Benchmarking</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             {step === "filter" && "Select your industry, capabilities, and region to find companies to benchmark against."}
             {step === "select" && `${companies.length} companies found. Select the ones to benchmark — or discover more via AI research.`}
             {step === "results" && `${result?.myOrgName} vs ${result?.totalCompanies} companies across ${result?.totalCapabilities} capabilities.`}

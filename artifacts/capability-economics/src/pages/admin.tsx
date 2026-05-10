@@ -249,8 +249,12 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background p-6 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="h-px w-4 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Admin</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight text-foreground">Admin Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             Platform monitoring, member approvals, content management &amp; system health.
           </p>
         </div>

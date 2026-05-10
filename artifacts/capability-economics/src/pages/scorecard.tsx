@@ -52,9 +52,12 @@ export default function CapabilityScorecard() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">Live</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability Scorecard</h1>
-          <p className="text-muted-foreground mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Live</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Scorecard</h1>
+          <p className="text-muted-foreground text-sm mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
         </div>
         <Button onClick={load} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
       </div>
@@ -113,7 +116,7 @@ export default function CapabilityScorecard() {
 
       {/* Comparison Matrix */}
       <Card>
-        <CardHeader><CardTitle>Capability Comparison Matrix</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-serif tracking-tight">Capability Comparison Matrix</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

@@ -117,7 +117,7 @@ export default function Projects() {
               </div>
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{project.name}</h1>
+                  <h1 className="text-3xl md:text-4xl font-serif tracking-tight text-foreground">{project.name}</h1>
                   <span className={`inline-flex items-center rounded-sm border px-2.5 py-0.5 text-xs font-semibold ${categoryColors[project.category] || "bg-muted text-muted-foreground"}`}>
                     {project.category}
                   </span>
@@ -485,15 +485,16 @@ export default function Projects() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/30 py-16 border-b">
+      <section className="bg-muted/10 py-16 border-b border-border/40">
         <div className="container mx-auto px-4 max-w-5xl">
-          <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-4">
-            Project Overlays
+          <div className="inline-flex items-center gap-2 mb-4">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Project Overlays</span>
           </div>
-          <h1 className="text-3xl md:text-5xl font-serif font-medium tracking-tight mb-4 text-foreground">
+          <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
             Technology Project Impact Analysis
           </h1>
-          <p className="text-lg text-muted-foreground max-w-3xl">
+          <p className="text-lg text-foreground/60 font-serif italic max-w-3xl">
             Explore how major technology initiatives overlay on capability economics. Each project shows its impact on organizational capabilities, the information needed to drive the CFO, CEO, and CIO agenda, and the risks of not having these gaps identified.
           </p>
         </div>

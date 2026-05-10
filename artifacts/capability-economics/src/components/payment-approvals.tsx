@@ -173,8 +173,8 @@ export default function PaymentApprovals({ showHeader = true, onChange }: Props)
       {showHeader && (
         <header className="mb-4">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-1">
-            <h2 className="font-serif text-2xl flex items-center gap-2">
-              <ShieldCheck className="w-6 h-6 text-primary" />
+            <h2 className="font-serif text-2xl tracking-tight flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-accent" />
               Payment Approvals
             </h2>
             <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>

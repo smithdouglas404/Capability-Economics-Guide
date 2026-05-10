@@ -155,9 +155,12 @@ export default function Companies() {
     <div className="container mx-auto px-4 py-8 space-y-6">
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
-            <Badge className="mb-2">Portfolio</Badge>
-            <h1 className="font-serif text-4xl">Companies, Value-Chain &amp; Quadrant</h1>
-            <p className="text-muted-foreground mt-1 max-w-3xl">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Portfolio</span>
+            </div>
+            <h1 className="font-serif text-4xl tracking-tight">Companies, Value-Chain &amp; Quadrant</h1>
+            <p className="text-muted-foreground text-sm mt-1 max-w-3xl">
               The deal-sourcing layer: short-list companies by capability fingerprint with transparent
               Moneyball composites, profile the value chain by stage with patents / VC / startup counts,
               and read the hot/emerging/cooling/table-stakes quadrant — all anchored on the live CEI.

@@ -106,9 +106,12 @@ export default function Watchlist() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2" variant="destructive">Early Warning</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability Watchlist</h1>
-          <p className="text-muted-foreground mt-1">Set thresholds on capabilities and get alerts when they cross critical levels.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Early Warning</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Watchlist</h1>
+          <p className="text-muted-foreground text-sm mt-1">Set thresholds on capabilities and get alerts when they cross critical levels.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={checkNow} disabled={checking} variant="outline">

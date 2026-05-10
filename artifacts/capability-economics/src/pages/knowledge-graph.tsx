@@ -815,15 +815,16 @@ export default function KnowledgeGraph() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/30 py-16 border-b">
+      <section className="bg-muted/10 py-16 border-b border-border/40">
         <div className="container mx-auto px-4 max-w-5xl">
-          <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-4">
-            Knowledge Graph
+          <div className="inline-flex items-center gap-2 mb-4">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Knowledge Graph</span>
           </div>
-          <h1 className="text-3xl md:text-5xl font-serif font-medium tracking-tight mb-4 text-foreground">
+          <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
             Industry Capability Explorer
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl">
+          <p className="text-lg text-foreground/60 font-serif italic max-w-2xl">
             Explore the capability landscape across six key industries. Each industry has 8-12 core capabilities with benchmarks, metrics, dependencies, and C-suite relevance mappings.
           </p>
           <div className="flex gap-2 mt-6 flex-wrap">
