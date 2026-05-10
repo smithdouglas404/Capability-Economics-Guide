@@ -384,6 +384,7 @@ for (let i = 0; i < capRows.length; i++) {
           perplexitySources: citations,
         });
         quadrantsAdded++;
+      }
     }
 
     log(`  [${i + 1}/${capRows.length}] ${cap.name} ✓ (${Math.round((Date.now() - t) / 1000)}s) — quad=${parsed.ce_quadrant} cites=${citations.length}`);
