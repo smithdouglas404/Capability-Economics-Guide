@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { db } from "@workspace/db";
 import { creditAccountsTable, creditTransactionsTable, TIER_ALLOCATIONS } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 
 /**
@@ -58,8 +58,22 @@ export function deductCredits(amount: number) {
       });
     }
 
-    // Check balance
-    if (account.balance < amount) {
+    // Atomically deduct: the WHERE includes `balance >= amount` so Postgres
+    // only executes the UPDATE when there are sufficient funds. If another
+    // concurrent request already deducted the balance below the threshold,
+    // this UPDATE matches no rows and returns an empty array — no row lock,
+    // no rollback, no race condition possible.
+    const [deducted] = await db.update(creditAccountsTable)
+      .set({ balance: sql`${creditAccountsTable.balance} - ${amount}` })
+      .where(and(
+        eq(creditAccountsTable.userId, userId),
+        gte(creditAccountsTable.balance, amount),
+      ))
+      .returning();
+
+    if (!deducted) {
+      // Either the balance was insufficient or the account vanished — either
+      // way the deduction did not happen, so it is safe to report 402.
       const canPurchase = account.tierSlug !== "discovery";
       res.status(402).json({
         error: "Insufficient credits",
@@ -74,11 +88,7 @@ export function deductCredits(amount: number) {
       return;
     }
 
-    // Deduct
-    const newBalance = account.balance - amount;
-    await db.update(creditAccountsTable)
-      .set({ balance: newBalance })
-      .where(eq(creditAccountsTable.userId, userId));
+    const newBalance = deducted.balance;
 
     // Log transaction
     await db.insert(creditTransactionsTable).values({
