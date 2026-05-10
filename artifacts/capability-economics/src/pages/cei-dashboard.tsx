@@ -14,7 +14,7 @@ import {
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   BarChart, Bar, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  ReferenceDot,
+  ReferenceDot, ErrorBar,
 } from "recharts";
 
 const API_BASE = "/api";
@@ -22,7 +22,13 @@ const API_BASE = "/api";
 interface IndustryBreakdown {
   industryName: string;
   indexValue: number;
+  // 95% credible interval on this industry's index. null when no scored capabilities.
+  ciLow: number | null;
+  ciHigh: number | null;
   weight: number;
+  // Provenance of the GDP weight (Perplexity-cited; null only when missing).
+  weightSourceUrl: string | null;
+  weightSourceYear: number | null;
   velocity: number;
   capabilityCount: number;
   topMover: string;
@@ -31,6 +37,10 @@ interface IndustryBreakdown {
 
 interface CEIData {
   overallIndex: number;
+  // 95% credible interval on the overall (GDP-weighted) CEI. null when no
+  // industries have a Perplexity-cited weight.
+  overallCiLow: number | null;
+  overallCiHigh: number | null;
   industryBreakdowns: Record<string, IndustryBreakdown>;
   marketSentiment: number;
   volatility: number;
@@ -766,6 +776,12 @@ export default function CEIDashboard() {
                 <div className="mt-3 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style={{ background: `${indexColor}20`, color: indexColor }}>
                   {indexLevel} Maturity
                 </div>
+                {cei.overallCiLow !== null && cei.overallCiHigh !== null && (
+                  <div className="text-[11px] text-muted-foreground/80 mt-2 font-mono" title="95% Bayesian credible interval — propagated from posterior variance of every triangulated capability score">
+                    95% CI: {cei.overallCiLow.toFixed(1)} – {cei.overallCiHigh.toFixed(1)}
+                    <span className="text-muted-foreground/50"> (±{((cei.overallCiHigh - cei.overallCiLow) / 2).toFixed(1)})</span>
+                  </div>
+                )}
                 <div className="text-xs text-muted-foreground mt-2">
                   Updated {new Date(cei.timestamp).toLocaleString()}
                 </div>
@@ -1466,18 +1482,27 @@ export default function CEIDashboard() {
                       name: ind.industryName.replace("Banking & Financial Services", "Banking & FS"),
                       value: ind.indexValue,
                       weight: ind.weight * 100,
+                      // Recharts ErrorBar consumes a [low, high] tuple; null
+                      // CIs (no scored capabilities) collapse to no error bar.
+                      ciRange: ind.ciLow !== null && ind.ciHigh !== null
+                        ? [ind.indexValue - ind.ciLow, ind.ciHigh - ind.indexValue]
+                        : [0, 0],
                     }))} layout="vertical" margin={{ left: 10, right: 30 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground)/0.1)" />
-                      <XAxis type="number" domain={[0, 500]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+                      <XAxis type="number" domain={[0, 600]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }} />
                       <Tooltip
                         contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4, fontSize: 12 }}
-                        formatter={(value: number, name: string) => [value.toFixed(1), name === "value" ? "CEI Score" : "Weight %"]}
+                        formatter={(value: number, name: string) => {
+                          if (name === "ciRange" || name === "95% CI") return null as unknown as [string, string];
+                          return [value.toFixed(1), name === "value" ? "CEI Score" : "Weight %"];
+                        }}
                       />
                       <Bar dataKey="value" name="CEI Score" radius={[0, 4, 4, 0]}>
                         {industries.map(([, ind], idx) => (
                           <Cell key={idx} fill={ind.indexValue >= 320 ? "#6366f1" : ind.indexValue >= 300 ? "#8b5cf6" : "#a78bfa"} />
                         ))}
+                        <ErrorBar dataKey="ciRange" width={6} strokeWidth={1.5} stroke="hsl(var(--foreground)/0.55)" direction="x" />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
@@ -1515,11 +1540,31 @@ export default function CEIDashboard() {
                     <div>
                       <div className="text-sm font-semibold text-foreground">{ind.industryName}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {ind.capabilityCount} capabilities · {(ind.weight * 100).toFixed(0)}% GDP weight
+                        {ind.capabilityCount} capabilities · {ind.weightSourceUrl ? (
+                          <a
+                            href={ind.weightSourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="underline decoration-dotted hover:text-primary"
+                            title={`GDP weight cited from ${ind.weightSourceUrl} (${ind.weightSourceYear})`}
+                          >
+                            {(ind.weight * 100).toFixed(2)}% GDP weight
+                          </a>
+                        ) : (
+                          <span className="italic text-amber-600/80" title="No Perplexity-cited GDP weight — excluded from overall index">
+                            no GDP weight
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-mono font-bold text-primary">{ind.indexValue.toFixed(0)}</div>
+                      {ind.ciLow !== null && ind.ciHigh !== null && (
+                        <div className="text-[10px] font-mono text-muted-foreground/70" title="95% credible interval">
+                          95% CI {ind.ciLow.toFixed(0)}–{ind.ciHigh.toFixed(0)}
+                        </div>
+                      )}
                     </div>
                   </div>
 
