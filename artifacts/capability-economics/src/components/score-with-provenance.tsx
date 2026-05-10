@@ -39,6 +39,16 @@ function formatTimestamp(ts: string | Date | null | undefined): string | null {
   return `${Math.floor(days / 365)}y ago`;
 }
 
+function safeUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.protocol === "http:" || u.protocol === "https:") return u.toString();
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function hostname(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
@@ -70,20 +80,13 @@ export function ScoreWithProvenance({
   const rendered =
     children ?? (typeof value === "number" ? `${value.toFixed(precision)}${unit}` : "—");
   const ageLabel = formatTimestamp(lastUpdatedAt);
-  const cites = (citations ?? []).filter(Boolean);
-  const effectiveCount = sourceCount ?? cites.length;
-  const hasAnyProvenance =
-    cites.length > 0 ||
-    !!ageLabel ||
-    !!model ||
-    typeof ciLow === "number" ||
-    typeof ciHigh === "number" ||
-    !!gdpWeightSourceUrl ||
-    (sourceBreakdown && sourceBreakdown.length > 0);
-
-  if (!hasAnyProvenance) {
-    return <span className={className}>{rendered}</span>;
-  }
+  const safeCites = (citations ?? [])
+    .filter((u): u is string => typeof u === "string" && u.length > 0)
+    .map(safeUrl)
+    .filter((u): u is string => u !== null);
+  const effectiveCount = sourceCount ?? safeCites.length;
+  const hasCi = typeof ciLow === "number" || typeof ciHigh === "number";
+  const safeGdpUrl = gdpWeightSourceUrl ? safeUrl(gdpWeightSourceUrl) : null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -118,62 +121,72 @@ export function ScoreWithProvenance({
           </div>
           <div className="font-mono text-base font-semibold text-foreground mt-0.5 break-words">
             {rendered}
-            {(typeof ciLow === "number" || typeof ciHigh === "number") && (
+            {hasCi ? (
               <span className="ml-2 text-[10px] font-normal text-muted-foreground">
                 95% CI {typeof ciLow === "number" ? ciLow.toFixed(precision) : "—"}–
                 {typeof ciHigh === "number" ? ciHigh.toFixed(precision) : "—"}
                 {unit}
+              </span>
+            ) : (
+              <span className="ml-2 text-[10px] font-normal italic text-muted-foreground">
+                confidence band unavailable
               </span>
             )}
           </div>
         </div>
 
         <div className="px-3 py-2 space-y-1.5">
-          {model && (
-            <div className="flex items-start gap-2">
-              <Sigma className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">Model: </span>
+          <div className="flex items-start gap-2">
+            <Sigma className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <span className="text-muted-foreground">Model: </span>
+              {model ? (
                 <span className="font-medium text-foreground">{model}</span>
-              </div>
+              ) : (
+                <span className="italic text-muted-foreground">unspecified</span>
+              )}
             </div>
-          )}
-          {effectiveCount > 0 && (
-            <div className="flex items-start gap-2">
-              <Database className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">Sources: </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Database className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <span className="text-muted-foreground">Sources: </span>
+              {effectiveCount > 0 ? (
                 <span className="font-medium text-foreground">
                   {effectiveCount} independent {effectiveCount === 1 ? "source" : "sources"}
                 </span>
-              </div>
+              ) : (
+                <span className="italic text-muted-foreground">none cited</span>
+              )}
             </div>
-          )}
-          {ageLabel && (
-            <div className="flex items-start gap-2">
-              <Clock className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
-              <div className="min-w-0">
-                <span className="text-muted-foreground">Last updated: </span>
+          </div>
+          <div className="flex items-start gap-2">
+            <Clock className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
+            <div className="min-w-0">
+              <span className="text-muted-foreground">Last updated: </span>
+              {ageLabel ? (
                 <span className="font-medium text-foreground">{ageLabel}</span>
-              </div>
+              ) : (
+                <span className="italic text-muted-foreground">unknown</span>
+              )}
             </div>
-          )}
+          </div>
           {gdpWeight !== null && gdpWeight !== undefined && (
             <div className="flex items-start gap-2">
               <Sigma className="w-3 h-3 mt-0.5 text-muted-foreground shrink-0" />
               <div className="min-w-0">
                 <span className="text-muted-foreground">GDP weight: </span>
                 <span className="font-medium text-foreground">{(gdpWeight * 100).toFixed(2)}%</span>
-                {gdpWeightSourceUrl && (
+                {safeGdpUrl && (
                   <>
                     {" "}
                     <a
-                      href={gdpWeightSourceUrl}
+                      href={safeGdpUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline decoration-dotted hover:no-underline break-all"
                     >
-                      {hostname(gdpWeightSourceUrl)}
+                      {hostname(safeGdpUrl)}
                       {gdpWeightSourceYear ? ` (${gdpWeightSourceYear})` : ""}
                     </a>
                   </>
@@ -202,13 +215,13 @@ export function ScoreWithProvenance({
           </div>
         )}
 
-        {cites.length > 0 && (
+        {safeCites.length > 0 && (
           <div className="px-3 pb-2 border-t border-border/60 pt-2">
             <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-              Citations ({cites.length})
+              Citations ({safeCites.length})
             </div>
             <ul className="space-y-0.5 max-h-32 overflow-y-auto">
-              {cites.slice(0, 8).map((url, i) => (
+              {safeCites.slice(0, 8).map((url, i) => (
                 <li key={i} className="truncate">
                   <a
                     href={url}
@@ -222,9 +235,9 @@ export function ScoreWithProvenance({
                   </a>
                 </li>
               ))}
-              {cites.length > 8 && (
+              {safeCites.length > 8 && (
                 <li className="text-[10px] text-muted-foreground italic">
-                  + {cites.length - 8} more
+                  + {safeCites.length - 8} more
                 </li>
               )}
             </ul>
