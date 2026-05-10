@@ -110,3 +110,28 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 ### Deploying to Railway
 
 Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built capability-economics SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
+
+### Self-hosted Mem0 + Letta on Railway (manual steps required)
+
+Code is committed at `3e7f03c`. The `mem0/` and `letta/` subdirectories each contain a `Dockerfile` + `railway.toml` that Railway uses to build the services. You must add them manually in the Railway dashboard — Railway does not auto-discover subdirectory services.
+
+**Mem0 service** — New service → your repo → root directory: `mem0`
+
+Set these env vars on the Mem0 service:
+- `OPENAI_API_KEY` — your key
+- `JWT_SECRET` — run `openssl rand -base64 48` to generate
+- `ADMIN_API_KEY` — any strong string; this is the `X-API-Key` the api-server sends
+- `AUTH_DISABLED=true` — simplifies auth for internal-only use
+
+**Letta service** — New service → your repo → root directory: `letta`
+
+Set these env vars on the Letta service:
+- `LETTA_SERVER_PASSWORD` — any strong string
+
+**api-server service** — add these env vars:
+- `MEM0_BASE_URL=http://mem0.railway.internal:8000`
+- `MEM0_API_KEY=<same value as ADMIN_API_KEY on Mem0 service>`
+- `LETTA_BASE_URL=http://letta.railway.internal:8283`
+- `LETTA_API_KEY=<same value as LETTA_SERVER_PASSWORD on Letta service>`
+
+Verify with `GET /api/agent/status` — should return `mem0.connected: true` once all three services are live.
