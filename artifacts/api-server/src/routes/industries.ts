@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { industriesTable, capabilitiesTable } from "@workspace/db";
-import { eq, sql, desc } from "drizzle-orm";
+import { industriesTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db";
+import { eq, sql, desc, inArray } from "drizzle-orm";
 import { GetIndustryParams } from "@workspace/api-zod";
+import { buildLifecycleMap } from "../services/lifecycle";
 
 const router: IRouter = Router();
 
@@ -115,7 +116,20 @@ router.get("/industries/:id", async (req, res) => {
 
   const capabilities = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, id));
 
-  res.json({ ...industry, capabilities });
+  // Enrich with derived lifecycle stage so this endpoint matches the
+  // contract on /api/capabilities (every cap row carries a stage).
+  const capIds = capabilities.map(c => c.id);
+  const components = capIds.length
+    ? await db.select({
+        capabilityId: ceiComponentsTable.capabilityId,
+        consensusScore: ceiComponentsTable.consensusScore,
+        velocity: ceiComponentsTable.velocity,
+      }).from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
+    : [];
+  const stageByCap = buildLifecycleMap(capabilities, components);
+  const enriched = capabilities.map(c => ({ ...c, lifecycleStage: stageByCap.get(c.id) ?? "adopted" }));
+
+  res.json({ ...industry, capabilities: enriched });
 });
 
 export default router;

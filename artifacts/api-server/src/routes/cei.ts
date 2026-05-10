@@ -131,6 +131,11 @@ router.get("/cei/freshness", async (_req, res) => {
         consensusScore: comp?.consensusScore ?? null,
         confidence: comp?.confidence ?? null,
         velocity: comp?.velocity ?? null,
+        lifecycleStage: deriveLifecycleStage({
+          consensusScore: comp?.consensusScore ?? null,
+          velocity: comp?.velocity ?? null,
+          benchmarkScore: c.benchmarkScore,
+        }),
       };
     });
 

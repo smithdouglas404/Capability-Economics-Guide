@@ -34,6 +34,7 @@ export default function CapabilityScorecard() {
   const [mode, setMode] = useState<"user" | "industry-average">("user");
   const [aggregatedFromOrgs, setAggregatedFromOrgs] = useState(0);
   const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all");
+  const [sortBy, setSortBy] = useState<"gap" | "stage">("gap");
   const sessionToken = localStorage.getItem("ce_session_token") ?? "";
 
   const load = async (overrideIndustryId?: number | null) => {
@@ -74,7 +75,15 @@ export default function CapabilityScorecard() {
   }, []);
 
   const filteredMatrix = stageFilter === "all" ? matrix : matrix.filter((m) => m.lifecycleStage === stageFilter);
-  const sortedByGap = [...filteredMatrix].filter((m) => m.gap !== null).sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0));
+  // Stable lifecycle ordering for the optional sort: emerging → adopted → mature → decaying → obsolete.
+  const STAGE_ORDER: Record<LifecycleStage, number> = { emerging: 0, adopted: 1, mature: 2, decaying: 3, obsolete: 4 };
+  const sortedByGap = [...filteredMatrix]
+    .filter((m) => m.gap !== null)
+    .sort((a, b) =>
+      sortBy === "stage"
+        ? STAGE_ORDER[a.lifecycleStage] - STAGE_ORDER[b.lifecycleStage] || (a.gap ?? 0) - (b.gap ?? 0)
+        : (a.gap ?? 0) - (b.gap ?? 0)
+    );
   const stageCounts = LIFECYCLE_STAGES.reduce<Record<LifecycleStage, number>>((acc, s) => {
     acc[s] = matrix.filter((m) => m.lifecycleStage === s).length;
     return acc;
@@ -185,7 +194,8 @@ export default function CapabilityScorecard() {
         <CardContent className="text-xs text-muted-foreground space-y-2">
           <p>
             Each capability is tagged with a derived lifecycle stage, computed on every read from its current
-            posterior consensus score and EMA velocity (never persisted, never goes stale).
+            posterior consensus score and EMA velocity (never persisted, never goes stale).{" "}
+            <a href="/lifecycle" className="underline hover:text-foreground">Read the full methodology →</a>
           </p>
           <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
             <div className="flex items-start gap-2"><LifecycleChip stage="emerging" /><span>Score &lt; 40 and velocity ≥ +0.03 — early adopters investing.</span></div>
@@ -206,7 +216,17 @@ export default function CapabilityScorecard() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2">Capability</th>
-                  <th className="text-left py-2 px-2">Stage</th>
+                  <th className="text-left py-2 px-2">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy(sortBy === "stage" ? "gap" : "stage")}
+                      className={`hover:text-foreground transition-colors ${sortBy === "stage" ? "text-foreground" : ""}`}
+                      data-testid="scorecard-sort-stage"
+                      title="Click to sort by lifecycle stage"
+                    >
+                      Stage {sortBy === "stage" ? "▾" : ""}
+                    </button>
+                  </th>
                   <th className="text-right py-2 px-2">Your Score</th>
                   <th className="text-right py-2 px-2">Benchmark</th>
                   <th className="text-right py-2 px-2">Gap</th>

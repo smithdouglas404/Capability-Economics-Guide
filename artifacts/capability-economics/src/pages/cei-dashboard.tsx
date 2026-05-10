@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 import { HelpCircle, BookOpenCheck } from "lucide-react";
+import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import {
   Activity, TrendingUp, TrendingDown, Minus, RefreshCw, Loader2, Info,
   ArrowUpRight, ArrowDownRight, BarChart3, Zap, Shield, ChevronDown, ChevronUp,
@@ -74,6 +75,7 @@ interface FreshnessItem {
   consensusScore: number | null;
   confidence: number | null;
   velocity: number | null;
+  lifecycleStage: import("@/components/lifecycle-chip").LifecycleStage;
 }
 interface FreshnessResponse {
   summary: FreshnessSummary;
@@ -639,6 +641,7 @@ export default function CEIDashboard() {
   const { data: capabilityList } = useApi<CapabilityListItem[]>(`${API_BASE}/capabilities`);
   const { data: catalogData } = useApi<CatalogResponse>(`${API_BASE}/macro-events/catalog`);
   const [showFreshness, setShowFreshness] = useState(true);
+  const [freshnessStageFilter, setFreshnessStageFilter] = useState<LifecycleStage | "all">("all");
   const [showMacroPanel, setShowMacroPanel] = useState(true);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
@@ -1424,6 +1427,28 @@ export default function CEIDashboard() {
                         </div>
                       </div>
 
+                      <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">Lifecycle filter</div>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setFreshnessStageFilter("all")}
+                            className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === "all" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                            data-testid="cei-freshness-stage-all"
+                          >All</button>
+                          {LIFECYCLE_STAGES.map(s => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setFreshnessStageFilter(s)}
+                              className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === s ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                              data-testid={`cei-freshness-stage-${s}`}
+                            >{lifecycleLabel(s)}</button>
+                          ))}
+                          <a href="/lifecycle" className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground underline">Methodology →</a>
+                        </div>
+                      </div>
+
                       <div className="grid md:grid-cols-2 gap-4">
                         <div>
                           <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 font-semibold">
@@ -1434,18 +1459,20 @@ export default function CEIDashboard() {
                               <thead className="border-b bg-emerald-50/50 dark:bg-emerald-950/20 text-muted-foreground">
                                 <tr className="text-left">
                                   <th className="py-1.5 px-2 font-medium">Capability</th>
+                                  <th className="py-1.5 px-2 font-medium">Stage</th>
                                   <th className="py-1.5 px-2 font-medium text-right">Refreshed</th>
                                   <th className="py-1.5 px-2 font-medium text-right">Score</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {[...freshness.capabilities]
-                                  .filter(c => c.lastTriangulatedAt)
+                                  .filter(c => c.lastTriangulatedAt && (freshnessStageFilter === "all" || c.lifecycleStage === freshnessStageFilter))
                                   .sort((a, b) => new Date(b.lastTriangulatedAt!).getTime() - new Date(a.lastTriangulatedAt!).getTime())
                                   .slice(0, 10)
                                   .map(item => (
                                     <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
                                       <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
+                                      <td className="py-1.5 px-2"><LifecycleChip stage={item.lifecycleStage} /></td>
                                       <td className="py-1.5 px-2 text-right font-mono text-emerald-700 dark:text-emerald-400">
                                         {item.ageHours! < 1 ? `${Math.round(item.ageHours! * 60)}m` : item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago
                                       </td>
@@ -1466,14 +1493,18 @@ export default function CEIDashboard() {
                               <thead className="border-b bg-amber-50/50 dark:bg-amber-950/20 text-muted-foreground">
                                 <tr className="text-left">
                                   <th className="py-1.5 px-2 font-medium">Capability</th>
+                                  <th className="py-1.5 px-2 font-medium">Stage</th>
                                   <th className="py-1.5 px-2 font-medium text-right">Last</th>
                                   <th className="py-1.5 px-2 font-medium text-right">Score</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {freshness.capabilities.slice(0, 10).map(item => (
+                                {freshness.capabilities
+                                  .filter(c => freshnessStageFilter === "all" || c.lifecycleStage === freshnessStageFilter)
+                                  .slice(0, 10).map(item => (
                                   <tr key={item.capabilityId} className="border-b border-border/50 hover:bg-muted/30">
                                     <td className="py-1.5 px-2 font-medium truncate max-w-[180px]" title={item.capability}>{item.capability}</td>
+                                    <td className="py-1.5 px-2"><LifecycleChip stage={item.lifecycleStage} /></td>
                                     <td className="py-1.5 px-2 text-right font-mono text-amber-700 dark:text-amber-400">
                                       {item.lastTriangulatedAt
                                         ? `${item.ageHours! < 24 ? `${item.ageHours!.toFixed(1)}h` : `${(item.ageHours! / 24).toFixed(1)}d`} ago`
