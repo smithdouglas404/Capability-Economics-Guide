@@ -95,14 +95,14 @@ function EducationalLibrary() {
 
   return (
     <section className="border-t border-border/40">
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-20 lg:py-28">
         <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-14">
           <div>
             <div className="inline-flex items-center gap-2 mb-4">
               <span className="h-px w-5 bg-accent" />
               <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ Library</span>
             </div>
-            <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.05] sm:leading-[1.0] tracking-tight">
               Learn the<br /><em className="not-italic text-foreground/70">discipline.</em>
             </h2>
           </div>
@@ -233,7 +233,7 @@ export default function Home() {
       <section className="relative border-b border-border/40 overflow-hidden">
         <div className="absolute inset-0 hero-grid-bg pointer-events-none" aria-hidden />
 
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 pt-14 pb-0 lg:pt-20">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-14 pb-0 lg:pt-20">
           {/* Eyebrow */}
           <motion.div
             initial={{ opacity: 0, x: -10 }}
@@ -347,14 +347,14 @@ export default function Home() {
 
       {/* ── § 01 PREMISE ─────────────────────────────────────────────────── */}
       <section className="border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-20 lg:py-28">
           <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-16">
             <div>
               <div className="inline-flex items-center gap-2 mb-4">
                 <span className="h-px w-5 bg-accent" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 01 — Premise</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.05] sm:leading-[1.0] tracking-tight">
                 What is<br /><em className="not-italic italic text-foreground/70">capability economics?</em>
               </h2>
             </div>
@@ -403,14 +403,14 @@ export default function Home() {
 
       {/* ── § 02 ANALOGY ─────────────────────────────────────────────────── */}
       <section className="border-b border-border/40 bg-muted/10">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-20 lg:py-28">
           <div className="grid lg:grid-cols-[1fr_420px] gap-14 lg:gap-20 items-start">
             <div>
               <div className="inline-flex items-center gap-2 mb-5">
                 <span className="h-px w-5 bg-accent" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 02 — Analogy</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight mb-8">
+              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.05] sm:leading-[1.0] tracking-tight mb-8">
                 The real estate<br /><em className="not-italic italic text-foreground/70">parallel.</em>
               </h2>
               <div className="space-y-5 font-serif text-lg text-foreground/70 leading-relaxed">
@@ -492,14 +492,14 @@ export default function Home() {
       <section className="relative bg-foreground text-background overflow-hidden">
         <div className="absolute inset-0 cta-grid-bg pointer-events-none opacity-[0.04]" aria-hidden />
 
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-20 lg:py-28">
           <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-14">
             <div>
               <div className="inline-flex items-center gap-2 mb-4">
                 <span className="h-px w-5 bg-accent" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ Next</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+              <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl leading-[1.05] sm:leading-[1.0] tracking-tight">
                 Continue your<br /><em className="not-italic italic text-background/60">briefing.</em>
               </h2>
             </div>

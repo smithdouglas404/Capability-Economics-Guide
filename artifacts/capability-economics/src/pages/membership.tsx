@@ -295,7 +295,7 @@ export default function Membership() {
               <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-5">
                 Vol. I &nbsp;·&nbsp; Membership
               </div>
-              <h1 className="font-serif text-5xl lg:text-7xl leading-[0.95] tracking-tight">
+              <h1 className="font-serif text-4xl sm:text-5xl lg:text-7xl leading-[0.95] tracking-tight">
                 Choose how you<br />
                 <span className="italic text-foreground/85">use the framework.</span>
               </h1>
@@ -351,12 +351,12 @@ export default function Membership() {
       {/* Tier list */}
       <main className="max-w-7xl mx-auto">
         {tiers === null && (
-          <div className="text-center text-muted-foreground py-32 font-mono text-sm uppercase tracking-[0.18em]">
+          <div className="text-center text-muted-foreground py-16 sm:py-32 font-mono text-sm uppercase tracking-[0.18em]">
             Loading tiers…
           </div>
         )}
         {tiers && tiers.length === 0 && (
-          <div className="text-center text-muted-foreground py-32 font-mono text-sm uppercase tracking-[0.18em]">
+          <div className="text-center text-muted-foreground py-16 sm:py-32 font-mono text-sm uppercase tracking-[0.18em]">
             No tiers available
           </div>
         )}

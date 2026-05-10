@@ -4,7 +4,6 @@ import { useListProjects, useGetProject, getGetProjectQueryKey } from "@workspac
 import type { TechnologyProject, ProjectCapabilityImpact, ProjectExecutiveInsight, ProjectRisk } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MobileNotice } from "@/components/mobile";
 import {
   Brain, Zap, Cloud, NetworkIcon, Server, Database,
   ArrowLeft, ChevronRight, Loader2, TrendingUp, Clock,
@@ -106,7 +105,6 @@ export default function Projects() {
 
     return (
       <div className="min-h-screen bg-background pb-24">
-      <MobileNotice />
         <section className="bg-muted/30 py-8 border-b">
           <div className="container mx-auto px-4 max-w-6xl">
             <Button variant="ghost" onClick={() => { setSelectedProjectId(null); setActiveTab("impact"); }} className="mb-4 -ml-2 text-muted-foreground hover:text-foreground">

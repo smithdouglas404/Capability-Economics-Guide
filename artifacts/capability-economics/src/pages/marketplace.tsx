@@ -70,11 +70,11 @@ export default function MarketplacePage() {
   }, [listings, segment, typeFilter, query, sort]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
+    <div className="container mx-auto px-4 py-6 sm:py-8 max-w-6xl">
       <MarketplaceNav />
 
       <div className="mb-6">
-        <h1 className="font-serif text-3xl flex items-center gap-2"><Store className="w-7 h-7 text-primary" /> Marketplace</h1>
+        <h1 className="font-serif text-2xl sm:text-3xl flex items-center gap-2"><Store className="w-6 h-6 sm:w-7 sm:h-7 text-primary" /> Marketplace</h1>
         <p className="text-muted-foreground text-sm mt-1">Curated research and reports authored by platform members.</p>
       </div>
 

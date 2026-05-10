@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { FlaskConical, TrendingUp, TrendingDown, Shield, AlertTriangle, ArrowRight, Trash2, Plus, Play } from "lucide-react";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Capability = { id: number; name: string; benchmarkScore: number; industryId: number };
@@ -83,7 +82,6 @@ export default function Simulation() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-      <MobileNotice />
       <div>
         <div className="inline-flex items-center gap-2 mb-3">
           <span className="h-px w-5 bg-accent" />

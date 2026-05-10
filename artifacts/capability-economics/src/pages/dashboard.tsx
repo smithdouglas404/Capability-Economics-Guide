@@ -22,7 +22,6 @@ import {
 } from "recharts";
 import { Link, useLocation } from "wouter";
 
-import { MobileNotice } from "@/components/mobile";
 export default function Dashboard() {
   const [, navigate] = useLocation();
   const [roleFilter, setRoleFilter] = useState<string>("all");
@@ -44,7 +43,6 @@ export default function Dashboard() {
   if (!sessionToken) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-      <MobileNotice />
         <Card className="max-w-md w-full rounded-none shadow-lg mx-4">
           <CardHeader className="text-center">
             <Building2 className="w-12 h-12 text-primary mx-auto mb-4" />

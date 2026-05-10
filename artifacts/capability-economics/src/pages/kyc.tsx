@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Circle, ShieldCheck, AlertTriangle, ExternalLink, Loader2, Mail, IdCard, ScanFace, Search, ArrowRight } from "lucide-react";
 
-import { MobileNotice } from "@/components/mobile";
 type Step = "email" | "identity" | "liveness" | "aml" | "done" | "declined";
 
 type KycStatus = {
@@ -286,7 +285,6 @@ export default function KycPage() {
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
-      <MobileNotice />
       <div className="mb-8">
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
           <ShieldCheck className="w-4 h-4" />

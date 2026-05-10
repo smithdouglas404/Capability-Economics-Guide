@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, RefreshCw, Plus, Loader2, MessageSquare, Eye, AlertTriangle, History, AlertCircle, RotateCcw, LogIn, LogOut } from "lucide-react";
 import { Show, SignInButton, useUser, useClerk } from "@clerk/react";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 const authFetchInit: RequestInit = { credentials: "include" };
@@ -464,7 +463,6 @@ export default function ReviewQueue() {
 
   return (
     <div className="min-h-screen bg-background p-6 max-w-screen-xl mx-auto">
-      <MobileNotice />
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
           <div className="inline-flex items-center gap-2 mb-2">

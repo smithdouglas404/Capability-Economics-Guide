@@ -10,7 +10,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { Copy, Key, Loader2, Trash2, BookOpen, Activity, AlertTriangle } from "lucide-react";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 const ALL_SCOPES = [
@@ -155,7 +154,6 @@ export default function DevelopersPage() {
   if (!isSignedIn) {
     return (
       <div className="container mx-auto max-w-3xl p-6">
-      <MobileNotice />
         <Card>
           <CardHeader>
             <CardTitle>Developers</CardTitle>

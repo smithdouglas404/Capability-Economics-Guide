@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { MobileNotice } from "@/components/mobile";
 import {
   Mic, MicOff, Upload, X, FileText, ArrowRight, ChevronRight,
   Building2, Loader2, CheckCircle2, AlertTriangle, TrendingUp,
@@ -766,7 +765,6 @@ export default function Assess() {
       `}</style>
 
       <div className="min-h-screen bg-background">
-        <MobileNotice />
         <section className="border-b border-border/40 py-12 bg-muted/10 no-print">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="flex items-center justify-between mb-4">

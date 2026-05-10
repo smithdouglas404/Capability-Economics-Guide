@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { motion } from "framer-motion";
-import { MobileNotice } from "@/components/mobile";
 import {
   ArrowRight, ArrowLeft, TrendingUp, TrendingDown, Activity,
   CheckCircle2, AlertTriangle, RefreshCw, Brain,
@@ -106,7 +105,6 @@ export default function CaseStudy() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MobileNotice />
       {/* Masthead */}
       <header className="border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-16 lg:pt-16 lg:pb-24">

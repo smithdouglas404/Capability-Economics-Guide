@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { MarketplaceNav } from "@/components/marketplace-nav";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Seller = {
@@ -197,7 +196,6 @@ export default function MarketplaceSellPage() {
   if (!isLoaded) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <MobileNotice />
         <MarketplaceNav />
         <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>
       </div>

@@ -1,6 +1,5 @@
 import { useServiceHealth, type ServiceStatus } from "@/hooks/use-service-health";
 
-import { MobileNotice } from "@/components/mobile";
 const STATUS_LABELS: Record<ServiceStatus, string> = {
   ok: "Operational",
   degraded: "Degraded",
@@ -45,7 +44,6 @@ export default function SystemStatus() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-5xl">
-      <MobileNotice />
       <div className="flex items-baseline justify-between gap-4 mb-2">
         <h1 className="font-serif text-3xl tracking-tight">System Status</h1>
         <button

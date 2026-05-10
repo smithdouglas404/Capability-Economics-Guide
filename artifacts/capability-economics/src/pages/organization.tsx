@@ -21,7 +21,6 @@ import {
 import { useLocation } from "wouter";
 import { Slider } from "@/components/ui/slider";
 
-import { MobileNotice } from "@/components/mobile";
 const iconMap: Record<string, React.ElementType> = {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
 };
@@ -140,7 +139,6 @@ export default function OrganizationSetup() {
   if (step === "create" && !sessionToken) {
     return (
       <div className="min-h-screen bg-background pb-24">
-      <MobileNotice />
         <section className="bg-muted/10 py-16 border-b border-border/40">
           <div className="container mx-auto px-4 max-w-3xl">
             <div className="inline-flex items-center gap-2 mb-4">

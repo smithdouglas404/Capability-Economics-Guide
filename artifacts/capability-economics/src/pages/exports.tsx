@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Download, FileSpreadsheet, Database, Lock } from "lucide-react";
 import { Layout } from "@/components/layout";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Dataset = { id: string; label: string; description: string };
@@ -85,7 +84,6 @@ export default function ExportsPage() {
 
   return (
     <Layout>
-      <MobileNotice />
       <div className="max-w-5xl mx-auto p-6 space-y-6">
         <div>
           <h1 className="text-2xl font-serif">Data exports</h1>

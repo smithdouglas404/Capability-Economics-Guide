@@ -3,7 +3,6 @@ import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2 } from "lucide-react";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Summary = {
@@ -33,7 +32,6 @@ export default function CaseStudies() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MobileNotice />
       <header className="border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-12 lg:pt-16 lg:pb-16">
           <motion.div

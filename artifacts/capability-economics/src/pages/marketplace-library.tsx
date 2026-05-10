@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Download, FileText, Loader2 } from "lucide-react";
 import { MarketplaceNav } from "@/components/marketplace-nav";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Purchase = {
@@ -48,7 +47,6 @@ export default function MarketplaceLibraryPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
-      <MobileNotice />
       <MarketplaceNav />
       {!isLoaded ? (
         <div className="p-12 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></div>

@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, Loader2, ShoppingCart } from "lucide-react";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Listing = {
@@ -66,7 +65,6 @@ export default function MarketplaceListingPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <MobileNotice />
       <Button asChild variant="ghost" size="sm" className="mb-4">
         <Link href="/marketplace"><ArrowLeft className="w-4 h-4" /> <span className="ml-1">All listings</span></Link>
       </Button>

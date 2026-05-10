@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LifecycleChip } from "@/components/lifecycle-chip";
 
-import { MobileNotice } from "@/components/mobile";
 /**
  * Standalone documentation page for capability lifecycle stages.
  * Linked from the Scorecard legend, the CEI Dashboard tooltip, and the
@@ -10,7 +9,6 @@ import { MobileNotice } from "@/components/mobile";
 export default function LifecycleDocs() {
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl space-y-8">
-      <MobileNotice />
       <header>
         <div className="inline-flex items-center gap-2 mb-3">
           <span className="w-1.5 h-1.5 rounded-full bg-accent" />

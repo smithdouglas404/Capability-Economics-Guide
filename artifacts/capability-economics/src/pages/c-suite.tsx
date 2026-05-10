@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RefreshCw, AlertTriangle, Brain } from "lucide-react";
 import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 
-import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 interface Role {
@@ -71,7 +70,6 @@ export default function CSuite() {
 
   return (
     <div className="min-h-screen bg-background">
-      <MobileNotice />
       {/* Masthead */}
       <header className="border-b border-border/60">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-12 lg:pt-16 lg:pb-16">

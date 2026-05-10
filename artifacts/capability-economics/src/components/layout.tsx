@@ -22,6 +22,15 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DegradedServiceBanner } from "@/components/degraded-banner";
+import { MobileNotice } from "@/components/mobile";
+
+// Pages explicitly tuned for mobile. Everything else gets the
+// "best on desktop" notice on small screens.
+const MOBILE_TUNED_PATHS = new Set<string>([
+  "/", "/cei", "/alpha", "/knowledge-graph", "/companies",
+  "/scorecard", "/insights", "/membership", "/account",
+  "/methodology", "/coverage", "/marketplace",
+]);
 
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
@@ -558,6 +567,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1">
+        {!MOBILE_TUNED_PATHS.has(location) && <MobileNotice />}
         {children}
       </main>
       <footer className="border-t border-border/40 py-10 bg-background">
