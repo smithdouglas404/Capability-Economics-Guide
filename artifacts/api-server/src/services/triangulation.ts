@@ -1,12 +1,7 @@
 import { db } from "@workspace/db";
 import { sourceTriangulationsTable, capabilitiesTable, industriesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { logLlmCall } from "./llm-usage";
-
-interface PerplexityResponse {
-  choices: Array<{ message: { content: string } }>;
-  citations: string[];
-}
+import { perplexityChat } from "./perplexity";
 
 interface SourcePerspective {
   label: string;
@@ -74,26 +69,18 @@ export async function triangulateCapability(
   industryId: number,
   capabilityId: number,
 ): Promise<TriangulationResult> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
-
   const sourceResults = await Promise.all(
     PERSPECTIVES.map(async (perspective) => {
-      const startedAt = Date.now();
       try {
-        const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "sonar",
-            messages: [
-              { role: "system", content: perspective.systemPrompt },
-              {
-                role: "user",
-                content: `Rate the current maturity of "${capabilityName}" in the ${industryName} industry on a 0-100 scale.
+        const data = await perplexityChat({
+          model: "sonar",
+          endpoint: "triangulation",
+          context: { capabilityId, capabilityName, perspective: perspective.label },
+          messages: [
+            { role: "system", content: perspective.systemPrompt },
+            {
+              role: "user",
+              content: `Rate the current maturity of "${capabilityName}" in the ${industryName} industry on a 0-100 scale.
 
 Return this exact JSON structure:
 {
@@ -103,17 +90,9 @@ Return this exact JSON structure:
 }
 
 Base your score on the most recent data available (2024-2026). Be specific about what data informs your score.`,
-              },
-            ],
-          }),
+            },
+          ],
         });
-
-        if (!resp.ok) {
-          logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-          throw new Error(`Perplexity ${resp.status}`);
-        }
-        const data = (await resp.json()) as PerplexityResponse;
-        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, httpStatus: resp.status, responseJson: data });
         const content = data.choices[0]?.message?.content ?? "";
         const citations = data.citations ?? [];
 
@@ -132,7 +111,10 @@ Base your score on the most recent data available (2024-2026). Be specific about
         };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "triangulation", startedAt, errorMessage: msg });
+        console.warn(
+          `[Triangulation] perspective="${perspective.label}" capabilityId=${capabilityId} ` +
+            `capability="${capabilityName}" industry="${industryName}" failed after retries: ${msg}`,
+        );
         return { __error: true as const, sourceLabel: perspective.label, message: msg };
       }
     }),
