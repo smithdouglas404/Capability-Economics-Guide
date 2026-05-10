@@ -131,7 +131,14 @@ async function researchNode(state: S): Promise<Partial<S>> {
       const tier = state.cycleNumber === 1 ? "deep" : "pro";
       const raw = await perplexityDeepResearchTool.invoke({ query: p.query, recencyHint: p.recencyHint, tier });
       calls++;
-      const parsed = JSON.parse(raw) as { success: boolean; content?: string; sources?: { url: string; title: string }[]; model?: string; error?: string };
+      // perplexityDeepResearchTool always returns JSON.stringify of a known
+      // shape, but we still guard with extractJSON so a future tool refactor
+      // (or a thrown-error string leaking through) can't crash the cycle.
+      const parsed = extractJSON<{ success: boolean; content?: string; sources?: { url: string; title: string }[]; model?: string; error?: string }>(raw);
+      if (!parsed) {
+        errors.push(`research [${p.title}]: research tool returned unparseable wire payload`);
+        continue;
+      }
       if (!parsed.success || !parsed.content) {
         errors.push(`research [${p.title}]: ${parsed.error ?? "empty"}`);
         continue;
