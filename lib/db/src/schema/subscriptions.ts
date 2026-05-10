@@ -49,7 +49,7 @@ export const notificationDeliveriesTable = pgTable("notification_deliveries", {
   subject: text("subject").notNull(),
   body: text("body").notNull(),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
-  status: text("status", { enum: ["queued", "sent", "failed", "skipped"] }).notNull().default("queued"),
+  status: text("status", { enum: ["queued", "processing", "sent", "failed", "skipped"] }).notNull().default("queued"),
   errorMessage: text("error_message"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentAt: timestamp("sent_at"),

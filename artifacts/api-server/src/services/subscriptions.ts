@@ -433,8 +433,27 @@ function isSafeOutboundUrl(raw: string): boolean {
  * Idempotent — safe to call from cron or admin-triggered.
  */
 export async function sendDailyDigests(): Promise<{ usersNotified: number; itemsSent: number; itemsSkipped: number }> {
-  const queued = await db.select().from(notificationDeliveriesTable).where(eq(notificationDeliveriesTable.status, "queued"));
-  if (!queued.length) return { usersNotified: 0, itemsSent: 0, itemsSkipped: 0 };
+  // Concurrency-safe claim: atomically transition a batch of queued rows to
+  // "processing" using FOR UPDATE SKIP LOCKED so parallel digest runs never
+  // touch the same delivery rows. Cap per run to keep transactions small.
+  const claimed = await db.execute<{ id: number }>(sql`
+    WITH cte AS (
+      SELECT id FROM notification_deliveries
+      WHERE status = 'queued'
+      ORDER BY id
+      LIMIT 1000
+      FOR UPDATE SKIP LOCKED
+    )
+    UPDATE notification_deliveries d
+    SET status = 'processing'
+    FROM cte
+    WHERE d.id = cte.id
+    RETURNING d.id
+  `);
+  const claimedIds = (claimed.rows as Array<{ id: number }>).map(r => r.id);
+  if (!claimedIds.length) return { usersNotified: 0, itemsSent: 0, itemsSkipped: 0 };
+  const queued = await db.select().from(notificationDeliveriesTable)
+    .where(sql`${notificationDeliveriesTable.id} = ANY(${claimedIds})`);
 
   // Mark any non-email queued rows as skipped — the create route should
   // already prevent these, but stale rows from policy-changes shouldn't
