@@ -120,16 +120,15 @@ export default function CaseStudy() {
             animate="show"
             variants={fade}
           >
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-6 flex items-center gap-3">
-              <span>Case Study</span>
-              <span className="h-px w-8 bg-border" />
-              <span>Industry Briefing</span>
+            <div className="inline-flex items-center gap-2 mb-6">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Case Study — Industry Briefing</span>
             </div>
             <h1 className="font-serif text-5xl md:text-7xl lg:text-[5.5rem] leading-[0.95] tracking-tight max-w-5xl">
               {industryName}
             </h1>
             {data?.study?.executiveSummary && (
-              <p className="font-serif italic text-xl lg:text-2xl text-foreground/75 leading-relaxed mt-8 max-w-3xl">
+              <p className="font-serif italic text-xl lg:text-2xl text-foreground/60 leading-relaxed mt-8 max-w-3xl">
                 {data.study.executiveSummary}
               </p>
             )}
@@ -138,15 +137,16 @@ export default function CaseStudy() {
       </header>
 
       {/* § 01 — Capability Transformation */}
-      <section className="border-b border-border/60">
+      <section className="border-b border-border/40">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
           <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § 01 — Reframing
+              <div className="inline-flex items-center gap-2 mb-4">
+                <span className="h-px w-5 bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 01 — Reframing</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                The capability<br /><span className="italic text-foreground/85">transformation.</span>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+                The capability<br /><em className="not-italic italic text-foreground/70">transformation.</em>
               </h2>
             </div>
             <p className="font-serif text-lg lg:text-xl text-foreground/75 leading-relaxed self-end max-w-2xl">
@@ -181,15 +181,15 @@ export default function CaseStudy() {
               initial="hidden"
               whileInView="show"
               viewport={{ once: true, margin: "-80px" }}
-              className="border-t border-border/60"
+              className="border-t border-border/40"
             >
               {data.capabilities.map((cap, capIndex) => (
                 <motion.article
                   key={cap.capabilitySlug}
                   variants={fade}
-                  className="grid lg:grid-cols-[80px_1fr_1fr] gap-x-8 gap-y-6 py-12 lg:py-14 border-b border-border/60"
+                  className="grid lg:grid-cols-[80px_1fr_1fr] gap-x-8 gap-y-6 py-12 lg:py-14 border-b border-border/40"
                 >
-                  <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent">
+                  <div className="font-mono text-[10px] tabular-nums tracking-[0.22em] text-accent">
                     {String(capIndex + 1).padStart(2, "0")}
                   </div>
 
@@ -201,13 +201,13 @@ export default function CaseStudy() {
 
                     <div className="space-y-4">
                       <div>
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
                           Traditional view
                         </div>
-                        <p className="text-sm text-foreground/85 leading-relaxed">{cap.traditionalView}</p>
+                        <p className="text-sm text-foreground/75 leading-relaxed">{cap.traditionalView}</p>
                       </div>
                       <div className="pl-4 border-l-2 border-accent">
-                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent mb-1.5">
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">
                           Economic view
                         </div>
                         <p className="text-sm text-foreground leading-relaxed">{cap.economicView}</p>
@@ -215,16 +215,17 @@ export default function CaseStudy() {
                     </div>
                   </div>
 
-                  <div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-5">
-                      Economic impact measured
+                    <div>
+                    <div className="inline-flex items-center gap-2 mb-5">
+                      <span className="h-px w-4 bg-border/60" />
+                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Economic impact measured</span>
                     </div>
                     <dl className="grid sm:grid-cols-3 gap-x-4">
                       {cap.metrics.map((metric, idx) => (
-                        <div key={idx} className={`py-3 ${idx > 0 ? "sm:border-l sm:border-border/60 sm:pl-4" : ""}`}>
+                        <div key={idx} className={`py-3 ${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-4" : ""}`}>
                           <div className="flex items-center gap-1.5 mb-2">
                             <TrendArrow trend={metric.trend} />
-                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{metric.name}</span>
+                            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{metric.name}</span>
                           </div>
                           <dd className="font-mono text-2xl lg:text-3xl font-light tabular-nums tracking-tight leading-none">
                             {metric.value}
@@ -242,12 +243,13 @@ export default function CaseStudy() {
 
       {/* § 02 — Strategic Briefing */}
       {!loading && !error && data?.study && (
-        <section className="border-b border-border/60 bg-muted/30">
+        <section className="border-b border-border/40 bg-muted/10">
           <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
             <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                  § 02 — Strategic Briefing
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 02 — Strategic Briefing</span>
                 </div>
                 <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
                   {data.study.title}
@@ -258,15 +260,16 @@ export default function CaseStudy() {
               </p>
             </div>
 
-            <div className="grid lg:grid-cols-2 gap-x-12 gap-y-16 border-t border-border/60 pt-12">
+            <div className="grid lg:grid-cols-2 gap-x-12 gap-y-16 border-t border-border/40 pt-12">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6 flex items-center gap-2">
-                  <AlertTriangle className="w-3 h-3" /> Strategic challenges
+                <div className="inline-flex items-center gap-2 mb-6">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent flex items-center gap-1.5"><AlertTriangle className="w-3 h-3" /> Strategic challenges</span>
                 </div>
                 <ol className="space-y-5">
                   {data.study.challenges.map((c, i) => (
-                    <li key={i} className="grid grid-cols-[40px_1fr] gap-3 pb-5 border-b border-border/60 last:border-b-0">
-                      <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-0.5">
+                    <li key={i} className="grid grid-cols-[36px_1fr] gap-3 pb-5 border-b border-border/40 last:border-b-0">
+                      <span className="font-mono text-[9px] tabular-nums tracking-[0.22em] text-muted-foreground/60 pt-0.5">
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <span className="font-serif text-base lg:text-lg text-foreground leading-relaxed">{c}</span>
@@ -276,13 +279,14 @@ export default function CaseStudy() {
               </div>
 
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6 flex items-center gap-2">
-                  <CheckCircle2 className="w-3 h-3" /> Recommendations
+                <div className="inline-flex items-center gap-2 mb-6">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent flex items-center gap-1.5"><CheckCircle2 className="w-3 h-3" /> Recommendations</span>
                 </div>
                 <div className="space-y-6">
                   {data.study.recommendations.map((r, i) => (
-                    <div key={i} className="grid grid-cols-[40px_1fr] gap-3 pb-6 border-b border-border/60 last:border-b-0">
-                      <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-0.5">
+                    <div key={i} className="grid grid-cols-[36px_1fr] gap-3 pb-6 border-b border-border/40 last:border-b-0">
+                      <span className="font-mono text-[9px] tabular-nums tracking-[0.22em] text-muted-foreground/60 pt-0.5">
                         {String(i + 1).padStart(2, "0")}
                       </span>
                       <div>
@@ -299,14 +303,15 @@ export default function CaseStudy() {
             </div>
 
             {data.study.kpis.length > 0 && (
-              <div className="mt-16 pt-12 border-t border-border/60">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-8">
-                  5-Year KPI targets
+              <div className="mt-16 pt-12 border-t border-border/40">
+                <div className="inline-flex items-center gap-2 mb-8">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">5-Year KPI targets</span>
                 </div>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-8">
                   {data.study.kpis.map((k, i) => (
-                    <div key={i} className="border-t border-border pt-4">
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                    <div key={i} className="border-t border-border/40 pt-4">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
                         {k.name}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
@@ -326,9 +331,10 @@ export default function CaseStudy() {
             )}
 
             {data.study.fiveYearOutlook && (
-              <div className="mt-16 pt-12 border-t border-border/60 max-w-3xl">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-4">
-                  5-Year outlook
+              <div className="mt-16 pt-12 border-t border-border/40 max-w-3xl">
+                <div className="inline-flex items-center gap-2 mb-4">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">5-Year outlook</span>
                 </div>
                 <p className="font-serif text-lg lg:text-xl text-foreground/85 leading-relaxed whitespace-pre-line">
                   {data.study.fiveYearOutlook}
@@ -337,9 +343,10 @@ export default function CaseStudy() {
             )}
 
             {data.study.sources.length > 0 && (
-              <div className="mt-16 pt-8 border-t border-border/60">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                  Sources
+              <div className="mt-16 pt-8 border-t border-border/40">
+                <div className="inline-flex items-center gap-2 mb-3">
+                  <span className="h-px w-4 bg-border/60" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Sources</span>
                 </div>
                 <div className="flex flex-wrap gap-x-6 gap-y-2">
                   {data.study.sources.map((s, i) => (
@@ -365,15 +372,16 @@ export default function CaseStudy() {
 
       {/* § 03 — ROI of Capability Investment */}
       {!loading && !error && roiData.length > 0 && (
-        <section className="bg-foreground text-background border-b border-background/20">
+        <section className="bg-foreground text-background border-b border-background/15">
           <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
             <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-3">
-                  § 03 — Returns
+                <div className="inline-flex items-center gap-2 mb-5">
+                  <span className="h-px w-5 bg-accent" />
+                  <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 03 — Returns</span>
                 </div>
-                <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight mb-8">
-                  The ROI of capability<br /><span className="italic text-background/80">investment.</span>
+                <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight mb-8">
+                  The ROI of capability<br /><em className="not-italic italic text-background/70">investment.</em>
                 </h2>
                 <div className="space-y-5 font-serif text-lg lg:text-xl text-background/75 leading-relaxed">
                   <p>
@@ -386,8 +394,9 @@ export default function CaseStudy() {
               </div>
 
               <div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-6">
-                  5-year capability valuation ($M)
+                <div className="inline-flex items-center gap-2 mb-6">
+                  <span className="h-px w-4 bg-background/30" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-background/50">5-year capability valuation ($M)</span>
                 </div>
                 <div className="h-[340px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
@@ -413,28 +422,29 @@ export default function CaseStudy() {
       )}
 
       {/* § Next */}
-      <section>
+      <section className="border-t border-border/40">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-24">
           <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 items-end">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § Next
+              <div className="inline-flex items-center gap-2 mb-4">
+                <span className="h-px w-5 bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ Next</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                See how this<br /><span className="italic text-foreground/85">impacts leadership.</span>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+                See how this<br /><em className="not-italic italic text-foreground/70">impacts leadership.</em>
               </h2>
             </div>
             <div className="flex flex-col gap-4">
-              <p className="font-serif italic text-lg text-foreground/70 leading-relaxed max-w-2xl">
+              <p className="font-serif italic text-lg text-foreground/60 leading-relaxed max-w-2xl">
                 Capability Economics requires cross-functional alignment. See how different executives view these exact same capabilities.
               </p>
               <Link
                 href="/c-suite"
                 data-testid="case-cta-csuite"
-                className="inline-flex h-11 items-center px-7 font-sans text-[13px] uppercase tracking-wide bg-foreground text-background hover:bg-foreground/90 transition-colors w-fit"
+                className="inline-flex h-11 items-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] bg-foreground text-background hover:bg-foreground/90 transition-colors w-fit gap-2 group"
               >
                 C-Suite perspectives
-                <ArrowRight className="ml-2 w-4 h-4" />
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
               </Link>
             </div>
           </div>

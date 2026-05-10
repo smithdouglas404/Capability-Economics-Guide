@@ -80,16 +80,15 @@ export default function CSuite() {
             className="grid lg:grid-cols-[1fr_auto] gap-10 lg:gap-16 items-end"
           >
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-5 flex items-center gap-3">
-                <span>Vol. I</span>
-                <span className="h-px w-8 bg-border" />
-                <span>C-Suite Perspectives</span>
+              <div className="inline-flex items-center gap-2 mb-5">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Vol. I — C-Suite Perspectives</span>
               </div>
               <h1 className="font-serif text-5xl lg:text-7xl leading-[0.95] tracking-tight max-w-4xl">
-                The framework,<br /><span className="italic text-foreground/85">by the seat.</span>
+                The framework,<br /><span className="italic text-foreground/70">by the seat.</span>
               </h1>
             </div>
-            <p className="font-serif italic text-lg lg:text-xl text-foreground/70 leading-relaxed max-w-md">
+            <p className="font-serif italic text-lg lg:text-xl text-foreground/60 leading-relaxed max-w-md">
               Capability economics isn't just for finance. Each executive role pulls a different lever — same framework, different question.
             </p>
           </motion.div>
@@ -115,8 +114,9 @@ export default function CSuite() {
             {/* Index sidebar */}
             <aside>
               <div className="lg:sticky lg:top-24">
-                <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-4 pb-3 border-b border-border/60">
-                  Index
+                <div className="inline-flex items-center gap-2 mb-4 pb-3 border-b border-border/40 w-full">
+                  <span className="h-px w-4 bg-accent" />
+                  <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-accent">Index</span>
                 </div>
                 <ol>
                   {roles.map((role, i) => {
@@ -126,18 +126,18 @@ export default function CSuite() {
                         <button
                           onClick={() => setActiveSlug(role.slug)}
                           data-testid={`role-selector-${role.slug}`}
-                          className={`w-full grid grid-cols-[40px_1fr] gap-3 py-4 border-b border-border/60 text-left transition-colors group ${
-                            isActive ? "" : "hover:bg-muted/30"
+                          className={`w-full grid grid-cols-[36px_1fr] gap-3 py-3.5 border-b border-border/40 text-left transition-colors group ${
+                            isActive ? "bg-muted/30" : "hover:bg-muted/20"
                           }`}
                         >
-                          <span className={`font-mono text-[11px] tabular-nums tracking-[0.22em] ${isActive ? "text-accent" : "text-muted-foreground"}`}>
+                          <span className={`font-mono text-[9px] tabular-nums tracking-[0.22em] pt-0.5 ${isActive ? "text-accent" : "text-muted-foreground/60"}`}>
                             {String(i + 1).padStart(2, "0")}
                           </span>
                           <span>
-                            <span className={`font-serif text-xl leading-tight block ${isActive ? "text-foreground" : "text-foreground/70 group-hover:text-foreground"}`}>
+                            <span className={`font-serif text-lg leading-tight block ${isActive ? "text-foreground" : "text-foreground/65 group-hover:text-foreground"}`}>
                               {role.title}
                             </span>
-                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-0.5 block">
+                            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mt-0.5 block">
                               {role.name}
                             </span>
                           </span>
@@ -161,15 +161,18 @@ export default function CSuite() {
                     transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
                   >
                     {/* Role header */}
-                    <div className="pb-12 border-b border-border/60">
-                      <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
-                        {String(activeIndex + 1).padStart(2, "0")} — {activeRole.title}
+                    <div className="pb-12 border-b border-border/40">
+                      <div className="inline-flex items-center gap-2 mb-5">
+                        <span className="h-px w-5 bg-accent" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+                          {String(activeIndex + 1).padStart(2, "0")} — {activeRole.title}
+                        </span>
                       </div>
                       <h2 className="font-serif text-5xl lg:text-6xl leading-[0.95] tracking-tight mb-6">
                         {activeRole.name}
                       </h2>
-                      <div className="font-serif italic text-lg lg:text-xl text-foreground/70 leading-relaxed max-w-2xl">
-                        Primary focus — <span className="not-italic text-foreground/85">{activeRole.focus}</span>
+                      <div className="font-serif italic text-lg lg:text-xl text-foreground/60 leading-relaxed max-w-2xl">
+                        Primary focus — <span className="not-italic text-foreground/80">{activeRole.focus}</span>
                       </div>
                     </div>
 
@@ -191,9 +194,10 @@ export default function CSuite() {
                     {!perspLoading && perspective && (
                       <>
                         {/* Scenario pull-quote */}
-                        <div className="py-12 border-b border-border/60">
-                          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-5">
-                            § In action — a scenario
+                        <div className="py-12 border-b border-border/40">
+                          <div className="inline-flex items-center gap-2 mb-5">
+                            <span className="h-px w-5 bg-accent" />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ In action — a scenario</span>
                           </div>
                           <p className="font-serif text-2xl lg:text-3xl leading-[1.25] tracking-tight text-foreground/85 max-w-3xl">
                             {perspective.scenario}
@@ -201,24 +205,26 @@ export default function CSuite() {
                         </div>
 
                         {/* Capabilities + Radar */}
-                        <div className="grid lg:grid-cols-[1fr_360px] gap-12 lg:gap-16 py-12 border-b border-border/60">
+                        <div className="grid lg:grid-cols-[1fr_360px] gap-12 lg:gap-16 py-12 border-b border-border/40">
                           <div>
-                            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6">
-                              Key capabilities managed
+                            <div className="inline-flex items-center gap-2 mb-6">
+                              <span className="h-px w-5 bg-accent" />
+                              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Key capabilities managed</span>
                             </div>
                             <ul className="space-y-0">
-                              {perspective.capabilities.map((cap, i) => (
-                                <li key={i} className="grid grid-cols-[40px_1fr] gap-3 py-3 border-b border-border/60 last:border-b-0">
-                                  <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-0.5">
-                                    {String(i + 1).padStart(2, "0")}
-                                  </span>
-                                  <span className="font-serif text-lg leading-snug text-foreground/85">{cap}</span>
-                                </li>
-                              ))}
+                               {perspective.capabilities.map((cap, i) => (
+                                 <li key={i} className="grid grid-cols-[36px_1fr] gap-3 py-3 border-b border-border/40 last:border-b-0">
+                                   <span className="font-mono text-[9px] tabular-nums tracking-[0.22em] text-muted-foreground/60 pt-0.5">
+                                     {String(i + 1).padStart(2, "0")}
+                                   </span>
+                                   <span className="font-serif text-lg leading-snug text-foreground/80">{cap}</span>
+                                 </li>
+                               ))}
                             </ul>
 
-                            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mt-10 mb-4">
-                              Economic metrics tracked
+                            <div className="inline-flex items-center gap-2 mt-10 mb-4">
+                              <span className="h-px w-5 bg-accent" />
+                              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Economic metrics tracked</span>
                             </div>
                             <div className="flex flex-wrap gap-x-1 gap-y-2">
                               {perspective.metrics.map((metric, i) => (
@@ -233,10 +239,11 @@ export default function CSuite() {
                           </div>
 
                           <div>
-                            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-4">
-                              Capability radar
+                            <div className="inline-flex items-center gap-2 mb-4">
+                              <span className="h-px w-4 bg-border/60" />
+                              <span className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground">Capability radar</span>
                             </div>
-                            <div className="h-[280px] w-full border border-border/60 p-2">
+                            <div className="h-[280px] w-full border border-border/40 p-2">
                               <ResponsiveContainer width="100%" height="100%">
                                 <RadarChart cx="50%" cy="50%" outerRadius="72%" data={perspective.chartData}>
                                   <PolarGrid stroke="hsl(var(--muted-foreground) / 0.18)" />
@@ -258,13 +265,14 @@ export default function CSuite() {
 
                         {/* Questions they ask */}
                         <div className="py-12">
-                          <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-6">
-                            Key questions they ask
+                          <div className="inline-flex items-center gap-2 mb-6">
+                            <span className="h-px w-5 bg-accent" />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Key questions they ask</span>
                           </div>
                           <ul className="space-y-0 max-w-3xl">
                             {perspective.questions.map((q, i) => (
-                              <li key={i} className="grid grid-cols-[40px_1fr] gap-3 py-5 border-b border-border/60 last:border-b-0">
-                                <span className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-muted-foreground pt-1">
+                              <li key={i} className="grid grid-cols-[36px_1fr] gap-3 py-5 border-b border-border/40 last:border-b-0">
+                                <span className="font-mono text-[9px] tabular-nums tracking-[0.22em] text-muted-foreground/60 pt-1">
                                   {String(i + 1).padStart(2, "0")}
                                 </span>
                                 <span className="font-serif italic text-lg lg:text-xl leading-relaxed text-foreground/85">
