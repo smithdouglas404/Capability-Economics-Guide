@@ -35,7 +35,7 @@ type EvarItem = {
   rationale: string | null;
   consensusSummary: string | null;
 };
-type EvarResponse = { items: EvarItem[]; totals: { totalEvar12: number; totalEvar24: number; totalEvar36: number; count: number } };
+type EvarResponse = { items: EvarItem[]; totals: { totalEvar12: number; totalEvar24: number; totalEvar36: number; count: number }; coverage: { scored: number; totalCapabilities: number } };
 
 type CascadeRoot = { id: number; name: string; industryId: number; dependentCount: number; totalDownstreamImpactMm: number };
 type CascadeNode = { id: number; name: string; depth: number; industryId: number };
@@ -370,6 +370,9 @@ function EvarTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground uppercase">Total EVaR @ 12mo</div>
