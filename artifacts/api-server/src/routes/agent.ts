@@ -221,7 +221,10 @@ router.get("/agent/tools", (_req, res) => {
       description: t.description,
     })),
     integrations: {
-      mem0: { connected: !!process.env.MEM0_API_KEY, provider: "mem0-cloud" },
+      mem0: {
+        connected: !!(process.env.MEM0_BASE_URL && process.env.MEM0_API_KEY),
+        provider: "mem0-oss-self-hosted",
+      },
       langchain: { version: "core", tools: allTools.length },
       langgraph: { nodes: ["evaluate", "recall", "decide", "research", "compute", "reflect", "memorize", "generateContent", "finalize"] },
       perplexity: { connected: !!process.env.PERPLEXITY_API_KEY },
