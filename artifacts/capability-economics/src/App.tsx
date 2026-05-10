@@ -23,6 +23,7 @@ import VCE from "@/pages/vce";
 import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
 import Account from "@/pages/account";
+import ExportsPage from "@/pages/exports";
 import AcceptInvite from "@/pages/accept-invite";
 import Marketplace from "@/pages/marketplace";
 import MarketplaceListing from "@/pages/marketplace-listing";
@@ -112,6 +113,7 @@ function Router() {
       <Route path="/vce" component={VCE} />
       <Route path="/membership" component={Membership} />
       <Route path="/account" component={Account} />
+      <Route path="/exports" component={ExportsPage} />
       <Route path="/account/notifications" component={Account} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/marketplace" component={Marketplace} />

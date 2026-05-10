@@ -16,7 +16,9 @@ export type AuditAction =
   | "tier.update"
   | "api_key.issue"
   | "api_key.revoke"
-  | "impersonate.start";
+  | "impersonate.start"
+  | "data.export.csv"
+  | "data.export.parquet";
 
 type LogArgs = {
   action: AuditAction;
