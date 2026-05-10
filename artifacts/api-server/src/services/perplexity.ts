@@ -1,14 +1,15 @@
 import { logLlmCall } from "./llm-usage";
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
-const DEFAULT_MAX_CONCURRENCY = Math.max(
-  1,
-  parseInt(process.env.PERPLEXITY_MAX_CONCURRENCY ?? "2", 10) || 2,
-);
-const DEFAULT_MAX_RETRIES = Math.max(
-  0,
-  parseInt(process.env.PERPLEXITY_MAX_RETRIES ?? "3", 10) || 3,
-);
+function envInt(name: string, fallback: number, min: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const parsed = parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.max(min, parsed);
+}
+const DEFAULT_MAX_CONCURRENCY = envInt("PERPLEXITY_MAX_CONCURRENCY", 2, 1);
+const DEFAULT_MAX_RETRIES = envInt("PERPLEXITY_MAX_RETRIES", 3, 0);
 const DEFAULT_BASE_BACKOFF_MS = 750;
 const DEFAULT_TIMEOUT_MS = 120_000;
 
