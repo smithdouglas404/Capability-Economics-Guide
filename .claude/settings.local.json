@@ -109,7 +109,8 @@
       "Bash(curl -sS -m 15 -H 'Authorization: Bearer eyJwbG50ciI6IkxOVk1kUE5WTkxhZy8zMEVISzVzdEE9PSIsImFsZyI6IkVTMjU2In0.eyJqdGkiOiIrUjJPNk0rVVFqR3V5SGVQc1RCb1ZBPT0iLCJzdWIiOiI3RTdpTUF0a1FFZWZ4bjB3WFZ3bU53PT0iLCJleHAiOjE3ODgyMzUxOTgsIm9yZyI6ImE3OU12dkxVUVhTSUtGdllGTkl5L0E9PSJ9.4f2mLVio2ZQt0VHN_XynOQMYYZb9MoSdibtbBUSefTGWVIMxQFrfoWorM505RavoqszN8EOBFJYhy6yz7Mn6Cw' https://ssg.usw-17.palantirfoundry.com/compass/api/users/current)",
       "Bash(curl -sS -m 10 -w '\\\\nHTTP %{http_code}\\\\n' -H 'Authorization: Bearer eyJwbG50ciI6IkxOVk1kUE5WTkxhZy8zMEVISzVzdEE9PSIsImFsZyI6IkVTMjU2In0.eyJqdGkiOiIrUjJPNk0rVVFqR3V5SGVQc1RCb1ZBPT0iLCJzdWIiOiI3RTdpTUF0a1FFZWZ4bjB3WFZ3bU53PT0iLCJleHAiOjE3ODgyMzUxOTgsIm9yZyI6ImE3OU12dkxVUVhTSUtGdllGTkl5L0E9PSJ9.4f2mLVio2ZQt0VHN_XynOQMYYZb9MoSdibtbBUSefTGWVIMxQFrfoWorM505RavoqszN8EOBFJYhy6yz7Mn6Cw' https://ssg.usw-17.palantirfoundry.com/compass/api/resources/ri.compass.main.folder.0b7baf38-d7f4-4413-aa27-962236f947d2)",
       "Bash(printenv)",
-      "Bash(FOUNDRY_BASE_URL='https://ssg.usw-17.palantirfoundry.com' FOUNDRY_TOKEN='eyJwbG50ciI6IkxOVk1kUE5WTkxhZy8zMEVISzVzdEE9PSIsImFsZyI6IkVTMjU2In0.eyJqdGkiOiIrUjJPNk0rVVFqR3V5SGVQc1RCb1ZBPT0iLCJzdWIiOiI3RTdpTUF0a1FFZWZ4bjB3WFZ3bU53PT0iLCJleHAiOjE3ODgyMzUxOTgsIm9yZyI6ImE3OU12dkxVUVhTSUtGdllGTkl5L0E9PSJ9.4f2mLVio2ZQt0VHN_XynOQMYYZb9MoSdibtbBUSefTGWVIMxQFrfoWorM505RavoqszN8EOBFJYhy6yz7Mn6Cw' pnpm --filter @workspace/scripts run sync:foundry)"
+      "Bash(FOUNDRY_BASE_URL='https://ssg.usw-17.palantirfoundry.com' FOUNDRY_TOKEN='eyJwbG50ciI6IkxOVk1kUE5WTkxhZy8zMEVISzVzdEE9PSIsImFsZyI6IkVTMjU2In0.eyJqdGkiOiIrUjJPNk0rVVFqR3V5SGVQc1RCb1ZBPT0iLCJzdWIiOiI3RTdpTUF0a1FFZWZ4bjB3WFZ3bU53PT0iLCJleHAiOjE3ODgyMzUxOTgsIm9yZyI6ImE3OU12dkxVUVhTSUtGdllGTkl5L0E9PSJ9.4f2mLVio2ZQt0VHN_XynOQMYYZb9MoSdibtbBUSefTGWVIMxQFrfoWorM505RavoqszN8EOBFJYhy6yz7Mn6Cw' pnpm --filter @workspace/scripts run sync:foundry)",
+      "Bash(npx fixpack *)"
     ]
   }
 }
