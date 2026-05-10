@@ -215,8 +215,12 @@ export default function CapabilityScorecard() {
               </tbody>
             </table>
           </div>
-          {!matrix.length && !loading && (
-            <p className="text-center text-muted-foreground py-8">No reference organizations seeded for this industry yet.</p>
+          {!loading && sortedByGap.length === 0 && (
+            <p className="text-center text-muted-foreground py-8">
+              {matrix.length === 0
+                ? "No reference organizations seeded for this industry yet."
+                : "Capabilities are tracked for this industry but no maturity scores are available yet."}
+            </p>
           )}
         </CardContent>
       </Card>

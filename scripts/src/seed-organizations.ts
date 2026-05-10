@@ -169,8 +169,16 @@ async function main() {
       continue;
     }
 
+    const droppedNoCitation: string[] = [];
+    const droppedUnknownSlug: string[] = [];
     const validRows = scoring.scored_capabilities
-      .filter((sc) => slugToId.has(sc.capability_slug))
+      .filter((sc) => {
+        if (!slugToId.has(sc.capability_slug)) { droppedUnknownSlug.push(sc.capability_slug); return false; }
+        // Hard requirement (per project rules): every seeded score must have at least one citation.
+        const cites = Array.isArray(sc.citations) ? sc.citations.filter((c) => typeof c === "string" && c.trim().length > 0) : [];
+        if (cites.length === 0) { droppedNoCitation.push(sc.capability_slug); return false; }
+        return true;
+      })
       .map((sc) => ({
         organizationId: orgId,
         capabilityId: slugToId.get(sc.capability_slug)!,
@@ -186,7 +194,7 @@ async function main() {
       }));
 
     if (validRows.length === 0) {
-      console.log(`no valid mappings returned`);
+      console.log(`no valid mappings returned (dropped: ${droppedUnknownSlug.length} unknown slug, ${droppedNoCitation.length} no-citation)`);
       continue;
     }
 
@@ -195,7 +203,9 @@ async function main() {
     if (existing) updated++;
     else inserted++;
     totalMappings += validRows.length;
-    console.log(`${validRows.length} mappings`);
+    const dropNote = (droppedNoCitation.length || droppedUnknownSlug.length)
+      ? ` (dropped ${droppedNoCitation.length} no-citation, ${droppedUnknownSlug.length} unknown-slug)` : "";
+    console.log(`${validRows.length} mappings${dropNote}`);
   }
 
   console.log(`\nDone. inserted=${inserted} updated=${updated} skipped=${skipped} totalMappings=${totalMappings}`);
