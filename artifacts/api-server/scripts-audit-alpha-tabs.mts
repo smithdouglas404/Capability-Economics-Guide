@@ -193,8 +193,8 @@ const failed = results.filter((r) => !r.ok);
 const totalCaps = (await db.execute(sql`SELECT COUNT(*)::int AS c FROM capabilities`)).rows[0] as { c: number };
 const tabsCovered = new Set(results.map((r) => r.tab));
 
-console.log("\n=== summary ===");
-console.log(JSON.stringify({
+const summary = {
+  ranAt: new Date().toISOString(),
   base: BASE,
   industriesAudited: targets.map((t) => t.name),
   totalCapabilities: totalCaps.c,
@@ -203,6 +203,27 @@ console.log(JSON.stringify({
   totalChecks: results.length,
   failed: failed.length,
   failures: failed,
-}, null, 2));
+  results,
+};
+
+console.log("\n=== summary ===");
+console.log(JSON.stringify(summary, null, 2));
+
+// Persist as a regression baseline artifact (one snapshot per run, plus a
+// stable "latest.json" pointer). Writes are best-effort — if the dir is
+// read-only or fs fails for any reason the audit still exits with the
+// correct status code.
+try {
+  const fs = await import("node:fs/promises");
+  const path = await import("node:path");
+  const dir = path.resolve("scripts-audit-snapshots");
+  await fs.mkdir(dir, { recursive: true });
+  const stamp = summary.ranAt.replace(/[:.]/g, "-");
+  await fs.writeFile(path.join(dir, `audit-${stamp}.json`), JSON.stringify(summary, null, 2));
+  await fs.writeFile(path.join(dir, "latest.json"), JSON.stringify(summary, null, 2));
+  console.log(`\nsnapshot persisted to ${dir}/audit-${stamp}.json (and latest.json)`);
+} catch (e) {
+  console.error(`snapshot persistence skipped: ${(e as Error).message}`);
+}
 
 process.exit(failed.length === 0 ? 0 : 1);

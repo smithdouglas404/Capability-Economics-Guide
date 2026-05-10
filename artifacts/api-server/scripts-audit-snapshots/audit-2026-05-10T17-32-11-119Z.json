@@ -1,0 +1,160 @@
+{
+  "ranAt": "2026-05-10T17:32:11.119Z",
+  "base": "http://localhost:8080",
+  "industriesAudited": [
+    "Insurance",
+    "Manufacturing",
+    "Residential Solar"
+  ],
+  "totalCapabilities": 446,
+  "tabsCovered": [
+    "arbitrage",
+    "cascade",
+    "evar",
+    "flows",
+    "fragility",
+    "moat",
+    "narrative",
+    "talent",
+    "thesis",
+    "twin"
+  ],
+  "tabsCoveredCount": 10,
+  "totalChecks": 22,
+  "failed": 0,
+  "failures": [],
+  "results": [
+    {
+      "tab": "cascade",
+      "industry": "ALL",
+      "ok": true,
+      "detail": "roots=40 nonzero=40"
+    },
+    {
+      "tab": "narrative",
+      "industry": "ALL",
+      "ok": true,
+      "detail": "items=126"
+    },
+    {
+      "tab": "arbitrage",
+      "industry": "ALL",
+      "ok": true,
+      "detail": "items=189 cooling-touching=34"
+    },
+    {
+      "tab": "flows",
+      "industry": "ALL",
+      "ok": true,
+      "detail": "arrays=[44]"
+    },
+    {
+      "tab": "evar",
+      "industry": "Insurance",
+      "ok": true,
+      "detail": "items=60 scored=60"
+    },
+    {
+      "tab": "moat",
+      "industry": "Insurance",
+      "ok": true,
+      "detail": "items=39"
+    },
+    {
+      "tab": "fragility",
+      "industry": "Insurance",
+      "ok": true,
+      "detail": "items=212"
+    },
+    {
+      "tab": "talent",
+      "industry": "Insurance",
+      "ok": true,
+      "detail": "items=58 populated=58"
+    },
+    {
+      "tab": "thesis",
+      "industry": "Insurance",
+      "ok": true,
+      "detail": "caps_with_econ+quadrant=99 (precondition for thesis memo)"
+    },
+    {
+      "tab": "evar",
+      "industry": "Manufacturing",
+      "ok": true,
+      "detail": "items=51 scored=51"
+    },
+    {
+      "tab": "moat",
+      "industry": "Manufacturing",
+      "ok": true,
+      "detail": "items=41"
+    },
+    {
+      "tab": "fragility",
+      "industry": "Manufacturing",
+      "ok": true,
+      "detail": "items=212"
+    },
+    {
+      "tab": "talent",
+      "industry": "Manufacturing",
+      "ok": true,
+      "detail": "items=58 populated=58"
+    },
+    {
+      "tab": "thesis",
+      "industry": "Manufacturing",
+      "ok": true,
+      "detail": "caps_with_econ+quadrant=48 (precondition for thesis memo)"
+    },
+    {
+      "tab": "evar",
+      "industry": "Residential Solar",
+      "ok": true,
+      "detail": "items=11 scored=11"
+    },
+    {
+      "tab": "moat",
+      "industry": "Residential Solar",
+      "ok": true,
+      "detail": "items=15"
+    },
+    {
+      "tab": "fragility",
+      "industry": "Residential Solar",
+      "ok": true,
+      "detail": "items=212"
+    },
+    {
+      "tab": "talent",
+      "industry": "Residential Solar",
+      "ok": true,
+      "detail": "items=58 populated=58"
+    },
+    {
+      "tab": "thesis",
+      "industry": "Residential Solar",
+      "ok": true,
+      "detail": "caps_with_econ+quadrant=15 (precondition for thesis memo)"
+    },
+    {
+      "tab": "twin",
+      "industry": "Insurance↔Manufacturing",
+      "ok": true,
+      "detail": "shared=10 synergies=10"
+    },
+    {
+      "tab": "twin",
+      "industry": "Insurance↔Residential Solar",
+      "ok": true,
+      "detail": "shared=13 synergies=13"
+    },
+    {
+      "tab": "twin",
+      "industry": "Manufacturing↔Residential Solar",
+      "ok": true,
+      "detail": "shared=15 synergies=15"
+    }
+  ]
+}
