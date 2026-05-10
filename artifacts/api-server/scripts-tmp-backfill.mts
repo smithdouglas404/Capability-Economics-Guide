@@ -9,7 +9,7 @@
  */
 import { db, capabilitiesTable, capabilityEconomicsTable, capabilityQuadrantsTable, industriesTable } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
-import { enrichCapabilityQuadrants } from "./src/services/enrichment/index";
+import { enrichCapabilityQuadrants } from "./src/services/enrichment/runners";
 import { runAlphaEnrichment, runDetailEnrichment } from "./src/services/alpha/enrich";
 
 const totalStart = Date.now();

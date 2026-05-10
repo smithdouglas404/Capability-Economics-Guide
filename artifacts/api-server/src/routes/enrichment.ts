@@ -12,19 +12,40 @@ import {
   enrichmentRunsTable,
 } from "@workspace/db";
 import { eq, desc, sql } from "drizzle-orm";
-import { runEnrichment } from "../services/enrichment/index";
+import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireReviewer } from "../middlewares/requireReviewer";
 
 const router = Router();
 
+// In-process guard so a misbehaving caller can't overlap full-catalog runs.
+// Per-cap reruns go through routes/alpha.ts and aren't gated here.
+let enrichmentRunning = false;
+
 router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
+  if (enrichmentRunning) {
+    res.status(409).json({ error: "Enrichment already in progress" });
+    return;
+  }
+  enrichmentRunning = true;
   try {
-    const result = await runEnrichment();
-    res.json(result);
+    const graphResult = await runEnrichmentGraph({ trigger: "manual" });
+    const [run] = await db
+      .select()
+      .from(enrichmentRunsTable)
+      .where(eq(enrichmentRunsTable.id, graphResult.runId));
+    res.json({
+      quadrantsClassified: run?.quadrantsClassified ?? 0,
+      valueChainStagesCreated: run?.valueChainStagesCreated ?? 0,
+      companiesProfiled: run?.companiesProfiled ?? 0,
+      companyMappingsCreated: 0,
+      errors: graphResult.errors,
+      durationMs: run?.durationMs ?? 0,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Enrichment failed";
-    const status = msg.includes("already in progress") ? 409 : 500;
-    res.status(status).json({ error: msg });
+    res.status(500).json({ error: msg });
+  } finally {
+    enrichmentRunning = false;
   }
 });
 

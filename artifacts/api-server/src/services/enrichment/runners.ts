@@ -1,26 +1,20 @@
+/**
+ * Per-table enrichment runners — the actual functions that hit Perplexity +
+ * GLM and write to capability_quadrants / value_chain_stages /
+ * company_capability_profiles. The LangGraph tools in `tools.ts` wrap these,
+ * and the synchronous per-cap rerun route pre-calls `enrichCapabilityQuadrants`
+ * directly. There is no "linear pipeline" entry point — `runEnrichmentGraph`
+ * in `graph.ts` is the only orchestrator.
+ */
+
 import { db } from "@workspace/db";
 import {
-  industriesTable,
-  capabilitiesTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
   companyCapabilityProfilesTable,
   companyCapabilityMappingsTable,
-  enrichmentRunsTable,
 } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
-
-let enrichmentRunning = false;
-
-interface EnrichmentResult {
-  quadrantsClassified: number;
-  valueChainStagesCreated: number;
-  companiesProfiled: number;
-  companyMappingsCreated: number;
-  errors: string[];
-  durationMs: number;
-}
 
 interface PerplexityResult {
   content: string;
@@ -436,33 +430,3 @@ Return ONLY a JSON array. No markdown.`;
 
   return { profiled, mapped, errors };
 }
-
-export async function runEnrichment(): Promise<EnrichmentResult> {
-  if (enrichmentRunning) {
-    throw new Error("Enrichment already in progress");
-  }
-  enrichmentRunning = true;
-
-  try {
-    // Delegate to the LangGraph agent — single agentic entry point. The agent
-    // writes per-table totals into enrichment_runs at finalize; we read those
-    // back to build the EnrichmentResult shape callers expect.
-    const { runEnrichmentGraph } = await import("./graph");
-    const graphResult = await runEnrichmentGraph({ trigger: "manual" });
-    const [run] = await db
-      .select()
-      .from(enrichmentRunsTable)
-      .where(eq(enrichmentRunsTable.id, graphResult.runId));
-    return {
-      quadrantsClassified: run?.quadrantsClassified ?? 0,
-      valueChainStagesCreated: run?.valueChainStagesCreated ?? 0,
-      companiesProfiled: run?.companiesProfiled ?? 0,
-      companyMappingsCreated: 0,
-      errors: graphResult.errors,
-      durationMs: run?.durationMs ?? 0,
-    };
-  } finally {
-    enrichmentRunning = false;
-  }
-}
-

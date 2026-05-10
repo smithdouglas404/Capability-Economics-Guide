@@ -162,7 +162,7 @@ export default function EnrichmentAdmin() {
   }, []);
 
   // Single unified enrichment trigger — runs both pipelines:
-  //  1. Workbench data (quadrants/value-chain/companies) via legacy queued trigger
+  //  1. Workbench data (quadrants/value-chain/companies) via the LangGraph agent
   //  2. Detail-page data (capability_economics) via synchronous alpha
   // The sync alpha processes up to 10 caps per click; click repeatedly to
   // drain the backlog. The Workbench trigger is fire-and-forget (runs in

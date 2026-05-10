@@ -15,7 +15,7 @@
  */
 import { db, capabilitiesTable, capabilityQuadrantsTable, industriesTable } from "@workspace/db";
 import { eq, isNull } from "drizzle-orm";
-import { enrichCapabilityQuadrants } from "./src/services/enrichment/index";
+import { enrichCapabilityQuadrants } from "./src/services/enrichment/runners";
 
 const totalStart = Date.now();
 const log = (...args: unknown[]) => console.error(`[${new Date().toISOString().slice(11,19)}] ${args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ")}`);

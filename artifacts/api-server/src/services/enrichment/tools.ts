@@ -23,7 +23,7 @@ import {
   enrichCapabilityQuadrants,
   enrichValueChainStages,
   enrichCompanyProfiles,
-} from "./index";
+} from "./runners";
 import { runAlphaEnrichment, runDetailEnrichment } from "../alpha/enrich";
 import { recallMemories, storeMemory } from "../agent/memory";
 

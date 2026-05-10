@@ -18,7 +18,7 @@ import { generateThesisMemo } from "../services/alpha/thesis";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
-import { enrichCapabilityQuadrants } from "../services/enrichment/index";
+import { enrichCapabilityQuadrants } from "../services/enrichment/runners";
 import { logger } from "../lib/logger";
 
 const router = Router();
