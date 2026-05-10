@@ -15,6 +15,7 @@ type Product = {
   name: string;
   description: string;
   category: string | null;
+  launchDate: string | null;
   status: string;
   websiteUrl: string | null;
   source: string;
@@ -35,6 +36,7 @@ const blankForm = (companyId: number) => ({
   name: "",
   description: "",
   category: "",
+  launchDate: "",
   websiteUrl: "",
   status: "active" as "active" | "preview" | "deprecated" | "discontinued",
   capabilities: [] as Array<{ capabilityId: number; weight: number }>,
@@ -143,6 +145,7 @@ export default function ProductsAdmin() {
       name: form.name,
       description: form.description,
       category: form.category || null,
+      launchDate: form.launchDate || null,
       websiteUrl: form.websiteUrl || null,
       status: form.status,
       capabilities: form.capabilities,
@@ -161,6 +164,7 @@ export default function ProductsAdmin() {
       name: p.name,
       description: p.description,
       category: p.category ?? "",
+      launchDate: p.launchDate ?? "",
       websiteUrl: p.websiteUrl ?? "",
       status: p.status as "active" | "preview" | "deprecated" | "discontinued",
       capabilities: p.capabilities.map(c => ({ capabilityId: c.capabilityId, weight: c.weight })),
@@ -271,8 +275,9 @@ export default function ProductsAdmin() {
               </div>
               <Input placeholder="Product name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
               <Input placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-4 gap-2">
                 <Input placeholder="Category" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+                <Input placeholder="Launch date (YYYY-MM-DD)" value={form.launchDate} onChange={e => setForm({ ...form, launchDate: e.target.value })} />
                 <Input placeholder="https://website" value={form.websiteUrl} onChange={e => setForm({ ...form, websiteUrl: e.target.value })} />
                 <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value as typeof form.status })} className="border rounded px-3 py-2 bg-background">
                   <option value="active">active</option>

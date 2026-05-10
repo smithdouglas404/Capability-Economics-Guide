@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -234,8 +234,8 @@ export default function Companies() {
                         const isOpen = expandedId === row.company.id;
                         const prods = productsByCo[row.company.id];
                         return (
-                          <>
-                          <tr key={row.company.id} className="border-b hover:bg-muted/30">
+                          <Fragment key={row.company.id}>
+                          <tr className="border-b hover:bg-muted/30">
                             <td className="py-2 pr-1">
                               <button onClick={() => toggleExpand(row.company.id)} className="p-1 hover:bg-muted rounded" aria-label="Expand company X-Ray">
                                 {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -268,7 +268,7 @@ export default function Companies() {
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.fundingUsd)}</td>
                           </tr>
                           {isOpen && (
-                            <tr key={`${row.company.id}-x`} className="bg-muted/20 border-b">
+                            <tr className="bg-muted/20 border-b">
                               <td colSpan={13} className="p-4">
                                 <div className="flex items-center gap-2 mb-3">
                                   <Layers className="w-4 h-4 text-primary" />
@@ -277,15 +277,20 @@ export default function Companies() {
                                 {!prods && <p className="text-xs text-muted-foreground">Loading…</p>}
                                 {prods && prods.length === 0 && <p className="text-xs text-muted-foreground">No products mapped yet. Use Admin → Products to add.</p>}
                                 {prods && prods.length > 0 && (() => {
-                                  // Group products under their highest-weight capability.
+                                  // Group products under EVERY capability they map to so
+                                  // multi-capability products appear in each relevant bucket.
                                   const groups = new Map<string, Array<{ name: string; description: string; status: string; weight: number; websiteUrl: string | null }>>();
                                   for (const p of prods) {
-                                    const top = [...p.capabilities].sort((a, b) => b.weight - a.weight)[0];
-                                    const key = top?.capabilityName ?? "Uncategorized";
-                                    const arr = groups.get(key) ?? [];
-                                    arr.push({ name: p.name, description: p.description, status: p.status, weight: top?.weight ?? 0, websiteUrl: p.websiteUrl });
-                                    groups.set(key, arr);
+                                    const caps = p.capabilities.length ? p.capabilities : [{ capabilityId: 0, capabilityName: "Uncategorized", weight: 0 }];
+                                    for (const c of caps) {
+                                      const key = c.capabilityName;
+                                      const arr = groups.get(key) ?? [];
+                                      arr.push({ name: p.name, description: p.description, status: p.status, weight: c.weight, websiteUrl: p.websiteUrl });
+                                      groups.set(key, arr);
+                                    }
                                   }
+                                  // Sort items within each group by weight desc.
+                                  for (const arr of groups.values()) arr.sort((a, b) => b.weight - a.weight);
                                   return (
                                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
                                       {Array.from(groups.entries()).map(([cap, items]) => (
@@ -310,7 +315,7 @@ export default function Companies() {
                               </td>
                             </tr>
                           )}
-                          </>
+                          </Fragment>
                         );
                       })}
                     </tbody>
