@@ -305,7 +305,23 @@ export default function CapabilityScorecard() {
                         />
                       ) : "—"}
                     </td>
-                    <td className="text-right py-2 px-2">{row.evar12mo !== null ? `$${row.evar12mo.toFixed(1)}M` : "—"}</td>
+                    <td className="text-right py-2 px-2">
+                      {row.evar12mo !== null ? (
+                        <ScoreWithProvenance
+                          label={`${row.capabilityName} — EVaR (12 month)`}
+                          value={row.evar12mo}
+                          precision={1}
+                          unit="M"
+                          model="Revenue × margin × (1 − 0.5^(12/halfLife))"
+                          sourceCount={row.sourceCount}
+                          lastUpdatedAt={row.lastUpdatedAt}
+                          citations={row.citations}
+                          side="left"
+                        >
+                          <span>${row.evar12mo.toFixed(1)}M</span>
+                        </ScoreWithProvenance>
+                      ) : "—"}
+                    </td>
                     <td className="text-right py-2 px-2">
                       {row.aiExposure !== null ? (
                         <ScoreWithProvenance

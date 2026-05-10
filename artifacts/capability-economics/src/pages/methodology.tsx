@@ -142,10 +142,10 @@ export default function Methodology() {
               </p>
               <div className="not-prose grid sm:grid-cols-2 gap-3 my-3">
                 {[
-                  { label: "Consulting", weight: "1.00", note: "McKinsey, BCG, Bain–style benchmarks. High signal on operational maturity, weaker on emergent tech." },
-                  { label: "Market data", weight: "0.90", note: "Analyst reports (Gartner, Forrester, IDC). Strong on adoption curves, biased toward incumbents." },
-                  { label: "Academic", weight: "0.85", note: "Peer-reviewed research and working papers. Strong on causal claims, lagging on real-time signal." },
-                  { label: "Practitioner", weight: "0.75", note: "Industry insider interviews and primary research. High recency, narrower sample size." },
+                  { label: "Consulting Analyst", weight: "0.30", note: "McKinsey, BCG, Bain–style benchmarks (Digital Quotient, DAI, Deloitte DMM). High signal on operational maturity and strategic alignment." },
+                  { label: "Market Data Analyst", weight: "0.30", note: "Quantitative reports (Gartner, IDC, Statista, CB Insights). Strong on measurable adoption, spend trends, vendor penetration." },
+                  { label: "Academic Researcher", weight: "0.20", note: "Peer-reviewed research and maturity models (CMMI, TDWI). Strong on causal claims, lagging on real-time signal." },
+                  { label: "Industry Practitioner", weight: "0.20", note: "Seasoned CDO insight, CIO surveys (Harvey Nash, Foundry, Flexera). High realism on blockers and timelines, narrower sample." },
                 ].map((s) => (
                   <Card key={s.label} className="rounded-md">
                     <CardContent className="p-3">
@@ -159,10 +159,13 @@ export default function Methodology() {
                 ))}
               </div>
               <p>
-                Weights are calibrated against historical backtests on capabilities with known outcomes
-                (M&amp;A premia, productivity deltas) and refit periodically. The current weight vector
-                is recorded in <code>methodology_version</code> on every <code>cei_snapshots</code> row,
-                so historical scores remain reproducible against the methodology that produced them.
+                These weights live in <code>artifacts/api-server/src/services/triangulation.ts</code>
+                (the <code>PERSPECTIVES</code> array) and are versioned via{" "}
+                <code>methodology_version</code> on every <code>cei_snapshots</code> row, so historical
+                scores remain reproducible against the methodology that produced them. The two
+                quantitative perspectives (consulting + market data) are intentionally the highest-weighted
+                because they ground the score in observable benchmarks, while academic + practitioner
+                perspectives cross-check for theoretical and on-the-ground reality.
               </p>
             </Section>
 
@@ -178,7 +181,11 @@ export default function Methodology() {
               <p>
                 The wide prior (<code>σ₀² = 1500</code>) means that with no triangulation evidence the
                 posterior CI is intentionally near-uninformative — we&apos;d rather show a wide band
-                than fake precision.
+                than fake precision. <strong>When a capability has zero triangulated sources</strong>,
+                the engine takes the prior-only path and falls back to the capability&apos;s seeded{" "}
+                <code>benchmarkScore</code> as <code>μ_post</code> (with the full prior variance
+                <code>σ_post² = 1500</code>), so the score still has a transparent provenance — the
+                seeded benchmark, not a hand-typed default.
               </p>
               <p>
                 Each source <em>i</em> reports a noisy observation <code>xᵢ</code> with effective
@@ -273,21 +280,26 @@ export default function Methodology() {
 
             <Section id="lifecycle" icon={GitBranch} title="Lifecycle derivation">
               <p>
-                Each capability is assigned a <strong>lifecycle stage</strong> — <code>emerging</code>,{" "}
-                <code>growth</code>, <code>mature</code>, <code>declining</code> — derived on read from{" "}
+                Each capability is assigned one of <strong>five lifecycle stages</strong> —{" "}
+                <code>emerging</code>, <code>adopted</code>, <code>mature</code>,{" "}
+                <code>decaying</code>, <code>obsolete</code> — derived on read from{" "}
                 <code>consensusScore</code> and <code>velocity</code>. The stage is never persisted;
-                the derivation is deterministic so any client computing it from the same inputs gets
-                the same answer:
+                the derivation lives in <code>artifacts/api-server/src/services/lifecycle.ts</code>{" "}
+                and is deterministic so any client computing it from the same inputs gets the same
+                answer. Rules are evaluated in this order (first match wins):
               </p>
               <Formula>
-                emerging   ← score &lt; 40   ∧ velocity &gt; +0.05
-                {"\n"}growth     ← 40 ≤ score &lt; 70 ∧ velocity &gt; +0.02
-                {"\n"}mature     ← score ≥ 70   ∧ |velocity| ≤ 0.02
-                {"\n"}declining  ← velocity &lt; −0.02 (any score)
+                obsolete  ← score &lt; 30   ∧ velocity ≤ −0.03   (low + actively losing ground)
+                {"\n"}decaying  ← velocity ≤ −0.03                (any score, sustained downward)
+                {"\n"}emerging  ← score &lt; 40   ∧ velocity ≥ +0.03   (still small, climbing fast)
+                {"\n"}mature    ← score ≥ 65   ∧ |velocity| &lt; 0.015  (table stakes, stable)
+                {"\n"}adopted   ← otherwise                            (mainstream, between extremes)
               </Formula>
               <p>
-                Velocity is the trailing-12-month change in <code>consensusScore</code> divided by 100,
-                so a velocity of <code>+0.05</code> means &ldquo;5 points of score per year.&rdquo;
+                Velocity is the EMA-smoothed change in <code>consensusScore</code> divided by 100,
+                so a velocity of <code>+0.03</code> means roughly &ldquo;3 points of score per period&rdquo;.
+                Thresholds are deliberately conservative so the stage label only flips on meaningful,
+                sustained movement.
               </p>
             </Section>
 
@@ -309,10 +321,10 @@ export default function Methodology() {
                   </thead>
                   <tbody className="divide-y divide-border/60">
                     {[
-                      { s: "Consulting", x: 62, w: 1.0, var: 40.0, prec: 0.0250 },
-                      { s: "Market data", x: 70, w: 0.9, var: 44.44, prec: 0.0225 },
-                      { s: "Academic", x: 55, w: 0.85, var: 47.06, prec: 0.02125 },
-                      { s: "Practitioner", x: 78, w: 0.75, var: 53.33, prec: 0.01875 },
+                      { s: "Consulting Analyst", x: 62, w: 0.30, var: 133.33, prec: 0.00750 },
+                      { s: "Market Data Analyst", x: 70, w: 0.30, var: 133.33, prec: 0.00750 },
+                      { s: "Academic Researcher", x: 55, w: 0.20, var: 200.00, prec: 0.00500 },
+                      { s: "Industry Practitioner", x: 78, w: 0.20, var: 200.00, prec: 0.00500 },
                     ].map((r) => (
                       <tr key={r.s}>
                         <td className="px-3 py-1.5 text-foreground">{r.s}</td>
@@ -330,13 +342,13 @@ export default function Methodology() {
                 <code>1/σ₀² ≈ 0.000667</code>.
               </p>
               <Formula>
-                τ_post  = 0.000667 + 0.0250 + 0.0225 + 0.02125 + 0.01875 = 0.088167
-                {"\n"}weighted num = 50·0.000667 + 62·0.0250 + 70·0.0225 + 55·0.02125 + 78·0.01875
-                {"\n"}             = 0.0333 + 1.5500 + 1.5750 + 1.16875 + 1.4625
-                {"\n"}             = 5.78958
-                {"\n"}μ_post  = 5.78958 / 0.088167 ≈ 65.7   (consensusScore)
-                {"\n"}σ_post² = 1 / 0.088167 ≈ 11.34   ⇒  σ_post ≈ 3.37
-                {"\n"}95% CI  = 65.7 ± 1.96·3.37 = [59.1, 72.3]
+                τ_post  = 0.000667 + 0.00750 + 0.00750 + 0.00500 + 0.00500 = 0.025667
+                {"\n"}weighted num = 50·0.000667 + 62·0.00750 + 70·0.00750 + 55·0.00500 + 78·0.00500
+                {"\n"}             = 0.03333 + 0.46500 + 0.52500 + 0.27500 + 0.39000
+                {"\n"}             = 1.68833
+                {"\n"}μ_post  = 1.68833 / 0.025667 ≈ 65.78   (consensusScore)
+                {"\n"}σ_post² = 1 / 0.025667 ≈ 38.96   ⇒  σ_post ≈ 6.24
+                {"\n"}95% CI  = 65.78 ± 1.96·6.24 = [53.55, 78.01]
               </Formula>
               <p>
                 With 4 sources spanning <code>[55, 78]</code> (range = 23):
