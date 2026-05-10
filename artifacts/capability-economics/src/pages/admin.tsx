@@ -22,6 +22,7 @@ import AuditLogViewer from "@/components/audit-log-viewer";
 import MarketplaceModeration from "@/components/marketplace-moderation";
 import FeaturedContentScheduler from "@/components/featured-content-scheduler";
 import FoundrySyncPanel from "@/components/foundry-sync-panel";
+import ProductsAdmin from "@/components/products-admin";
 
 const API_BASE = "/api";
 
@@ -276,6 +277,7 @@ export default function AdminDashboard() {
           <TabsTrigger value="kyc" className="gap-2"><ShieldCheck className="w-4 h-4" /> KYC</TabsTrigger>
           <TabsTrigger value="content" className="gap-2"><BookMarked className="w-4 h-4" /> Content</TabsTrigger>
           <TabsTrigger value="enrichment" className="gap-2"><Zap className="w-4 h-4" /> Enrichment</TabsTrigger>
+          <TabsTrigger value="products" className="gap-2"><Layers className="w-4 h-4" /> Products</TabsTrigger>
           <TabsTrigger value="assessments" className="gap-2"><Users className="w-4 h-4" /> Assessments</TabsTrigger>
           <TabsTrigger value="marketplace" className="gap-2"><Store className="w-4 h-4" /> Marketplace</TabsTrigger>
           <TabsTrigger value="system" className="gap-2"><Settings className="w-4 h-4" /> System</TabsTrigger>
@@ -639,6 +641,10 @@ export default function AdminDashboard() {
           </Card>
 
           <EnrichmentAdmin />
+        </TabsContent>
+
+        <TabsContent value="products" className="space-y-6">
+          <ProductsAdmin />
         </TabsContent>
 
         {/* ─────────────────────── Assessments tab ─────────────────────── */}

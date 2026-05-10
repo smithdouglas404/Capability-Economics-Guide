@@ -49,6 +49,7 @@ import marketplacePurchasesRouter from "./marketplace-purchases";
 import featuredContentRouter from "./featured-content";
 import foundryAdminRouter from "./foundry-admin";
 import backtestRouter from "./backtest";
+import productsRouter from "./products";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -71,6 +72,11 @@ router.use(secRouter);
 // catch-all `router.use("/admin", requireAdmin)` that would otherwise block
 // the public read-only GET /admin/enrichment/config the admin UI relies on.
 router.use(enrichmentConfigRouter);
+// productsRouter mounts BEFORE adminRouter for the same reason as
+// enrichmentConfigRouter: adminRouter has a catch-all `router.use("/admin",
+// requireAdmin)` that would block /admin/products routes which use their
+// own per-route requireAdmin middleware.
+router.use(productsRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
 router.use(backtestRouter);

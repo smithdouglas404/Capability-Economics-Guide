@@ -546,6 +546,36 @@ export default function KnowledgeGraph() {
             </div>
           </div>
 
+          {/* Products implementing this capability */}
+          {Array.isArray((capabilityDetail as unknown as { products?: unknown[] }).products) && (capabilityDetail as unknown as { products: Array<{ productId: number; productName: string; companyId: number; companyName: string; weight: number; productCategory: string | null; productStatus: string; websiteUrl: string | null; evidenceNote: string | null }> }).products.length > 0 && (
+            <Card className="rounded-none">
+              <CardHeader>
+                <CardTitle className="font-serif text-lg flex items-center gap-2">
+                  <Layers className="w-5 h-5 text-primary" />
+                  Products implementing this capability
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-3">
+                  {(capabilityDetail as unknown as { products: Array<{ productId: number; productName: string; companyId: number; companyName: string; weight: number; productCategory: string | null; productStatus: string; websiteUrl: string | null; evidenceNote: string | null }> }).products.slice(0, 12).map((p) => (
+                    <div key={p.productId} className="border border-border/60 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-sm">
+                            {p.websiteUrl ? <a href={p.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{p.productName}</a> : p.productName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{p.companyName}{p.productCategory ? ` · ${p.productCategory}` : ""}</div>
+                        </div>
+                        <span className="font-mono text-[11px] bg-primary/10 text-primary px-2 py-0.5">{(p.weight * 100).toFixed(0)}%</span>
+                      </div>
+                      {p.evidenceNote && <p className="text-xs text-muted-foreground mt-1.5 italic">{p.evidenceNote}</p>}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Playbook */}
           {econ?.playbook && econ.playbook.length > 0 && (
             <Card className="rounded-none border-l-4 border-l-emerald-500 bg-emerald-50/40">

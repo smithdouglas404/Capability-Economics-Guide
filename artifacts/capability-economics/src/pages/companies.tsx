@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw } from "lucide-react";
+import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers } from "lucide-react";
 
 type Industry = { id: number; name: string };
 type CompanyRow = {
@@ -88,6 +88,17 @@ export default function Companies() {
   const [quad, setQuad] = useState<QuadPoint[]>([]);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState("shortlist");
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [productsByCo, setProductsByCo] = useState<Record<number, Array<{ id: number; name: string; description: string; status: string; category: string | null; websiteUrl: string | null; capabilities: Array<{ capabilityId: number; capabilityName: string; weight: number }> }>>>({});
+
+  const toggleExpand = async (id: number) => {
+    if (expandedId === id) { setExpandedId(null); return; }
+    setExpandedId(id);
+    if (!productsByCo[id]) {
+      const r = await fetch(`/api/companies/${id}/products`).then(r => r.json());
+      setProductsByCo(p => ({ ...p, [id]: r.products ?? [] }));
+    }
+  };
 
   useEffect(() => {
     fetch("/api/industries").then(r => r.json()).then((rows: Industry[]) => {
@@ -202,6 +213,7 @@ export default function Companies() {
                   <table className="w-full text-sm">
                     <thead className="border-b">
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
+                        <th className="py-2 pr-2 w-6"></th>
                         <th className="py-2 pr-2">#</th>
                         <th className="py-2 pr-2">Company</th>
                         <th className="py-2 pr-2">Composite</th>
@@ -219,8 +231,16 @@ export default function Companies() {
                     <tbody>
                       {sortedCompanies.map((row, i) => {
                         const s = row.scores;
+                        const isOpen = expandedId === row.company.id;
+                        const prods = productsByCo[row.company.id];
                         return (
+                          <>
                           <tr key={row.company.id} className="border-b hover:bg-muted/30">
+                            <td className="py-2 pr-1">
+                              <button onClick={() => toggleExpand(row.company.id)} className="p-1 hover:bg-muted rounded" aria-label="Expand company X-Ray">
+                                {isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              </button>
+                            </td>
                             <td className="py-2 pr-2 text-muted-foreground">{i + 1}</td>
                             <td className="py-2 pr-2 max-w-xs">
                               <div className="font-medium">{row.company.name}</div>
@@ -247,6 +267,50 @@ export default function Companies() {
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.revenueUsd)}</td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.fundingUsd)}</td>
                           </tr>
+                          {isOpen && (
+                            <tr key={`${row.company.id}-x`} className="bg-muted/20 border-b">
+                              <td colSpan={13} className="p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Layers className="w-4 h-4 text-primary" />
+                                  <h4 className="text-sm font-semibold">Products grouped by capability</h4>
+                                </div>
+                                {!prods && <p className="text-xs text-muted-foreground">Loading…</p>}
+                                {prods && prods.length === 0 && <p className="text-xs text-muted-foreground">No products mapped yet. Use Admin → Products to add.</p>}
+                                {prods && prods.length > 0 && (() => {
+                                  // Group products under their highest-weight capability.
+                                  const groups = new Map<string, Array<{ name: string; description: string; status: string; weight: number; websiteUrl: string | null }>>();
+                                  for (const p of prods) {
+                                    const top = [...p.capabilities].sort((a, b) => b.weight - a.weight)[0];
+                                    const key = top?.capabilityName ?? "Uncategorized";
+                                    const arr = groups.get(key) ?? [];
+                                    arr.push({ name: p.name, description: p.description, status: p.status, weight: top?.weight ?? 0, websiteUrl: p.websiteUrl });
+                                    groups.set(key, arr);
+                                  }
+                                  return (
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                      {Array.from(groups.entries()).map(([cap, items]) => (
+                                        <div key={cap} className="border bg-background p-3">
+                                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">{cap}</div>
+                                          <ul className="space-y-1.5">
+                                            {items.map((it, k) => (
+                                              <li key={k} className="text-xs">
+                                                <div className="flex items-center justify-between gap-2">
+                                                  <span className="font-medium truncate">{it.websiteUrl ? <a href={it.websiteUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{it.name}</a> : it.name}</span>
+                                                  <Badge variant="outline" className="text-[9px]">{it.status}</Badge>
+                                                </div>
+                                                <p className="text-muted-foreground line-clamp-2">{it.description}</p>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                            </tr>
+                          )}
+                          </>
                         );
                       })}
                     </tbody>

@@ -102,12 +102,17 @@ router.get("/capabilities/:id", async (req, res) => {
     benchmarkScore: capability.benchmarkScore,
   });
 
+  // Products that contribute to this capability (top contributors first).
+  const { listProductsByCapability } = await import("../services/products");
+  const products = await listProductsByCapability(id);
+
   res.json({
     ...capability,
     lifecycleStage,
     metrics,
     dependencies: depsRaw,
     roleMappings: roleMappingsRaw,
+    products,
   });
 });
 
