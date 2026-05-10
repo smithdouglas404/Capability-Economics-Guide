@@ -84,7 +84,7 @@ export async function parseJsonWithRepair<T>(raw: string, opts?: { schemaHint?: 
   if (direct !== null) return direct;
   if (!raw || raw.trim().length < 2) return null;
   const label = opts?.label ?? "json";
-  const fixPrompt = `Your previous output was supposed to be valid JSON${opts?.schemaHint ? ` matching this exact shape:\n${opts.schemaHint}\n` : ""} but it failed to parse. Repair it and return ONLY the corrected JSON object — no prose, no markdown fences, no commentary. Preserve every fact and number from the original; only fix structural issues (missing braces, trailing commas, unterminated strings, mixed quotes, leaked reasoning, etc.).
+  const fixPrompt = `Your previous output was supposed to be a valid JSON value${opts?.schemaHint ? ` matching this exact shape:\n${opts.schemaHint}\n` : ""} but it failed to parse. Repair it and return ONLY the corrected JSON value (object or array — match the shape above exactly) — no prose, no markdown fences, no commentary. Preserve every fact and number from the original; only fix structural issues (missing braces or brackets, trailing commas, unterminated strings, mixed quotes, leaked reasoning, etc.).
 
 Original output:
 """

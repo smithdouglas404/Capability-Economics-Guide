@@ -219,10 +219,16 @@ async function askFollowupsNode(state: S): Promise<Partial<S>> {
     clientContext: `${state.clientName} (${state.industryName}). ${state.valueCase.slice(0, 400)}`,
     alreadyAsked: state.allPriorQuestions || "(none)",
   });
-  const qs = (extractJSON<NewQuestion[]>(raw)
-    ?? await parseJsonWithRepair<NewQuestion[]>(raw, { label: "followups-wire", schemaHint: `[ { "question": string, "rationale": string, "priority": number } ]` })
-    ?? []);
-  const filtered = qs.filter(q => q && q.question && q.question.length > 8).slice(0, 5);
+  const parsedQs = (extractJSON<unknown>(raw)
+    ?? await parseJsonWithRepair<unknown>(raw, { label: "followups-wire", schemaHint: `[ { "question": string, "rationale": string, "priority": number } ]` }));
+  // Defensive: the model occasionally repairs into { questions: [...] } even
+  // though the wire shape is a bare array. Accept both.
+  const qs: NewQuestion[] = Array.isArray(parsedQs)
+    ? (parsedQs as NewQuestion[])
+    : (parsedQs && typeof parsedQs === "object" && Array.isArray((parsedQs as { questions?: unknown }).questions))
+      ? ((parsedQs as { questions: NewQuestion[] }).questions)
+      : [];
+  const filtered = qs.filter(q => q && typeof q.question === "string" && q.question.length > 8).slice(0, 5);
   if (filtered.length > 0) {
     await db.insert(vceQuestionsTable).values(filtered.map((q, i) => ({
       assessmentId: state.assessmentId,
