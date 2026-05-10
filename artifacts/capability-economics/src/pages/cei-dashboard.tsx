@@ -122,6 +122,9 @@ interface CapabilityTreeNode {
   isLeaf: boolean;
   parentCapabilityId: number | null;
   score: number | null;
+  ciLow: number | null;
+  ciHigh: number | null;
+  posteriorVariance: number | null;
   confidence: number | null;
   velocity: number | null;
   updatedAt: string | null;
@@ -297,6 +300,65 @@ function useApi<T>(url: string | null) {
   }, [url]);
   useEffect(() => { refetch(); }, [refetch]);
   return { data, loading, refetch };
+}
+
+function ScoreErrorBar({ score, ciLow, ciHigh }: { score: number; ciLow: number; ciHigh: number }) {
+  const half = Math.max(0, (ciHigh - ciLow) / 2);
+  const range = 100;
+  const leftPct = Math.max(0, Math.min(100, (ciLow / range) * 100));
+  const widthPct = Math.max(1, Math.min(100 - leftPct, ((ciHigh - ciLow) / range) * 100));
+  const markerPct = Math.max(0, Math.min(100, (score / range) * 100));
+  return (
+    <div
+      className="relative h-1 mt-0.5 w-14 ml-auto bg-muted/40 rounded-full overflow-visible"
+      title={`95% CI: ${ciLow.toFixed(1)} – ${ciHigh.toFixed(1)} (±${half.toFixed(1)})`}
+    >
+      <div
+        className="absolute top-0 h-1 bg-indigo-400/60 rounded-full"
+        style={{ left: leftPct + "%", width: widthPct + "%" }}
+      />
+      <div
+        className="absolute top-[-2px] h-2 w-[2px] bg-foreground"
+        style={{ left: `calc(${markerPct}% - 1px)` }}
+      />
+    </div>
+  );
+}
+
+function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
+  value: number; ciLow: number; ciHigh: number; color: string;
+}) {
+  const half = Math.max(0, (ciHigh - ciLow) / 2);
+  const span = Math.max(20, (ciHigh - ciLow) * 4);
+  const center = value;
+  const min = center - span / 2;
+  const max = center + span / 2;
+  const pct = (v: number) => Math.max(0, Math.min(100, ((v - min) / (max - min)) * 100));
+  const leftPct = pct(ciLow);
+  const widthPct = Math.max(2, pct(ciHigh) - leftPct);
+  const markerPct = pct(value);
+  return (
+    <div
+      className="mt-3 w-44"
+      title="95% Bayesian credible interval — propagated from posterior variance of every triangulated capability score"
+    >
+      <div className="relative h-2 bg-muted/40 rounded-full">
+        <div
+          className="absolute top-0 h-2 rounded-full opacity-60"
+          style={{ left: leftPct + "%", width: widthPct + "%", background: color }}
+        />
+        <div
+          className="absolute top-[-3px] h-[14px] w-[3px] rounded-sm"
+          style={{ left: `calc(${markerPct}% - 1.5px)`, background: color }}
+        />
+      </div>
+      <div className="flex justify-between text-[10px] text-muted-foreground/80 mt-1 font-mono">
+        <span>{ciLow.toFixed(1)}</span>
+        <span className="text-muted-foreground">95% CI · ±{half.toFixed(1)}</span>
+        <span>{ciHigh.toFixed(1)}</span>
+      </div>
+    </div>
+  );
 }
 
 function IndexTicker({ value, label, trend, size = "lg" }: {
@@ -777,10 +839,12 @@ export default function CEIDashboard() {
                   {indexLevel} Maturity
                 </div>
                 {cei.overallCiLow !== null && cei.overallCiHigh !== null && (
-                  <div className="text-[11px] text-muted-foreground/80 mt-2 font-mono" title="95% Bayesian credible interval — propagated from posterior variance of every triangulated capability score">
-                    95% CI: {cei.overallCiLow.toFixed(1)} – {cei.overallCiHigh.toFixed(1)}
-                    <span className="text-muted-foreground/50"> (±{((cei.overallCiHigh - cei.overallCiLow) / 2).toFixed(1)})</span>
-                  </div>
+                  <OverallIndexErrorBar
+                    value={cei.overallIndex}
+                    ciLow={cei.overallCiLow}
+                    ciHigh={cei.overallCiHigh}
+                    color={indexColor}
+                  />
                 )}
                 <div className="text-xs text-muted-foreground mt-2">
                   Updated {new Date(cei.timestamp).toLocaleString()}
@@ -1683,7 +1747,10 @@ export default function CEIDashboard() {
                                           )}
                                         </div>
                                         <div className="text-right font-mono font-bold tabular-nums">
-                                          {root.score !== null ? root.score.toFixed(1) : "—"}
+                                          <div>{root.score !== null ? root.score.toFixed(1) : "—"}</div>
+                                          {root.ciLow !== null && root.ciHigh !== null && root.score !== null && (
+                                            <ScoreErrorBar score={root.score} ciLow={root.ciLow} ciHigh={root.ciHigh} />
+                                          )}
                                         </div>
                                         <div className="text-right font-mono text-muted-foreground tabular-nums">
                                           {root.confidence !== null ? (root.confidence * 100).toFixed(0) + "%" : "—"}
@@ -1722,7 +1789,10 @@ export default function CEIDashboard() {
                                                     )}
                                                   </div>
                                                   <div className="text-right font-mono font-semibold tabular-nums">
-                                                    {child.score !== null ? child.score.toFixed(1) : "—"}
+                                                    <div>{child.score !== null ? child.score.toFixed(1) : "—"}</div>
+                                                    {child.ciLow !== null && child.ciHigh !== null && child.score !== null && (
+                                                      <ScoreErrorBar score={child.score} ciLow={child.ciLow} ciHigh={child.ciHigh} />
+                                                    )}
                                                   </div>
                                                   <div className="text-right font-mono text-muted-foreground tabular-nums">
                                                     {child.confidence !== null ? (child.confidence * 100).toFixed(0) + "%" : "—"}

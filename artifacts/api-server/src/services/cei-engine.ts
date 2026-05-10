@@ -114,10 +114,11 @@ export async function computeCEI(): Promise<CEIResult> {
     }
   }
 
-  // Track which industries are missing GDP-weight rows so we can warn
-  // (firm rule: NO hardcoded fallback weights). When some industries lack
-  // weights we fall back to equal weighting across only those that DO have
-  // a weight, dropping the unweighted ones from the overall rollup.
+  // Firm rule: NO hardcoded editorial values. Industries without a
+  // Perplexity-cited GDP-weight row are EXCLUDED from the overall CEI
+  // rollup (their weight is treated as 0). They still receive an industry
+  // index — they simply don't contribute to the global aggregate. We
+  // collect their names below so the snapshot can surface a warning.
   const missingWeightIndustries: string[] = [];
 
   for (const industry of industries) {

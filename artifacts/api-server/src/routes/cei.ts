@@ -81,7 +81,7 @@ router.post("/cei/refresh", requireAdmin, async (req, res) => {
 });
 
 router.get("/cei/methodology", async (_req, res) => {
-  res.json({ methodology: CEI_METHODOLOGY, version: "1.0" });
+  res.json({ methodology: CEI_METHODOLOGY, version: "1.1" });
 });
 
 router.get("/cei/freshness", async (_req, res) => {
@@ -213,6 +213,11 @@ router.get("/cei/capability-tree", async (req, res) => {
       isLeaf: boolean | null;
       parentCapabilityId: number | null;
       score: number | null;
+      // 95% credible interval bounds, persisted by the engine on the
+      // posterior. Null when no scored row exists.
+      ciLow: number | null;
+      ciHigh: number | null;
+      posteriorVariance: number | null;
       confidence: number | null;
       velocity: number | null;
       updatedAt: Date | null;
@@ -232,6 +237,9 @@ router.get("/cei/capability-tree", async (req, res) => {
         isLeaf: cap.isLeaf,
         parentCapabilityId: cap.parentCapabilityId,
         score: comp?.consensusScore ?? null,
+        ciLow: comp?.ciLow ?? null,
+        ciHigh: comp?.ciHigh ?? null,
+        posteriorVariance: comp?.posteriorVariance ?? null,
         confidence: comp?.confidence ?? null,
         velocity: comp?.velocity ?? null,
         updatedAt: comp?.updatedAt ?? null,

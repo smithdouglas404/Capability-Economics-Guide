@@ -3,9 +3,9 @@
  * (latest available year, World Bank / IMF sources). Replaces the prior
  * hardcoded INDUSTRY_GDP_WEIGHTS constant in cei-engine.ts.
  *
- * No fallback values: if Perplexity fails to return a numeric gdp_share or
+ * No fallback values per firm rule: if Perplexity fails to return a numeric gdp_share or
  * a sourceUrl for an industry, that row is SKIPPED and logged. Missing rows
- * cause the engine to fall back to equal-weighting *with a warning* rather
+ * cause the engine to EXCLUDE that industry from the overall CEI rollup *with a warning* rather
  * than substituting a synthetic number.
  *
  * Idempotent: existing rows for an industry are left in place. Pass
