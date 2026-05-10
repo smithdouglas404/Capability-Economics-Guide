@@ -200,6 +200,14 @@ export async function createMacroEvent(input: CreateEventInput): Promise<MacroEv
     createdBy: input.createdBy ?? "admin",
     startedAt: input.startedAt ?? new Date(),
   }).returning();
+  // Fire subscription hooks. Lazy-imported to avoid a circular dep with
+  // services/subscriptions.ts (which only references types from this file).
+  try {
+    const { evaluateAfterMacroEvent } = await import("./subscriptions");
+    await evaluateAfterMacroEvent(row);
+  } catch (err) {
+    console.warn("[macro-events] subscription evaluation failed:", err);
+  }
   return row;
 }
 

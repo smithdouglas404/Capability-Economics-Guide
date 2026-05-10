@@ -34,6 +34,20 @@ export function isEmailConfigured(): boolean {
 }
 
 async function sendRaw(payload: EmailPayload): Promise<void> {
+  try {
+    await sendRawStrict(payload);
+  } catch (err) {
+    logger.warn({ err, to: payload.to, subject: payload.subject }, "[email] send failed");
+  }
+}
+
+/**
+ * Like sendRaw but throws on provider error so callers (e.g. notification
+ * dispatch) can record an accurate sent/failed status. Returns true on
+ * delivery, throws on provider failure, or returns false when email is
+ * not configured (caller should treat as "skipped", not "sent").
+ */
+async function sendRawStrict(payload: EmailPayload): Promise<boolean> {
   const client = getResendClient();
   const from = process.env.EMAIL_FROM;
   if (!client || !from) {
@@ -41,24 +55,20 @@ async function sendRaw(payload: EmailPayload): Promise<void> {
       { to: payload.to, subject: payload.subject },
       "[email] RESEND_API_KEY or EMAIL_FROM not configured — email skipped",
     );
-    return;
+    return false;
   }
-  try {
-    const { data, error } = await client.emails.send({
-      from,
-      to: payload.to,
-      subject: payload.subject,
-      html: payload.html,
-      text: payload.text,
-    });
-    if (error) {
-      logger.warn({ err: error, to: payload.to, subject: payload.subject }, "[email] resend returned error");
-      return;
-    }
-    logger.info({ id: data?.id, to: payload.to, subject: payload.subject }, "[email] sent");
-  } catch (err) {
-    logger.warn({ err, to: payload.to, subject: payload.subject }, "[email] send failed");
+  const { data, error } = await client.emails.send({
+    from,
+    to: payload.to,
+    subject: payload.subject,
+    html: payload.html,
+    text: payload.text,
+  });
+  if (error) {
+    throw new Error(typeof error === "object" && error && "message" in error ? String((error as { message: unknown }).message) : String(error));
   }
+  logger.info({ id: data?.id, to: payload.to, subject: payload.subject }, "[email] sent");
+  return true;
 }
 
 /** Minimal HTML wrapper — keeps all emails visually consistent without pulling a renderer in. */
@@ -235,6 +245,44 @@ export async function sendTierChangedEmail({ to, name, fromTier, toTier }: { to:
       <p>Your membership has been changed from <strong>${fromTier}</strong> to <strong>${toTier}</strong>.</p>
       <p>Your credit allocation has been updated to match the new tier.</p>
       <p><a href="${appUrl("/")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Open your dashboard</a></p>
+    `),
+  });
+}
+
+/** Returns true on actual delivery; false when email is not configured (caller: "skipped"). Throws on provider failure. */
+export async function sendAlertEmail({ to, name, subject, body }: { to: string; name?: string | null; subject: string; body: string }): Promise<boolean> {
+  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
+  const safeBody = escapeHtml(body).replace(/\n/g, "<br/>");
+  return sendRawStrict({
+    to,
+    subject: `[Alert] ${subject}`,
+    html: wrap(`
+      <p>${greeting}</p>
+      <p><strong>${escapeHtml(subject)}</strong></p>
+      <p>${safeBody}</p>
+      <p><a href="${appUrl("/account?tab=notifications")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Manage your alerts</a></p>
+    `),
+  });
+}
+
+/** Returns true on actual delivery; false when email is not configured / no items. Throws on provider failure. */
+export async function sendDigestEmail({ to, name, items }: { to: string; name?: string | null; items: Array<{ subject: string; body: string }> }): Promise<boolean> {
+  if (!items.length) return false;
+  const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
+  const list = items.map(i => `
+    <div style="border-left: 3px solid #4338ca; padding: 8px 12px; margin: 12px 0; background: #f8f8fb;">
+      <div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(i.subject)}</div>
+      <div style="font-size: 13px; color: #555;">${escapeHtml(i.body).replace(/\n/g, "<br/>")}</div>
+    </div>
+  `).join("");
+  return sendRawStrict({
+    to,
+    subject: `Your daily Capability Economics digest — ${items.length} alert${items.length === 1 ? "" : "s"}`,
+    html: wrap(`
+      <p>${greeting}</p>
+      <p>Here's a summary of the alerts triggered for you today:</p>
+      ${list}
+      <p><a href="${appUrl("/account?tab=notifications")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Manage your alerts</a></p>
     `),
   });
 }

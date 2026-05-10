@@ -11,6 +11,7 @@ import {
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { computeGlobalMacroShock, listActiveEvents, expandAffectedCapabilityIds } from "./macro-events";
+import { evaluateAfterCEI, snapshotCapStates } from "./subscriptions";
 
 const CEI_SCALE_FACTOR = 10;
 const VELOCITY_DECAY = 0.7;
@@ -77,6 +78,9 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   const persist = opts.persist !== false;
   const additionalEvents = opts.additionalEvents ?? [];
   const captureMap = opts.capturePerCap ? new Map<number, number>() : null;
+  // Snapshot per-cap state BEFORE the new run so subscription hooks can
+  // diff against it after persist. Skipped on non-persist (backtest) runs.
+  const prevCapStates = persist ? await snapshotCapStates() : null;
   const industries = await db.select().from(industriesTable);
   const allCapabilities = await db.select().from(capabilitiesTable);
   const allRelationships = await db.select().from(ontologyRelationshipsTable);
@@ -436,6 +440,16 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
         methodologyVersion: "1.1",
       }).returning())[0].snapshotAt
     : new Date();
+
+  // Fire subscription evaluation hooks against the just-persisted state.
+  // Wrapped in try/catch — alerts must never break the CEI run.
+  if (persist && prevCapStates) {
+    try {
+      await evaluateAfterCEI(prevCapStates);
+    } catch (err) {
+      console.warn("[CEI] subscription evaluation failed:", err);
+    }
+  }
 
   return {
     overallIndex,

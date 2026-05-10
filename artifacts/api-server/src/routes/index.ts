@@ -50,6 +50,7 @@ import featuredContentRouter from "./featured-content";
 import foundryAdminRouter from "./foundry-admin";
 import backtestRouter from "./backtest";
 import productsRouter from "./products";
+import subscriptionsRouter from "./subscriptions";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -77,6 +78,9 @@ router.use(enrichmentConfigRouter);
 // requireAdmin)` that would block /admin/products routes which use their
 // own per-route requireAdmin middleware.
 router.use(productsRouter);
+// subscriptionsRouter mounts BEFORE adminRouter so its /admin/notifications/run-digest
+// route uses its own per-route requireAdmin middleware rather than the catch-all.
+router.use(subscriptionsRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
 router.use(backtestRouter);

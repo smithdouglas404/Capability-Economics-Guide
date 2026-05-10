@@ -30,3 +30,4 @@ export * from "./marketplace";
 export * from "./featured-content";
 export * from "./foundry-sync";
 export * from "./historical-events";
+export * from "./subscriptions";

@@ -8,6 +8,7 @@ import {
   AlertTriangle, CheckCircle2, Copy, Download, Key, KeyRound, Loader2, LogOut,
   PauseCircle, Trash2, UserCircle, Users, UserPlus, XCircle,
 } from "lucide-react";
+import NotificationsPanel from "@/components/notifications-panel";
 
 const API_BASE = "/api";
 
@@ -430,6 +431,9 @@ export default function AccountPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Alerts & notifications */}
+      <NotificationsPanel />
 
       {/* Data export */}
       <Card className="rounded-none">
