@@ -17,6 +17,7 @@ import {
   runConsolidation,
   lettaReadBlock,
 } from "../services/agent";
+import { consolidationRunsTable } from "@workspace/db";
 import { generateOntologyTool } from "../services/agent/tools";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
@@ -279,6 +280,36 @@ router.post("/agent/memory/consolidate", requireAdmin, async (_req, res) => {
     res.json({ status: "ok", result });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "consolidate failed" });
+  }
+});
+
+// History of recent consolidation runs — feeds the admin UI panel
+router.get("/agent/consolidation/runs", async (req, res) => {
+  try {
+    const rawLimit = Number(req.query.limit);
+    const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(50, Math.floor(rawLimit)) : 10;
+    const rows = await db.select().from(consolidationRunsTable)
+      .orderBy(desc(consolidationRunsTable.startedAt))
+      .limit(limit);
+    res.json({
+      runs: rows.map(r => ({
+        id: r.id,
+        startedAt: r.startedAt.toISOString(),
+        completedAt: r.completedAt?.toISOString() ?? null,
+        durationMs: r.completedAt ? r.completedAt.getTime() - r.startedAt.getTime() : null,
+        observationsScanned: r.observationsScanned,
+        patternsConsolidated: r.patternsConsolidated,
+        redundantDeleted: r.redundantDeleted,
+        archivalInserted: r.archivalInserted,
+        errorMessage: r.errorMessage,
+        status: r.errorMessage ? "failed" : r.completedAt ? "completed" : "running",
+      })),
+      enabled: (process.env.CONSOLIDATOR_ENABLED ?? "true").toLowerCase() !== "false",
+      claudeConfigured: !!process.env.OPENROUTER_API_KEY,
+    });
+  } catch (err) {
+    console.error("[/agent/consolidation/runs] error:", err);
+    res.status(500).json({ error: err instanceof Error ? err.message : "list failed" });
   }
 });
 

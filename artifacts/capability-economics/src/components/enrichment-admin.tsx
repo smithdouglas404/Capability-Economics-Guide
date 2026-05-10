@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap, ShieldAlert, Activity, Server, AlertTriangle } from "lucide-react";
+import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap, ShieldAlert, Activity, Server, AlertTriangle, Brain, Layers } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -62,6 +62,32 @@ interface IndustriesResponse {
   globalDefault: { enabled: boolean; refreshDays: number };
   industries: IndustryRow[];
 }
+interface ConsolidationRun {
+  id: number;
+  startedAt: string;
+  completedAt: string | null;
+  durationMs: number | null;
+  observationsScanned: number;
+  patternsConsolidated: number;
+  redundantDeleted: number;
+  archivalInserted: number;
+  errorMessage: string | null;
+  status: "running" | "completed" | "failed";
+}
+interface ConsolidationResponse {
+  runs: ConsolidationRun[];
+  enabled: boolean;
+  claudeConfigured: boolean;
+}
+interface MemoryStatsResponse {
+  memory: {
+    totalMemories: number;
+    byType: Record<string, number>;
+    byCategory: Record<string, number>;
+    pendingMem0Writes?: number;
+    mem0Connected?: boolean;
+  };
+}
 
 export default function EnrichmentAdmin() {
   const [status, setStatus] = useState<EnrichmentStatus | null>(null);
@@ -79,12 +105,15 @@ export default function EnrichmentAdmin() {
   const [health, setHealth] = useState<EnrichmentHealth | null>(null);
   const [industries, setIndustries] = useState<IndustriesResponse | null>(null);
   const [savingIndustryId, setSavingIndustryId] = useState<number | null>(null);
+  const [consolidation, setConsolidation] = useState<ConsolidationResponse | null>(null);
+  const [memStats, setMemStats] = useState<MemoryStatsResponse["memory"] | null>(null);
+  const [consolidating, setConsolidating] = useState(false);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r, cfgRes, redisRes, alphaRes, healthRes, industriesRes] = await Promise.all([
+      const [s, r, cfgRes, redisRes, alphaRes, healthRes, industriesRes, consolidationRes, memStatsRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
         fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -92,6 +121,8 @@ export default function EnrichmentAdmin() {
         fetch(`${API_BASE}/alpha/status`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/admin/enrichment/health`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/admin/enrichment/industries`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/agent/consolidation/runs?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/agent/memory/stats`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
@@ -104,6 +135,8 @@ export default function EnrichmentAdmin() {
       if (alphaRes) setAlphaStatus({ capabilities: alphaRes.capabilities, capabilitiesEnriched: alphaRes.capabilitiesEnriched });
       setHealth(healthRes ?? null);
       setIndustries(industriesRes ?? null);
+      setConsolidation(consolidationRes ?? null);
+      setMemStats(memStatsRes?.memory ?? null);
     } catch (e) {
       setError(String(e));
     }
@@ -259,6 +292,26 @@ export default function EnrichmentAdmin() {
       setError(String(e));
     } finally {
       setRunning(false);
+    }
+  };
+
+  const triggerConsolidation = async () => {
+    if (!isSignedIn) { setError("Sign in to run consolidation."); return; }
+    if (!confirm("Run memory consolidation now?\n\nGroups recent observations by industry+capability and synthesizes validated patterns via Claude. Takes ~1-3 minutes; old observations get archived.")) return;
+    setConsolidating(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/agent/memory/consolidate`, { method: "POST", credentials: "include" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(body.error || `Consolidate failed (${res.status})`); return; }
+      const r = body.result;
+      if (r) setLastResult(`Consolidated ${r.patternsConsolidated} patterns from ${r.observationsScanned} observations · archived ${r.redundantDeleted} redundant memories.`);
+      else setLastResult("Consolidation skipped — already running.");
+      fetchAll();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setConsolidating(false);
     }
   };
 
@@ -607,6 +660,119 @@ export default function EnrichmentAdmin() {
             user sees the current node + per-industry progress in real time
             instead of waiting for the run record's final update. */}
         <LiveGraphState />
+
+        {/* Memory Consolidation panel — surfaces the sleeptime job that compresses
+            raw observations into validated_pattern memories via Claude, keeping Mem0
+            row count flat instead of growing linearly. */}
+        {consolidation && (
+          <div className="mb-6 border rounded">
+            <div className="px-4 py-2 border-b bg-muted/40 flex items-center justify-between flex-wrap gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Brain className="w-3.5 h-3.5" /> Agent Memory Consolidation
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${consolidation.enabled ? "bg-green-500/10 text-green-700" : "bg-muted text-muted-foreground"}`}>
+                  scheduler {consolidation.enabled ? "ON" : "OFF"}
+                </span>
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${consolidation.claudeConfigured ? "bg-blue-500/10 text-blue-700" : "bg-amber-500/10 text-amber-700"}`}>
+                  Claude {consolidation.claudeConfigured ? "ready" : "fallback"}
+                </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={triggerConsolidation}
+                  disabled={consolidating || !isSignedIn}
+                  className="gap-1.5"
+                  title={!isSignedIn ? "Sign in to trigger consolidation" : "Run consolidation now"}
+                >
+                  {consolidating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+                  {consolidating ? "Consolidating…" : "Consolidate now"}
+                </Button>
+              </div>
+            </div>
+
+            {/* Top: Mem0 quota / memory composition — shows whether the pipeline is
+                actually keeping growth flat (high pattern : observation ratio = healthy). */}
+            {memStats && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-y md:divide-y-0">
+                <div className="p-3">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><Database className="w-3 h-3" /> Total memories</div>
+                  <div className="text-2xl font-mono">{memStats.totalMemories.toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    Mem0: {memStats.mem0Connected ? "connected" : "offline"}
+                    {typeof memStats.pendingMem0Writes === "number" && memStats.pendingMem0Writes > 0 && (
+                      <> · <span className="text-amber-700">{memStats.pendingMem0Writes} pending</span></>
+                    )}
+                  </div>
+                </div>
+                <div className="p-3">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><Layers className="w-3 h-3" /> Patterns</div>
+                  <div className="text-2xl font-mono">{(memStats.byType?.pattern ?? 0).toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">validated, durable</div>
+                </div>
+                <div className="p-3">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><Activity className="w-3 h-3" /> Observations</div>
+                  <div className="text-2xl font-mono">{(memStats.byType?.observation ?? 0).toLocaleString()}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">awaiting consolidation</div>
+                </div>
+                <div className="p-3">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Compression ratio</div>
+                  <div className="text-2xl font-mono">
+                    {(() => {
+                      const obs = memStats.byType?.observation ?? 0;
+                      const pat = memStats.byType?.pattern ?? 0;
+                      if (obs + pat === 0) return "—";
+                      return `${Math.round((pat / (obs + pat)) * 100)}%`;
+                    })()}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">patterns / total</div>
+                </div>
+              </div>
+            )}
+
+            {/* Run history — durable record of every consolidation cycle. */}
+            <div className="border-t overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/20">
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Started</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Status</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase" title="Observations scanned in this run">Scanned</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase" title="Validated_pattern memories synthesized">Patterns</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase" title="Source observations archived from Mem0">Archived</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase" title="Patterns inserted into Letta archival memory">→ Letta</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase">Duration</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {consolidation.runs.length === 0 ? (
+                    <tr><td colSpan={8} className="px-3 py-6 text-center text-muted-foreground text-xs">No consolidation runs yet — first cycle runs ~60s after server boot.</td></tr>
+                  ) : consolidation.runs.map(r => (
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-muted/30">
+                      <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">{new Date(r.startedAt).toLocaleString()}</td>
+                      <td className="px-3 py-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                          r.status === "completed" ? "bg-green-500/10 text-green-700"
+                          : r.status === "running" ? "bg-blue-500/10 text-blue-700"
+                          : "bg-red-500/10 text-red-700"
+                        }`}>{r.status}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">{r.observationsScanned}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs font-semibold">{r.patternsConsolidated}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">{r.redundantDeleted}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">{r.archivalInserted}</td>
+                      <td className="px-3 py-2 text-right font-mono text-xs">{fmtDuration(r.durationMs)}</td>
+                      <td className="px-3 py-2 text-xs text-red-700 max-w-[240px] truncate" title={r.errorMessage ?? ""}>
+                        {r.errorMessage ? r.errorMessage.slice(0, 60) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         <div>
           <div className="text-sm font-medium mb-2 flex items-center gap-2"><Clock className="w-4 h-4" /> Recent runs</div>

@@ -9,19 +9,109 @@ import { emitAgentEvent } from "./events";
 const CONSOLIDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const MIN_REPEAT_FOR_VALIDATION = 3; // entity seen 3+ times = validated pattern
 const REDUNDANT_OBSERVATION_AGE_DAYS = 7; // observations older than this with mem0Id are deletable post-consolidation
+const CLAUDE_MODEL = "anthropic/claude-haiku-4.5";
+const CLAUDE_TIMEOUT_MS = 30_000;
 
 let consolidatorTimer: ReturnType<typeof setInterval> | null = null;
 let isConsolidating = false;
 
+function isConsolidatorEnabled(): boolean {
+  // Feature flag — defaults ON; set CONSOLIDATOR_ENABLED=false to disable in any env
+  return (process.env.CONSOLIDATOR_ENABLED ?? "true").toLowerCase() !== "false";
+}
+
 export function startConsolidator(intervalMs: number = CONSOLIDATE_INTERVAL_MS): void {
+  if (!isConsolidatorEnabled()) {
+    console.log("[Consolidator] Disabled via CONSOLIDATOR_ENABLED=false — not scheduling");
+    return;
+  }
   if (consolidatorTimer) {
     console.log("[Consolidator] Already running");
     return;
   }
-  console.log(`[Consolidator] Sleeptime job scheduled every ${(intervalMs / 3600000).toFixed(1)}h`);
+  console.log(`[Consolidator] Sleeptime job scheduled every ${(intervalMs / 3600000).toFixed(1)}h (Claude=${CLAUDE_MODEL})`);
   consolidatorTimer = setInterval(() => runConsolidation().catch(e => console.error("[Consolidator] cycle failed:", e)), intervalMs);
   // Kick off first run after 60s so the system can warm up
   setTimeout(() => runConsolidation().catch(e => console.error("[Consolidator] startup run failed:", e)), 60_000);
+}
+
+/**
+ * Synthesize a validated-pattern narrative from a group of observations using Claude.
+ * Returns null on any failure (network, missing key, malformed response) so the caller
+ * can fall back to the deterministic statistical summary — the consolidation job MUST
+ * still produce output even when the LLM is unreachable.
+ */
+async function synthesizePatternViaClaude(args: {
+  industryName: string;
+  capabilityName: string;
+  observations: Array<{ content: string; createdAt: Date; metadata: Record<string, unknown> }>;
+  avgScore: number;
+  avgConfidence: number;
+  stability: number;
+  variance: number;
+}): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+
+  // Build a compact bullet list of observations — cap text length per item to keep prompt under ~6k tokens.
+  const bullets = args.observations.slice(0, 20).map((o, i) => {
+    const meta = o.metadata || {};
+    const score = typeof meta.score === "number" ? `score=${meta.score.toFixed(1)}` : "";
+    const conf = typeof meta.confidence === "number" ? `conf=${meta.confidence.toFixed(2)}` : "";
+    const date = o.createdAt.toISOString().slice(0, 10);
+    const text = (o.content || "").slice(0, 400).replace(/\s+/g, " ").trim();
+    return `${i + 1}. [${date} ${score} ${conf}] ${text}`;
+  }).join("\n");
+
+  const prompt = `You are summarizing ${args.observations.length} agent observations about the capability "${args.capabilityName}" in the ${args.industryName} industry, collected over the last 30 days.
+
+Statistical signals across the group:
+- Average score: ${args.avgScore.toFixed(1)} / 100
+- Score variance: ${args.variance.toFixed(2)} (stability ${args.stability.toFixed(2)} where 1.0 = perfectly stable)
+- Average confidence: ${args.avgConfidence.toFixed(2)}
+
+Observations:
+${bullets}
+
+Write ONE concise paragraph (3-5 sentences, max 600 chars) that captures the validated pattern. Include:
+- The current state of the capability (level, trajectory)
+- The most consistent signal across observations
+- Any divergence or volatility worth flagging
+
+Be factual and specific — do not invent details, only synthesize what the observations actually say. Do NOT use markdown. Do NOT prefix with "VALIDATED PATTERN" or any heading. Output the paragraph only.`;
+
+  try {
+    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://capabilityeconomics.com",
+        "X-Title": "Capability Economics Memory Consolidator",
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 400,
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
+    });
+    if (!resp.ok) {
+      console.warn(`[Consolidator] Claude HTTP ${resp.status} — falling back to statistical summary`);
+      return null;
+    }
+    const data = await resp.json() as { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } };
+    if (data.error) {
+      console.warn(`[Consolidator] Claude error: ${data.error.message} — falling back`);
+      return null;
+    }
+    const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text || text.length < 20) return null;
+    return text.slice(0, 800);
+  } catch (err) {
+    console.warn("[Consolidator] Claude call failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 export function stopConsolidator(): void {
@@ -93,10 +183,30 @@ export async function runConsolidation(): Promise<{
         : 0;
       const stability = 1 / (1 + Math.sqrt(variance));
 
-      const consolidationContent =
-        `VALIDATED PATTERN (${items.length} observations across last 30d): ${capName} in ${indName} ` +
-        `holds at avg score ${avgScore.toFixed(1)} (σ²=${variance.toFixed(2)}, stability ${stability.toFixed(2)}, ` +
-        `avg confidence ${avgConf.toFixed(2)}). This pattern is durable.`;
+      const statsHeader =
+        `VALIDATED PATTERN (${items.length} observations / last 30d, avg score ${avgScore.toFixed(1)}, ` +
+        `σ²=${variance.toFixed(2)}, stability ${stability.toFixed(2)}, avg confidence ${avgConf.toFixed(2)})`;
+
+      // Try Claude synthesis; fall back to a deterministic line if the LLM is unreachable
+      // so consolidation still runs in degraded mode (offline, no API key, rate-limited, etc).
+      const claudeSummary = await synthesizePatternViaClaude({
+        industryName: indName,
+        capabilityName: capName,
+        observations: items.map(i => ({
+          content: i.content,
+          createdAt: i.createdAt,
+          metadata: (i.metadata as Record<string, unknown>) || {},
+        })),
+        avgScore,
+        avgConfidence: avgConf,
+        stability,
+        variance,
+      });
+      const synthesisMethod: "claude" | "statistical" = claudeSummary ? "claude" : "statistical";
+      const narrative = claudeSummary
+        ?? `${capName} in ${indName} holds at avg score ${avgScore.toFixed(1)} across ${items.length} observations; ` +
+           `low variance (${variance.toFixed(2)}) suggests a durable pattern.`;
+      const consolidationContent = `${statsHeader}: ${narrative}`;
 
       try {
         await storeMemory(
@@ -110,6 +220,8 @@ export async function runConsolidation(): Promise<{
             stability,
             sourceCount: items.length,
             consolidationRunId: run.id,
+            synthesisMethod,
+            synthesisModel: synthesisMethod === "claude" ? CLAUDE_MODEL : null,
           },
           { category: "validated_pattern", ttlDays: 365 },
         );
