@@ -2061,8 +2061,17 @@ export default function CEIDashboard() {
                 </div>
                 {showMethodology ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </CardTitle>
-              <CardDescription>
-                How the Capability Economics Index is calculated — multi-source Bayesian triangulation, velocity tracking, and economic multipliers
+              <CardDescription className="flex items-center gap-3 flex-wrap">
+                <span>
+                  How the Capability Economics Index is calculated — multi-source Bayesian triangulation, velocity tracking, and economic multipliers
+                </span>
+                <a
+                  href="/backtest"
+                  onClick={(e) => e.stopPropagation()}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-primary underline-offset-2 hover:underline"
+                >
+                  See backtest results →
+                </a>
               </CardDescription>
             </CardHeader>
             <AnimatePresence>

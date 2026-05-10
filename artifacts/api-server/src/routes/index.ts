@@ -48,6 +48,7 @@ import marketplaceListingsRouter from "./marketplace-listings";
 import marketplacePurchasesRouter from "./marketplace-purchases";
 import featuredContentRouter from "./featured-content";
 import foundryAdminRouter from "./foundry-admin";
+import backtestRouter from "./backtest";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -72,6 +73,7 @@ router.use(secRouter);
 router.use(enrichmentConfigRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
+router.use(backtestRouter);
 router.use(educationalContentRouter);
 router.use(caseStudiesRouter);
 router.use(vceRouter);

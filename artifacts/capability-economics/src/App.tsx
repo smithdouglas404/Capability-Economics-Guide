@@ -17,6 +17,7 @@ import CEIDashboard from "@/pages/cei-dashboard";
 import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
 import AdminPaymentsPage from "@/pages/admin-payments";
+import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
 import VCE from "@/pages/vce";
 import Alpha from "@/pages/alpha";
@@ -105,6 +106,7 @@ function Router() {
       <Route path="/assess" component={Assess} />
       <Route path="/admin">{() => <AdminOnly component={AdminDashboard} />}</Route>
       <Route path="/admin/payments">{() => <AdminOnly component={AdminPaymentsPage} />}</Route>
+      <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />
       <Route path="/membership" component={Membership} />
