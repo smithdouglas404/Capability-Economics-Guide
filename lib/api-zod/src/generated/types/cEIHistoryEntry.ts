@@ -11,4 +11,6 @@ export interface CEIHistoryEntry {
   overallIndex: number;
   timestamp: string;
   industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
+  overallCiLow?: number | null;
+  overallCiHigh?: number | null;
 }

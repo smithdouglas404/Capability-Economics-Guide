@@ -1611,6 +1611,22 @@ components:
           type: string
         topMoverDelta:
           type: number
+        ciLow:
+          type: number
+          nullable: true
+          description: Lower bound of 95% Bayesian credible interval for the industry index.
+        ciHigh:
+          type: number
+          nullable: true
+          description: Upper bound of 95% Bayesian credible interval for the industry index.
+        weightSourceUrl:
+          type: string
+          nullable: true
+          description: Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight).
+        weightSourceYear:
+          type: integer
+          nullable: true
+          description: Reporting year of the cited GDP-weight source.
       required: [industryName, indexValue, weight, velocity, capabilityCount, topMover, topMoverDelta]
 
     CEIData:
@@ -1630,6 +1646,14 @@ components:
           type: string
         timestamp:
           type: string
+        overallCiLow:
+          type: number
+          nullable: true
+          description: Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).
+        overallCiHigh:
+          type: number
+          nullable: true
+          description: Upper bound of 95% credible interval for the overall CEI.
       required: [overallIndex, industryBreakdowns, marketSentiment, volatility, methodology, timestamp]
 
     CEIHistoryEntry:
@@ -1643,6 +1667,12 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/CEIIndustryBreakdown"
+        overallCiLow:
+          type: number
+          nullable: true
+        overallCiHigh:
+          type: number
+          nullable: true
       required: [overallIndex, timestamp]
 
     AgentSchedulerStatus:

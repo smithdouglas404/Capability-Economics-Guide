@@ -628,12 +628,44 @@ export const GetCEICurrentResponse = zod.object({
       capabilityCount: zod.number(),
       topMover: zod.string(),
       topMoverDelta: zod.number(),
+      ciLow: zod
+        .number()
+        .nullish()
+        .describe(
+          "Lower bound of 95% Bayesian credible interval for the industry index.",
+        ),
+      ciHigh: zod
+        .number()
+        .nullish()
+        .describe(
+          "Upper bound of 95% Bayesian credible interval for the industry index.",
+        ),
+      weightSourceUrl: zod
+        .string()
+        .nullish()
+        .describe(
+          "Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight).",
+        ),
+      weightSourceYear: zod
+        .number()
+        .nullish()
+        .describe("Reporting year of the cited GDP-weight source."),
     }),
   ),
   marketSentiment: zod.number(),
   volatility: zod.number(),
   methodology: zod.string(),
   timestamp: zod.string(),
+  overallCiLow: zod
+    .number()
+    .nullish()
+    .describe(
+      "Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).",
+    ),
+  overallCiHigh: zod
+    .number()
+    .nullish()
+    .describe("Upper bound of 95% credible interval for the overall CEI."),
 });
 
 /**
@@ -659,9 +691,33 @@ export const GetCEIHistoryResponseItem = zod.object({
         capabilityCount: zod.number(),
         topMover: zod.string(),
         topMoverDelta: zod.number(),
+        ciLow: zod
+          .number()
+          .nullish()
+          .describe(
+            "Lower bound of 95% Bayesian credible interval for the industry index.",
+          ),
+        ciHigh: zod
+          .number()
+          .nullish()
+          .describe(
+            "Upper bound of 95% Bayesian credible interval for the industry index.",
+          ),
+        weightSourceUrl: zod
+          .string()
+          .nullish()
+          .describe(
+            "Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight).",
+          ),
+        weightSourceYear: zod
+          .number()
+          .nullish()
+          .describe("Reporting year of the cited GDP-weight source."),
       }),
     )
     .optional(),
+  overallCiLow: zod.number().nullish(),
+  overallCiHigh: zod.number().nullish(),
 });
 export const GetCEIHistoryResponse = zod.array(GetCEIHistoryResponseItem);
 
@@ -686,12 +742,44 @@ export const RefreshCEIResponse = zod.object({
           capabilityCount: zod.number(),
           topMover: zod.string(),
           topMoverDelta: zod.number(),
+          ciLow: zod
+            .number()
+            .nullish()
+            .describe(
+              "Lower bound of 95% Bayesian credible interval for the industry index.",
+            ),
+          ciHigh: zod
+            .number()
+            .nullish()
+            .describe(
+              "Upper bound of 95% Bayesian credible interval for the industry index.",
+            ),
+          weightSourceUrl: zod
+            .string()
+            .nullish()
+            .describe(
+              "Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight).",
+            ),
+          weightSourceYear: zod
+            .number()
+            .nullish()
+            .describe("Reporting year of the cited GDP-weight source."),
         }),
       ),
       marketSentiment: zod.number(),
       volatility: zod.number(),
       methodology: zod.string(),
       timestamp: zod.string(),
+      overallCiLow: zod
+        .number()
+        .nullish()
+        .describe(
+          "Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).",
+        ),
+      overallCiHigh: zod
+        .number()
+        .nullish()
+        .describe("Upper bound of 95% credible interval for the overall CEI."),
     })
     .optional(),
   triangulations: zod.array(zod.object({}).passthrough()).optional(),

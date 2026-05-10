@@ -14,4 +14,8 @@ export interface CEIData {
   volatility: number;
   methodology: string;
   timestamp: string;
+  /** Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance). */
+  overallCiLow?: number | null;
+  /** Upper bound of 95% credible interval for the overall CEI. */
+  overallCiHigh?: number | null;
 }

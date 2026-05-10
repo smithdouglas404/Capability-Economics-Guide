@@ -14,4 +14,12 @@ export interface CEIIndustryBreakdown {
   capabilityCount: number;
   topMover: string;
   topMoverDelta: number;
+  /** Lower bound of 95% Bayesian credible interval for the industry index. */
+  ciLow?: number | null;
+  /** Upper bound of 95% Bayesian credible interval for the industry index. */
+  ciHigh?: number | null;
+  /** Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight). */
+  weightSourceUrl?: string | null;
+  /** Reporting year of the cited GDP-weight source. */
+  weightSourceYear?: number | null;
 }

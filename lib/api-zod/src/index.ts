@@ -1,11 +1,11 @@
 // AUTO-RESOLVED ambiguity: api.ts exports zod schemas (runtime values) for
-  // GenerateInsightsResponse, GetDashboardParams, GetProjectParams, RefreshCEIBody,
-  // UpdateOrganizationBody. The same names also exist as TS types under
-  // ./generated/types/. To avoid duplicate-export errors, we re-export api.ts
-  // (the schemas), then explicitly re-export every non-conflicting type module.
-  // Consumers needing types for the conflicting names can use z.infer<typeof Schema>.
-  export * from "./generated/api";
-  export * from "./generated/types/agentMemory";
+// GenerateInsightsResponse, GetDashboardParams, GetProjectParams, RefreshCEIBody,
+// UpdateOrganizationBody. The same names also exist as TS types under
+// ./generated/types/. To avoid duplicate-export errors, we re-export api.ts
+// (the schemas), then explicitly re-export every non-conflicting type module.
+// Consumers needing types for the conflicting names can use z.infer<typeof Schema>.
+export * from "./generated/api";
+export * from "./generated/types/agentMemory";
 export * from "./generated/types/agentMemoryMetadata";
 export * from "./generated/types/agentMemoryStats";
 export * from "./generated/types/agentMemoryStatsByType";
@@ -83,4 +83,3 @@ export * from "./generated/types/upsertAssessmentsRequestAssessmentsItem";
 export * from "./generated/types/upsertAssessmentsRequestAssessmentsItemInvestmentLevel";
 export * from "./generated/types/upsertAssessmentsRequestAssessmentsItemStrategicImportance";
 export * from "./generated/types/whitePaper";
-  

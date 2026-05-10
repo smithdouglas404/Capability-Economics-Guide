@@ -473,6 +473,14 @@ export interface CEIIndustryBreakdown {
   capabilityCount: number;
   topMover: string;
   topMoverDelta: number;
+  /** Lower bound of 95% Bayesian credible interval for the industry index. */
+  ciLow?: number | null;
+  /** Upper bound of 95% Bayesian credible interval for the industry index. */
+  ciHigh?: number | null;
+  /** Perplexity-cited source URL for the GDP-weight (null when industry is excluded for missing weight). */
+  weightSourceUrl?: string | null;
+  /** Reporting year of the cited GDP-weight source. */
+  weightSourceYear?: number | null;
 }
 
 export type CEIDataIndustryBreakdowns = { [key: string]: CEIIndustryBreakdown };
@@ -484,6 +492,10 @@ export interface CEIData {
   volatility: number;
   methodology: string;
   timestamp: string;
+  /** Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance). */
+  overallCiLow?: number | null;
+  /** Upper bound of 95% credible interval for the overall CEI. */
+  overallCiHigh?: number | null;
 }
 
 export type CEIHistoryEntryIndustryBreakdowns = {
@@ -494,6 +506,8 @@ export interface CEIHistoryEntry {
   overallIndex: number;
   timestamp: string;
   industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
+  overallCiLow?: number | null;
+  overallCiHigh?: number | null;
 }
 
 export interface AgentSchedulerStatus {
