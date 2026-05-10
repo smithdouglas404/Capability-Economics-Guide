@@ -17,6 +17,7 @@ export type AuditAction =
   | "api_key.issue"
   | "api_key.revoke"
   | "api_key.update"
+  | "data_api.request"
   | "data_api.quota_exhausted"
   | "data_api.rate_limited"
   | "impersonate.start"

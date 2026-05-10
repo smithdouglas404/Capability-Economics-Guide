@@ -18,8 +18,8 @@ import {
   valueChainStagesTable,
 } from "@workspace/db";
 import { and, desc, eq, gte, lte, sql, type SQL } from "drizzle-orm";
-import { requireApiKey } from "../middlewares/requireApiKey";
-import { buildOpenApiSpec } from "../services/openapi-spec";
+import { requireApiKey, requireApiKeyAny } from "../middlewares/requireApiKey";
+import { buildOpenApiSpec } from "../services/v1-schemas";
 
 const router: IRouter = Router();
 
@@ -74,10 +74,13 @@ router.get("/docs", (_req: Request, res: Response) => {
 });
 
 // ---------- /v1/me ----------
-router.get("/me", requireApiKey("read:industries"), (req: Request, res: Response) => {
+// No specific scope required — any valid key may introspect itself. Still
+// rate-limited and quota-counted by the middleware.
+router.get("/me", requireApiKeyAny(), (req: Request, res: Response) => {
   const k = req.apiKey!;
   res.json({
     keyId: k.keyId,
+    orgId: k.orgId,
     scopes: k.scopes,
     rateLimitPerMin: k.rateLimitPerMin,
     monthlyQuota: k.monthlyQuota,

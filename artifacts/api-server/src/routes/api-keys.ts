@@ -43,12 +43,13 @@ router.get("/me/api-keys", async (req, res) => {
   res.json({ keys: rows });
 });
 
+// orgId is NOT accepted from the request body — it's derived from the
+// authenticated Clerk session so a caller can't issue keys "as" another org.
 const CreateKeyBody = z.object({
   label: z.string().min(1).max(100),
   scopes: ScopeSchema.optional(),
   rateLimitPerMin: z.number().int().min(1).max(100000).nullable().optional(),
   monthlyQuota: z.number().int().min(1).nullable().optional(),
-  orgId: z.string().min(1).nullable().optional(),
 });
 
 router.post("/me/api-keys", async (req, res) => {
@@ -56,6 +57,11 @@ router.post("/me/api-keys", async (req, res) => {
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const parsed = CreateKeyBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  // Derive org from Clerk session (the user's currently active org). Falls
+  // back to a per-user namespace when the user isn't acting on behalf of an
+  // org so individual developers can still issue keys.
+  const orgId = (auth as { orgId?: string | null }).orgId ?? null;
 
   const { raw, prefix, hashed } = generateApiKey();
   const [created] = await db.insert(apiKeysTable).values({
@@ -67,7 +73,7 @@ router.post("/me/api-keys", async (req, res) => {
     rateLimitPerMin: parsed.data.rateLimitPerMin ?? null,
     monthlyQuota: parsed.data.monthlyQuota ?? null,
     quotaResetAt: nextMonthlyResetAt(),
-    orgId: parsed.data.orgId ?? null,
+    orgId,
     createdBy: auth.userId,
   }).returning();
 
@@ -78,6 +84,7 @@ router.post("/me/api-keys", async (req, res) => {
     scopes: created!.scopes,
     rateLimitPerMin: created!.rateLimitPerMin,
     monthlyQuota: created!.monthlyQuota,
+    orgId: created!.orgId,
     createdAt: created!.createdAt,
     raw, // returned ONCE — not stored
     warning: "Copy this key now. It will never be shown again.",

@@ -16,9 +16,8 @@
  *      exhaustion / rate-limit denial to avoid table bloat.
  */
 import type { Request, Response, NextFunction } from "express";
-import { db, apiRequestLogTable } from "@workspace/db";
+import { db, apiRequestLogTable, adminAuditLogTable } from "@workspace/db";
 import { resolveApiKey, incrementMonthlyUsage, type ResolvedApiKey } from "../services/api-keys";
-import { logAdminAction } from "../services/audit-log";
 import { getRedis } from "../lib/redis";
 import { logger } from "../lib/logger";
 
@@ -41,6 +40,28 @@ declare global {
  * Returns the number of requests in the trailing 60s window (this one
  * inclusive), or null if Redis is unavailable so the caller fails open.
  */
+/**
+ * Direct insert into admin_audit_log that does NOT call Clerk's getAuth() —
+ * required because the v1 surface authenticates via API key, leaving req.auth
+ * as a plain object (not the function getAuth expects). The actor is always
+ * the API key's owning user.
+ */
+function auditV1(args: {
+  actorUserId: string;
+  action: "data_api.request" | "data_api.quota_exhausted" | "data_api.rate_limited";
+  keyId: number;
+  details: Record<string, unknown>;
+}): void {
+  db.insert(adminAuditLogTable).values({
+    actorUserId: args.actorUserId,
+    actorEmail: null,
+    action: args.action,
+    targetType: "api_key",
+    targetId: String(args.keyId),
+    details: args.details,
+  }).catch((err) => logger.warn({ err, action: args.action, keyId: args.keyId }, "[v1] audit insert failed"));
+}
+
 async function slidingWindowCount(redis: Awaited<ReturnType<typeof getRedis>>, keyId: number): Promise<number | null> {
   if (!redis) return null;
   const now = Date.now();
@@ -61,7 +82,19 @@ async function slidingWindowCount(redis: Awaited<ReturnType<typeof getRedis>>, k
   }
 }
 
+/**
+ * Variant that performs auth, rate-limit, and quota enforcement but skips the
+ * scope check. Used by /v1/me so any valid key can introspect itself.
+ */
+export function requireApiKeyAny() {
+  return buildMiddleware(null);
+}
+
 export function requireApiKey(scope: string) {
+  return buildMiddleware(scope);
+}
+
+function buildMiddleware(scope: string | null) {
   return async function v1Auth(req: Request, res: Response, next: NextFunction): Promise<void> {
     const startedAt = Date.now();
     const header = req.headers.authorization;
@@ -81,7 +114,7 @@ export function requireApiKey(scope: string) {
       return;
     }
 
-    if (!resolved.scopes.includes(scope)) {
+    if (scope !== null && !resolved.scopes.includes(scope)) {
       res.status(403).json({
         error: "insufficient_scope",
         requiredScope: scope,
@@ -99,11 +132,11 @@ export function requireApiKey(scope: string) {
       res.setHeader("X-RateLimit-Remaining", String(Math.max(0, limit - used)));
       if (used > limit) {
         res.setHeader("Retry-After", "60");
-        void logAdminAction(req, {
+        auditV1({
+          actorUserId: resolved.userId,
           action: "data_api.rate_limited",
-          targetType: "api_key",
-          targetId: resolved.keyId,
-          details: { limitPerMin: limit, used, path: req.originalUrl },
+          keyId: resolved.keyId,
+          details: { limitPerMin: limit, used, path: req.originalUrl, orgId: resolved.orgId },
         });
         res.status(429).json({
           error: "rate_limited",
@@ -132,11 +165,11 @@ export function requireApiKey(scope: string) {
         res.setHeader("X-Quota-Used", String(newUsage));
         res.setHeader("X-Quota-Remaining", String(Math.max(0, resolved.monthlyQuota - newUsage)));
         if (newUsage > resolved.monthlyQuota) {
-          void logAdminAction(req, {
+          auditV1({
+            actorUserId: resolved.userId,
             action: "data_api.quota_exhausted",
-            targetType: "api_key",
-            targetId: resolved.keyId,
-            details: { quota: resolved.monthlyQuota, used: newUsage, path: req.originalUrl },
+            keyId: resolved.keyId,
+            details: { quota: resolved.monthlyQuota, used: newUsage, path: req.originalUrl, orgId: resolved.orgId },
           });
           res.status(429).json({
             error: "quota_exhausted",
@@ -151,17 +184,34 @@ export function requireApiKey(scope: string) {
 
     req.apiKey = resolved;
 
-    // Log on response finish so we capture the final status code.
+    // Log on response finish so we capture the final status code. Two
+    // destinations: api_request_log (high-volume per-request metering) and
+    // admin_audit_log (durable, queryable audit trail required by the
+    // task spec).
     res.on("finish", () => {
       const durationMs = Date.now() - startedAt;
+      const path = req.originalUrl.split("?")[0]!.slice(0, 500);
       // Best-effort — never block the request.
       db.insert(apiRequestLogTable).values({
         keyId: resolved!.keyId,
         method: req.method,
-        path: req.originalUrl.split("?")[0]!.slice(0, 500),
+        path,
         statusCode: res.statusCode,
         durationMs,
       }).catch((err) => logger.warn({ err, keyId: resolved!.keyId }, "[v1] failed to write api_request_log"));
+      auditV1({
+        actorUserId: resolved!.userId,
+        action: "data_api.request",
+        keyId: resolved!.keyId,
+        details: {
+          method: req.method,
+          path,
+          statusCode: res.statusCode,
+          durationMs,
+          scope,
+          orgId: resolved!.orgId,
+        },
+      });
     });
 
     next();
