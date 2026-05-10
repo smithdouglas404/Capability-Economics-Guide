@@ -474,10 +474,14 @@ router.post("/benchmarking/run", async (req, res) => {
   }
 });
 
-// List past benchmark sessions for review
+// List past benchmark sessions for review — must be scoped to caller's session.
+// Pre-fix returned every tenant's last 50 sessions.
 router.get("/benchmarking/sessions", async (req, res) => {
   try {
+    const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+    if (!token) { res.json([]); return; }
     const rows = await db.select().from(benchmarkSessionsTable)
+      .where(eq(benchmarkSessionsTable.sessionToken, token))
       .orderBy(desc(benchmarkSessionsTable.createdAt))
       .limit(50);
     res.json(rows);

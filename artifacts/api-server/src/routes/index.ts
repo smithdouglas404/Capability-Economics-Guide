@@ -128,6 +128,7 @@ router.use(tradeSignalsRouter);
 router.use(innovationPipelineRouter);
 router.use(benchmarkingRouter);
 router.use(roiRouter);
+router.use(watchlistRouter);
 
 // Open routes (all tiers)
 router.use(nlQueryRouter);

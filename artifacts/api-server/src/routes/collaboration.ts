@@ -2,22 +2,27 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { strategyCommentsTable, strategyDecisionsTable, capabilitiesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
+import { withOrgScope, resolveSessionToken } from "../lib/tenant-scope";
 
 const router = Router();
 
-// Get comments for a target
+// Get comments for a target — must be scoped to the caller's session.
+// Pre-fix any caller could read another tenant's comments by passing the
+// same (targetType, targetId) tuple.
 router.get("/collaboration/comments", async (req, res) => {
   try {
     const targetType = typeof req.query.targetType === "string" ? req.query.targetType : "";
     const targetId = Number(req.query.targetId) || 0;
+    const token = resolveSessionToken(req);
 
     if (!targetType || !targetId) { res.json([]); return; }
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
 
     const rows = await db.select().from(strategyCommentsTable)
-      .where(and(
+      .where(withOrgScope("strategy_comments", token, and(
         eq(strategyCommentsTable.targetType, targetType),
         eq(strategyCommentsTable.targetId, targetId),
-      ))
+      )))
       .orderBy(strategyCommentsTable.createdAt);
 
     res.json(rows);
@@ -72,41 +77,28 @@ router.patch("/collaboration/comments/:id", async (req, res) => {
   }
 });
 
-// Get strategy decisions
+// Get strategy decisions — always scoped to the caller's session.
+// Pre-fix this leaked: passing only `capabilityId` returned every tenant's
+// decisions on that capability, and omitting both args dumped the latest
+// 50 globally.
 router.get("/collaboration/decisions", async (req, res) => {
   try {
-    const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : undefined;
+    const token = resolveSessionToken(req);
     const capabilityId = Number(req.query.capabilityId) || undefined;
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
 
-    let rows;
-    if (capabilityId) {
-      rows = await db.select({
-        decision: strategyDecisionsTable,
-        capabilityName: capabilitiesTable.name,
-      })
-        .from(strategyDecisionsTable)
-        .leftJoin(capabilitiesTable, eq(strategyDecisionsTable.capabilityId, capabilitiesTable.id))
-        .where(eq(strategyDecisionsTable.capabilityId, capabilityId))
-        .orderBy(desc(strategyDecisionsTable.createdAt));
-    } else if (token) {
-      rows = await db.select({
-        decision: strategyDecisionsTable,
-        capabilityName: capabilitiesTable.name,
-      })
-        .from(strategyDecisionsTable)
-        .leftJoin(capabilitiesTable, eq(strategyDecisionsTable.capabilityId, capabilitiesTable.id))
-        .where(eq(strategyDecisionsTable.sessionToken, token))
-        .orderBy(desc(strategyDecisionsTable.createdAt));
-    } else {
-      rows = await db.select({
-        decision: strategyDecisionsTable,
-        capabilityName: capabilitiesTable.name,
-      })
-        .from(strategyDecisionsTable)
-        .leftJoin(capabilitiesTable, eq(strategyDecisionsTable.capabilityId, capabilitiesTable.id))
-        .orderBy(desc(strategyDecisionsTable.createdAt))
-        .limit(50);
-    }
+    const rows = await db.select({
+      decision: strategyDecisionsTable,
+      capabilityName: capabilitiesTable.name,
+    })
+      .from(strategyDecisionsTable)
+      .leftJoin(capabilitiesTable, eq(strategyDecisionsTable.capabilityId, capabilitiesTable.id))
+      .where(withOrgScope(
+        "strategy_decisions",
+        token,
+        capabilityId ? eq(strategyDecisionsTable.capabilityId, capabilityId) : undefined,
+      ))
+      .orderBy(desc(strategyDecisionsTable.createdAt));
 
     res.json(rows.map((r) => ({ ...r.decision, capabilityName: r.capabilityName })));
   } catch (err) {

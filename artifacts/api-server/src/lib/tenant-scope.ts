@@ -26,6 +26,10 @@ import {
   innovationProjectsTable,
   roiRecordsTable,
   warRoomSessionsTable,
+  watchlistsTable,
+  benchmarkSessionsTable,
+  strategyCommentsTable,
+  strategyDecisionsTable,
   organizationsTable,
 } from "@workspace/db";
 import { and, eq, type SQL } from "drizzle-orm";
@@ -41,6 +45,10 @@ export const SESSION_SCOPED = {
   innovation_projects:  { table: innovationProjectsTable,  column: innovationProjectsTable.sessionToken },
   roi_records:          { table: roiRecordsTable,          column: roiRecordsTable.sessionToken },
   war_room_sessions:    { table: warRoomSessionsTable,     column: warRoomSessionsTable.sessionToken },
+  watchlists:           { table: watchlistsTable,          column: watchlistsTable.sessionToken },
+  benchmark_sessions:   { table: benchmarkSessionsTable,   column: benchmarkSessionsTable.sessionToken },
+  strategy_comments:    { table: strategyCommentsTable,    column: strategyCommentsTable.sessionToken },
+  strategy_decisions:   { table: strategyDecisionsTable,   column: strategyDecisionsTable.sessionToken },
 } as const;
 
 export type SessionScopedKey = keyof typeof SESSION_SCOPED;
@@ -72,6 +80,27 @@ export function forSessionRow(
   // Every registered table has a numeric `id` primary key.
   const idCol = (spec.table as unknown as { id: { name: string } & SQL }).id as unknown as SQL;
   return and(eq(idCol, id), eq(spec.column, sessionToken)) as SQL;
+}
+
+/**
+ * Compose a tenant filter with caller-supplied additional predicates. This
+ * is the recommended primitive for any query that already has a non-tenant
+ * WHERE clause (e.g. filtering comments by `targetType` AND `targetId`):
+ *
+ *   .where(withOrgScope("strategy_comments", token,
+ *     and(eq(strategyCommentsTable.targetType, t),
+ *         eq(strategyCommentsTable.targetId, i))))
+ *
+ * Centralising it makes it impossible to forget the tenant predicate when
+ * adding a new filter.
+ */
+export function withOrgScope(
+  key: SessionScopedKey,
+  sessionToken: string,
+  extra?: SQL | undefined,
+): SQL {
+  const base = forSession(key, sessionToken);
+  return extra ? (and(base, extra) as SQL) : base;
 }
 
 /**

@@ -45,6 +45,10 @@ const TIER_LIMITS_PER_MIN: Record<string, number> = {
   admin: 100000, // operators bypass for all practical purposes
 };
 
+// IMPORTANT: this middleware is mounted at `/api`, which in Express 5
+// strips the mount prefix from `req.path` (so `/api/healthz` becomes
+// `/healthz` inside this middleware). Always match against `req.originalUrl`
+// so the prefixes below are unambiguous and match the actual URL.
 const SKIP_PREFIXES = [
   "/api/healthz",
   "/api/health",
@@ -120,7 +124,8 @@ async function identify(req: Request): Promise<BucketIdentity> {
   return { bucket: `ip:${ip}`, tenantId: ip, tenantKind: "ip", tier: "anonymous" };
 }
 
-function shouldSkip(pathname: string): boolean {
+function shouldSkip(originalUrl: string): boolean {
+  const pathname = originalUrl.split("?")[0] ?? originalUrl;
   return SKIP_PREFIXES.some(p => pathname === p || pathname.startsWith(p + "/"));
 }
 
@@ -142,7 +147,7 @@ export const VOLUME_24H_KEY_PREFIX = "ce:apivol:";
 
 export function rateLimitMiddleware() {
   return async function rateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (shouldSkip(req.path)) { next(); return; }
+    if (shouldSkip(req.originalUrl)) { next(); return; }
 
     let id: BucketIdentity;
     try {
