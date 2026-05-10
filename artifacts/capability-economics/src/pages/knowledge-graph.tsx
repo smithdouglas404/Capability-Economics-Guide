@@ -211,6 +211,7 @@ export default function KnowledgeGraph() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{capabilityDetail.name}</h1>
                   <LifecycleChip stage={capabilityDetail.lifecycleStage as LifecycleStage | undefined} />
+                  <a href="/lifecycle" className="text-[11px] text-muted-foreground hover:text-foreground underline">methodology</a>
                 </div>
                 <p className="text-lg text-muted-foreground mt-2">{capabilityDetail.description}</p>
               </div>
