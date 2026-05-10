@@ -185,9 +185,14 @@ export default function CSuite() {
 
                     {!perspLoading && (perspError || !perspective) && (
                       <div className="border border-dashed border-border/60 py-16 text-center mt-12">
-                        <Brain className="w-6 h-6 text-muted-foreground/40 mx-auto mb-3" />
-                        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">No content generated</p>
-                        <p className="text-xs text-muted-foreground">Trigger an agent run from the CEI Dashboard — content generates automatically.</p>
+                        <div className="inline-flex items-center gap-2 mb-3">
+                          <RefreshCw className="w-4 h-4 text-muted-foreground/60 animate-spin" />
+                          <Brain className="w-5 h-5 text-muted-foreground/50" />
+                        </div>
+                        <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Regenerating perspective</p>
+                        <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                          The agent is preparing this {activeRole.title} viewpoint with fresh research. New perspectives publish automatically as the agent finishes — refresh in a moment.
+                        </p>
                       </div>
                     )}
 

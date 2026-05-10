@@ -135,6 +135,96 @@ export async function getUsageSummary(windowHours = 24): Promise<{
   return { windowHours, totals, byModel, byEndpoint, byProvider, monthEstimateUsd };
 }
 
+export interface CsuiteEndpointStats {
+  endpoint: string;
+  /** Slug parsed from the endpoint tag (e.g. "cto" from "csuite_perspective:cto"). */
+  roleSlug: string;
+  attempts: number;
+  successes: number;
+  failures: number;
+  successRate: number;
+  lastAttemptAt: string | null;
+  lastStatus: string | null;
+  modelsUsed: string[];
+}
+
+/**
+ * Per-CXO success/failure rates over the given window. Used by the admin
+ * dashboard to spot which roles are silently failing — e.g. "cto perspective
+ * has 0/12 successes in 24h" surfaces a regression that the legacy console.error
+ * path would have hidden.
+ */
+export async function getCsuitePerspectiveStats(windowHours = 24): Promise<{
+  windowHours: number;
+  perRole: CsuiteEndpointStats[];
+  totals: { attempts: number; successes: number; failures: number; successRate: number };
+}> {
+  const cutoff = new Date(Date.now() - windowHours * 3600 * 1000);
+
+  const rows = await db
+    .select({
+      endpoint: llmUsageTable.endpoint,
+      model: llmUsageTable.model,
+      status: llmUsageTable.status,
+      calledAt: llmUsageTable.calledAt,
+    })
+    .from(llmUsageTable)
+    .where(sql`${llmUsageTable.calledAt} >= ${cutoff} AND ${llmUsageTable.endpoint} LIKE 'csuite_perspective:%'`)
+    .orderBy(desc(llmUsageTable.calledAt));
+
+  // Group in JS rather than SQL — array_agg/distinct on string columns gets
+  // verbose and the row count here is bounded (a few hundred tops per day).
+  const grouped = new Map<string, {
+    attempts: number;
+    successes: number;
+    failures: number;
+    lastAttemptAt: Date | null;
+    lastStatus: string | null;
+    models: Set<string>;
+  }>();
+
+  for (const r of rows) {
+    const ep = r.endpoint;
+    let g = grouped.get(ep);
+    if (!g) {
+      g = { attempts: 0, successes: 0, failures: 0, lastAttemptAt: null, lastStatus: null, models: new Set() };
+      grouped.set(ep, g);
+    }
+    g.attempts++;
+    if (r.status === "ok") g.successes++; else g.failures++;
+    g.models.add(r.model);
+    if (!g.lastAttemptAt || r.calledAt > g.lastAttemptAt) {
+      g.lastAttemptAt = r.calledAt;
+      g.lastStatus = r.status;
+    }
+  }
+
+  const perRole: CsuiteEndpointStats[] = Array.from(grouped.entries()).map(([endpoint, g]) => ({
+    endpoint,
+    roleSlug: endpoint.replace(/^csuite_perspective:/, ""),
+    attempts: g.attempts,
+    successes: g.successes,
+    failures: g.failures,
+    successRate: g.attempts > 0 ? g.successes / g.attempts : 0,
+    lastAttemptAt: g.lastAttemptAt ? g.lastAttemptAt.toISOString() : null,
+    lastStatus: g.lastStatus,
+    modelsUsed: Array.from(g.models),
+  })).sort((a, b) => a.roleSlug.localeCompare(b.roleSlug));
+
+  const totals = perRole.reduce(
+    (acc, r) => ({
+      attempts: acc.attempts + r.attempts,
+      successes: acc.successes + r.successes,
+      failures: acc.failures + r.failures,
+      successRate: 0,
+    }),
+    { attempts: 0, successes: 0, failures: 0, successRate: 0 },
+  );
+  totals.successRate = totals.attempts > 0 ? totals.successes / totals.attempts : 0;
+
+  return { windowHours, perRole, totals };
+}
+
 export async function getRecentCalls(limit = 50, opts: { endpoint?: string; status?: string } = {}): Promise<Array<typeof llmUsageTable.$inferSelect>> {
   const conds = [] as ReturnType<typeof sql>[];
   if (opts.endpoint) conds.push(sql`${llmUsageTable.endpoint} = ${opts.endpoint}`);

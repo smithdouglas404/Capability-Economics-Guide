@@ -21,6 +21,7 @@ import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
 import { computeCEI } from "../cei-engine";
 import { recallMemories, storeMemory } from "./memory";
+import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let _anthropic: AnthropicClient | null = null;
@@ -325,21 +326,21 @@ Return ONLY valid JSON:
 
 Questions must challenge conventional thinking and be specific to ${role.title} accountability. Chart subjects must be the 5 most relevant capability dimensions for this role, with values varied across 40-95.`;
 
-        const glmResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://capabilityeconomics.com",
-            "X-Title": "Capability Economics",
-          },
-          body: JSON.stringify({ model: "anthropic/claude-sonnet-4.5", max_tokens: 4096, messages: [{ role: "user", content: glmPrompt }] }),
+        // Budget-aware fallback chain — production was failing every CXO render
+        // with "GLM error: requires more credits, or fewer max_tokens. Requested
+        // 4096, can afford 129". The 4096-cap was wildly oversized for a payload
+        // that's reliably ~600-800 tokens; cap at 1500 and let chatWithFallback
+        // step through Sonnet → Haiku → GLM 5.1 on credit errors so the page
+        // never renders empty.
+        const glmResult = await chatWithFallback({
+          models: EDITORIAL_FALLBACK_CHAIN,
+          messages: [{ role: "user", content: glmPrompt }],
+          maxTokens: 1500,
+          endpoint: `csuite_perspective:${role.slug}`,
         });
-        const glmData = await glmResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-        if (glmData.error) throw new Error(`GLM error: ${glmData.error.message}`);
-        const glmText = glmData.choices?.[0]?.message?.content ?? "";
+        const glmText = glmResult.text;
         const glmMatch = glmText.match(/\{[\s\S]*\}/);
-        if (!glmMatch) throw new Error("GLM returned no JSON");
+        if (!glmMatch) throw new Error("LLM returned no JSON");
         const glmParsed = JSON.parse(glmMatch[0]) as { questions: string[]; chartData: { subject: string; A: number; fullMark: number }[] };
 
         // Sonnet 4.5 — grounded scenario, capabilities, and metrics with real numbers

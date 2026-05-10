@@ -79,6 +79,22 @@ interface ConsolidationResponse {
   enabled: boolean;
   claudeConfigured: boolean;
 }
+interface CsuiteEndpointStats {
+  endpoint: string;
+  roleSlug: string;
+  attempts: number;
+  successes: number;
+  failures: number;
+  successRate: number;
+  lastAttemptAt: string | null;
+  lastStatus: string | null;
+  modelsUsed: string[];
+}
+interface CsuiteUsageResponse {
+  windowHours: number;
+  perRole: CsuiteEndpointStats[];
+  totals: { attempts: number; successes: number; failures: number; successRate: number };
+}
 interface MemoryStatsResponse {
   memory: {
     totalMemories: number;
@@ -108,12 +124,13 @@ export default function EnrichmentAdmin() {
   const [consolidation, setConsolidation] = useState<ConsolidationResponse | null>(null);
   const [memStats, setMemStats] = useState<MemoryStatsResponse["memory"] | null>(null);
   const [consolidating, setConsolidating] = useState(false);
+  const [csuiteUsage, setCsuiteUsage] = useState<CsuiteUsageResponse | null>(null);
   const { isSignedIn, user } = useUser();
   const { signOut } = useClerk();
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, r, cfgRes, redisRes, alphaRes, healthRes, industriesRes, consolidationRes, memStatsRes] = await Promise.all([
+      const [s, r, cfgRes, redisRes, alphaRes, healthRes, industriesRes, consolidationRes, memStatsRes, csuiteUsageRes] = await Promise.all([
         fetch(`${API_BASE}/enrichment/status`).then(r => r.json()),
         fetch(`${API_BASE}/enrichment/runs?limit=10`).then(r => r.json()),
         fetch(`${API_BASE}/admin/enrichment/config`).then(r => r.ok ? r.json() : null).catch(() => null),
@@ -123,6 +140,7 @@ export default function EnrichmentAdmin() {
         fetch(`${API_BASE}/admin/enrichment/industries`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/agent/consolidation/runs?limit=10`).then(r => r.ok ? r.json() : null).catch(() => null),
         fetch(`${API_BASE}/agent/memory/stats`).then(r => r.ok ? r.json() : null).catch(() => null),
+        fetch(`${API_BASE}/usage/csuite?windowHours=24`).then(r => r.ok ? r.json() : null).catch(() => null),
       ]);
       setStatus(s);
       setRuns(Array.isArray(r) ? r : []);
@@ -137,6 +155,7 @@ export default function EnrichmentAdmin() {
       setIndustries(industriesRes ?? null);
       setConsolidation(consolidationRes ?? null);
       setMemStats(memStatsRes?.memory ?? null);
+      setCsuiteUsage(csuiteUsageRes ?? null);
     } catch (e) {
       setError(String(e));
     }
@@ -768,6 +787,80 @@ export default function EnrichmentAdmin() {
                       </td>
                     </tr>
                   ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* C-Suite Perspective Generation panel — surfaces per-CXO success/failure
+            rates over the last 24h. The legacy code only logged "GLM error: requires
+            more credits" to console, hiding total failure of every render. This panel
+            makes silent failure impossible. */}
+        {csuiteUsage && csuiteUsage.totals.attempts > 0 && (
+          <div className="mb-6 border rounded">
+            <div className="px-4 py-2 border-b bg-muted/40 flex items-center justify-between flex-wrap gap-2">
+              <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                <Sparkles className="w-3.5 h-3.5" /> C-Suite Perspective Generation
+                <span className="font-normal normal-case tracking-normal text-[10px] text-muted-foreground/70">last {csuiteUsage.windowHours}h</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${
+                  csuiteUsage.totals.successRate >= 0.9 ? "bg-green-500/10 text-green-700"
+                  : csuiteUsage.totals.successRate >= 0.5 ? "bg-amber-500/10 text-amber-700"
+                  : "bg-red-500/10 text-red-700"
+                }`}>
+                  {Math.round(csuiteUsage.totals.successRate * 100)}% success ({csuiteUsage.totals.successes}/{csuiteUsage.totals.attempts})
+                </span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/20">
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Role</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase">Attempts</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase">Success</th>
+                    <th className="px-3 py-2 text-right text-[10px] font-medium text-muted-foreground uppercase">Rate</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Last status</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Last attempt</th>
+                    <th className="px-3 py-2 text-left text-[10px] font-medium text-muted-foreground uppercase">Models tried</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csuiteUsage.perRole.map(row => {
+                    const ratePct = Math.round(row.successRate * 100);
+                    return (
+                      <tr key={row.endpoint} className="border-b border-border/50 hover:bg-muted/30">
+                        <td className="px-3 py-2 font-mono text-xs uppercase">{row.roleSlug}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">{row.attempts}</td>
+                        <td className="px-3 py-2 text-right font-mono text-xs">
+                          <span className="text-green-700">{row.successes}</span>
+                          {row.failures > 0 && <span className="text-red-700"> / {row.failures} fail</span>}
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                            ratePct >= 90 ? "bg-green-500/10 text-green-700"
+                            : ratePct >= 50 ? "bg-amber-500/10 text-amber-700"
+                            : "bg-red-500/10 text-red-700"
+                          }`}>{ratePct}%</span>
+                        </td>
+                        <td className="px-3 py-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                            row.lastStatus === "ok" ? "bg-green-500/10 text-green-700"
+                            : row.lastStatus === "quota" ? "bg-amber-500/10 text-amber-700"
+                            : "bg-red-500/10 text-red-700"
+                          }`}>{row.lastStatus ?? "—"}</span>
+                        </td>
+                        <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                          {row.lastAttemptAt ? new Date(row.lastAttemptAt).toLocaleString() : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-[10px] font-mono text-muted-foreground" title={row.modelsUsed.join(", ")}>
+                          {row.modelsUsed.length === 1 ? row.modelsUsed[0] : `${row.modelsUsed.length} (chain)`}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
