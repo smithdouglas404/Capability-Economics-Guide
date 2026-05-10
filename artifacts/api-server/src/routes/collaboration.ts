@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { strategyCommentsTable, strategyDecisionsTable, capabilitiesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { withOrgScope, resolveSessionToken } from "../lib/tenant-scope";
+import { withOrgScope, resolveSessionToken, forSessionRow } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -60,15 +60,12 @@ router.post("/collaboration/comments", async (req, res) => {
 router.patch("/collaboration/comments/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { resolved, sessionToken: bodyToken } = req.body ?? {};
-    const token = (typeof req.query.sessionToken === "string" && req.query.sessionToken)
-      || (typeof bodyToken === "string" && bodyToken)
-      || (typeof req.headers["x-session-token"] === "string" && req.headers["x-session-token"] as string)
-      || "";
+    const { resolved } = req.body ?? {};
+    const token = resolveSessionToken(req);
     if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [updated] = await db.update(strategyCommentsTable)
       .set({ resolved: resolved ?? false })
-      .where(and(eq(strategyCommentsTable.id, id), eq(strategyCommentsTable.sessionToken, token)))
+      .where(forSessionRow("strategy_comments", token, id))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);
