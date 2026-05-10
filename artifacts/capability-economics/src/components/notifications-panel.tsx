@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ type Delivery = {
 type CapabilityLite = { id: number; name: string };
 type IndustryLite = { id: number; name: string };
 type CompanyLite = { id: number; name: string };
+type IndustryWithCaps = { id: number; name: string };
 
 const TARGET_TYPE_LABEL: Record<Subscription["targetType"], string> = {
   capability_threshold: "Capability score threshold",
@@ -51,10 +52,21 @@ export default function NotificationsPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
 
+  const sectionRef = useRef<HTMLDivElement | null>(null);
   const [newType, setNewType] = useState<Subscription["targetType"]>("capability_threshold");
   const [newCapId, setNewCapId] = useState<string>("");
   const [newIndustryId, setNewIndustryId] = useState<string>("");
   const [newCompanyId, setNewCompanyId] = useState<string>("");
+
+  // When deep-linked from /account/notifications or ?tab=notifications,
+  // scroll this panel into view on mount.
+  useEffect(() => {
+    const isDeepLink = window.location.pathname.endsWith("/notifications")
+      || new URLSearchParams(window.location.search).get("tab") === "notifications";
+    if (isDeepLink) {
+      setTimeout(() => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+    }
+  }, []);
   const [newDirection, setNewDirection] = useState<"above" | "below">("above");
   const [newThreshold, setNewThreshold] = useState<string>("70");
   const [newMinSeverity, setNewMinSeverity] = useState<string>("6");
@@ -113,9 +125,10 @@ export default function NotificationsPanel() {
       condition = { industryId: indId || undefined, minSeverity: Number(newMinSeverity) };
       targetId = indId || null;
     } else if (newType === "quadrant_transition") {
-      const coId = Number(newCompanyId);
-      condition = { companyId: coId || undefined };
-      targetId = coId || null;
+      const capId = Number(newCapId);
+      const indId = Number(newIndustryId);
+      condition = { capabilityId: capId || undefined, industryId: indId || undefined };
+      targetId = capId || null;
     }
 
     setBusy("create");
@@ -175,7 +188,6 @@ export default function NotificationsPanel() {
 
   const capName = (id: number | null) => capabilities.find(c => c.id === id)?.name ?? `#${id}`;
   const indName = (id: number | null) => industries.find(c => c.id === id)?.name ?? "Any industry";
-  const coName = (id: number | null) => companies.find(c => c.id === id)?.name ?? "Any company";
 
   const summary = (s: Subscription): string => {
     const c = s.condition;
@@ -184,12 +196,12 @@ export default function NotificationsPanel() {
     }
     if (s.targetType === "lifecycle_change") return `${capName(s.targetId)} lifecycle change`;
     if (s.targetType === "macro_event") return `${indName(s.targetId)} · severity ≥ ${(c as { minSeverity: number }).minSeverity}`;
-    if (s.targetType === "quadrant_transition") return `${coName(s.targetId)} quadrant change`;
+    if (s.targetType === "quadrant_transition") return `${s.targetId ? capName(s.targetId) : "Any capability"} quadrant change`;
     return s.label ?? "Alert";
   };
 
   return (
-    <Card className="rounded-none">
+    <Card className="rounded-none" ref={sectionRef as unknown as React.Ref<HTMLDivElement>}>
       <CardHeader>
         <CardTitle className="text-base font-serif flex items-center gap-2">
           <Bell className="w-5 h-5 text-primary" />
@@ -266,12 +278,21 @@ export default function NotificationsPanel() {
           )}
 
           {newType === "quadrant_transition" && (
-            <div>
-              <Label className="text-xs">Company (blank = any)</Label>
-              <select className="w-full border border-border px-2 py-1.5 rounded-none text-sm" value={newCompanyId} onChange={e => setNewCompanyId(e.target.value)}>
-                <option value="">Any company</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+            <div className="grid md:grid-cols-2 gap-2">
+              <div>
+                <Label className="text-xs">Capability (blank = any)</Label>
+                <select className="w-full border border-border px-2 py-1.5 rounded-none text-sm" value={newCapId} onChange={e => setNewCapId(e.target.value)}>
+                  <option value="">Any capability</option>
+                  {capabilities.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Industry (blank = any)</Label>
+                <select className="w-full border border-border px-2 py-1.5 rounded-none text-sm" value={newIndustryId} onChange={e => setNewIndustryId(e.target.value)}>
+                  <option value="">Any industry</option>
+                  {industries.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                </select>
+              </div>
             </div>
           )}
 

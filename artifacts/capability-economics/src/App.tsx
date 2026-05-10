@@ -112,6 +112,7 @@ function Router() {
       <Route path="/vce" component={VCE} />
       <Route path="/membership" component={Membership} />
       <Route path="/account" component={Account} />
+      <Route path="/account/notifications" component={Account} />
       <Route path="/accept-invite" component={AcceptInvite} />
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/marketplace/listings/:id" component={MarketplaceListing} />

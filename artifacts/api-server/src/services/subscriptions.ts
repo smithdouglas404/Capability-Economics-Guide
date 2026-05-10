@@ -5,7 +5,6 @@ import {
   capabilitiesTable,
   industriesTable,
   ceiComponentsTable,
-  companiesTable,
   type UserSubscription,
   type MacroEvent,
 } from "@workspace/db";
@@ -33,7 +32,7 @@ import { deriveLifecycleStage } from "./lifecycle";
 type CondCapThreshold = { capabilityId: number; direction: "above" | "below"; threshold: number };
 type CondLifecycle = { capabilityId: number };
 type CondMacro = { industryId?: number; minSeverity: number };
-type CondQuadrant = { companyId?: number };
+type CondQuadrant = { capabilityId?: number; industryId?: number };
 
 export interface CreateSubscriptionInput {
   userId: string;
@@ -214,23 +213,35 @@ export async function evaluateAfterMacroEvent(event: MacroEvent): Promise<void> 
   }
 }
 
-/** Fire quadrant_transition subs when a company changes quadrant. */
-export async function evaluateAfterQuadrantChange(companyId: number, prevQuadrant: string | null, currQuadrant: string): Promise<void> {
-  if (prevQuadrant === currQuadrant) return;
+/**
+ * Fire quadrant_transition subs when a CAPABILITY's consensus quadrant
+ * changes (per industry). Quadrants live on the capability_economics
+ * table (hot/emerging/cooling/table_stakes) — not on companies — so this
+ * evaluator is keyed on (capabilityId, industryId). Wired from
+ * services/alpha/enrich.ts after each enrichment row is written.
+ */
+export async function evaluateAfterQuadrantChange(
+  capabilityId: number,
+  industryId: number,
+  prevQuadrant: string | null,
+  currQuadrant: string | null,
+): Promise<void> {
+  if (!currQuadrant || prevQuadrant === currQuadrant) return;
   const subs = await db.select().from(userSubscriptionsTable).where(and(
     eq(userSubscriptionsTable.active, 1),
     eq(userSubscriptionsTable.targetType, "quadrant_transition"),
   ));
   if (!subs.length) return;
-  const [co] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
+  const capName = await getCapabilityName(capabilityId);
   for (const sub of subs) {
     try {
       const cond = sub.condition as unknown as CondQuadrant;
-      if (cond.companyId && cond.companyId !== companyId) continue;
+      if (cond.capabilityId && cond.capabilityId !== capabilityId) continue;
+      if (cond.industryId && cond.industryId !== industryId) continue;
       await dispatch(sub, {
-        subject: `${co?.name ?? `Company #${companyId}`} moved to ${currQuadrant}`,
+        subject: `${capName ?? `Capability #${capabilityId}`} moved to ${currQuadrant}`,
         body: `Quadrant transition: ${prevQuadrant ?? "—"} → ${currQuadrant}.`,
-        payload: { companyId, previousQuadrant: prevQuadrant, currentQuadrant: currQuadrant },
+        payload: { capabilityId, industryId, previousQuadrant: prevQuadrant, currentQuadrant: currQuadrant },
       });
     } catch (err) {
       logger.warn({ err, subscriptionId: sub.id }, "[subscriptions] quadrant evaluation failed");

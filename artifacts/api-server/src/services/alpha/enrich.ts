@@ -128,6 +128,15 @@ async function enrichOneCapabilityEconomics(
       parsed.consensus_quadrant = undefined;
     }
 
+    // Snapshot previous consensus quadrant so we can fire quadrant_transition
+    // subscriptions if it changes after this insert.
+    const [prevRow] = await db.select({ q: capabilityEconomicsTable.consensusQuadrant })
+      .from(capabilityEconomicsTable)
+      .where(eq(capabilityEconomicsTable.capabilityId, cap.id))
+      .orderBy(desc(capabilityEconomicsTable.generatedAt))
+      .limit(1);
+    const prevQuadrant = prevRow?.q ?? null;
+
     await db.insert(capabilityEconomicsTable).values({
       capabilityId: cap.id,
       industryId: cap.industryId,
@@ -143,6 +152,17 @@ async function enrichOneCapabilityEconomics(
       consensusSources: research.sources,
       rationale: parsed.rationale ?? null,
     });
+
+    // Fire quadrant_transition subscriptions if the consensus quadrant changed.
+    // Lazy-imported to keep alpha/enrich free of any subscriptions coupling.
+    if ((parsed.consensus_quadrant ?? null) !== prevQuadrant) {
+      try {
+        const { evaluateAfterQuadrantChange } = await import("../subscriptions");
+        await evaluateAfterQuadrantChange(cap.id, cap.industryId, prevQuadrant, parsed.consensus_quadrant ?? null);
+      } catch (err) {
+        log.warn({ err, capabilityId: cap.id }, "[alpha/enrich] quadrant subscription evaluation failed");
+      }
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e).substring(0, 200) };
