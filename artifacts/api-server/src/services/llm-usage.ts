@@ -46,8 +46,21 @@ export function logLlmCall(args: LogLlmCallArgs): void {
       const price = priceFor(args.model);
       const costUsd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
 
+      // Status classification — "quota" gets its own bucket so the admin
+      // dashboard can distinguish "we're out of money" (recoverable via
+      // fallback / topup) from genuine errors (auth, malformed, network).
+      // Covers HTTP 401/429/402 plus credit-related error wording from
+      // OpenRouter providers (e.g. "requires more credits", "can afford").
+      const isQuotaMessage = (msg: string | undefined): boolean => {
+        if (!msg) return false;
+        const m = msg.toLowerCase();
+        return m.includes("requires more credits") || m.includes("insufficient credit")
+          || m.includes("can afford") || m.includes("quota") || m.includes("payment required");
+      };
+      const errMsgRaw = args.errorMessage ?? (r.error && typeof (r.error as { message?: unknown }).message === "string" ? (r.error as { message: string }).message : undefined);
       let status: string = "ok";
-      if (args.errorMessage) status = "error";
+      if (args.httpStatus === 402 || isQuotaMessage(errMsgRaw)) status = "quota";
+      else if (args.errorMessage) status = "error";
       else if (args.httpStatus && args.httpStatus >= 400) status = args.httpStatus === 401 || args.httpStatus === 429 ? "quota" : "error";
       else if (r.error) status = "error";
 
