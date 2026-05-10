@@ -297,7 +297,7 @@ export default function EnrichmentAdmin() {
 
   const triggerConsolidation = async () => {
     if (!isSignedIn) { setError("Sign in to run consolidation."); return; }
-    if (!confirm("Run memory consolidation now?\n\nGroups recent observations by industry+capability and synthesizes validated patterns via Claude. Takes ~1-3 minutes; old observations get archived.")) return;
+    if (!confirm("Run memory consolidation now?\n\nGroups recent observations by industry, capability, and topic, then synthesizes validated patterns via Claude. Takes ~1-3 minutes; old observations get archived.")) return;
     setConsolidating(true);
     setError(null);
     try {

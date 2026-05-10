@@ -284,7 +284,7 @@ router.post("/agent/memory/consolidate", requireAdmin, async (_req, res) => {
 });
 
 // History of recent consolidation runs — feeds the admin UI panel
-router.get("/agent/consolidation/runs", async (req, res) => {
+router.get("/agent/consolidation/runs", requireAdmin, async (req, res) => {
   try {
     const rawLimit = Number(req.query.limit);
     const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(50, Math.floor(rawLimit)) : 10;
