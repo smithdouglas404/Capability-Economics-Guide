@@ -6,7 +6,7 @@ import {
   ceiComponentsTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { getCEICurrent } from "../services/cei-engine";
 import { buildFrameAncestorsCsp } from "../lib/embed-csp";
 import { resolveBranding } from "../lib/embed-token";
@@ -168,6 +168,12 @@ router.get("/embed/capability/:id", async (req, res) => {
  * Returns the same shape as the embed endpoint but as a list, so the
  * frontend can render cards without a second roundtrip per capability.
  */
+// Curated public catalog is intentionally small (~10) — it's a marketing
+// surface, not an open data dump. The seed enforces this on write, and
+// this LIMIT enforces it on read so a stray DB edit can't blow the
+// catalog up to hundreds of cards.
+const EXPLORE_LIMIT = 10;
+
 router.get("/explore/capabilities", async (_req, res) => {
   try {
     const caps = await db
@@ -186,7 +192,12 @@ router.get("/explore/capabilities", async (_req, res) => {
       .where(and(
         eq(capabilitiesTable.publicPreview, true),
         eq(capabilitiesTable.reviewStatus, "approved"),
-      ));
+      ))
+      // Deterministic order so /explore looks the same across requests
+      // and environments. Pagination would push this further, but at 10
+      // a stable id-tiebreaker is enough.
+      .orderBy(desc(capabilitiesTable.benchmarkScore), capabilitiesTable.id)
+      .limit(EXPLORE_LIMIT);
 
     if (caps.length === 0) {
       res.set("Cache-Control", "public, max-age=120");
@@ -240,6 +251,8 @@ router.get("/explore/capabilities", async (_req, res) => {
       };
     });
 
+    // Re-sort by live consensus score (more recent than benchmarkScore
+    // which only seeds the SQL-level deterministic ordering above).
     out.sort((a, b) => b.score - a.score);
     res.set("Cache-Control", "public, max-age=120");
     res.json({ capabilities: out });

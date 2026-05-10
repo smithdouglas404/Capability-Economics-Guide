@@ -40,6 +40,11 @@ export async function ensurePublicPreviewSeed(targetCount = 10): Promise<void> {
     let added = 0;
 
     for (const ind of industries) {
+      // Hard cap: never exceed targetCount across the whole catalog,
+      // even if (industries × PER_INDUSTRY) would.
+      const remaining = targetCount - (have + added);
+      if (remaining <= 0) break;
+      const limit = Math.min(PER_INDUSTRY, remaining);
       const candidates = await db
         .select({ id: capabilitiesTable.id })
         .from(capabilitiesTable)
@@ -51,7 +56,7 @@ export async function ensurePublicPreviewSeed(targetCount = 10): Promise<void> {
           ne(capabilitiesTable.benchmarkScore, 0),
         ))
         .orderBy(desc(capabilitiesTable.benchmarkScore))
-        .limit(PER_INDUSTRY);
+        .limit(limit);
       if (candidates.length === 0) continue;
       const ids = candidates.map(c => c.id);
       await db.execute(sql`UPDATE capabilities SET public_preview = true WHERE id = ANY(${ids})`);
