@@ -10,6 +10,7 @@ import {
 } from "@workspace/db";
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { forSession, forSessionRow, resolveSessionToken } from "../lib/tenant-scope";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
@@ -97,8 +98,11 @@ router.delete("/watchlist/items/:id", async (req, res) => {
   }
 });
 
-// Check watchlist thresholds and generate alerts
-router.post("/watchlist/check", async (req, res) => {
+// Check watchlist thresholds and generate alerts.
+// Admin-only: this is a global batch sweep across every tenant's items.
+// Should normally run from a scheduled worker; the route stays available
+// for manual ops triggers but must not be reachable by tenants.
+router.post("/watchlist/check", requireAdmin, async (req, res) => {
   try {
     const allItems = await db.select().from(watchlistItemsTable);
     if (!allItems.length) { res.json({ checked: 0, triggered: 0 }); return; }
@@ -169,10 +173,25 @@ router.post("/watchlist/check", async (req, res) => {
   }
 });
 
-// Acknowledge alert
+// Acknowledge alert — must belong to the caller's watchlist.
+// Pre-fix any tenant could ack any other tenant's alert by id.
 router.post("/watchlist/alerts/:id/ack", async (req, res) => {
   try {
-    await db.update(watchlistAlertsTable).set({ acknowledged: true }).where(eq(watchlistAlertsTable.id, Number(req.params.id)));
+    const token = resolveSessionToken(req);
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
+    const alertId = Number(req.params.id);
+    // Walk alert -> item -> watchlist and require the watchlist's session
+    // token to match the caller's. 404 on mismatch (don't leak existence).
+    const [row] = await db.select({ watchlistId: watchlistItemsTable.watchlistId })
+      .from(watchlistAlertsTable)
+      .innerJoin(watchlistItemsTable, eq(watchlistAlertsTable.watchlistItemId, watchlistItemsTable.id))
+      .where(eq(watchlistAlertsTable.id, alertId));
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    const [wl] = await db.select({ id: watchlistsTable.id })
+      .from(watchlistsTable)
+      .where(forSessionRow("watchlists", token, row.watchlistId));
+    if (!wl) { res.status(404).json({ error: "Not found" }); return; }
+    await db.update(watchlistAlertsTable).set({ acknowledged: true }).where(eq(watchlistAlertsTable.id, alertId));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

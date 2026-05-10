@@ -110,6 +110,12 @@ async function main() {
     const stillThere = (await j("GET", `/api/watchlist?sessionToken=${tokenB}`)).data;
     check("watchlist: B's item survives A's failed delete",
       Array.isArray(stillThere?.items) && stillThere.items.some(i => i.id === wlAddB.id));
+    // Alert ack: requires session token, and unknown ids 404 (proves the
+    // pre-fix `update where id=?` path is gone — used to silently 200).
+    check("watchlist: alert ack without sessionToken returns 401",
+      (await j("POST", `/api/watchlist/alerts/999999999/ack`, {})).status === 401);
+    check("watchlist: alert ack of unknown id returns 404 (no global update)",
+      (await j("POST", `/api/watchlist/alerts/999999999/ack?sessionToken=${tokenA}`, {})).status === 404);
   }
 
   // ── Collaboration comments (target-keyed leak) ──────────────────────
