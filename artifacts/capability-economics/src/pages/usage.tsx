@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DollarSign, Activity, AlertTriangle, RefreshCw, Cpu, Zap } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 type Summary = {
   windowHours: number;
   totals: { calls: number; inputTokens: number; outputTokens: number; totalTokens: number; costUsd: number; errors: number; quota: number };
@@ -76,6 +77,7 @@ export default function Usage() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      <MobileNotice />
         <div className="flex items-end justify-between flex-wrap gap-4">
           <div>
             <div className="inline-flex items-center gap-2 mb-3">

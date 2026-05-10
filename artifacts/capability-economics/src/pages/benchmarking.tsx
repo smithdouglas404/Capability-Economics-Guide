@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Search, Check, ArrowLeft, Building2, Shield, Globe, Sparkles, Loader2, Clock, RefreshCw } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Filters = {
@@ -177,6 +178,7 @@ export default function Benchmarking() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      <MobileNotice />
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <div className="inline-flex items-center gap-2 mb-3">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageSquare, Send, Clock, Sparkles, Loader2 } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type Message = {
@@ -70,6 +71,7 @@ export default function NLQuery() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
+      <MobileNotice />
       <div className="mb-6">
         <Badge className="mb-2">AI</Badge>
         <div className="inline-flex items-center gap-2 mb-3">

@@ -395,7 +395,7 @@ function EvarTab() {
       <div className="flex justify-end">
         <CoverageBadge scored={data.coverage.scored} total={data.coverage.totalCapabilities} />
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card><CardContent className="p-4">
           <div className="text-xs text-muted-foreground uppercase">Total EVaR @ 12mo</div>
           <div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalEvar12)}</div>
@@ -415,7 +415,7 @@ function EvarTab() {
           <CardHeader><CardTitle className="text-base">Ranked by 36-month $ at risk</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[480px] overflow-auto">
-              <table className="w-full text-sm">
+              <div className="w-full overflow-x-auto"><table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted/30 border-b">
                   <tr className="text-left text-xs uppercase text-muted-foreground">
                     <th className="py-2 px-3">Capability</th>
@@ -438,7 +438,7 @@ function EvarTab() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           </CardContent>
         </Card>
@@ -784,7 +784,7 @@ function MoatTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {(["fortress", "defensible", "contestable", "exposed"] as const).map(t => (
           <Card key={t}><CardContent className="p-4">
             <div className="text-xs text-muted-foreground uppercase">{t}</div>
@@ -802,7 +802,7 @@ function MoatTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -829,7 +829,7 @@ function MoatTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </CardContent>
       </Card>
@@ -885,7 +885,7 @@ function FragilityTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {(["critical", "elevated", "moderate", "stable"] as const).map(s => (
           <Card key={s} className={s === "critical" ? "border-red-500/50" : ""}><CardContent className="p-4">
             <div className="text-xs text-muted-foreground uppercase">{s}</div>
@@ -903,7 +903,7 @@ function FragilityTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -941,7 +941,7 @@ function FragilityTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </CardContent>
       </Card>
@@ -974,7 +974,7 @@ function ArbitrageTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Long exposure</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.longExposureMm)}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Short exposure</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.shortExposureMm)}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Neutral (low conf.)</div><div className="text-xl font-bold mt-1 text-muted-foreground">{data.totals.neutralCount}</div></CardContent></Card>
@@ -990,7 +990,7 @@ function ArbitrageTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-auto">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -1024,7 +1024,7 @@ function ArbitrageTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </CardContent>
       </Card>
@@ -1048,7 +1048,7 @@ function FlowsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Total tracked capital</div><div className="text-xl font-bold mt-1">{fmtMoney(data.totals.totalCapitalMm)}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Accelerating (&gt;10%/yr)</div><div className="text-xl font-bold mt-1 text-emerald-600">{fmtMoney(data.totals.acceleratingMm)}</div></CardContent></Card>
         <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground uppercase">Decelerating (&lt;-5%/yr)</div><div className="text-xl font-bold mt-1 text-red-600">{fmtMoney(data.totals.deceleratingMm)}</div></CardContent></Card>
@@ -1085,7 +1085,7 @@ function FlowsTab() {
         <CardHeader><CardTitle className="text-base">Top capital flow links (stage → industry)</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="max-h-80 overflow-auto">
-            <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                 <tr><th className="text-left py-2 px-3">Stage</th><th className="text-left py-2 px-2">Industry</th><th className="text-right py-2 px-2">Capital</th><th className="text-right py-2 px-2">Trend</th></tr>
               </thead>
@@ -1099,7 +1099,7 @@ function FlowsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </CardContent>
       </Card>
@@ -1144,7 +1144,7 @@ function TalentTab() {
         <CardContent>
           {selected ? (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
                 <div><div className="text-xs text-muted-foreground">Companies</div><div className="text-2xl font-bold">{selected.companies}</div></div>
                 <div><div className="text-xs text-muted-foreground">Core mastery</div><div className="text-2xl font-bold text-emerald-600">{selected.coreCount}</div></div>
                 <div><div className="text-xs text-muted-foreground">Bottleneck</div><div className="text-2xl font-bold text-red-600">{selected.bottleneckScore}</div></div>
@@ -1246,7 +1246,7 @@ function TwinTab() {
             <CardHeader><CardTitle className="text-base">Synergy / clash zones (overlap = {(data.summary.jaccard * 100).toFixed(1)}%)</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto">
-                <table className="w-full text-sm">
+                <div className="w-full overflow-x-auto"><table className="w-full text-sm">
                   <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                     <tr><th className="text-left py-2 px-3">Capability</th><th className="py-2 px-2">A quadrant</th><th className="py-2 px-2">B quadrant</th><th className="text-right py-2 px-2">Synergy</th><th className="py-2 px-2">Status</th></tr>
                   </thead>
@@ -1261,7 +1261,7 @@ function TwinTab() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </div>
             </CardContent>
           </Card>

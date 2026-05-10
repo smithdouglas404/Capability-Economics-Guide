@@ -25,6 +25,7 @@ import FoundrySyncPanel from "@/components/foundry-sync-panel";
 import ProductsAdmin from "@/components/products-admin";
 import ApiVolumePanel from "@/components/api-volume-panel";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 function useApi<T>(url: string, deps: unknown[] = []) {
@@ -250,6 +251,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background p-6 max-w-screen-2xl mx-auto">
+      <MobileNotice />
       <div className="flex items-center justify-between mb-6">
         <div>
           <div className="inline-flex items-center gap-2 mb-2">

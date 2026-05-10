@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, CheckCircle2, Loader2, UserPlus } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 export default function AcceptInvitePage() {
@@ -46,6 +47,7 @@ export default function AcceptInvitePage() {
 
   return (
     <div className="container mx-auto max-w-lg py-16 px-4">
+      <MobileNotice />
       <Card className="rounded-none">
         <CardHeader>
           <CardTitle className="font-serif text-2xl flex items-center gap-2">

@@ -11,12 +11,15 @@ import {
   Swords, FlaskConical, Target, Rocket, BarChart3, PieChart,
   Lightbulb, MessageSquare,
   Settings2, ChevronDown, CreditCard, LogOut, Sparkles,
-  Store,
+  Store, Menu,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
   DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  Sheet, SheetContent, SheetTrigger, SheetClose,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DegradedServiceBanner } from "@/components/degraded-banner";
 
@@ -126,6 +129,177 @@ function useCreditBalance(): { balance: number | null; tierSlug: string | null }
   return state;
 }
 
+function MobileNav({
+  navGroups,
+  hasAccess,
+  isSignedIn,
+  isAdmin,
+  membershipStatus,
+  location,
+}: {
+  navGroups: NavGroup[];
+  hasAccess: boolean;
+  isSignedIn: boolean | undefined;
+  isAdmin: boolean;
+  membershipStatus: string | null;
+  location: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <button
+          data-testid="nav-mobile-trigger"
+          aria-label="Open navigation"
+          className="md:hidden -ml-1 p-2 text-muted-foreground hover:text-foreground"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      </SheetTrigger>
+      <SheetContent
+        side="left"
+        className="w-[88%] max-w-sm p-0 rounded-none border-r border-border/40 overflow-y-auto"
+      >
+        <div className="px-5 pt-6 pb-4 border-b border-border/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 bg-foreground flex items-center justify-center text-background font-serif tracking-tight text-sm">
+              CE
+            </div>
+            <span className="font-serif text-base tracking-tight">Capability Economics</span>
+          </div>
+        </div>
+
+        <nav className="px-2 py-4 flex flex-col gap-4">
+          {hasAccess ? (
+            navGroups.map(group => (
+              <div key={group.label} className="flex flex-col">
+                <div className="px-3 pb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+                  {group.label}
+                </div>
+                {!group.children && group.href ? (
+                  <SheetClose asChild>
+                    <Link href={group.href}>
+                      <div
+                        data-testid={`nav-mobile-${group.label.toLowerCase()}`}
+                        className={`px-3 py-2 text-sm cursor-pointer ${
+                          location === group.href ? "bg-muted/60 text-foreground" : "text-foreground/80"
+                        }`}
+                      >
+                        {group.label}
+                      </div>
+                    </Link>
+                  </SheetClose>
+                ) : (
+                  group.children!.map(child => {
+                    const Icon = child.icon;
+                    const childActive = location === child.href;
+                    return (
+                      <SheetClose asChild key={child.href}>
+                        <Link href={child.href}>
+                          <div
+                            data-testid={`nav-mobile-link-${child.label.replace(/\s+/g, "-").toLowerCase()}`}
+                            className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer ${
+                              childActive ? "bg-muted/60" : "hover:bg-muted/40"
+                            }`}
+                          >
+                            <Icon className="w-4 h-4 mt-0.5 shrink-0 text-accent" />
+                            <div className="flex flex-col">
+                              <span className="text-sm leading-tight">{child.label}</span>
+                              {child.description && (
+                                <span className="text-xs text-muted-foreground leading-tight mt-0.5">
+                                  {child.description}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </Link>
+                      </SheetClose>
+                    );
+                  })
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              {isSignedIn
+                ? membershipStatus === "pending"
+                  ? "Membership pending review."
+                  : "Apply for membership to unlock the platform."
+                : "Sign in or apply for membership to access the platform."}
+            </div>
+          )}
+
+          <div className="border-t border-border/40 pt-3 mt-2 px-1 flex flex-col gap-1">
+            <SheetClose asChild>
+              <Link href="/membership">
+                <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                  <CreditCard className="w-4 h-4 text-accent" /> Membership
+                </div>
+              </Link>
+            </SheetClose>
+            {isSignedIn && (
+              <>
+                <SheetClose asChild>
+                  <Link href="/organization">
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                      <Building2 className="w-4 h-4 text-accent" /> My Organization
+                    </div>
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/account">
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                      <Settings2 className="w-4 h-4 text-accent" /> Account
+                    </div>
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/marketplace">
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                      <Store className="w-4 h-4 text-accent" /> Marketplace
+                    </div>
+                  </Link>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Link href="/case-studies">
+                    <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                      <Lightbulb className="w-4 h-4 text-accent" /> Case studies
+                    </div>
+                  </Link>
+                </SheetClose>
+                {isAdmin && (
+                  <SheetClose asChild>
+                    <Link href="/admin">
+                      <div className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40">
+                        <Shield className="w-4 h-4 text-accent" /> Admin
+                      </div>
+                    </Link>
+                  </SheetClose>
+                )}
+                <SignOutButton>
+                  <button className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-muted/40 text-left">
+                    <LogOut className="w-4 h-4 text-accent" /> Sign out
+                  </button>
+                </SignOutButton>
+              </>
+            )}
+            {!isSignedIn && (
+              <SignInButton mode="modal">
+                <button
+                  data-testid="nav-mobile-signin"
+                  className="mx-3 mt-1 px-3 py-2 text-sm bg-foreground text-background"
+                >
+                  Sign in
+                </button>
+              </SignInButton>
+            )}
+          </div>
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   // /embed/* renders bare for iframe consumers — no chrome, no nav, no
@@ -150,7 +324,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <DegradedServiceBanner />
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-4">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-2 md:gap-4">
+
+          <MobileNav
+            navGroups={navGroups}
+            hasAccess={!!hasAccess}
+            isSignedIn={!!isSignedIn}
+            isAdmin={!!isAdmin}
+            membershipStatus={membershipStatus}
+            location={location}
+          />
 
           {/* Brand lockup */}
           <Link href="/">

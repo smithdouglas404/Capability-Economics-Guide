@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 interface ExploreCap {
@@ -35,6 +36,7 @@ export default function ExplorePage() {
 
   return (
     <div className="min-h-[calc(100dvh-64px)] bg-background">
+      <MobileNotice />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-24">
         <Link
           href="/"

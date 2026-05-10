@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MobileNotice } from "@/components/mobile";
 import {
   Mic, MicOff, Upload, X, FileText, ArrowRight, ChevronRight,
   Building2, Loader2, CheckCircle2, AlertTriangle, TrendingUp,
@@ -851,6 +852,7 @@ export default function Assess() {
                 const done = (i === 0 && step !== "input") || (i === 1 && (step === "analyzing" || step === "results"));
                 return (
                   <div key={label} className="flex items-center gap-2">
+      <MobileNotice />
                     <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border transition-colors ${done ? "bg-primary text-primary-foreground border-primary" : active ? "border-primary text-primary" : "border-border text-muted-foreground"}`}>
                       {done ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
                     </div>

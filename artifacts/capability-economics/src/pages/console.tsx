@@ -6,6 +6,7 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { MobileNotice } from "@/components/mobile";
 import {
   Activity, Network, GitBranch, ScanSearch, Flame, Sparkles,
   TrendingUp, Snowflake, Layers, Building2, ExternalLink, RefreshCw,
@@ -794,6 +795,7 @@ export default function Console() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <MobileNotice />
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
         <div className="mb-6">
           <div className="inline-flex items-center gap-2 mb-3">

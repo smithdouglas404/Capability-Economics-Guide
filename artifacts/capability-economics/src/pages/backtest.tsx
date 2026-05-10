@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
+import { MobileNotice } from "@/components/mobile";
 import {
   ArrowLeft, BarChart3, CheckCircle2, XCircle, MinusCircle,
   PlayCircle, RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
@@ -147,6 +148,7 @@ export default function BacktestPage() {
 
   return (
     <div className="container mx-auto p-6 max-w-7xl space-y-6">
+      <MobileNotice />
       <div className="flex items-center justify-between">
         <div>
           <Link href="/admin">

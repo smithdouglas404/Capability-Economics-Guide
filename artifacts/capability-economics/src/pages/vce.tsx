@@ -9,6 +9,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Loader2, Send, Sparkles, Inbox, FileText, CheckCircle2, XCircle, Mic, Upload, Type, RefreshCw, Play, Calendar, Activity, MessageCircle, Bot } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 const apiBase = import.meta.env.VITE_API_URL || "";
 
 type Industry = { id: number; name: string; slug: string };
@@ -126,6 +127,7 @@ export default function VCEPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <MobileNotice />
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
           <div>
             <div className="inline-flex items-center gap-2 mb-3">

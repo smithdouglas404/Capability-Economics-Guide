@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DollarSign, TrendingUp, Plus, Trash2, PieChart, BarChart3 } from "lucide-react";
 
+import { MobileNotice } from "@/components/mobile";
 const API_BASE = "/api";
 
 type RoiRecord = {
@@ -94,6 +95,7 @@ export default function RoiTracker() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
+      <MobileNotice />
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <div className="inline-flex items-center gap-2 mb-3">
