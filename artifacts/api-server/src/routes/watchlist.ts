@@ -74,10 +74,22 @@ router.post("/watchlist/items", async (req, res) => {
   }
 });
 
-// Remove item
+// Remove item — must belong to the caller's watchlist (which is session-scoped).
+// Pre-fix this accepted any item id and would happily delete another tenant's row.
 router.delete("/watchlist/items/:id", async (req, res) => {
   try {
-    await db.delete(watchlistItemsTable).where(eq(watchlistItemsTable.id, Number(req.params.id)));
+    const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
+    const itemId = Number(req.params.id);
+    const [item] = await db.select({ watchlistId: watchlistItemsTable.watchlistId })
+      .from(watchlistItemsTable)
+      .where(eq(watchlistItemsTable.id, itemId));
+    if (!item) { res.status(404).json({ error: "Not found" }); return; }
+    const [wl] = await db.select({ id: watchlistsTable.id })
+      .from(watchlistsTable)
+      .where(and(eq(watchlistsTable.id, item.watchlistId), eq(watchlistsTable.sessionToken, token)));
+    if (!wl) { res.status(404).json({ error: "Not found" }); return; }
+    await db.delete(watchlistItemsTable).where(eq(watchlistItemsTable.id, itemId));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

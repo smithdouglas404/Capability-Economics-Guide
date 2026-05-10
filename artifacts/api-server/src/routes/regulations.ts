@@ -8,6 +8,7 @@ import {
   organizationCapabilitiesTable,
 } from "@workspace/db";
 import { eq, inArray } from "drizzle-orm";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router = Router();
 
@@ -43,8 +44,8 @@ router.get("/regulations/:id", async (req, res) => {
   }
 });
 
-// Create regulation
-router.post("/regulations", async (req, res) => {
+// Create regulation — global catalog write, admin-only.
+router.post("/regulations", requireAdmin, async (req, res) => {
   try {
     const { name, shortCode, description, jurisdiction, effectiveDate, industries } = req.body;
     const [reg] = await db.insert(regulationsTable).values({
@@ -59,8 +60,8 @@ router.post("/regulations", async (req, res) => {
   }
 });
 
-// Add capability requirement
-router.post("/regulations/:id/requirements", async (req, res) => {
+// Add capability requirement — global catalog write, admin-only.
+router.post("/regulations/:id/requirements", requireAdmin, async (req, res) => {
   try {
     const regulationId = Number(req.params.id);
     const { capabilityId, requiredMaturity, priority, evidenceNotes, article } = req.body;
@@ -143,8 +144,9 @@ router.get("/regulations/:id/compliance", async (req, res) => {
   }
 });
 
-// Delete regulation
-router.delete("/regulations/:id", async (req, res) => {
+// Delete regulation — regulations are GLOBAL reference data (no tenant column),
+// so writes must be admin-only. Pre-fix any caller could wipe the catalog.
+router.delete("/regulations/:id", requireAdmin, async (req, res) => {
   try {
     await db.delete(regulationsTable).where(eq(regulationsTable.id, Number(req.params.id)));
     res.json({ ok: true });

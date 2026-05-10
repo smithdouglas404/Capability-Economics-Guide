@@ -52,6 +52,7 @@ import backtestRouter from "./backtest";
 import productsRouter from "./products";
 import subscriptionsRouter from "./subscriptions";
 import exportsRouter from "./exports";
+import apiVolumeRouter from "./api-volume";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -83,6 +84,9 @@ router.use(productsRouter);
 // route uses its own per-route requireAdmin middleware rather than the catch-all.
 router.use(subscriptionsRouter);
 router.use(exportsRouter);
+// apiVolumeRouter mounts BEFORE adminRouter — uses its own per-route requireAdmin
+// rather than the catch-all so the route key spelling stays consistent.
+router.use(apiVolumeRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
 router.use(backtestRouter);

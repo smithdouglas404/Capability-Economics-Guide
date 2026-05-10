@@ -9,6 +9,7 @@ import {
   capabilityDependenciesTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
+import { resolveSessionToken } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -26,11 +27,14 @@ router.get("/simulation/scenarios", async (req, res) => {
   }
 });
 
-// Get one scenario
+// Get one scenario — must belong to the caller's session.
 router.get("/simulation/scenarios/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const [row] = await db.select().from(simulationScenariosTable).where(eq(simulationScenariosTable.id, id));
+    const token = resolveSessionToken(req);
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
+    const [row] = await db.select().from(simulationScenariosTable)
+      .where(and(eq(simulationScenariosTable.id, id), eq(simulationScenariosTable.sessionToken, token)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (err) {
@@ -165,10 +169,18 @@ router.post("/simulation/run", async (req, res) => {
   }
 });
 
-// Delete scenario
+// Delete scenario — must belong to the caller's session.
 router.delete("/simulation/scenarios/:id", async (req, res) => {
   try {
-    await db.delete(simulationScenariosTable).where(eq(simulationScenariosTable.id, Number(req.params.id)));
+    const token = resolveSessionToken(req);
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
+    const deleted = await db.delete(simulationScenariosTable)
+      .where(and(
+        eq(simulationScenariosTable.id, Number(req.params.id)),
+        eq(simulationScenariosTable.sessionToken, token),
+      ))
+      .returning({ id: simulationScenariosTable.id });
+    if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

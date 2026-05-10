@@ -50,14 +50,20 @@ router.post("/collaboration/comments", async (req, res) => {
   }
 });
 
-// Resolve/unresolve comment
+// Resolve/unresolve comment — must belong to the caller's session.
+// Pre-fix any tenant could resolve any other tenant's comment by id.
 router.patch("/collaboration/comments/:id", async (req, res) => {
   try {
     const id = Number(req.params.id);
-    const { resolved } = req.body;
+    const { resolved, sessionToken: bodyToken } = req.body ?? {};
+    const token = (typeof req.query.sessionToken === "string" && req.query.sessionToken)
+      || (typeof bodyToken === "string" && bodyToken)
+      || (typeof req.headers["x-session-token"] === "string" && req.headers["x-session-token"] as string)
+      || "";
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [updated] = await db.update(strategyCommentsTable)
       .set({ resolved: resolved ?? false })
-      .where(eq(strategyCommentsTable.id, id))
+      .where(and(eq(strategyCommentsTable.id, id), eq(strategyCommentsTable.sessionToken, token)))
       .returning();
     if (!updated) { res.status(404).json({ error: "Not found" }); return; }
     res.json(updated);

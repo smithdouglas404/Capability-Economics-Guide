@@ -23,6 +23,7 @@ import MarketplaceModeration from "@/components/marketplace-moderation";
 import FeaturedContentScheduler from "@/components/featured-content-scheduler";
 import FoundrySyncPanel from "@/components/foundry-sync-panel";
 import ProductsAdmin from "@/components/products-admin";
+import ApiVolumePanel from "@/components/api-volume-panel";
 
 const API_BASE = "/api";
 
@@ -728,6 +729,7 @@ export default function AdminDashboard() {
 
         {/* ─────────────────────── System tab ─────────────────────── */}
         <TabsContent value="system" className="space-y-6">
+          <ApiVolumePanel />
           <FoundrySyncPanel />
           <AuditLogViewer />
           <Card>

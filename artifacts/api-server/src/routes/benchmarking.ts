@@ -486,11 +486,17 @@ router.get("/benchmarking/sessions", async (req, res) => {
   }
 });
 
-// Get a specific past session
+// Get a specific past session — must belong to the caller's session token.
+// Pre-fix accepted any id and returned any tenant's row.
 router.get("/benchmarking/sessions/:id", async (req, res) => {
   try {
+    const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
     const [session] = await db.select().from(benchmarkSessionsTable)
-      .where(eq(benchmarkSessionsTable.id, Number(req.params.id)));
+      .where(and(
+        eq(benchmarkSessionsTable.id, Number(req.params.id)),
+        eq(benchmarkSessionsTable.sessionToken, token),
+      ));
     if (!session) { res.status(404).json({ error: "Not found" }); return; }
     res.json(session);
   } catch (err) {

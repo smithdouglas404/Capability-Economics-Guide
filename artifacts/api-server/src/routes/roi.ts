@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { roiRecordsTable, capabilitiesTable } from "@workspace/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
+import { resolveSessionToken } from "../lib/tenant-scope";
 
 const router = Router();
 
@@ -104,10 +105,18 @@ router.get("/roi/summary", async (req, res) => {
   }
 });
 
-// Delete ROI record
+// Delete ROI record — must belong to the caller's session.
 router.delete("/roi/records/:id", async (req, res) => {
   try {
-    await db.delete(roiRecordsTable).where(eq(roiRecordsTable.id, Number(req.params.id)));
+    const token = resolveSessionToken(req);
+    if (!token) { res.status(401).json({ error: "sessionToken required" }); return; }
+    const deleted = await db.delete(roiRecordsTable)
+      .where(and(
+        eq(roiRecordsTable.id, Number(req.params.id)),
+        eq(roiRecordsTable.sessionToken, token),
+      ))
+      .returning({ id: roiRecordsTable.id });
+    if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
