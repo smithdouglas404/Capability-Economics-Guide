@@ -47,6 +47,7 @@ import marketplaceSellersRouter from "./marketplace-sellers";
 import marketplaceListingsRouter from "./marketplace-listings";
 import marketplacePurchasesRouter from "./marketplace-purchases";
 import featuredContentRouter from "./featured-content";
+import foundryAdminRouter from "./foundry-admin";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -70,6 +71,7 @@ router.use(secRouter);
 // the public read-only GET /admin/enrichment/config the admin UI relies on.
 router.use(enrichmentConfigRouter);
 router.use(adminRouter);
+router.use(foundryAdminRouter);
 router.use(educationalContentRouter);
 router.use(caseStudiesRouter);
 router.use(vceRouter);

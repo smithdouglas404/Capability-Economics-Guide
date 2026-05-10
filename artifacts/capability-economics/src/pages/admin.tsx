@@ -21,6 +21,7 @@ import MembersList from "@/components/members-list";
 import AuditLogViewer from "@/components/audit-log-viewer";
 import MarketplaceModeration from "@/components/marketplace-moderation";
 import FeaturedContentScheduler from "@/components/featured-content-scheduler";
+import FoundrySyncPanel from "@/components/foundry-sync-panel";
 
 const API_BASE = "/api";
 
@@ -721,6 +722,7 @@ export default function AdminDashboard() {
 
         {/* ─────────────────────── System tab ─────────────────────── */}
         <TabsContent value="system" className="space-y-6">
+          <FoundrySyncPanel />
           <AuditLogViewer />
           <Card>
             <CardHeader className="pb-3">

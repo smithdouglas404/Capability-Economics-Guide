@@ -9,13 +9,12 @@
  *      invoke the agent).
  *
  * Both call sites use fire-and-forget — the sync never throws into its caller.
- * Errors are logged at warn level and the next tick (or next agent run)
- * retries. SNAPSHOT transactions = idempotent full-replace so retries are
- * safe.
- *
- * The same logic lives in scripts/src/foundry/sync.ts as a CLI for ad-hoc
- * runs. Kept duplicated rather than introducing a shared package — the
- * config.ts + client.ts pair is small and has no external deps.
+ * Errors are logged at warn level, classified, and persisted to
+ * `foundry_sync_log` so the admin dashboard can surface health. Two
+ * back-to-back http_401 outcomes raise a token-rotation alert (banner +
+ * console warn + audit log entry) — the admin panel reads the alert state via
+ * /api/admin/foundry/health and offers a "I rotated the token" recheck button
+ * that fires a fresh sync and clears the alert if the new token works.
  */
 
 import {
@@ -27,18 +26,75 @@ import {
   valueChainStagesTable,
   companyCapabilityProfilesTable,
   capabilityDependenciesTable,
+  foundrySyncLogTable,
+  adminAuditLogTable,
 } from "@workspace/db";
+import { desc } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import { DATASETS } from "./config";
 import { replaceDatasetCsv, toCsv } from "./client";
 
 let syncInFlight = false;
 
-interface SyncResult {
+export type FoundrySyncStatus = "ok" | "http_401" | "http_5xx" | "network" | "other";
+
+export interface SyncResult {
   ok: boolean;
+  status: FoundrySyncStatus;
+  httpStatus: number | null;
   durationMs: number;
   rowsByDataset: Record<string, number>;
   error?: string;
+}
+
+/**
+ * In-memory alert state. Set when ≥2 consecutive http_401 outcomes are
+ * detected after persisting a sync row. Read by the admin /health endpoint
+ * to drive the banner. Cleared on the next successful sync (or on explicit
+ * /recheck POST that succeeds).
+ */
+interface FoundryAlertState {
+  active: boolean;
+  consecutive401: number;
+  firstFailureAt: string | null;
+  lastFailureAt: string | null;
+  lastError: string | null;
+}
+const alertState: FoundryAlertState = {
+  active: false,
+  consecutive401: 0,
+  firstFailureAt: null,
+  lastFailureAt: null,
+  lastError: null,
+};
+
+export function getFoundryAlertState(): Readonly<FoundryAlertState> {
+  return { ...alertState };
+}
+
+/**
+ * Classify a thrown error into a status enum + extracted HTTP code. The
+ * Foundry client throws `Error("Foundry GET /path 401: …")` or
+ * `Error("upload rid/file 503: …")`, so we regex-extract the status.
+ * Anything that doesn't match a Foundry HTTP error is treated as a
+ * network-layer failure (fetch threw before getting a Response).
+ */
+function classifyError(err: unknown): { status: FoundrySyncStatus; httpStatus: number | null; message: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  // Match the trailing "<digits>:" status code embedded by foundry/client.ts.
+  const m = message.match(/\b(\d{3}):/);
+  if (m) {
+    const code = Number(m[1]);
+    if (code === 401 || code === 403) return { status: "http_401", httpStatus: code, message };
+    if (code >= 500 && code < 600) return { status: "http_5xx", httpStatus: code, message };
+    return { status: "other", httpStatus: code, message };
+  }
+  // Node fetch network failures surface as TypeError("fetch failed") with a
+  // cause; treat any non-HTTP error as network-layer.
+  if (err instanceof TypeError || /fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|EAI_AGAIN/i.test(message)) {
+    return { status: "network", httpStatus: null, message };
+  }
+  return { status: "other", httpStatus: null, message };
 }
 
 async function syncOne<T extends Record<string, unknown>>(
@@ -54,12 +110,16 @@ async function syncOne<T extends Record<string, unknown>>(
 }
 
 /**
- * Snapshot every CE table to its corresponding Foundry Dataset. Throws on
- * any individual upload failure — the wrapping callers swallow it.
+ * Snapshot every CE table to its corresponding Foundry Dataset. Each call
+ * persists exactly one row to foundry_sync_log with the classified outcome.
+ * After persisting, checks the previous row — if both are http_401, raises
+ * the alert (banner + warn + audit log entry).
  */
-export async function runFoundrySyncOnce(): Promise<SyncResult> {
+export async function runFoundrySyncOnce(reason = "ad-hoc"): Promise<SyncResult> {
   const start = Date.now();
+  const startedAt = new Date(start);
   const rowsByDataset: Record<string, number> = {};
+  let result: SyncResult;
   try {
     const [industries, capabilities, quadrants, economics, valueChain, companies, dependencies] = await Promise.all([
       db.select().from(industriesTable),
@@ -111,13 +171,100 @@ export async function runFoundrySyncOnce(): Promise<SyncResult> {
     ]);
 
     const durationMs = Date.now() - start;
-    logger.info({ durationMs, rowsByDataset }, "[foundry-sync] complete");
-    return { ok: true, durationMs, rowsByDataset };
+    logger.info({ durationMs, rowsByDataset, reason }, "[foundry-sync] complete");
+    result = { ok: true, status: "ok", httpStatus: null, durationMs, rowsByDataset };
   } catch (err) {
     const durationMs = Date.now() - start;
-    const error = err instanceof Error ? err.message : String(err);
-    logger.warn({ durationMs, error, rowsByDataset }, "[foundry-sync] failed");
-    return { ok: false, durationMs, rowsByDataset, error };
+    const classified = classifyError(err);
+    logger.warn({ durationMs, status: classified.status, httpStatus: classified.httpStatus, error: classified.message, rowsByDataset, reason }, "[foundry-sync] failed");
+    result = { ok: false, status: classified.status, httpStatus: classified.httpStatus, durationMs, rowsByDataset, error: classified.message };
+  }
+
+  // Persist outcome (best-effort — never throw past this).
+  try {
+    await db.insert(foundrySyncLogTable).values({
+      startedAt,
+      completedAt: new Date(),
+      status: result.status,
+      httpStatus: result.httpStatus ?? null,
+      durationMs: result.durationMs,
+      rowsByDataset: result.rowsByDataset,
+      errorMessage: result.error ?? null,
+      reason,
+    });
+  } catch (e) {
+    logger.error({ err: e }, "[foundry-sync] failed to persist sync log row");
+  }
+
+  await updateAlertStateAfterSync(result, reason);
+  return result;
+}
+
+/**
+ * After persisting a row, look at the last 2 sync log rows. If both are
+ * http_401 and the alert isn't already active, raise it: warn-level log,
+ * append an admin_audit_log entry, and flip the in-memory flag. A successful
+ * sync always clears the alert.
+ */
+async function updateAlertStateAfterSync(result: SyncResult, reason: string): Promise<void> {
+  if (result.status === "ok") {
+    if (alertState.active || alertState.consecutive401 > 0) {
+      logger.info({ reason }, "[foundry-sync] token alert cleared after successful sync");
+    }
+    alertState.active = false;
+    alertState.consecutive401 = 0;
+    alertState.firstFailureAt = null;
+    alertState.lastFailureAt = null;
+    alertState.lastError = null;
+    return;
+  }
+
+  if (result.status !== "http_401") {
+    // Non-401 failures don't escalate the rotation alert (could be 5xx /
+    // network — caller should investigate but rotating the token won't help).
+    return;
+  }
+
+  // Count consecutive http_401s by reading the tail of the log. Cheap — we
+  // just persisted the latest row, so check it + the immediately previous.
+  try {
+    const recent = await db
+      .select({ status: foundrySyncLogTable.status, completedAt: foundrySyncLogTable.completedAt, errorMessage: foundrySyncLogTable.errorMessage })
+      .from(foundrySyncLogTable)
+      .orderBy(desc(foundrySyncLogTable.id))
+      .limit(5);
+    let streak = 0;
+    for (const row of recent) {
+      if (row.status === "http_401") streak += 1;
+      else break;
+    }
+    alertState.consecutive401 = streak;
+    alertState.lastFailureAt = new Date().toISOString();
+    alertState.lastError = result.error ?? "Foundry returned 401";
+    if (streak >= 2 && !alertState.active) {
+      alertState.active = true;
+      alertState.firstFailureAt = recent[Math.min(streak - 1, recent.length - 1)]?.completedAt?.toISOString() ?? alertState.lastFailureAt;
+      logger.warn({ consecutive401: streak, reason, lastError: alertState.lastError }, "[foundry-sync] ALERT — 2+ consecutive 401s, rotate FOUNDRY_TOKEN");
+      try {
+        await db.insert(adminAuditLogTable).values({
+          actorUserId: "system",
+          actorEmail: null,
+          action: "foundry.token_alert",
+          targetType: "foundry",
+          targetId: "sync",
+          details: {
+            consecutive401: streak,
+            reason,
+            lastError: alertState.lastError,
+            firstFailureAt: alertState.firstFailureAt,
+          },
+        });
+      } catch (e) {
+        logger.error({ err: e }, "[foundry-sync] failed to write audit log entry for token alert");
+      }
+    }
+  } catch (e) {
+    logger.error({ err: e }, "[foundry-sync] failed to read sync log for alert evaluation");
   }
 }
 
@@ -144,13 +291,50 @@ export function fireFoundrySync(reason: string): void {
   void (async () => {
     try {
       logger.info({ reason }, "[foundry-sync] starting");
-      await runFoundrySyncOnce();
+      await runFoundrySyncOnce(reason);
     } catch (err) {
       logger.warn({ err, reason }, "[foundry-sync] threw past runFoundrySyncOnce");
     } finally {
       syncInFlight = false;
     }
   })();
+}
+
+/**
+ * Awaitable variant for the admin "I rotated the token — recheck now" flow.
+ * Returns the SyncResult so the API route can report success/failure inline
+ * instead of forcing the UI to poll the log table.
+ */
+export async function runFoundrySyncAwait(reason: string): Promise<SyncResult> {
+  if (!process.env.FOUNDRY_BASE_URL && !process.env.PALANTIR_URL && !process.env.FOUNDRY_URL && !process.env.PALANTIR_BASE_URL) {
+    return {
+      ok: false,
+      status: "other",
+      httpStatus: null,
+      durationMs: 0,
+      rowsByDataset: {},
+      error: "Foundry env not configured (set FOUNDRY_BASE_URL or PALANTIR_URL)",
+    };
+  }
+  if (syncInFlight) {
+    // Wait briefly for the in-flight sync to finish so the recheck reflects
+    // the latest token, then run a fresh one to be sure.
+    await new Promise<void>((r) => {
+      const start = Date.now();
+      const tick = setInterval(() => {
+        if (!syncInFlight || Date.now() - start > 30_000) {
+          clearInterval(tick);
+          r();
+        }
+      }, 250);
+    });
+  }
+  syncInFlight = true;
+  try {
+    return await runFoundrySyncOnce(reason);
+  } finally {
+    syncInFlight = false;
+  }
 }
 
 /**
