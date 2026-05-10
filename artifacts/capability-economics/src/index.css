@@ -196,6 +196,38 @@
   --chart-5: 22 89% 55%;
 }
 
+/* ── Ticker animation ──────────────────────────────────────────────────────── */
+@keyframes ticker-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.ticker-track {
+  animation: ticker-scroll 40s linear infinite;
+  width: max-content;
+}
+
+.ticker-track:hover {
+  animation-play-state: paused;
+}
+
+/* ── Hero grid background ─────────────────────────────────────────────────── */
+.hero-grid-bg {
+  background-image:
+    linear-gradient(to right, hsl(var(--border) / 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.35) 1px, transparent 1px);
+  background-size: 60px 60px;
+  mask-image: radial-gradient(ellipse 80% 60% at 60% 40%, black 30%, transparent 80%);
+}
+
+/* ── CTA section grid overlay ─────────────────────────────────────────────── */
+.cta-grid-bg {
+  background-image:
+    linear-gradient(to right, hsl(var(--background) / 1) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--background) / 1) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
 @layer base {
   * {
     @apply border-border;
