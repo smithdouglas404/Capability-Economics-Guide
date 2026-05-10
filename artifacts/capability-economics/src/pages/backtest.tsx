@@ -20,6 +20,7 @@ interface CapResult {
   predictedDelta: number;
   predictedDirection: Direction;
   expectedDirection: Direction;
+  rationale: string | null;
   match: boolean;
   excluded: "not_found" | "below_epsilon" | null;
 }
@@ -30,6 +31,7 @@ interface EventResult {
   eventDate: string;
   eventType: string;
   severity: number;
+  sentimentDirection: Direction;
   description: string;
   citations: string[];
   capResults: CapResult[];
@@ -45,6 +47,7 @@ interface BacktestSummary {
   aggregateScored: number;
   aggregateAccuracy: number;
   ranAt: string;
+  notes: { timeAnchorCaveat: string };
 }
 
 interface CatalogEvent {
@@ -53,9 +56,9 @@ interface CatalogEvent {
   title: string;
   eventType: string;
   severity: number;
-  expectedDirection: Direction;
+  sentimentDirection: Direction;
   affectedIndustryNames: string[];
-  affectedCapabilityNames: string[];
+  affectedCapabilities: Array<{ name: string; expectedDirection: Direction; rationale?: string }>;
   description: string;
   citations: string[];
 }
@@ -228,7 +231,7 @@ export default function BacktestPage() {
                 <th className="text-left p-3 font-medium">Event</th>
                 <th className="text-left p-3 font-medium">Type</th>
                 <th className="text-center p-3 font-medium">Severity</th>
-                <th className="text-center p-3 font-medium">Expected</th>
+                <th className="text-center p-3 font-medium" title="Event's primary direction (what the live macro pipeline tags it as)">Sentiment</th>
                 <th className="text-center p-3 font-medium">Caps moved</th>
                 <th className="text-right p-3 font-medium">Accuracy</th>
               </tr>
@@ -262,7 +265,7 @@ export default function BacktestPage() {
                       </td>
                       <td className="p-3 text-center font-mono">{evt.severity}</td>
                       <td className="p-3 text-center text-base">
-                        {dirIcon(evt.capResults[0]?.expectedDirection ?? "neutral")}
+                        {dirIcon(evt.sentimentDirection)}
                       </td>
                       <td className="p-3 text-center text-xs text-muted-foreground">
                         {evt.scored} scored
@@ -311,31 +314,40 @@ export default function BacktestPage() {
                             </thead>
                             <tbody>
                               {evt.capResults.map((c, i) => (
-                                <tr key={i} className="border-b border-border/50">
-                                  <td className="py-1.5">{c.capabilityName}</td>
-                                  <td className="py-1.5 text-muted-foreground">{c.industryName}</td>
-                                  <td className="py-1.5 text-right font-mono">{c.baseline ?? "—"}</td>
-                                  <td className="py-1.5 text-right font-mono">{c.predicted ?? "—"}</td>
-                                  <td className="py-1.5 text-right font-mono">
-                                    {c.predictedDelta > 0 ? "+" : ""}
-                                    {c.predictedDelta.toFixed(1)}
-                                  </td>
-                                  <td className="py-1.5 text-center">{dirIcon(c.predictedDirection)}</td>
-                                  <td className="py-1.5 text-center">{dirIcon(c.expectedDirection)}</td>
-                                  <td className="py-1.5 text-center">
-                                    {c.excluded === "not_found" ? (
-                                      <span className="text-xs text-amber-600" title="Capability not in this DB">
-                                        n/a
-                                      </span>
-                                    ) : c.excluded === "below_epsilon" ? (
-                                      <MinusCircle className="w-3.5 h-3.5 text-muted-foreground inline" />
-                                    ) : c.match ? (
-                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-600 inline" />
-                                    ) : (
-                                      <XCircle className="w-3.5 h-3.5 text-red-600 inline" />
-                                    )}
-                                  </td>
-                                </tr>
+                                <>
+                                  <tr key={i} className="border-b border-border/50">
+                                    <td className="py-1.5">{c.capabilityName}</td>
+                                    <td className="py-1.5 text-muted-foreground">{c.industryName}</td>
+                                    <td className="py-1.5 text-right font-mono">{c.baseline ?? "—"}</td>
+                                    <td className="py-1.5 text-right font-mono">{c.predicted ?? "—"}</td>
+                                    <td className="py-1.5 text-right font-mono">
+                                      {c.predictedDelta > 0 ? "+" : ""}
+                                      {c.predictedDelta.toFixed(1)}
+                                    </td>
+                                    <td className="py-1.5 text-center">{dirIcon(c.predictedDirection)}</td>
+                                    <td className="py-1.5 text-center">{dirIcon(c.expectedDirection)}</td>
+                                    <td className="py-1.5 text-center">
+                                      {c.excluded === "not_found" ? (
+                                        <span className="text-xs text-amber-600" title="Capability not in this DB">
+                                          n/a
+                                        </span>
+                                      ) : c.excluded === "below_epsilon" ? (
+                                        <MinusCircle className="w-3.5 h-3.5 text-muted-foreground inline" />
+                                      ) : c.match ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600 inline" />
+                                      ) : (
+                                        <XCircle className="w-3.5 h-3.5 text-red-600 inline" />
+                                      )}
+                                    </td>
+                                  </tr>
+                                  {c.rationale && (
+                                    <tr key={`${i}-rationale`} className="border-b border-border/50">
+                                      <td colSpan={8} className="py-1 pl-4 text-xs text-muted-foreground italic">
+                                        Analyst note: {c.rationale}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </>
                               ))}
                             </tbody>
                           </table>
@@ -350,15 +362,33 @@ export default function BacktestPage() {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        <strong>Method.</strong> For each event the harness reads each named capability's current
-        consensus score from <code>cei_components</code> as the T-1 baseline, then applies the same
-        macro-shock formula used by the live engine ({" "}
-        <code>shock = severity × sign(direction) × peak_decay</code>) to compute T+1. The capability
-        is counted as a match when the sign of the predicted delta agrees with the analyst-curated
-        ground-truth direction (<code>|Δ| ≥ 0.5</code> required). The harness never writes to the
-        live snapshot — it is read-only by design.
-      </p>
+      <Card className="bg-muted/20">
+        <CardContent className="p-4 text-xs text-muted-foreground space-y-2">
+          <p>
+            <strong className="text-foreground">Method.</strong> For each event the harness runs the
+            <em> actual </em> CEI engine twice in dry-run mode (no DB writes): once with no event
+            injected (baseline / T-1) and once with the historical event injected as an extra active
+            macro_event at peak shock (T+1). The predicted delta is the engine's own per-capability
+            score difference — flowing through bayesian triangulation, parent/child rollup, velocity
+            smoothing, and economic multipliers. A capability counts as a <em>match</em> when the
+            sign of that delta agrees with the analyst's ground-truth verdict (<code>|Δ| ≥ 0.5</code> required).
+          </p>
+          <p>
+            <strong className="text-foreground">Why this is non-trivial.</strong> The event's
+            primary <em>sentiment direction</em> (what world-scan tags) and a capability's
+            <em> expected direction</em> can disagree by design — many real events are net-negative
+            but POSITIVE for a specific capability (telehealth during COVID, AI-governance tooling
+            under the EU AI Act, supply-chain visibility under tariffs). A naive engine that infers
+            cap direction from event sentiment alone will MISS these cases — and the harness is
+            built to surface that gap.
+          </p>
+          {summary?.notes?.timeAnchorCaveat && (
+            <p>
+              <strong className="text-foreground">Time-anchoring caveat.</strong> {summary.notes.timeAnchorCaveat}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

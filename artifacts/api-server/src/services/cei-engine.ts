@@ -7,6 +7,7 @@ import {
   industryGdpWeightsTable,
   sourceTriangulationsTable,
   ontologyRelationshipsTable,
+  type MacroEvent,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { computeGlobalMacroShock, listActiveEvents, expandAffectedCapabilityIds } from "./macro-events";
@@ -51,7 +52,31 @@ interface CEIResult {
   timestamp: string;
 }
 
-export async function computeCEI(): Promise<CEIResult> {
+/**
+ * Options for `computeCEI`.
+ *
+ * - `persist` (default true): when false, the engine runs end-to-end but does
+ *   not write to `cei_components` or `cei_snapshots`. Used by the backtesting
+ *   harness to call the real engine math (parent/child rollup, posterior
+ *   variance, multipliers) without polluting live state.
+ * - `additionalEvents`: extra macro events appended to the active-event set
+ *   for this run. Used by the backtest harness to inject a single historical
+ *   event and measure its propagated impact via the real engine. The events'
+ *   `startedAt` should be `new Date()` so `decayFactor` is 1 (peak shock).
+ * - `capturePerCap`: when true, the result includes the engine's per-capability
+ *   posterior consensusScore map keyed by capabilityId. Required for the
+ *   backtest harness to diff baseline vs predicted at the leaf level.
+ */
+export interface ComputeCEIOptions {
+  persist?: boolean;
+  additionalEvents?: MacroEvent[];
+  capturePerCap?: boolean;
+}
+
+export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, number> }> {
+  const persist = opts.persist !== false;
+  const additionalEvents = opts.additionalEvents ?? [];
+  const captureMap = opts.capturePerCap ? new Map<number, number>() : null;
   const industries = await db.select().from(industriesTable);
   const allCapabilities = await db.select().from(capabilitiesTable);
   const allRelationships = await db.select().from(ontologyRelationshipsTable);
@@ -97,9 +122,11 @@ export async function computeCEI(): Promise<CEIResult> {
   let overallVarNumerator = 0;     // Σ wᵢ² × Var(indexᵢ)
   const allVelocities: number[] = [];
 
-  // Bidirectional macro-event capability shocks.
+  // Bidirectional macro-event capability shocks. `additionalEvents` lets the
+  // backtest harness inject a historical event for replay without persisting
+  // it to the live macro_events table.
   const capShockMap = new Map<number, number>();
-  const activeEvents = await listActiveEvents();
+  const activeEvents = [...await listActiveEvents(), ...additionalEvents];
   for (const evt of activeEvents) {
     const explicit = (evt.affectedCapabilityIds ?? []) as number[];
     if (!explicit.length) continue;
@@ -222,9 +249,25 @@ export async function computeCEI(): Promise<CEIResult> {
         queriedAt: new Date().toISOString(),
       }];
 
-      if (prev) {
-        await db.update(ceiComponentsTable)
-          .set({
+      if (persist) {
+        if (prev) {
+          await db.update(ceiComponentsTable)
+            .set({
+              consensusScore,
+              posteriorVariance,
+              ciLow,
+              ciHigh,
+              confidence,
+              velocity,
+              economicMultiplier,
+              sourceScores,
+              updatedAt: new Date(),
+            })
+            .where(eq(ceiComponentsTable.id, prev.id));
+        } else {
+          await db.insert(ceiComponentsTable).values({
+            capabilityId: cap.id,
+            industryId: industry.id,
             consensusScore,
             posteriorVariance,
             ciLow,
@@ -233,24 +276,11 @@ export async function computeCEI(): Promise<CEIResult> {
             velocity,
             economicMultiplier,
             sourceScores,
-            updatedAt: new Date(),
-          })
-          .where(eq(ceiComponentsTable.id, prev.id));
-      } else {
-        await db.insert(ceiComponentsTable).values({
-          capabilityId: cap.id,
-          industryId: industry.id,
-          consensusScore,
-          posteriorVariance,
-          ciLow,
-          ciHigh,
-          confidence,
-          velocity,
-          economicMultiplier,
-          sourceScores,
-        });
+          });
+        }
       }
 
+      if (captureMap) captureMap.set(cap.id, consensusScore);
       leafPosterior.set(cap.id, { consensusScore, confidence, velocity, variance: posteriorVariance });
     }
 
@@ -293,24 +323,27 @@ export async function computeCEI(): Promise<CEIResult> {
 
       const prevKey = `${industry.id}-${parent.id}`;
       const prev = prevMap.get(prevKey);
-      if (prev) {
-        await db.update(ceiComponentsTable)
-          .set({ consensusScore, posteriorVariance, ciLow, ciHigh, confidence, velocity, economicMultiplier, sourceScores, updatedAt: new Date() })
-          .where(eq(ceiComponentsTable.id, prev.id));
-      } else {
-        await db.insert(ceiComponentsTable).values({
-          capabilityId: parent.id,
-          industryId: industry.id,
-          consensusScore,
-          posteriorVariance,
-          ciLow,
-          ciHigh,
-          confidence,
-          velocity,
-          economicMultiplier,
-          sourceScores,
-        });
+      if (persist) {
+        if (prev) {
+          await db.update(ceiComponentsTable)
+            .set({ consensusScore, posteriorVariance, ciLow, ciHigh, confidence, velocity, economicMultiplier, sourceScores, updatedAt: new Date() })
+            .where(eq(ceiComponentsTable.id, prev.id));
+        } else {
+          await db.insert(ceiComponentsTable).values({
+            capabilityId: parent.id,
+            industryId: industry.id,
+            consensusScore,
+            posteriorVariance,
+            ciLow,
+            ciHigh,
+            confidence,
+            velocity,
+            economicMultiplier,
+            sourceScores,
+          });
+        }
       }
+      if (captureMap) captureMap.set(parent.id, consensusScore);
     }
 
     // Industry index uses leaf caps only.
@@ -392,15 +425,17 @@ export async function computeCEI(): Promise<CEIResult> {
   const marketSentiment = Math.max(0, Math.min(100, Math.round((baseSentiment + macroShock.sentimentShock) * 10) / 10));
   const volatility = Math.round((baseVolatility + macroShock.volatilityBoost) * 1000) / 1000;
 
-  const snapshot = await db.insert(ceiSnapshotsTable).values({
-    overallIndex,
-    overallCiLow,
-    overallCiHigh,
-    industryBreakdowns,
-    marketSentiment,
-    volatility,
-    methodologyVersion: "1.1",
-  }).returning();
+  const snapshotAt = persist
+    ? (await db.insert(ceiSnapshotsTable).values({
+        overallIndex,
+        overallCiLow,
+        overallCiHigh,
+        industryBreakdowns,
+        marketSentiment,
+        volatility,
+        methodologyVersion: "1.1",
+      }).returning())[0].snapshotAt
+    : new Date();
 
   return {
     overallIndex,
@@ -410,7 +445,8 @@ export async function computeCEI(): Promise<CEIResult> {
     marketSentiment,
     volatility,
     methodology: CEI_METHODOLOGY,
-    timestamp: snapshot[0].snapshotAt.toISOString(),
+    timestamp: snapshotAt.toISOString(),
+    capScores: captureMap ?? undefined,
   };
 }
 

@@ -3,30 +3,57 @@ import {
   historicalEventsTable,
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
   type HistoricalEvent,
+  type MacroEvent,
 } from "@workspace/db";
 import { asc, desc } from "drizzle-orm";
+import { computeCEI } from "./cei-engine";
 
 /**
- * CEI backtesting harness — replays curated historical events against the
- * live capability state and reports directional accuracy. Pure function:
- * never writes to ceiSnapshots / ceiComponents / macroEvents. The whole
- * point is to *audit* the model, not to mutate live state.
+ * CEI backtesting harness — replays curated historical events through the
+ * **actual** CEI engine in dry-run mode (no persistence) and reports the
+ * directional accuracy of each event's effect on the affected capabilities.
  *
- * Per-cap math mirrors the engine's macro-shock formula in cei-engine.ts:
- *   shock = severity × sign(sentimentDirection) × decayFactor
- * with decayFactor pinned to 1.0 — we measure peak impact at T+1, not the
- * decayed residual months later, so the test is comparable across events.
+ * How non-tautology is achieved:
+ *
+ * 1. The engine is invoked TWICE per replay: once with no event injected
+ *    (baseline) and once with the historical event injected as an extra
+ *    active macro_event. The predicted delta for each capability is the
+ *    *engine-output* score difference, NOT a hand-derived sign. This
+ *    flows through the real bayesian posterior, parent/child rollup,
+ *    velocity smoothing, and economic-multiplier code paths.
+ *
+ * 2. The expected direction for each capability is stored separately on
+ *    the historical_events row and is allowed to disagree with the
+ *    event's `sentimentDirection`. This is critical: events like COVID
+ *    are globally NEGATIVE but POSITIVE for telehealth, EU AI Act is a
+ *    cost burden (NEGATIVE) but POSITIVE for AI-governance tooling. A
+ *    naive engine that infers cap direction from event sentiment alone
+ *    will MISS these — the harness is designed to surface that gap.
+ *
+ * 3. Dry-run mode is achieved by passing `persist: false` to `computeCEI`,
+ *    which skips all writes to ceiSnapshots / ceiComponents. Replay never
+ *    pollutes live state, so admins can re-run as often as they like.
+ *
+ * Time anchoring caveat: per-capability score history is not retained
+ * (cei_components stores only current state), so the T-1 baseline is
+ * "the engine's current state without the event," and T+1 is "the engine's
+ * current state with the event applied at peak shock." The harness measures
+ * MODEL PROPAGATION quality, not historical reconstruction accuracy. This
+ * limitation is documented on the /backtest page so users see what the
+ * number does and does not prove.
  */
 
-const SHOCK_EPSILON = 0.5; // |delta| under this counts as "no movement"
-const DECAY_AT_PEAK = 1.0;
+const SHOCK_EPSILON = 0.5;
 
-function dirSign(d: string): number {
-  if (d === "positive") return 1;
-  if (d === "negative") return -1;
-  return 0;
+type Direction = "positive" | "negative" | "neutral";
+
+interface SeedCap { name: string; expectedDirection: Direction; rationale?: string; }
+
+function dirOfDelta(delta: number): Direction {
+  if (delta > SHOCK_EPSILON) return "positive";
+  if (delta < -SHOCK_EPSILON) return "negative";
+  return "neutral";
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -37,13 +64,14 @@ export interface CapResult {
   capabilityId: number | null;
   capabilityName: string;
   industryName: string;
-  baseline: number | null;       // T-1 score (null if cap not in DB)
-  predicted: number | null;      // T+1 score
-  predictedDelta: number;        // signed
-  predictedDirection: "positive" | "negative" | "neutral";
-  expectedDirection: "positive" | "negative" | "neutral";
-  match: boolean;                // counted in accuracy?
-  excluded: "not_found" | "below_epsilon" | null; // why excluded if so
+  expectedDirection: Direction;
+  rationale: string | null;
+  baseline: number | null;
+  predicted: number | null;
+  predictedDelta: number;
+  predictedDirection: Direction;
+  match: boolean;
+  excluded: "not_found" | "below_epsilon" | null;
 }
 
 export interface EventResult {
@@ -52,34 +80,44 @@ export interface EventResult {
   eventDate: string;
   eventType: string;
   severity: number;
+  sentimentDirection: Direction;
   description: string;
   citations: string[];
   capResults: CapResult[];
   matched: number;
-  scored: number;     // capResults that contributed to accuracy
-  notFound: number;   // affected caps that don't exist in this DB
-  accuracy: number;   // matched / scored, 0..1; -1 if scored=0
+  scored: number;
+  notFound: number;
+  accuracy: number; // -1 if scored=0
 }
 
 export interface BacktestSummary {
   events: EventResult[];
   aggregateMatched: number;
   aggregateScored: number;
-  aggregateAccuracy: number; // 0..1, or 0 if nothing scored
+  aggregateAccuracy: number;
   ranAt: string;
+  notes: {
+    timeAnchorCaveat: string;
+  };
 }
 
 /**
- * Resolve seed event capability names into live (industryName, capabilityName, capId)
- * triples. We match by case-insensitive cap name within any of the named
- * industries, so seed naming variations don't silently drop predictions.
+ * Build a synthetic in-memory MacroEvent for engine injection. Resolves seed
+ * capability NAMES to live capabilityIds (case-insensitive, scoped to the
+ * named industries) so the engine's `expandAffectedCapabilityIds` can do its
+ * normal parent/child propagation. Returns the resolved cap-name → capId map
+ * so the harness can diff per-cap engine output afterwards.
  */
-async function resolveAffectedCaps(
-  event: HistoricalEvent,
-): Promise<Array<{ capId: number | null; capabilityName: string; industryName: string }>> {
+async function buildInjection(event: HistoricalEvent): Promise<{
+  injection: MacroEvent | null;
+  resolvedCaps: Array<{ capId: number | null; expectedDirection: Direction; capabilityName: string; industryName: string; rationale: string | null }>;
+}> {
+  const seedCaps = (event.affectedCapabilities ?? []) as SeedCap[];
   const industryNames = (event.affectedIndustryNames ?? []) as string[];
-  const capabilityNames = (event.affectedCapabilityNames ?? []) as string[];
-  if (capabilityNames.length === 0) return [];
+
+  if (seedCaps.length === 0) {
+    return { injection: null, resolvedCaps: [] };
+  }
 
   const industries = await db.select().from(industriesTable);
   const targetIndustryIds = new Set(
@@ -87,83 +125,185 @@ async function resolveAffectedCaps(
       .filter((i) => industryNames.some((n) => n.toLowerCase() === i.name.toLowerCase()))
       .map((i) => i.id),
   );
-
   const caps = await db.select().from(capabilitiesTable);
-  const out: Array<{ capId: number | null; capabilityName: string; industryName: string }> = [];
+  const industryNameById = new Map(industries.map((i) => [i.id, i.name]));
 
-  for (const wantedName of capabilityNames) {
-    const wantedLower = wantedName.toLowerCase();
+  const resolved: Array<{
+    capId: number | null;
+    expectedDirection: Direction;
+    capabilityName: string;
+    industryName: string;
+    rationale: string | null;
+  }> = [];
+  const allResolvedIds: number[] = [];
+
+  for (const sc of seedCaps) {
+    const wantedLower = sc.name.toLowerCase();
     const matches = caps.filter(
       (c) =>
         c.isLeaf &&
         c.name.toLowerCase() === wantedLower &&
         (targetIndustryIds.size === 0 || targetIndustryIds.has(c.industryId)),
     );
+
     if (matches.length === 0) {
-      out.push({ capId: null, capabilityName: wantedName, industryName: industryNames[0] ?? "" });
-      continue;
-    }
-    for (const m of matches) {
-      const ind = industries.find((i) => i.id === m.industryId);
-      out.push({ capId: m.id, capabilityName: m.name, industryName: ind?.name ?? "" });
+      resolved.push({
+        capId: null,
+        expectedDirection: sc.expectedDirection,
+        capabilityName: sc.name,
+        industryName: industryNames[0] ?? "",
+        rationale: sc.rationale ?? null,
+      });
+    } else {
+      for (const m of matches) {
+        resolved.push({
+          capId: m.id,
+          expectedDirection: sc.expectedDirection,
+          capabilityName: m.name,
+          industryName: industryNameById.get(m.industryId) ?? "",
+          rationale: sc.rationale ?? null,
+        });
+        allResolvedIds.push(m.id);
+      }
     }
   }
-  return out;
+
+  if (allResolvedIds.length === 0) {
+    return { injection: null, resolvedCaps: resolved };
+  }
+
+  // Build a synthetic MacroEvent the engine will treat as currently active
+  // (peak shock). Negative id keeps it disjoint from real macro_events rows.
+  const injection: MacroEvent = {
+    id: -1,
+    eventType: event.eventType,
+    severity: event.severity,
+    title: `[backtest] ${event.title}`,
+    description: event.description,
+    affectedIndustryIds: [],
+    affectedCapabilityIds: allResolvedIds,
+    sentimentDirection: event.sentimentDirection,
+    startedAt: new Date(),
+    decayDays: Math.max(event.decayDays, 1),
+    source: "admin",
+    citations: [],
+    createdBy: "backtest-harness",
+    createdAt: new Date(),
+  };
+
+  return { injection, resolvedCaps: resolved };
 }
 
-/** Replay a single event and produce per-cap + aggregate stats. */
-export async function replayEvent(event: HistoricalEvent): Promise<EventResult> {
-  const resolved = await resolveAffectedCaps(event);
-  const componentRows = await db.select().from(ceiComponentsTable);
-  const baselineByCap = new Map<number, number>();
-  for (const c of componentRows) baselineByCap.set(c.capabilityId, c.consensusScore);
+/**
+ * Replay a single event against a pre-computed baseline engine snapshot.
+ *
+ * `baselineCapScores` MUST come from a `computeCEI({ persist: false,
+ * capturePerCap: true })` run with no `additionalEvents` so the diff truly
+ * isolates the event's impact through the engine pipeline.
+ */
+export async function replayEvent(
+  event: HistoricalEvent,
+  baselineCapScores: Map<number, number>,
+): Promise<EventResult> {
+  const { injection, resolvedCaps } = await buildInjection(event);
 
-  const sign = dirSign(event.sentimentDirection);
-  const expected = event.expectedDirection as "positive" | "negative" | "neutral";
+  // No resolvable caps in this DB → emit a "not found" record per seed cap
+  // and short-circuit (engine call would be a no-op anyway).
+  if (!injection) {
+    const capResults: CapResult[] = resolvedCaps.map((r) => ({
+      capabilityId: null,
+      capabilityName: r.capabilityName,
+      industryName: r.industryName,
+      expectedDirection: r.expectedDirection,
+      rationale: r.rationale,
+      baseline: null,
+      predicted: null,
+      predictedDelta: 0,
+      predictedDirection: "neutral",
+      match: false,
+      excluded: "not_found",
+    }));
+    return {
+      eventId: event.id,
+      title: event.title,
+      eventDate: event.eventDate.toISOString(),
+      eventType: event.eventType,
+      severity: event.severity,
+      sentimentDirection: event.sentimentDirection as Direction,
+      description: event.description,
+      citations: (event.citations ?? []) as string[],
+      capResults,
+      matched: 0,
+      scored: 0,
+      notFound: capResults.length,
+      accuracy: -1,
+    };
+  }
+
+  // ── Engine call with the event injected (T+1, peak shock). ───────────────
+  const predicted = await computeCEI({
+    persist: false,
+    capturePerCap: true,
+    additionalEvents: [injection],
+  });
+  const predictedCapScores = predicted.capScores ?? new Map<number, number>();
 
   let matched = 0;
   let scored = 0;
   let notFound = 0;
   const capResults: CapResult[] = [];
 
-  for (const r of resolved) {
+  for (const r of resolvedCaps) {
     if (r.capId == null) {
       notFound += 1;
       capResults.push({
         capabilityId: null,
         capabilityName: r.capabilityName,
         industryName: r.industryName,
+        expectedDirection: r.expectedDirection,
+        rationale: r.rationale,
         baseline: null,
         predicted: null,
         predictedDelta: 0,
         predictedDirection: "neutral",
-        expectedDirection: expected,
         match: false,
         excluded: "not_found",
       });
       continue;
     }
 
-    const baseline =
-      baselineByCap.get(r.capId) ??
-      // Fall back to the capability's seeded benchmarkScore so brand-new DBs
-      // (no CEI snapshot computed yet) still produce a meaningful baseline.
-      (await db.select().from(capabilitiesTable))
-        .find((c) => c.id === r.capId)?.benchmarkScore ?? 50;
+    const baseline = baselineCapScores.get(r.capId);
+    const post = predictedCapScores.get(r.capId);
+    if (baseline == null || post == null) {
+      // Engine ran but didn't surface this cap (no leaf data, no triangulation).
+      // Skip rather than invent.
+      notFound += 1;
+      capResults.push({
+        capabilityId: r.capId,
+        capabilityName: r.capabilityName,
+        industryName: r.industryName,
+        expectedDirection: r.expectedDirection,
+        rationale: r.rationale,
+        baseline: null,
+        predicted: null,
+        predictedDelta: 0,
+        predictedDirection: "neutral",
+        match: false,
+        excluded: "not_found",
+      });
+      continue;
+    }
 
-    const predictedDelta = event.severity * sign * DECAY_AT_PEAK;
-    const predicted = clamp(baseline + predictedDelta, 0, 100);
-    const predictedDir: "positive" | "negative" | "neutral" =
-      predictedDelta > SHOCK_EPSILON ? "positive" : predictedDelta < -SHOCK_EPSILON ? "negative" : "neutral";
+    const delta = post - baseline;
+    const predictedDir = dirOfDelta(delta);
 
     let excluded: CapResult["excluded"] = null;
     let match = false;
-    if (Math.abs(predictedDelta) < SHOCK_EPSILON) {
-      // Below epsilon: model declines to predict, so exclude from accuracy.
+    if (Math.abs(delta) < SHOCK_EPSILON) {
       excluded = "below_epsilon";
     } else {
       scored += 1;
-      match = predictedDir === expected;
+      match = predictedDir === r.expectedDirection;
       if (match) matched += 1;
     }
 
@@ -171,11 +311,12 @@ export async function replayEvent(event: HistoricalEvent): Promise<EventResult> 
       capabilityId: r.capId,
       capabilityName: r.capabilityName,
       industryName: r.industryName,
+      expectedDirection: r.expectedDirection,
+      rationale: r.rationale,
       baseline: Math.round(baseline * 10) / 10,
-      predicted: Math.round(predicted * 10) / 10,
-      predictedDelta: Math.round(predictedDelta * 10) / 10,
+      predicted: Math.round(clamp(post, 0, 100) * 10) / 10,
+      predictedDelta: Math.round(delta * 10) / 10,
       predictedDirection: predictedDir,
-      expectedDirection: expected,
       match,
       excluded,
     });
@@ -187,6 +328,7 @@ export async function replayEvent(event: HistoricalEvent): Promise<EventResult> 
     eventDate: event.eventDate.toISOString(),
     eventType: event.eventType,
     severity: event.severity,
+    sentimentDirection: event.sentimentDirection as Direction,
     description: event.description,
     citations: (event.citations ?? []) as string[],
     capResults,
@@ -197,18 +339,26 @@ export async function replayEvent(event: HistoricalEvent): Promise<EventResult> 
   };
 }
 
-/** Replay every seeded historical event and aggregate the hit rate. */
+/**
+ * Replay every seeded historical event and aggregate the hit rate. The
+ * baseline engine run is computed ONCE and reused across all events, so the
+ * total dry-run cost is N+1 engine invocations for N seeded events.
+ */
 export async function runBacktest(): Promise<BacktestSummary> {
   const events = await db
     .select()
     .from(historicalEventsTable)
     .orderBy(asc(historicalEventsTable.eventDate));
 
+  // Single baseline engine pass — all event diffs are taken against this.
+  const baseline = await computeCEI({ persist: false, capturePerCap: true });
+  const baselineCapScores = baseline.capScores ?? new Map<number, number>();
+
   const results: EventResult[] = [];
   let aggMatched = 0;
   let aggScored = 0;
   for (const e of events) {
-    const r = await replayEvent(e);
+    const r = await replayEvent(e, baselineCapScores);
     results.push(r);
     aggMatched += r.matched;
     aggScored += r.scored;
@@ -220,6 +370,10 @@ export async function runBacktest(): Promise<BacktestSummary> {
     aggregateScored: aggScored,
     aggregateAccuracy: aggScored > 0 ? aggMatched / aggScored : 0,
     ranAt: new Date().toISOString(),
+    notes: {
+      timeAnchorCaveat:
+        "T-1 baseline is the engine's current state without the event; T+1 is the same state with the event injected at peak shock. Per-capability score history is not retained, so this measures model propagation quality, not historical reconstruction.",
+    },
   };
 }
 
