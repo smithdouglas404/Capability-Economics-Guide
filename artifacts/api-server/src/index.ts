@@ -5,6 +5,7 @@ import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTa
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
+import { ensurePublicPreviewSeed } from "./services/public-preview-seed";
 import { startFoundryHourlySync, fireFoundrySync, rehydrateFoundryAlertState } from "./services/foundry/sync";
 
 const rawPort = process.env["PORT"];
@@ -89,6 +90,12 @@ app.listen(port, (err) => {
   // and cheap when nothing's missing — see sub-cap-backfill.ts.
   void backfillMissingSubCapabilities()
     .catch(err => logger.error({ err }, "[sub-cap-backfill] threw"));
+
+  // Public-preview self-heal — guarantees /explore is populated in any
+  // environment (dev, staging, prod-after-restore) without requiring a
+  // manual seed step. Idempotent and a no-op once 10+ caps are flagged.
+  void ensurePublicPreviewSeed()
+    .catch(err => logger.error({ err }, "[public-preview-seed] threw"));
 
   // Foundry mirror — hourly catch-up sync covers writes that don't go through
   // the agent (manual reviewer edits, assessments, direct DB writes). The

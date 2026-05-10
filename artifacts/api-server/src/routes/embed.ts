@@ -9,6 +9,29 @@ import {
 import { eq, and } from "drizzle-orm";
 import { getCEICurrent } from "../services/cei-engine";
 import { buildFrameAncestorsCsp } from "../lib/embed-csp";
+import { resolveBranding } from "../lib/embed-token";
+
+/**
+ * Build the citation list embedded in widget responses. Derived from the
+ * triangulation engine's `sourceScores` JSON: each entry already records
+ * label, methodology, weight, and queriedAt. We don't fabricate URLs we
+ * don't have — partners can click through to capabilityeconomics.com to
+ * see the full provenance trail. Capped at 5 to keep payload tiny.
+ */
+function buildCitations(
+  sourceScores: Array<{ sourceLabel: string; weight: number; methodology: string; queriedAt: string }> | null | undefined,
+): Array<{ label: string; methodology: string; weight: number; queriedAt: string }> {
+  if (!sourceScores || sourceScores.length === 0) return [];
+  return [...sourceScores]
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 5)
+    .map(s => ({
+      label: s.sourceLabel,
+      methodology: s.methodology,
+      weight: Math.round(s.weight * 100) / 100,
+      queriedAt: s.queriedAt,
+    }));
+}
 
 const router: IRouter = Router();
 
@@ -32,20 +55,40 @@ router.use("/embed", embedFrameHeaders);
  * Live CEI snapshot for embedding. Tiny payload — overall index, CI,
  * methodology id, timestamp. No industry breakdown to keep widgets light.
  */
-router.get("/embed/cei", async (_req, res) => {
+router.get("/embed/cei", async (req, res) => {
   try {
     const cei = await getCEICurrent();
     if (!cei) {
       res.status(503).json({ error: "CEI not yet computed" });
       return;
     }
+    // CEI is a model-derived rollup, not a per-source aggregate, so its
+    // provenance is the engine + the count of contributing industries
+    // (each backed by Perplexity-cited GDP weights via industry_gdp_weights).
+    const industryCount = Object.keys(cei.industryBreakdowns ?? {}).length;
+    const ts = typeof cei.timestamp === "string" ? cei.timestamp : new Date(cei.timestamp).toISOString();
     res.json({
       overallIndex: cei.overallIndex,
       ciLow: cei.overallCiLow,
       ciHigh: cei.overallCiHigh,
       marketSentiment: cei.marketSentiment,
       volatility: cei.volatility,
-      timestamp: cei.timestamp,
+      timestamp: ts,
+      citations: [
+        {
+          label: `Bayesian triangulation across ${industryCount} industries`,
+          methodology: "ce-rollup-v1.1",
+          weight: 1.0,
+          queriedAt: ts,
+        },
+        {
+          label: "Industry GDP weights (Perplexity-cited)",
+          methodology: "industry_gdp_weights",
+          weight: 1.0,
+          queriedAt: ts,
+        },
+      ],
+      branding: resolveBranding(req.query["token"]),
     });
   } catch (err) {
     console.error("embed cei failed:", err);
@@ -115,6 +158,8 @@ router.get("/embed/capability/:id", async (req, res) => {
     velocity: comp?.velocity ?? null,
     sourceCount: comp?.sourceScores?.length ?? 0,
     lastUpdatedAt: comp?.updatedAt?.toISOString() ?? null,
+    citations: buildCitations(comp?.sourceScores),
+    branding: resolveBranding(req.query["token"]),
   });
 });
 
