@@ -8,22 +8,31 @@ import {
   capabilityEconomicsTable,
   ceiComponentsTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, avg, count } from "drizzle-orm";
 
 const router = Router();
 
-// Get competitive comparison data
+// Get competitive comparison data.
+//
+// Modes:
+//   1. ?sessionToken=…  → user's own org scored vs benchmarks (the original mode).
+//   2. ?industryId=N    → "industry average" mode: aggregates maturityScore across all
+//                         reference organizations in that industry. This is what an
+//                         anonymous visitor sees on the Capability Scorecard so the
+//                         page is never empty (Task #21).
 router.get("/war-room/compare", async (req, res) => {
   try {
     const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+    const queriedIndustryId = typeof req.query.industryId === "string" ? Number(req.query.industryId) : NaN;
     const companyIds = typeof req.query.companyIds === "string"
       ? req.query.companyIds.split(",").map(Number).filter(Boolean)
       : [];
 
-    // Get org and its assessments
     let orgCaps: Array<{ capabilityId: number; maturityScore: number; investmentLevel: string }> = [];
     let orgName: string | null = null;
     let industryId: number | null = null;
+    let mode: "user" | "industry-average" = "user";
+    let aggregatedFromOrgs = 0;
 
     if (token) {
       const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, token));
@@ -36,6 +45,34 @@ router.get("/war-room/compare", async (req, res) => {
           investmentLevel: organizationCapabilitiesTable.investmentLevel,
         }).from(organizationCapabilitiesTable)
           .where(eq(organizationCapabilitiesTable.organizationId, org.id));
+      }
+    }
+
+    // Industry-average fallback for anonymous users.
+    if (!token && Number.isFinite(queriedIndustryId)) {
+      industryId = queriedIndustryId;
+      mode = "industry-average";
+      const refOrgs = await db.select({ id: organizationsTable.id })
+        .from(organizationsTable)
+        .where(eq(organizationsTable.industryId, queriedIndustryId));
+      aggregatedFromOrgs = refOrgs.length;
+      if (refOrgs.length > 0) {
+        const refOrgIds = refOrgs.map((o) => o.id);
+        const aggregated = await db
+          .select({
+            capabilityId: organizationCapabilitiesTable.capabilityId,
+            maturityScore: avg(organizationCapabilitiesTable.maturityScore).mapWith(Number),
+            sampleSize: count(organizationCapabilitiesTable.id).mapWith(Number),
+          })
+          .from(organizationCapabilitiesTable)
+          .where(inArray(organizationCapabilitiesTable.organizationId, refOrgIds))
+          .groupBy(organizationCapabilitiesTable.capabilityId);
+        orgCaps = aggregated.map((r) => ({
+          capabilityId: r.capabilityId,
+          maturityScore: r.maturityScore,
+          investmentLevel: "moderate",
+        }));
+        orgName = `Industry Average (${refOrgs.length} reference orgs)`;
       }
     }
 
@@ -98,7 +135,7 @@ router.get("/war-room/compare", async (req, res) => {
       }
     }
 
-    res.json({ orgName, industryId, matrix, alerts });
+    res.json({ orgName, industryId, mode, aggregatedFromOrgs, matrix, alerts });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

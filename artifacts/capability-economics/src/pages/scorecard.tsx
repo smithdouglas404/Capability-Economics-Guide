@@ -20,29 +20,55 @@ type MatrixRow = {
 };
 
 type Alert = { type: string; message: string; severity: string; capabilityId: number };
+type Industry = { id: number; name: string };
 
 export default function CapabilityScorecard() {
   const [matrix, setMatrix] = useState<MatrixRow[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industryId, setIndustryId] = useState<number | null>(null);
+  const [mode, setMode] = useState<"user" | "industry-average">("user");
+  const [aggregatedFromOrgs, setAggregatedFromOrgs] = useState(0);
   const sessionToken = localStorage.getItem("ce_session_token") ?? "";
 
-  const load = async () => {
+  const load = async (overrideIndustryId?: number | null) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/war-room/compare?sessionToken=${sessionToken}`);
+      let url: string;
+      if (sessionToken) {
+        url = `${API_BASE}/war-room/compare?sessionToken=${sessionToken}`;
+      } else {
+        const ind = overrideIndustryId ?? industryId;
+        if (!ind) { setLoading(false); return; }
+        url = `${API_BASE}/war-room/compare?industryId=${ind}`;
+      }
+      const res = await fetch(url);
       const data = await res.json();
       setMatrix(data.matrix ?? []);
       setAlerts(data.alerts ?? []);
       setOrgName(data.orgName ?? "");
+      setMode(data.mode ?? "user");
+      setAggregatedFromOrgs(data.aggregatedFromOrgs ?? 0);
     } catch (err) {
       console.error(err);
     }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  // Anonymous visitors: fetch industry list and default to the first one
+  // so the scorecard shows industry-average maturity instead of an empty page.
+  useEffect(() => {
+    if (sessionToken) { load(); return; }
+    fetch(`${API_BASE}/industries`).then((r) => r.json()).then((rows: Industry[]) => {
+      setIndustries(rows);
+      if (rows.length > 0) {
+        setIndustryId(rows[0].id);
+        load(rows[0].id);
+      }
+    }).catch(() => setLoading(false));
+  }, []);
 
   const sortedByGap = [...matrix].filter((m) => m.gap !== null).sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0));
   const criticalAlerts = alerts.filter((a) => a.severity === "critical");
@@ -57,9 +83,28 @@ export default function CapabilityScorecard() {
             <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Live</span>
           </div>
           <h1 className="text-3xl font-serif tracking-tight">Capability Scorecard</h1>
-          <p className="text-muted-foreground text-sm mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
+          <p className="text-muted-foreground text-sm mt-1">
+            {orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.
+            {mode === "industry-average" && (
+              <span className="block mt-1 text-xs">
+                Showing industry-average scores aggregated across {aggregatedFromOrgs} reference {aggregatedFromOrgs === 1 ? "organization" : "organizations"}. Set up your own organization to compare your scores directly.
+              </span>
+            )}
+          </p>
         </div>
-        <Button onClick={load} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
+        <div className="flex items-center gap-2">
+          {mode === "industry-average" && industries.length > 0 && (
+            <select
+              value={industryId ?? ""}
+              onChange={(e) => { const v = parseInt(e.target.value, 10); setIndustryId(v); load(v); }}
+              className="border rounded px-3 py-2 bg-background text-sm"
+              data-testid="scorecard-industry-select"
+            >
+              {industries.map((i) => (<option key={i.id} value={i.id}>{i.name}</option>))}
+            </select>
+          )}
+          <Button onClick={() => load()} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
+        </div>
       </div>
 
       {/* Alert Banner */}
@@ -171,7 +216,7 @@ export default function CapabilityScorecard() {
             </table>
           </div>
           {!matrix.length && !loading && (
-            <p className="text-center text-muted-foreground py-8">Set up your organization first to see competitive comparison.</p>
+            <p className="text-center text-muted-foreground py-8">No reference organizations seeded for this industry yet.</p>
           )}
         </CardContent>
       </Card>
