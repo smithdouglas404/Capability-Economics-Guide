@@ -73,6 +73,39 @@ export function getFoundryAlertState(): Readonly<FoundryAlertState> {
 }
 
 /**
+ * Boot-time rebuild of alertState from the persisted log tail. Without this,
+ * a process restart would silently clear the banner even when recent history
+ * shows ≥2 consecutive 401s — admins would lose visibility until the next
+ * hourly tick re-confirmed the failure. Called once from src/index.ts.
+ */
+export async function rehydrateFoundryAlertState(): Promise<void> {
+  try {
+    const recent = await db
+      .select({ status: foundrySyncLogTable.status, completedAt: foundrySyncLogTable.completedAt, errorMessage: foundrySyncLogTable.errorMessage })
+      .from(foundrySyncLogTable)
+      .orderBy(desc(foundrySyncLogTable.id))
+      .limit(5);
+    if (recent.length === 0) return;
+    let streak = 0;
+    for (const row of recent) {
+      if (row.status === "http_401") streak += 1;
+      else break;
+    }
+    if (streak === 0) return;
+    alertState.consecutive401 = streak;
+    alertState.lastFailureAt = recent[0]?.completedAt?.toISOString() ?? null;
+    alertState.lastError = recent[0]?.errorMessage ?? null;
+    if (streak >= 2) {
+      alertState.active = true;
+      alertState.firstFailureAt = recent[Math.min(streak - 1, recent.length - 1)]?.completedAt?.toISOString() ?? alertState.lastFailureAt;
+      logger.warn({ consecutive401: streak }, "[foundry-sync] alert state rehydrated from DB at boot — token still appears to need rotation");
+    }
+  } catch (e) {
+    logger.error({ err: e }, "[foundry-sync] rehydrateFoundryAlertState failed");
+  }
+}
+
+/**
  * Classify a thrown error into a status enum + extracted HTTP code. The
  * Foundry client throws `Error("Foundry GET /path 401: …")` or
  * `Error("upload rid/file 503: …")`, so we regex-extract the status.

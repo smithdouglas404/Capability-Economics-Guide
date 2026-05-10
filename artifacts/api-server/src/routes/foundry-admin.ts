@@ -43,7 +43,9 @@ router.get("/admin/foundry/health", async (_req, res) => {
 
 /** Last 10 (or N up to 50) sync runs — drives the run-history table. */
 router.get("/admin/foundry/sync-log", async (req, res) => {
-  const limit = Math.min(Number(req.query.limit ?? 10), 50);
+  const raw = Number(req.query.limit ?? 10);
+  // Guard NaN / negative / zero / fractional — fall back to default 10, cap at 50.
+  const limit = !Number.isFinite(raw) || raw < 1 ? 10 : Math.min(Math.floor(raw), 50);
   const rows = await db
     .select()
     .from(foundrySyncLogTable)

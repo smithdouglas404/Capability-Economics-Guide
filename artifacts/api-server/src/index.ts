@@ -5,7 +5,7 @@ import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTa
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
-import { startFoundryHourlySync, fireFoundrySync } from "./services/foundry/sync";
+import { startFoundryHourlySync, fireFoundrySync, rehydrateFoundryAlertState } from "./services/foundry/sync";
 
 const rawPort = process.env["PORT"];
 
@@ -94,6 +94,10 @@ app.listen(port, (err) => {
   // the agent (manual reviewer edits, assessments, direct DB writes). The
   // agent itself fires fireFoundrySync at end-of-run so per-cap reruns
   // surface in Foundry within seconds. No-ops if Foundry env vars aren't set.
+  // Rebuild the in-memory token-rotation alert from the persisted sync log
+  // tail BEFORE the boot-tick fires, so the banner stays visible across
+  // restarts even if the boot sync hasn't run yet.
+  void rehydrateFoundryAlertState();
   startFoundryHourlySync();
   // Fire one sync at boot so Foundry catches up after a redeploy.
   fireFoundrySync("api-server boot");
