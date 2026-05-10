@@ -100,15 +100,16 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/30 py-8 border-b">
+      <section className="bg-muted/10 py-8 border-b border-border/40">
         <div className="container mx-auto px-4 max-w-6xl">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary mb-2">
-                Personalized Dashboard
+              <div className="inline-flex items-center gap-2 mb-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Personalized Dashboard</span>
               </div>
               <h1 className="text-2xl md:text-3xl font-serif font-medium text-foreground">{organization.name}</h1>
-              <p className="text-muted-foreground">{organization.industryName} &middot; {organization.size} organization &middot; {summary.assessedCapabilities} of {summary.totalCapabilities} capabilities assessed</p>
+              <p className="text-muted-foreground text-sm mt-1">{organization.industryName} &middot; {organization.size} organization &middot; {summary.assessedCapabilities} of {summary.totalCapabilities} capabilities assessed</p>
             </div>
             <div className="flex items-center gap-3">
               <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -135,14 +136,14 @@ export default function Dashboard() {
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <Target className="w-8 h-8 text-primary mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.averageMaturity}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.averageMaturity}</div>
               <div className="text-xs text-muted-foreground mt-1">Avg Maturity Score</div>
             </CardContent>
           </Card>
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <BarChart3 className="w-8 h-8 text-accent mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.averageBenchmark}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.averageBenchmark}</div>
               <div className="text-xs text-muted-foreground mt-1">Avg Benchmark</div>
             </CardContent>
           </Card>
@@ -153,7 +154,7 @@ export default function Dashboard() {
               ) : (
                 <TrendingDown className="w-8 h-8 text-rose-500 mx-auto mb-2" />
               )}
-              <div className="text-3xl font-serif font-semibold text-foreground">
+              <div className="text-3xl font-serif tracking-tight text-foreground">
                 {summary.averageMaturity >= summary.averageBenchmark ? "+" : ""}
                 {Math.round((summary.averageMaturity - summary.averageBenchmark) * 10) / 10}
               </div>
@@ -163,7 +164,7 @@ export default function Dashboard() {
           <Card className="rounded-none">
             <CardContent className="pt-6 text-center">
               <CheckCircle2 className="w-8 h-8 text-primary mx-auto mb-2" />
-              <div className="text-3xl font-serif font-semibold text-foreground">{summary.assessedCapabilities}/{summary.totalCapabilities}</div>
+              <div className="text-3xl font-serif tracking-tight text-foreground">{summary.assessedCapabilities}/{summary.totalCapabilities}</div>
               <div className="text-xs text-muted-foreground mt-1">Assessed</div>
             </CardContent>
           </Card>
@@ -172,7 +173,7 @@ export default function Dashboard() {
         <div className="grid lg:grid-cols-2 gap-8">
           <Card className="rounded-none">
             <CardHeader>
-              <CardTitle className="font-serif text-lg">Maturity vs Benchmark Radar</CardTitle>
+              <CardTitle className="font-serif text-lg tracking-tight">Maturity vs Benchmark Radar</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[350px]">
@@ -195,7 +196,7 @@ export default function Dashboard() {
 
           <Card className="rounded-none">
             <CardHeader>
-              <CardTitle className="font-serif text-lg">Gap Analysis</CardTitle>
+              <CardTitle className="font-serif text-lg tracking-tight">Gap Analysis</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-[350px]">
@@ -275,7 +276,7 @@ export default function Dashboard() {
 
         <Card className="rounded-none">
           <CardHeader>
-            <CardTitle className="font-serif text-lg">All Assessments</CardTitle>
+            <CardTitle className="font-serif text-lg tracking-tight">All Assessments</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">

@@ -84,9 +84,12 @@ export default function InnovationPipeline() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">Innovation</Badge>
-          <h1 className="text-3xl font-serif font-bold">Innovation Pipeline</h1>
-          <p className="text-muted-foreground mt-1">Track innovation projects from ideation through scale with capability uplift measurement.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Innovation</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Innovation Pipeline</h1>
+          <p className="text-muted-foreground text-sm mt-1">Track innovation projects from ideation through scale with capability uplift measurement.</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" /> New Project</Button>
       </div>
@@ -164,19 +167,19 @@ export default function InnovationPipeline() {
 
             {/* ROI Comparison */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Investment</p>
                 <p className="text-lg font-bold">{selectedProject.investmentUsdK ? `$${selectedProject.investmentUsdK}K` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Projected ROI</p>
                 <p className="text-lg font-bold">{selectedProject.projectedRoiPct != null ? `${selectedProject.projectedRoiPct}%` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Actual ROI</p>
                 <p className="text-lg font-bold text-primary">{selectedProject.actualRoiPct != null ? `${selectedProject.actualRoiPct}%` : "—"}</p>
               </div>
-              <div className="border rounded-lg p-3 text-center">
+              <div className="border rounded-none p-3 text-center">
                 <p className="text-xs text-muted-foreground">Stages Passed</p>
                 <p className="text-lg font-bold">{selectedProject.stageHistory?.length ?? 0}</p>
               </div>

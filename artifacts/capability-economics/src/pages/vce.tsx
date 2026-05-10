@@ -83,13 +83,13 @@ const KIND_COLORS: Record<string, string> = {
   recommendation: "bg-blue-100 text-blue-800 border-blue-200",
   risk: "bg-amber-100 text-amber-800 border-amber-200",
   insight: "bg-violet-100 text-violet-800 border-violet-200",
-  benchmark: "bg-slate-100 text-slate-800 border-slate-200",
+  benchmark: "bg-muted/50 text-muted-foreground border-border/40",
   evidence_gap: "bg-orange-100 text-orange-800 border-orange-200",
   contradiction: "bg-red-100 text-red-800 border-red-200",
 };
 
 const CYCLE_STATUS_COLOR: Record<string, string> = {
-  scheduled: "bg-slate-100 text-slate-600",
+  scheduled: "bg-muted/50 text-muted-foreground",
   planning: "bg-blue-100 text-blue-700 animate-pulse",
   researching: "bg-violet-100 text-violet-700 animate-pulse",
   critiquing: "bg-amber-100 text-amber-700 animate-pulse",
@@ -128,13 +128,17 @@ export default function VCEPage() {
     <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="flex items-start justify-between mb-6 flex-wrap gap-4">
           <div>
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">AI Agent</span>
+            </div>
             <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center text-white">
+              <div className="w-10 h-10 bg-foreground flex items-center justify-center text-background">
                 <Bot className="w-5 h-5" />
               </div>
-              <h1 className="font-serif text-3xl font-bold">Virtual Capability Engineer</h1>
+              <h1 className="font-serif text-3xl tracking-tight">Virtual Capability Engineer</h1>
             </div>
-            <p className="text-muted-foreground max-w-3xl">
+            <p className="text-muted-foreground text-sm max-w-3xl">
               A LangGraph-orchestrated agent that runs a multi-day research campaign — planning each cycle, executing PhD-grade web research with Perplexity sonar-deep-research, cross-validating findings with GLM 5.1, and proposing follow-up questions to the client. Findings and questions land in a single review pane.
             </p>
           </div>
@@ -170,7 +174,7 @@ export default function VCEPage() {
                       <button
                         key={a.id}
                         onClick={() => setSelectedId(a.id)}
-                        className={`w-full text-left p-3 rounded-md border transition ${selectedId === a.id ? "border-violet-400 bg-violet-50 shadow-sm" : "hover:bg-muted/50"}`}
+                        className={`w-full text-left p-3 rounded-none border transition ${selectedId === a.id ? "border-violet-400 bg-violet-50 shadow-sm" : "hover:bg-muted/50"}`}
                       >
                         <div className="font-medium text-sm truncate">{a.clientName}</div>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -203,7 +207,7 @@ export default function VCEPage() {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
-    planning: "bg-slate-100 text-slate-700",
+    planning: "bg-muted/50 text-muted-foreground",
     active: "bg-blue-100 text-blue-700",
     paused: "bg-amber-100 text-amber-700",
     review: "bg-violet-100 text-violet-700",
@@ -299,7 +303,7 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
           <p className="text-xs text-muted-foreground mt-1">{valueCase.length} chars · min 40</p>
         </div>
 
-        {error && <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
+        {error && <div className="rounded-none border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
 
         <Button onClick={submit} disabled={!ready || busy} className="w-full">
           {busy ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Launching campaign & generating intake…</> : <><Sparkles className="w-4 h-4 mr-2" />Launch {durationDays}-Day Campaign</>}
@@ -376,7 +380,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
         </CardHeader>
         <CardContent className="space-y-3">
           {assessment.objective && (
-            <div className="bg-violet-50 border border-violet-200 rounded-md p-3">
+            <div className="bg-violet-50 border border-violet-200 rounded-none p-3">
               <p className="text-xs uppercase tracking-wide text-violet-700 font-semibold mb-1">Campaign Objective</p>
               <p className="text-sm">{assessment.objective}</p>
             </div>
@@ -388,7 +392,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
         </CardContent>
       </Card>
 
-      {error && <div className="rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
+      {error && <div className="rounded-none border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</div>}
 
       {/* Cycle timeline */}
       <Card>
@@ -396,7 +400,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
         <CardContent>
           <div className="space-y-2">
             {cycles.map(c => (
-              <div key={c.id} className="flex items-center gap-3 p-3 border rounded-md">
+              <div key={c.id} className="flex items-center gap-3 p-3 border rounded-none">
                 <div className="text-xs font-mono text-muted-foreground w-12">D{c.cycleNumber}</div>
                 <Badge className={`${CYCLE_STATUS_COLOR[c.status] ?? ""} text-xs border-transparent`}>{c.status}</Badge>
                 <div className="flex-1 min-w-0">
@@ -485,7 +489,7 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
   }
 
   return (
-    <div className="border rounded-md p-4 hover:bg-muted/30 transition">
+    <div className="border rounded-none p-4 hover:bg-muted/30 transition">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -599,7 +603,7 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
           <CardHeader className="pb-3"><CardTitle className="text-base">{client} <span className="text-muted-foreground font-normal text-sm">— {list.length} pending</span></CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {list.map(it => it._kind === "f" ? (
-              <div key={`f${it.id}`} className="border rounded-md p-3 flex items-start justify-between gap-3 bg-blue-50/30">
+              <div key={`f${it.id}`} className="border rounded-none p-3 flex items-start justify-between gap-3 bg-blue-50/30">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-transparent"><Bot className="w-3 h-3 mr-1" />Agent finding</Badge>
@@ -618,7 +622,7 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
                 </div>
               </div>
             ) : (
-              <div key={`q${it.id}`} className="border rounded-md p-3 bg-violet-50/30">
+              <div key={`q${it.id}`} className="border rounded-none p-3 bg-violet-50/30">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -656,7 +660,7 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
     <Card className="border-emerald-200 bg-gradient-to-br from-white to-emerald-50/40">
       <CardHeader>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-emerald-600 text-white flex items-center justify-center"><FileText className="w-5 h-5" /></div>
+          <div className="w-10 h-10 rounded-none bg-emerald-600 text-white flex items-center justify-center"><FileText className="w-5 h-5" /></div>
           <div>
             <CardTitle className="font-serif text-2xl">Final Capability Economics Assessment</CardTitle>
             <p className="text-sm text-muted-foreground">{clientName} · Assembled from approved findings across all cycles</p>
@@ -664,9 +668,9 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <section><h3 className="font-serif text-lg font-semibold mb-2">Executive Summary</h3><p className="text-sm leading-relaxed">{report.executiveSummary}</p></section>
+        <section><h3 className="font-serif text-lg tracking-tight mb-2">Executive Summary</h3><p className="text-sm leading-relaxed">{report.executiveSummary}</p></section>
         {report.capabilityGaps?.length > 0 && (
-          <section><h3 className="font-serif text-lg font-semibold mb-3">Capability Gaps</h3>
+          <section><h3 className="font-serif text-lg tracking-tight mb-3">Capability Gaps</h3>
             <div className="space-y-2">{report.capabilityGaps.map((g, i) => (
               <div key={i} className="border-l-2 border-rose-400 pl-3 py-1">
                 <p className="text-sm font-medium">{g.name}</p>
@@ -676,9 +680,9 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
             ))}</div></section>
         )}
         {report.recommendations?.length > 0 && (
-          <section><h3 className="font-serif text-lg font-semibold mb-3">Recommendations</h3>
+          <section><h3 className="font-serif text-lg tracking-tight mb-3">Recommendations</h3>
             <div className="space-y-3">{report.recommendations.map((r, i) => (
-              <div key={i} className="border rounded-md p-3 bg-white">
+              <div key={i} className="border rounded-none p-3 bg-white">
                 <div className="flex items-center justify-between"><p className="text-sm font-semibold">{r.title}</p><Badge variant="outline" className="text-xs">{r.horizon}</Badge></div>
                 <p className="text-xs text-muted-foreground mt-1">Rationale: {r.rationale}</p>
                 <p className="text-xs text-emerald-700 mt-1">Impact: {r.impact}</p>
@@ -686,16 +690,16 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
             ))}</div></section>
         )}
         {report.quadrantInsights && (
-          <section><h3 className="font-serif text-lg font-semibold mb-3">Capability Quadrant Insights</h3>
+          <section><h3 className="font-serif text-lg tracking-tight mb-3">Capability Quadrant Insights</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <QuadrantBlock label="Hot" color="bg-amber-50 border-amber-200 text-amber-900" items={report.quadrantInsights.hot} />
               <QuadrantBlock label="Emerging" color="bg-blue-50 border-blue-200 text-blue-900" items={report.quadrantInsights.emerging} />
-              <QuadrantBlock label="Cooling" color="bg-slate-50 border-slate-200 text-slate-700" items={report.quadrantInsights.cooling} />
-              <QuadrantBlock label="Table-Stakes" color="bg-zinc-50 border-zinc-200 text-zinc-700" items={report.quadrantInsights.tableStakes} />
+              <QuadrantBlock label="Cooling" color="bg-muted/30 border-border text-muted-foreground" items={report.quadrantInsights.cooling} />
+              <QuadrantBlock label="Table-Stakes" color="bg-muted/20 border-border text-muted-foreground" items={report.quadrantInsights.tableStakes} />
             </div></section>
         )}
-        {report.risks?.length > 0 && <section><h3 className="font-serif text-lg font-semibold mb-2">Risks</h3><ul className="space-y-1 text-sm list-disc pl-5">{report.risks.map((r, i) => <li key={i}>{r}</li>)}</ul></section>}
-        {report.nextSteps?.length > 0 && <section><h3 className="font-serif text-lg font-semibold mb-2">Next Steps</h3><ol className="space-y-1 text-sm list-decimal pl-5">{report.nextSteps.map((r, i) => <li key={i}>{r}</li>)}</ol></section>}
+        {report.risks?.length > 0 && <section><h3 className="font-serif text-lg tracking-tight mb-2">Risks</h3><ul className="space-y-1 text-sm list-disc pl-5">{report.risks.map((r, i) => <li key={i}>{r}</li>)}</ul></section>}
+        {report.nextSteps?.length > 0 && <section><h3 className="font-serif text-lg tracking-tight mb-2">Next Steps</h3><ol className="space-y-1 text-sm list-decimal pl-5">{report.nextSteps.map((r, i) => <li key={i}>{r}</li>)}</ol></section>}
       </CardContent>
     </Card>
   );
@@ -703,7 +707,7 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
 
 function QuadrantBlock({ label, color, items }: { label: string; color: string; items: string[] }) {
   return (
-    <div className={`rounded-md border p-3 ${color}`}>
+    <div className={`rounded-none border p-3 ${color}`}>
       <p className="font-semibold text-xs uppercase tracking-wide mb-2">{label}</p>
       {items?.length > 0 ? <ul className="text-xs space-y-1 list-disc pl-4">{items.map((i, k) => <li key={k}>{i}</li>)}</ul> : <p className="text-xs italic opacity-60">None</p>}
     </div>

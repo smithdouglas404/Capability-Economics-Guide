@@ -116,7 +116,7 @@ function ScatterTooltip({ active, payload }: { active?: boolean; payload?: Toolt
   const Icon = QUADRANT_ICONS[p.quadrant] ?? Layers;
   const color = QUADRANT_COLORS[p.quadrant] ?? "#94a3b8";
   return (
-    <div className="bg-popover border shadow-xl rounded-md p-3 max-w-xs text-xs">
+    <div className="bg-popover border shadow-xl rounded-none p-3 max-w-xs text-xs">
       <div className="flex items-start gap-2 mb-2">
         <Icon className="w-4 h-4 mt-0.5 shrink-0" style={{ color }} />
         <div className="min-w-0">

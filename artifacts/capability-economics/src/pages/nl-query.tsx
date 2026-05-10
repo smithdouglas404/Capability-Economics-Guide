@@ -72,7 +72,11 @@ export default function NLQuery() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-6">
         <Badge className="mb-2">AI</Badge>
-        <h1 className="text-3xl font-serif font-bold">CE Search</h1>
+        <div className="inline-flex items-center gap-2 mb-3">
+          <span className="h-px w-5 bg-accent" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Intelligence</span>
+        </div>
+        <h1 className="text-3xl font-serif tracking-tight">CE Search</h1>
         <p className="text-muted-foreground mt-1">Natural-language query across the full capability dataset — EVaR, moat scores, AI exposure, trade signals, dependency impact, and more.</p>
       </div>
 
@@ -94,7 +98,7 @@ export default function NLQuery() {
 
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[80%] rounded-lg p-3 ${
+                <div className={`max-w-[80%] rounded-none p-3 ${
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted"
@@ -117,7 +121,7 @@ export default function NLQuery() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-muted rounded-lg p-3">
+                <div className="bg-muted rounded-none p-3">
                   <Loader2 className="w-5 h-5 animate-spin text-primary" />
                 </div>
               </div>

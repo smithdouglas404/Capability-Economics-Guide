@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
+import { motion, useInView, useMotionValue, useSpring, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, Clock, ExternalLink } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface EducationalContent {
   id: number;
@@ -16,6 +18,67 @@ interface EducationalContent {
   category: string;
   estimatedReadMinutes: number;
 }
+
+type SlotResponse = {
+  source: "slot" | "fallback" | "empty";
+  type: "case_study" | null;
+  content: {
+    industrySlug: string;
+    industryName: string;
+    title: string;
+    executiveSummary: string;
+  } | null;
+};
+
+// ─── Hooks ────────────────────────────────────────────────────────────────────
+
+function useSlot(slotKey: string) {
+  const [state, setState] = useState<SlotResponse | null>(null);
+  useEffect(() => {
+    fetch(`/api/featured-content/${slotKey}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((j: SlotResponse | null) => setState(j))
+      .catch(() => setState(null));
+  }, [slotKey]);
+  return state;
+}
+
+// ─── Ticker row (decorative) ───────────────────────────────────────────────
+
+const TICKER_ITEMS = [
+  { label: "Digital Onboarding", val: "+4.7x ROI", up: true },
+  { label: "Precision Underwriting", val: "+$8.5M", up: true },
+  { label: "Order Fulfillment", val: "−12% cost", up: false },
+  { label: "Product Dev Velocity", val: "+2.1x", up: true },
+  { label: "Customer Retention", val: "+38 bps", up: true },
+  { label: "Data Governance", val: "−$2.2M risk", up: false },
+  { label: "AI-Assisted Claims", val: "+$6.1M yield", up: true },
+  { label: "Supply Chain Resilience", val: "+1.9x", up: true },
+];
+
+function TickerBar() {
+  const doubled = [...TICKER_ITEMS, ...TICKER_ITEMS];
+  return (
+    <div className="relative overflow-hidden border-t border-b border-border/40 bg-muted/20 py-2.5">
+      <div className="ticker-track flex gap-0 whitespace-nowrap">
+        {doubled.map((item, i) => (
+          <span key={i} className="inline-flex items-center gap-2 px-6 shrink-0">
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              {item.label}
+            </span>
+            <span className={`font-mono text-[10px] font-medium tracking-[0.12em] flex items-center gap-0.5 ${item.up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
+              {item.up ? <TrendingUp className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
+              {item.val}
+            </span>
+            <span className="text-border/60 mx-1">·</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Educational Library ───────────────────────────────────────────────────
 
 function EducationalLibrary() {
   const [items, setItems] = useState<EducationalContent[]>([]);
@@ -31,46 +94,47 @@ function EducationalLibrary() {
   if (loading || items.length === 0) return null;
 
   return (
-    <section className="border-t border-border/60">
+    <section className="border-t border-border/40">
       <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-12">
+        <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-14">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-              § Library
+            <div className="inline-flex items-center gap-2 mb-4">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ Library</span>
             </div>
-            <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-              Learn the<br /><span className="italic text-foreground/85">discipline.</span>
+            <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+              Learn the<br /><em className="not-italic text-foreground/70">discipline.</em>
             </h2>
           </div>
-          <p className="font-serif italic text-lg text-foreground/70 leading-relaxed self-end max-w-2xl">
-            A curated reading list — the foundational ideas, frameworks, and primary sources behind capability economics.
+          <p className="font-serif italic text-lg lg:text-xl text-foreground/60 leading-relaxed self-end max-w-2xl">
+            The foundational ideas, frameworks, and primary sources behind capability economics — curated for executive reading.
           </p>
         </div>
 
-        <div className="border-t border-border/60">
+        <div className="border-t border-border/40 divide-y divide-border/40">
           {items.map((entry, i) => (
-            <Link key={entry.id} href={`#`} className="block group">
+            <Link key={entry.id} href="#" className="block group">
               <article
                 data-testid={`edu-card-${entry.slug}`}
-                className="grid lg:grid-cols-[60px_140px_1fr_auto] gap-x-8 gap-y-3 py-8 border-b border-border/60 hover:bg-muted/30 transition-colors px-2 -mx-2"
+                className="grid lg:grid-cols-[48px_120px_1fr_80px] gap-x-8 gap-y-2 py-7 hover:bg-muted/20 transition-colors duration-200 px-3 -mx-3"
               >
-                <div className="font-mono text-[11px] tabular-nums tracking-[0.18em] text-muted-foreground">
+                <div className="font-mono text-[10px] tabular-nums tracking-[0.2em] text-muted-foreground/60 pt-0.5">
                   {String(i + 1).padStart(2, "0")}
                 </div>
-                <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent pt-0.5">
                   {entry.category}
                 </div>
                 <div>
-                  <h3 className="font-serif text-2xl lg:text-[1.625rem] leading-tight tracking-tight group-hover:text-foreground/70 transition-colors">
+                  <h3 className="font-serif text-xl lg:text-2xl leading-tight tracking-tight group-hover:text-foreground/70 transition-colors">
                     {entry.title}
                   </h3>
-                  <p className="text-sm text-muted-foreground mt-2 leading-relaxed max-w-2xl">
+                  <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed max-w-2xl">
                     {entry.summary}
                   </p>
                   {entry.keyTakeaways.length > 0 && (
-                    <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-foreground/70">
+                    <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
                       {entry.keyTakeaways.slice(0, 3).map((t, ti) => (
-                        <li key={ti} className="flex gap-2 before:content-['—'] before:text-muted-foreground/60">
+                        <li key={ti} className="font-mono text-[10px] text-foreground/50 flex gap-1.5 before:content-['—'] before:text-muted-foreground/40">
                           <span>{t}</span>
                         </li>
                       ))}
@@ -82,15 +146,15 @@ function EducationalLibrary() {
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground hover:text-accent inline-flex items-center gap-1.5 mt-3"
+                      className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-accent inline-flex items-center gap-1.5 mt-3 transition-colors"
                     >
-                      <ExternalLink className="w-3 h-3" /> {entry.sources[0].title}
+                      <ExternalLink className="w-2.5 h-2.5" /> {entry.sources[0].title}
                     </a>
                   )}
                 </div>
-                <div className="font-mono text-[11px] tabular-nums uppercase tracking-[0.18em] text-muted-foreground inline-flex items-center gap-1.5 self-start">
-                  <Clock className="w-3 h-3" />
-                  {entry.estimatedReadMinutes} min
+                <div className="font-mono text-[10px] tabular-nums uppercase tracking-[0.18em] text-muted-foreground/60 inline-flex items-center gap-1.5 self-start justify-end">
+                  <Clock className="w-2.5 h-2.5" />
+                  {entry.estimatedReadMinutes}m
                 </div>
               </article>
             </Link>
@@ -101,32 +165,26 @@ function EducationalLibrary() {
   );
 }
 
-type SlotResponse = {
-  source: "slot" | "fallback" | "empty";
-  type: "case_study" | null;
-  content: {
-    industrySlug: string;
-    industryName: string;
-    title: string;
-    executiveSummary: string;
-  } | null;
-};
+// ─── Metric Tile ──────────────────────────────────────────────────────────
 
-function useSlot(slotKey: string) {
-  const [state, setState] = useState<SlotResponse | null>(null);
-  useEffect(() => {
-    fetch(`/api/featured-content/${slotKey}`)
-      .then(r => r.ok ? r.json() : null)
-      .then((j: SlotResponse | null) => setState(j))
-      .catch(() => setState(null));
-  }, [slotKey]);
-  return state;
+function MetricTile({ label, value, sub, accent = false, delay = 0 }: {
+  label: string; value: string; sub: string; accent?: boolean; delay?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+      className={`p-4 border ${accent ? "border-accent/30 bg-accent/5" : "border-border/50 bg-muted/30"}`}
+    >
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">{label}</div>
+      <div className={`font-mono text-xl font-medium tabular-nums tracking-tight ${accent ? "text-accent" : "text-foreground"}`}>{value}</div>
+      <div className="font-mono text-[9px] text-muted-foreground/60 mt-1">{sub}</div>
+    </motion.div>
+  );
 }
 
-const fade = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
-};
+// ─── Main Page ────────────────────────────────────────────────────────────
 
 export default function Home() {
   const heroSlot = useSlot("homepage_hero");
@@ -145,231 +203,341 @@ export default function Home() {
   const cardHref = `/case-study/${cardSlug}`;
 
   const principles = [
-    { id: "01", title: "Identify", body: "Isolate the specific combinations of people, process, and technology that create distinct value in the market." },
-    { id: "02", title: "Measure",  body: "Quantify the baseline cost, performance, and revenue impact of each capability using hard economic metrics." },
-    { id: "03", title: "Optimize", body: "Direct capital and leadership attention to the capabilities that drive the highest return on strategic investment." },
+    {
+      id: "01",
+      title: "Identify",
+      body: "Isolate the specific combinations of people, process, and technology that create distinct value in the market.",
+      stat: "3–8",
+      statSub: "core capabilities per org",
+    },
+    {
+      id: "02",
+      title: "Measure",
+      body: "Quantify the baseline cost, performance, and revenue impact of each capability using hard economic metrics.",
+      stat: "4.2×",
+      statSub: "avg ROI on targeted investment",
+    },
+    {
+      id: "03",
+      title: "Optimize",
+      body: "Direct capital and leadership attention to the capabilities that drive the highest return on strategic investment.",
+      stat: "18%",
+      statSub: "median margin improvement",
+    },
   ];
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Masthead + Hero */}
-      <section className="border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 pt-12 pb-20 lg:pt-16 lg:pb-28">
+
+      {/* ── HERO ─────────────────────────────────────────────────────────── */}
+      <section className="relative border-b border-border/40 overflow-hidden">
+        <div className="absolute inset-0 hero-grid-bg pointer-events-none" aria-hidden />
+
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 pt-14 pb-0 lg:pt-20">
+          {/* Eyebrow */}
           <motion.div
-            initial="hidden"
-            animate="show"
-            variants={fade}
-            className="grid lg:grid-cols-[1fr_300px] gap-12 lg:gap-20 items-end"
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
+            className="flex items-center gap-3 mb-8"
           >
-            <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-6 flex items-center gap-3">
-                <span>Vol. I</span>
-                <span className="h-px w-8 bg-border" />
-                <span>The Briefing</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Vol. I — The Briefing</span>
+          </motion.div>
+
+          <div className="grid lg:grid-cols-[1fr_380px] gap-0 lg:gap-20 items-end">
+            {/* Left: Headline */}
+            <div className="pb-16 lg:pb-20">
+              <div className="overflow-hidden mb-1">
+                <motion.h1
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                  className="font-serif text-[clamp(3rem,8vw,6.5rem)] leading-[0.92] tracking-tight"
+                >
+                  Master the value
+                </motion.h1>
               </div>
-              <h1 className="font-serif text-5xl md:text-7xl lg:text-[5.5rem] leading-[0.95] tracking-tight max-w-5xl">
-                Master the value of<br />
-                <span className="italic text-foreground/85">what you can do.</span>
-              </h1>
-              <p className="font-serif text-lg lg:text-xl text-foreground/70 leading-relaxed mt-8 max-w-2xl italic">
-                Capability Economics is the discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
-              </p>
-              <div className="mt-6">
+              <div className="overflow-hidden mb-8">
+                <motion.h1
+                  initial={{ y: "100%" }}
+                  animate={{ y: 0 }}
+                  transition={{ duration: 0.9, delay: 0.07, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                  className="font-serif italic text-[clamp(3rem,8vw,6.5rem)] leading-[0.92] tracking-tight text-foreground/70"
+                >
+                  of what you can do.
+                </motion.h1>
+              </div>
+
+              <motion.p
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
+                className="font-serif text-lg lg:text-xl text-foreground/60 leading-relaxed max-w-xl italic mb-4"
+              >
+                The discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5, duration: 0.4 }}
+                className="mb-8"
+              >
                 <WhatIsCEModal />
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 mt-10">
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55, duration: 0.5, ease: "easeOut" }}
+                className="flex flex-col sm:flex-row gap-3"
+              >
                 <Link
                   href="/c-suite"
                   data-testid="hero-cta-csuite"
-                  className="inline-flex h-11 items-center justify-center px-7 font-sans text-[13px] uppercase tracking-wide bg-foreground text-background hover:bg-foreground/90 transition-colors"
+                  className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] bg-foreground text-background hover:bg-foreground/90 transition-colors group gap-2"
                 >
                   C-Suite Perspectives
-                  <ArrowRight className="ml-2 w-4 h-4" />
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </Link>
                 <Link
                   href={heroHref}
                   data-testid="hero-cta-case-study"
-                  className="inline-flex h-11 items-center justify-center px-7 font-sans text-[13px] uppercase tracking-wide border border-border hover:bg-muted/50 transition-colors"
+                  className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] border border-border hover:border-accent/50 hover:text-accent transition-colors group gap-2"
                 >
                   {heroName} Case Study
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
                 </Link>
-              </div>
+              </motion.div>
             </div>
 
-            {/* Featured industry sidebar — pulls from admin slot */}
-            <aside className="lg:border-l lg:border-border/60 lg:pl-10 lg:self-stretch flex flex-col justify-end">
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-3">
-                Featured Industry
+            {/* Right: Data panel */}
+            <aside className="hidden lg:flex flex-col gap-2 pb-10 self-end">
+              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground/60 mb-1 flex items-center gap-2">
+                <span className="h-px w-4 bg-border/60" />
+                Live capability indices
               </div>
-              <div className="font-serif text-3xl leading-tight tracking-tight">
-                {heroName}
+              <MetricTile
+                label="Featured industry"
+                value={heroName}
+                sub={hero?.executiveSummary ? hero.executiveSummary.slice(0, 60) + "…" : "Read the full case study"}
+                delay={0.3}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <MetricTile label="Avg CEI Score" value="74.2" sub="↑ 3.1 pts this quarter" delay={0.4} />
+                <MetricTile label="Top ROI" value="4.7×" sub="Digital onboarding" accent delay={0.45} />
               </div>
-              <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
-                {hero?.executiveSummary ? hero.executiveSummary.slice(0, 180) + (hero.executiveSummary.length > 180 ? "…" : "") : "Read how the framework reshapes capital allocation in this vertical."}
-              </p>
-              <Link href={heroHref} className="font-mono text-[11px] uppercase tracking-[0.18em] text-foreground hover:text-accent mt-4 inline-flex items-center gap-1.5">
-                Read the case <ArrowRight className="w-3 h-3" />
+              <div className="grid grid-cols-2 gap-2">
+                <MetricTile label="Capabilities tracked" value="840+" sub="Across 12 industries" delay={0.5} />
+                <MetricTile label="Value unlocked" value="$2.1B" sub="Identified to date" delay={0.55} />
+              </div>
+              <Link
+                href={heroHref}
+                className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground hover:text-accent inline-flex items-center gap-1.5 mt-1 transition-colors"
+              >
+                Read {heroName} analysis <ArrowRight className="w-2.5 h-2.5" />
               </Link>
             </aside>
-          </motion.div>
+          </div>
         </div>
+
+        <TickerBar />
       </section>
 
-      {/* § 01 — Definition + Three principles */}
-      <section className="border-b border-border/60">
+      {/* ── § 01 PREMISE ─────────────────────────────────────────────────── */}
+      <section className="border-b border-border/40">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
+          <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-16">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § 01 — Premise
+              <div className="inline-flex items-center gap-2 mb-4">
+                <span className="h-px w-5 bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 01 — Premise</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                What is<br /><span className="italic text-foreground/85">capability economics?</span>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+                What is<br /><em className="not-italic italic text-foreground/70">capability economics?</em>
               </h2>
             </div>
-            <p className="font-serif text-xl lg:text-2xl text-foreground/80 leading-relaxed self-end max-w-3xl">
-              Think of a capability as a muscle your organization has built — like <em>rapid order fulfillment</em> or <em>precision underwriting</em>. Capability Economics stops treating these muscles as operational processes, and starts treating them as <span className="text-foreground font-medium not-italic">economic assets</span> that can be measured, valued, and invested in.
-            </p>
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-60px" }}
+              transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+              className="font-serif text-xl lg:text-2xl text-foreground/75 leading-relaxed self-end max-w-3xl"
+            >
+              Think of a capability as a muscle your organization has built — like{" "}
+              <em>rapid order fulfillment</em> or <em>precision underwriting</em>.
+              Capability Economics stops treating these muscles as operational processes,
+              and starts treating them as{" "}
+              <span className="text-foreground font-medium not-italic border-b border-accent/60">economic assets</span>{" "}
+              that can be measured, valued, and invested in.
+            </motion.p>
           </div>
 
           <motion.div
             initial="hidden"
             whileInView="show"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.12 } } }}
-            className="grid lg:grid-cols-3 border-t border-border/60"
+            viewport={{ once: true, margin: "-60px" }}
+            variants={{ hidden: {}, show: { transition: { staggerChildren: 0.13 } } }}
+            className="grid lg:grid-cols-3 border-t border-border/40"
           >
             {principles.map((p, i) => (
               <motion.div
                 key={p.id}
-                variants={fade}
-                className={`py-10 lg:py-12 lg:px-10 ${i > 0 ? "lg:border-l lg:border-border/60 border-t lg:border-t-0 border-border/60" : "lg:pl-0 lg:pr-10"}`}
+                variants={{
+                  hidden: { opacity: 0, y: 24 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] } },
+                }}
+                className={`py-10 lg:py-12 ${i > 0 ? "lg:border-l lg:border-border/40 border-t lg:border-t-0 border-border/40 lg:px-10" : "lg:pr-10"}`}
               >
-                <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
-                  {p.id}
-                </div>
-                <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-4">
-                  {p.title}
-                </h3>
-                <p className="text-base text-foreground/75 leading-relaxed max-w-md">
-                  {p.body}
-                </p>
+                <div className="font-mono text-[10px] tabular-nums tracking-[0.24em] text-accent mb-5">{p.id}</div>
+                <div className="font-mono text-3xl lg:text-4xl font-light tabular-nums text-foreground/25 mb-1">{p.stat}</div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-5">{p.statSub}</div>
+                <h3 className="font-serif text-3xl lg:text-[2rem] leading-tight tracking-tight mb-3">{p.title}</h3>
+                <p className="text-sm text-foreground/60 leading-relaxed">{p.body}</p>
               </motion.div>
             ))}
           </motion.div>
         </div>
       </section>
 
-      {/* § 02 — Real estate analogy */}
-      <section className="border-b border-border/60">
+      {/* ── § 02 ANALOGY ─────────────────────────────────────────────────── */}
+      <section className="border-b border-border/40 bg-muted/10">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-[1fr_1fr] gap-12 lg:gap-20 items-start">
+          <div className="grid lg:grid-cols-[1fr_420px] gap-14 lg:gap-20 items-start">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-3">
-                § 02 — Analogy
+              <div className="inline-flex items-center gap-2 mb-5">
+                <span className="h-px w-5 bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 02 — Analogy</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight mb-8">
-                The real estate<br /><span className="italic text-foreground/85">parallel.</span>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight mb-8">
+                The real estate<br /><em className="not-italic italic text-foreground/70">parallel.</em>
               </h2>
-              <div className="space-y-5 font-serif text-lg lg:text-xl text-foreground/75 leading-relaxed">
+              <div className="space-y-5 font-serif text-lg text-foreground/70 leading-relaxed">
                 <p>
-                  Imagine you own a commercial building. Without the square footage, the rental yield per floor, or the maintenance costs of the HVAC, you cannot make smart decisions about renovations.
+                  Imagine you own a commercial building. Without knowing the square footage,
+                  the rental yield per floor, or the HVAC maintenance costs — you cannot make
+                  smart renovation decisions.
                 </p>
                 <p>
-                  Most companies treat their capabilities exactly like that — opaque. They know the total budget, but not the rental yield of customer onboarding versus product development.
+                  Most companies treat their capabilities exactly like that: opaque. They know
+                  the total IT budget, but not the yield from customer onboarding versus product development.
                 </p>
               </div>
-              <p className="font-serif text-xl lg:text-2xl text-foreground leading-relaxed mt-8 pl-6 border-l-2 border-accent">
+              <blockquote className="font-serif text-xl text-foreground leading-relaxed mt-8 pl-5 border-l-2 border-accent">
                 Capability Economics is the blueprint and the ledger — so you renovate the floors that generate the highest returns.
-              </p>
+              </blockquote>
             </div>
 
-            <div className="lg:sticky lg:top-24">
-              <div className="border border-border/60">
-                <div className="border-b border-border/60 p-6 lg:p-8">
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
-                    Traditional view
+            <div className="lg:sticky lg:top-24 space-y-3">
+              <div className="border border-border/50 bg-background p-6 lg:p-7">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">Traditional view</div>
+                    <div className="font-serif text-2xl lg:text-3xl tracking-tight">IT Budget</div>
                   </div>
-                  <div className="font-serif text-3xl lg:text-4xl tracking-tight">IT Budget: <span className="font-mono font-light tabular-nums">$4.2M</span></div>
-                  <div className="text-sm text-muted-foreground mt-1.5">Opaque cost center</div>
+                  <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/40">$4.2M</div>
                 </div>
-                <div className="p-6 lg:p-8 bg-accent/[0.06] relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" aria-hidden />
-                  <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-accent mb-2">
-                    Capability view
+                <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
+                  <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
+                </div>
+                <div className="font-mono text-[9px] text-muted-foreground/60 mt-2">Opaque cost center — no sub-allocation visibility</div>
+              </div>
+
+              <div className="border border-accent/30 bg-accent/[0.04] p-6 lg:p-7 relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" />
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">Capability view</div>
+                    <div className="font-serif text-2xl lg:text-3xl tracking-tight">Digital Onboarding</div>
                   </div>
-                  <div className="font-serif text-3xl lg:text-4xl tracking-tight leading-tight">
-                    Digital Onboarding: <span className="font-mono font-light tabular-nums">$1.8M</span>
+                  <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/60">$1.8M</div>
+                </div>
+                <div className="mb-3">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5 flex justify-between">
+                    <span>Retained value generated</span>
+                    <span className="text-accent">$8.5M</span>
                   </div>
-                  <div className="text-sm text-muted-foreground mt-1.5">
-                    Generates <span className="font-mono tabular-nums text-foreground">$8.5M</span> in retained value
+                  <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      whileInView={{ width: "80%" }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                      className="h-full bg-accent rounded-sm"
+                    />
                   </div>
                 </div>
+                <div className="font-mono text-[9px] text-muted-foreground/60">
+                  4.7× return on capability investment · CEI score: 82
+                </div>
+              </div>
+
+              <div className="border border-border/40 bg-background p-4 flex items-center justify-between">
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Value unlocked with visibility</span>
+                <span className="font-serif text-xl text-accent font-medium">+$6.7M</span>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Editor-managed CMS library */}
+      {/* ── EDUCATIONAL LIBRARY ───────────────────────────────────────────── */}
       <EducationalLibrary />
 
-      {/* Autonomous Agent Memory Showcase (kept as-is) */}
+      {/* ── AGENT MEMORY SHOWCASE ─────────────────────────────────────────── */}
       <AgentMemoryShowcase />
 
-      {/* § Next — Continue your briefing */}
-      <section className="bg-foreground text-background">
-        <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-12">
+      {/* ── § NEXT — CTA ─────────────────────────────────────────────────── */}
+      <section className="relative bg-foreground text-background overflow-hidden">
+        <div className="absolute inset-0 cta-grid-bg pointer-events-none opacity-[0.04]" aria-hidden />
+
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
+          <div className="grid lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 mb-14">
             <div>
-              <div className="font-mono text-[11px] uppercase tracking-[0.22em] text-background/60 mb-3">
-                § Next
+              <div className="inline-flex items-center gap-2 mb-4">
+                <span className="h-px w-5 bg-accent" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ Next</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.05] tracking-tight">
-                Continue your<br /><span className="italic text-background/80">briefing.</span>
+              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+                Continue your<br /><em className="not-italic italic text-background/60">briefing.</em>
               </h2>
             </div>
-            <p className="font-serif italic text-lg text-background/70 leading-relaxed self-end max-w-2xl">
-              Two paths through the framework — by industry, or by the executive seat where the decisions are made.
+            <p className="font-serif italic text-lg text-background/60 leading-relaxed self-end max-w-2xl">
+              Two paths through the framework — by industry vertical, or by the executive seat where the decisions are made.
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 border-t border-background/20">
+          <div className="grid lg:grid-cols-2 border-t border-background/15">
             <Link
               href={cardHref}
               data-testid="nav-card-case-study"
-              className="group block lg:border-r border-background/20 py-12 lg:px-10 lg:py-14"
+              className="group block lg:border-r border-background/15 py-12 lg:px-10 lg:py-14"
             >
-              <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
-                01 — Industry
-              </div>
-              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors">
+              <div className="font-mono text-[9px] tabular-nums tracking-[0.24em] text-accent mb-5">01 — Industry</div>
+              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors duration-200">
                 {cardName} case study
               </h3>
-              <p className="text-base text-background/70 leading-relaxed max-w-md mb-5 line-clamp-3">
-                {cardBlurb}
-              </p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-background/80 group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
-                Read the case <ArrowRight className="w-3 h-3" />
+              <p className="text-sm text-background/55 leading-relaxed max-w-md mb-6 line-clamp-3">{cardBlurb}</p>
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-background/60 group-hover:text-accent inline-flex items-center gap-2 transition-colors duration-200">
+                Read the case <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </Link>
 
             <Link
               href="/c-suite"
               data-testid="nav-card-csuite"
-              className="group block py-12 border-t lg:border-t-0 border-background/20 lg:px-10 lg:py-14"
+              className="group block py-12 border-t lg:border-t-0 border-background/15 lg:px-10 lg:py-14"
             >
-              <div className="font-mono text-[11px] tabular-nums tracking-[0.22em] text-accent mb-4">
-                02 — Role
-              </div>
-              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors">
+              <div className="font-mono text-[9px] tabular-nums tracking-[0.24em] text-accent mb-5">02 — Role</div>
+              <h3 className="font-serif text-3xl lg:text-4xl leading-tight tracking-tight mb-3 group-hover:text-accent transition-colors duration-200">
                 C-Suite perspectives
               </h3>
-              <p className="text-base text-background/70 leading-relaxed max-w-md mb-5">
+              <p className="text-sm text-background/55 leading-relaxed max-w-md mb-6">
                 How different executives leverage capability economics to drive strategy — by seat, by question, by lever.
               </p>
-              <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-background/80 group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
-                Browse perspectives <ArrowRight className="w-3 h-3" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-background/60 group-hover:text-accent inline-flex items-center gap-2 transition-colors duration-200">
+                Browse perspectives <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
               </span>
             </Link>
           </div>

@@ -27,7 +27,7 @@ const ACTION_COLORS: Record<string, string> = {
   "membership.refund": "bg-orange-500/10 text-orange-700 border border-orange-500/20",
   "credits.grant": "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20",
   "credits.deduct": "bg-red-500/10 text-red-700 border border-red-500/20",
-  "tier.update": "bg-slate-500/10 text-slate-700 border border-slate-500/20",
+  "tier.update": "bg-muted/40 text-muted-foreground border border-border/40",
   "api_key.issue": "bg-indigo-500/10 text-indigo-700 border border-indigo-500/20",
   "api_key.revoke": "bg-red-500/10 text-red-700 border border-red-500/20",
   "impersonate.start": "bg-pink-500/10 text-pink-700 border border-pink-500/20",

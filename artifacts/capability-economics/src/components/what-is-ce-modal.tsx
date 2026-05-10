@@ -53,8 +53,11 @@ export default function WhatIsCEModal() {
 
                 {/* Header */}
                 <div className="px-8 pt-8 pb-6 border-b border-border">
-                  <div className="text-xs font-bold uppercase tracking-[0.18em] text-primary mb-2">Executive Primer</div>
-                  <h2 className="text-3xl font-serif text-foreground">What is Capability Economics?</h2>
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <span className="h-px w-4 bg-accent" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Executive Primer</span>
+                  </div>
+                  <h2 className="text-3xl font-serif tracking-tight text-foreground">What is Capability Economics?</h2>
                   <p className="mt-3 text-muted-foreground text-base leading-relaxed max-w-xl">
                     The study of how a company's internal capabilities — the unique combination of people, processes, and technology — drive financial performance.
                   </p>

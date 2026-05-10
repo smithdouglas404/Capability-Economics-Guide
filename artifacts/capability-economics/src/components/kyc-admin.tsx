@@ -80,7 +80,7 @@ export default function KycAdmin() {
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 text-xs rounded-md border ${filter === f ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground"}`}
+              className={`px-3 py-1 text-xs rounded-none border ${filter === f ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground"}`}
               data-testid={`button-kyc-filter-${f}`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}

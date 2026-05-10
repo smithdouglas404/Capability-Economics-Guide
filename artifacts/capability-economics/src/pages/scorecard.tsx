@@ -52,9 +52,12 @@ export default function CapabilityScorecard() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">Live</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability Scorecard</h1>
-          <p className="text-muted-foreground mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Live</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Scorecard</h1>
+          <p className="text-muted-foreground text-sm mt-1">{orgName || "Your organization"} vs. industry benchmarks — gap analysis with moat scores, EVaR, and AI exposure per capability.</p>
         </div>
         <Button onClick={load} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
       </div>
@@ -63,14 +66,14 @@ export default function CapabilityScorecard() {
       {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
         <div className="space-y-2">
           {criticalAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-destructive/10 border border-destructive/30">
               <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
               <span className="text-sm">{a.message}</span>
               <Badge variant="destructive" className="ml-auto">Critical</Badge>
             </div>
           ))}
           {warningAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-amber-500/10 border border-amber-500/30">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
               <span className="text-sm">{a.message}</span>
               <Badge variant="outline" className="ml-auto text-amber-500">Warning</Badge>
@@ -113,7 +116,7 @@ export default function CapabilityScorecard() {
 
       {/* Comparison Matrix */}
       <Card>
-        <CardHeader><CardTitle>Capability Comparison Matrix</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-serif tracking-tight">Capability Comparison Matrix</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

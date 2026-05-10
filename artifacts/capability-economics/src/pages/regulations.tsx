@@ -85,7 +85,11 @@ export default function Regulations() {
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <Badge className="mb-2">Compliance</Badge>
-          <h1 className="text-3xl font-serif font-bold">Regulatory Capability Mapping</h1>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Compliance</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Regulatory Capability Mapping</h1>
           <p className="text-muted-foreground mt-1">Map regulatory requirements to capabilities and check your compliance posture.</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" /> Add Regulation</Button>
@@ -164,7 +168,7 @@ export default function Regulations() {
           <Button variant="ghost" onClick={() => setSelectedReg(null)}><ArrowLeft className="w-4 h-4 mr-2" /> Back to all regulations</Button>
 
           <div className="flex items-center gap-4 flex-wrap">
-            <h2 className="text-2xl font-serif font-bold">{selectedReg.regulation.shortCode}: {selectedReg.regulation.name}</h2>
+            <h2 className="text-2xl font-serif tracking-tight">{selectedReg.regulation.shortCode}: {selectedReg.regulation.name}</h2>
             <Badge variant="outline">{selectedReg.regulation.jurisdiction}</Badge>
           </div>
 
@@ -217,7 +221,7 @@ export default function Regulations() {
               {selectedReg.results.length > 0 ? (
                 <div className="space-y-2">
                   {selectedReg.results.sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0)).map((r, i) => (
-                    <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${
+                    <div key={i} className={`flex items-center justify-between p-3 rounded-none border ${
                       r.compliant === true ? "border-emerald-500/30 bg-emerald-500/5" :
                       r.compliant === false ? "border-destructive/30 bg-destructive/5" :
                       ""

@@ -60,7 +60,7 @@ function StatCard({ title, value, sub, icon: Icon, color = "text-foreground" }: 
             <p className={`text-3xl font-bold font-mono ${color}`}>{value}</p>
             {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
           </div>
-          <div className="p-2 rounded-lg bg-muted">
+          <div className="p-2 rounded-none bg-muted">
             <Icon className="w-5 h-5 text-muted-foreground" />
           </div>
         </div>
@@ -249,8 +249,12 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background p-6 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="h-px w-4 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Admin</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight text-foreground">Admin Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">
             Platform monitoring, member approvals, content management &amp; system health.
           </p>
         </div>
@@ -520,28 +524,28 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3 p-3 rounded-none bg-muted/50">
                   <Layers className="w-5 h-5 text-purple-500" />
                   <div>
                     <p className="text-2xl font-bold font-mono">{enrichStatus?.quadrants ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">Quadrant Classifications</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3 p-3 rounded-none bg-muted/50">
                   <GitBranch className="w-5 h-5 text-blue-500" />
                   <div>
                     <p className="text-2xl font-bold font-mono">{enrichStatus?.valueChainStages ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">Value Chain Stages</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3 p-3 rounded-none bg-muted/50">
                   <Building2 className="w-5 h-5 text-green-500" />
                   <div>
                     <p className="text-2xl font-bold font-mono">{enrichStatus?.companies ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">Company Profiles</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3 p-3 rounded-none bg-muted/50">
                   <Network className="w-5 h-5 text-orange-500" />
                   <div>
                     <p className="text-2xl font-bold font-mono">{enrichStatus?.companyMappings ?? "—"}</p>
@@ -551,7 +555,7 @@ export default function AdminDashboard() {
               </div>
 
               {enrichResult && (
-                <div className="p-4 rounded-lg border border-border bg-muted/30">
+                <div className="p-4 rounded-none border border-border bg-muted/30">
                   <div className="flex items-center gap-2 mb-2">
                     <CheckCircle className="w-4 h-4 text-green-500" />
                     <span className="text-sm font-medium">Enrichment Complete — {(enrichResult.durationMs / 1000).toFixed(1)}s</span>
@@ -572,7 +576,7 @@ export default function AdminDashboard() {
               )}
 
               {enrichRunning && (
-                <div className="flex items-center gap-3 p-4 rounded-lg border border-border bg-muted/30">
+                <div className="flex items-center gap-3 p-4 rounded-none border border-border bg-muted/30">
                   <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />
                   <div>
                     <p className="text-sm font-medium">Running enrichment across all industries...</p>

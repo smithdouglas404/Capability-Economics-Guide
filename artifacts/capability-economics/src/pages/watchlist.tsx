@@ -106,9 +106,12 @@ export default function Watchlist() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2" variant="destructive">Early Warning</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability Watchlist</h1>
-          <p className="text-muted-foreground mt-1">Set thresholds on capabilities and get alerts when they cross critical levels.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Early Warning</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Watchlist</h1>
+          <p className="text-muted-foreground text-sm mt-1">Set thresholds on capabilities and get alerts when they cross critical levels.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={checkNow} disabled={checking} variant="outline">
@@ -122,7 +125,7 @@ export default function Watchlist() {
       {unacknowledged.length > 0 && (
         <div className="space-y-2">
           {unacknowledged.map((a) => (
-            <div key={a.id} className="flex items-center gap-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30">
+            <div key={a.id} className="flex items-center gap-3 p-3 rounded-none bg-destructive/10 border border-destructive/30">
               <Bell className="w-5 h-5 text-destructive shrink-0 animate-pulse" />
               <div className="flex-1">
                 <p className="text-sm font-medium">{a.message}</p>
@@ -206,7 +209,7 @@ export default function Watchlist() {
           {items.length > 0 ? (
             <div className="space-y-2">
               {items.map((item) => (
-                <div key={item.id} className={`flex items-center justify-between p-3 rounded-lg border ${item.triggered ? "border-destructive/50 bg-destructive/5" : ""}`}>
+                <div key={item.id} className={`flex items-center justify-between p-3 rounded-none border ${item.triggered ? "border-destructive/50 bg-destructive/5" : ""}`}>
                   <div>
                     <span className="font-medium text-sm">{item.capabilityName}</span>
                     <p className="text-xs text-muted-foreground">

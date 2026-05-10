@@ -55,7 +55,7 @@ const statusBadge = (s: Membership["status"]) => {
   const map = {
     active: { label: "Active", cls: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20", Icon: CheckCircle2 },
     pending: { label: "Pending", cls: "bg-amber-500/10 text-amber-700 border border-amber-500/20", Icon: PauseCircle },
-    cancelled: { label: "Cancelled", cls: "bg-slate-500/10 text-slate-700 border border-slate-500/20", Icon: PauseCircle },
+    cancelled: { label: "Cancelled", cls: "bg-muted/40 text-muted-foreground border border-border/40", Icon: PauseCircle },
     rejected: { label: "Rejected", cls: "bg-red-500/10 text-red-700 border border-red-500/20", Icon: XCircle },
   }[s];
   return (
@@ -365,10 +365,11 @@ export default function AccountPage() {
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
       <div>
-        <h1 className="font-serif text-3xl flex items-center gap-2">
-          <UserCircle className="w-7 h-7 text-primary" />
-          Your Account
-        </h1>
+        <div className="inline-flex items-center gap-2 mb-3">
+          <span className="h-px w-5 bg-accent" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Account</span>
+        </div>
+        <h1 className="font-serif text-3xl tracking-tight">Your Account</h1>
         <p className="text-muted-foreground text-sm mt-1">{user.primaryEmailAddress?.emailAddress ?? user.id}</p>
       </div>
 

@@ -96,9 +96,12 @@ export default function RoiTracker() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">ROI</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability ROI Attribution</h1>
-          <p className="text-muted-foreground mt-1">Track quarterly spend, revenue impact, and efficiency gains per capability. Compare projected vs actual ROI.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">ROI</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability ROI Attribution</h1>
+          <p className="text-muted-foreground text-sm mt-1">Track quarterly spend, revenue impact, and efficiency gains per capability. Compare projected vs actual ROI.</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" /> Add Record</Button>
       </div>
@@ -194,7 +197,7 @@ export default function RoiTracker() {
           <CardContent>
             <div className="space-y-3">
               {summary.capabilities.sort((a, b) => b.roi - a.roi).map((c) => (
-                <div key={c.capabilityId} className="border rounded-lg p-3">
+                <div key={c.capabilityId} className="border rounded-none p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">{c.capabilityName}</span>
                     <Badge variant={c.roi >= 0 ? "default" : "destructive"}>{c.roi}% ROI</Badge>

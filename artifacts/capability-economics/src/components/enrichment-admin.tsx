@@ -560,7 +560,7 @@ export default function EnrichmentAdmin() {
         )}
 
         {/* Auto-refresh cadence */}
-        <div className="mb-6 border rounded-md p-4 bg-muted/20">
+        <div className="mb-6 border rounded-none p-4 bg-muted/20">
           <div className="flex items-start justify-between gap-3 mb-3">
             <div>
               <div className="text-sm font-medium flex items-center gap-2"><CalendarClock className="w-4 h-4" /> Scheduled auto-refresh</div>
@@ -835,7 +835,7 @@ function LiveGraphState() {
 
   if (!currentRunId && Object.keys(nodeStatuses).length === 0) {
     return (
-      <div className="border border-dashed border-border rounded-md p-4 text-xs text-muted-foreground">
+      <div className="border border-dashed border-border rounded-none p-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2 mb-1"><Activity className="w-3.5 h-3.5" /> Live graph state</div>
         Waiting for the next enrichment run. The cron tick or the "Run scheduler" button will start one.
       </div>
@@ -843,7 +843,7 @@ function LiveGraphState() {
   }
 
   return (
-    <div className="border border-border rounded-md p-4 space-y-3">
+    <div className="border border-border rounded-none p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="text-sm font-medium flex items-center gap-2">
           <Activity className="w-4 h-4 text-blue-500 animate-pulse" />

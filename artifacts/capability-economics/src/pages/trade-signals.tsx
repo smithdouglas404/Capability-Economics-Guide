@@ -72,9 +72,12 @@ export default function TradeSignals() {
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
-          <Badge className="mb-2">Alpha</Badge>
-          <h1 className="text-3xl font-serif font-bold">Capability Trade Signals</h1>
-          <p className="text-muted-foreground mt-1">Long/short signals from CE vs. street quadrant divergence with historical performance tracking.</p>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Alpha</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Trade Signals</h1>
+          <p className="text-muted-foreground text-sm mt-1">Long/short signals from CE vs. street quadrant divergence with historical performance tracking.</p>
         </div>
         <div className="flex gap-2">
           <Button onClick={generate} disabled={generating} variant="default">

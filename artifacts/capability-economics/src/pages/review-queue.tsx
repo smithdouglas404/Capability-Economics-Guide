@@ -254,7 +254,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
   };
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border rounded-none overflow-hidden">
       <div className="flex items-center justify-between p-3 bg-muted/20">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -465,8 +465,12 @@ export default function ReviewQueue() {
     <div className="min-h-screen bg-background p-6 max-w-screen-xl mx-auto">
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-bold">Capability Review Queue</h1>
-          <p className="text-muted-foreground mt-1">Human-in-the-loop approval for new and revised capabilities. Auto-refreshes every 15s.</p>
+          <div className="inline-flex items-center gap-2 mb-2">
+            <span className="h-px w-4 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Review Queue</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Capability Review Queue</h1>
+          <p className="text-muted-foreground text-sm mt-1">Human-in-the-loop approval for new and revised capabilities. Auto-refreshes every 15s.</p>
         </div>
         <div className="flex items-center gap-2">
           <Show when="signed-in"><ReviewerBadge /></Show>

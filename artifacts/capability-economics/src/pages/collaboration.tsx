@@ -144,7 +144,11 @@ export default function Collaboration() {
       <div className="flex items-end justify-between flex-wrap gap-4">
         <div>
           <Badge className="mb-2">Strategy</Badge>
-          <h1 className="text-3xl font-serif font-bold">Strategy Decisions</h1>
+          <div className="inline-flex items-center gap-2 mb-3">
+            <span className="h-px w-5 bg-accent" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Strategy</span>
+          </div>
+          <h1 className="text-3xl font-serif tracking-tight">Strategy Decisions</h1>
           <p className="text-muted-foreground mt-1">Record executive invest / hold / divest decisions on capabilities, with rationale and discussion threads.</p>
         </div>
       </div>
@@ -179,7 +183,7 @@ export default function Collaboration() {
           </CardHeader>
           <CardContent className="space-y-3">
             {showCommentForm && (
-              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+              <div className="border rounded-none p-3 space-y-2 bg-muted/30">
                 <div className="flex gap-2">
                   <Input placeholder="Your name" value={commentForm.authorName} onChange={(e) => setCommentForm({ ...commentForm, authorName: e.target.value })} className="flex-1" />
                   <select className="border rounded px-2 py-1 bg-background text-sm" value={commentForm.authorRole} onChange={(e) => setCommentForm({ ...commentForm, authorRole: e.target.value })}>
@@ -195,7 +199,7 @@ export default function Collaboration() {
 
             {comments.length > 0 ? (
               comments.map((c) => (
-                <div key={c.id} className={`flex gap-3 p-3 rounded-lg border ${c.resolved ? "opacity-50" : ""}`}>
+                <div key={c.id} className={`flex gap-3 p-3 rounded-none border ${c.resolved ? "opacity-50" : ""}`}>
                   <div className={`w-8 h-8 rounded-full ${ROLE_COLORS[c.authorRole] ?? "bg-muted"} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
                     {c.authorRole.slice(0, 2)}
                   </div>
@@ -230,7 +234,7 @@ export default function Collaboration() {
           </CardHeader>
           <CardContent className="space-y-3">
             {showDecisionForm && (
-              <div className="border rounded-lg p-3 space-y-2 bg-muted/30">
+              <div className="border rounded-none p-3 space-y-2 bg-muted/30">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   <select className="border rounded px-2 py-1 bg-background text-sm" value={decisionForm.decision} onChange={(e) => setDecisionForm({ ...decisionForm, decision: e.target.value })}>
                     {DECISIONS.map((d) => <option key={d} value={d}>{d.charAt(0).toUpperCase() + d.slice(1)}</option>)}
@@ -251,7 +255,7 @@ export default function Collaboration() {
 
             {decisions.length > 0 ? (
               decisions.map((d) => (
-                <div key={d.id} className="flex items-start gap-3 p-3 rounded-lg border">
+                <div key={d.id} className="flex items-start gap-3 p-3 rounded-none border">
                   <Badge className={`${DECISION_COLORS[d.decision] ?? "bg-muted"} text-white shrink-0`}>{d.decision.toUpperCase()}</Badge>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">

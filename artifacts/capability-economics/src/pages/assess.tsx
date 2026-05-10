@@ -765,11 +765,12 @@ export default function Assess() {
       `}</style>
 
       <div className="min-h-screen bg-background">
-        <section className="border-b py-12 bg-muted/20 no-print">
+        <section className="border-b border-border/40 py-12 bg-muted/10 no-print">
           <div className="container mx-auto px-4 max-w-4xl">
             <div className="flex items-center justify-between mb-4">
-              <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold border-transparent bg-primary/10 text-primary">
-                Powered by Claude · WEF Framework · Letta Memory
+              <div className="inline-flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+                <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Powered by Claude · WEF Framework · Letta Memory</span>
               </div>
               <div className="flex items-center gap-3">
                 {!orgSessionToken && (
@@ -789,8 +790,8 @@ export default function Assess() {
               </div>
             </div>
 
-            <h1 className="text-4xl font-serif text-foreground mb-2">Capability Assessment</h1>
-            <p className="text-muted-foreground text-lg max-w-2xl">
+            <h1 className="text-4xl font-serif tracking-tight text-foreground mb-2">Capability Assessment</h1>
+            <p className="text-foreground/60 font-serif italic text-lg max-w-2xl">
               Share your business opportunity via voice, document, or text. Claude will triangulate your capability landscape, surface gaps, and generate a prioritized 12-month investment roadmap.
             </p>
 

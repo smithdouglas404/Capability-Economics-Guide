@@ -83,9 +83,12 @@ export default function Simulation() {
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div>
-        <Badge className="mb-2">Innovation</Badge>
-        <h1 className="text-3xl font-serif font-bold">What-If Simulation Engine</h1>
-        <p className="text-muted-foreground mt-1">Model capability investments and see projected impact on CEI, moat, fragility, and cascade effects.</p>
+        <div className="inline-flex items-center gap-2 mb-3">
+          <span className="h-px w-5 bg-accent" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Innovation</span>
+        </div>
+        <h1 className="text-3xl font-serif tracking-tight">What-If Simulation Engine</h1>
+        <p className="text-muted-foreground text-sm mt-1">Model capability investments and see projected impact on CEI, moat, fragility, and cascade effects.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -107,7 +110,7 @@ export default function Simulation() {
               </div>
 
               {investments.map((inv, idx) => (
-                <div key={idx} className="border rounded-lg p-3 space-y-2">
+                <div key={idx} className="border rounded-none p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <select
                       className="text-sm border rounded px-2 py-1 flex-1 mr-2 bg-background"

@@ -140,7 +140,7 @@ function StatusPill({ status }: { status: Membership["status"] }) {
     active: { label: "Active", className: "bg-emerald-500/10 text-emerald-700 border border-emerald-500/20", Icon: CheckCircle2 },
     pending: { label: "Pending", className: "bg-amber-500/10 text-amber-700 border border-amber-500/20", Icon: PauseCircle },
     rejected: { label: "Rejected", className: "bg-red-500/10 text-red-700 border border-red-500/20", Icon: XCircle },
-    cancelled: { label: "On Hold", className: "bg-slate-500/10 text-slate-700 border border-slate-500/20", Icon: PauseCircle },
+    cancelled: { label: "On Hold", className: "bg-muted/40 text-muted-foreground border border-border/40", Icon: PauseCircle },
   };
   const s = map[status];
   return (
