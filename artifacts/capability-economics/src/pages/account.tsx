@@ -691,7 +691,7 @@ export default function AccountPage() {
             <p className="text-sm text-muted-foreground">No keys yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full text-sm responsive-table">
                 <thead className="border-b">
                   <tr className="text-left text-xs uppercase tracking-wider text-muted-foreground">
                     <th className="px-3 py-2">Label</th>

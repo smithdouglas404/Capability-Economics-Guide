@@ -220,7 +220,7 @@ export default function CapabilityScorecard() {
         <CardHeader><CardTitle className="font-serif tracking-tight">Capability Comparison Matrix</CardTitle></CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm responsive-table">
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2">Capability</th>

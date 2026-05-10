@@ -309,7 +309,7 @@ export default function Methodology() {
                 Insurance industry. Four perspectives report:
               </p>
               <div className="not-prose my-4 border border-border/60 rounded-md overflow-hidden">
-                <table className="w-full text-xs font-mono">
+                <table className="w-full text-xs font-mono responsive-table">
                   <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <tr>
                       <th className="text-left px-3 py-2">Source</th>

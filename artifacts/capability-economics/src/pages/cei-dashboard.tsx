@@ -1286,7 +1286,7 @@ export default function CEIDashboard() {
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
-                          <table className="w-full text-xs">
+                          <table className="w-full text-xs responsive-table">
                             <thead className="border-b text-muted-foreground">
                               <tr className="text-left">
                                 <th className="py-1.5 pr-3 font-medium">Title</th>
@@ -1504,7 +1504,7 @@ export default function CEIDashboard() {
                             ✓ 10 Most Recently Refreshed
                           </div>
                           <div className="overflow-x-auto rounded-sm border border-emerald-200 dark:border-emerald-900/40">
-                            <table className="w-full text-xs">
+                            <table className="w-full text-xs responsive-table">
                               <thead className="border-b bg-emerald-50/50 dark:bg-emerald-950/20 text-muted-foreground">
                                 <tr className="text-left">
                                   <th className="py-1.5 px-2 font-medium">Capability</th>
@@ -1554,7 +1554,7 @@ export default function CEIDashboard() {
                             ⏳ 10 Stalest — Next in Rotation Queue
                           </div>
                           <div className="overflow-x-auto rounded-sm border border-amber-200 dark:border-amber-900/40">
-                            <table className="w-full text-xs">
+                            <table className="w-full text-xs responsive-table">
                               <thead className="border-b bg-amber-50/50 dark:bg-amber-950/20 text-muted-foreground">
                                 <tr className="text-left">
                                   <th className="py-1.5 px-2 font-medium">Capability</th>
@@ -1643,7 +1643,7 @@ export default function CEIDashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid lg:grid-cols-2 gap-6">
-                <div className="h-[300px]">
+                <div className="chart-mobile" style={{"--chart-desktop-h":"300px"} as React.CSSProperties}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={industries.map(([, ind]) => ({
                       name: ind.industryName.replace("Banking & Financial Services", "Banking & FS"),
@@ -1675,7 +1675,7 @@ export default function CEIDashboard() {
                   </ResponsiveContainer>
                 </div>
 
-                <div className="h-[300px]">
+                <div className="chart-mobile" style={{"--chart-desktop-h":"300px"} as React.CSSProperties}>
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={radarData}>
                       <PolarGrid stroke="hsl(var(--muted-foreground)/0.15)" />
@@ -2148,7 +2148,7 @@ export default function CEIDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="h-[250px]">
+                <div className="chart-mobile" style={{"--chart-desktop-h":"250px"} as React.CSSProperties}>
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={historyData}>
                       <defs>

@@ -266,7 +266,7 @@ export default function CoveragePage() {
 
             {!err && (
               <div className="overflow-x-auto">
-                <table className="w-full text-xs">
+                <table className="w-full text-xs responsive-table">
                   <thead className="bg-muted/40 text-muted-foreground border-b border-border/60">
                     <tr>
                       <SortHeader k="industryName" label="Industry" align="left" />

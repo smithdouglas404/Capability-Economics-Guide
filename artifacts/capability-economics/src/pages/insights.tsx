@@ -473,7 +473,7 @@ export default function Insights() {
                   {loadingThresholds ? (
                     <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
                   ) : (
-                    <div className="h-[400px]">
+                    <div className="chart-mobile" style={{"--chart-desktop-h":"400px"} as React.CSSProperties}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
                           data={thresholds?.map(t => ({
@@ -619,7 +619,7 @@ export default function Insights() {
                       </CardHeader>
                       <CardContent>
                         <div className="grid lg:grid-cols-2 gap-6">
-                          <div className="h-[250px]">
+                          <div className="chart-mobile" style={{"--chart-desktop-h":"250px"} as React.CSSProperties}>
                             <ResponsiveContainer width="100%" height="100%">
                               <BarChart data={entries} layout="vertical" margin={{ left: 0, right: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground)/0.15)" />

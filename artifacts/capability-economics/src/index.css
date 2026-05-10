@@ -228,6 +228,55 @@
   background-size: 48px 48px;
 }
 
+/* Mobile-first responsive table: collapse rows to stacked cards below sm.
+   Add `responsive-table` to a <table> and (optionally) `data-label="Col"`
+   to each <td> for inline labels on mobile. */
+@media (max-width: 639px) {
+  .responsive-table,
+  .responsive-table thead,
+  .responsive-table tbody,
+  .responsive-table tr,
+  .responsive-table th,
+  .responsive-table td {
+    display: block;
+    width: 100%;
+  }
+  .responsive-table thead {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+  }
+  .responsive-table tr {
+    border: 1px solid hsl(var(--border));
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    background: hsl(var(--card));
+  }
+  .responsive-table td {
+    border: none !important;
+    padding: 0.25rem 0;
+    text-align: left !important;
+    white-space: normal;
+  }
+  .responsive-table td[data-label]::before {
+    content: attr(data-label);
+    display: inline-block;
+    margin-right: 0.5rem;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: hsl(var(--muted-foreground));
+  }
+}
+
+/* Mobile chart heights — pair with `chart-mobile` on the chart container.
+   Avoids shipping a separate component just to swap a height prop. */
+.chart-mobile { height: 220px; }
+@media (min-width: 640px) {
+  .chart-mobile { height: var(--chart-desktop-h, 360px); }
+}
+
 @layer base {
   * {
     @apply border-border;

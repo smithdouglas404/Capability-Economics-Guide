@@ -415,7 +415,7 @@ function EvarTab() {
           <CardHeader><CardTitle className="text-base">Ranked by 36-month $ at risk</CardTitle></CardHeader>
           <CardContent className="p-0">
             <div className="max-h-[480px] overflow-auto">
-              <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+              <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
                 <thead className="sticky top-0 bg-muted/30 border-b">
                   <tr className="text-left text-xs uppercase text-muted-foreground">
                     <th className="py-2 px-3">Capability</th>
@@ -802,7 +802,7 @@ function MoatTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
-            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -903,7 +903,7 @@ function FragilityTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[600px] overflow-auto">
-            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -990,7 +990,7 @@ function ArbitrageTab() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="max-h-[560px] overflow-auto">
-            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
               <thead className="sticky top-0 bg-muted/30 border-b">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
                   <th className="py-2 px-3">Capability</th>
@@ -1085,7 +1085,7 @@ function FlowsTab() {
         <CardHeader><CardTitle className="text-base">Top capital flow links (stage → industry)</CardTitle></CardHeader>
         <CardContent className="p-0">
           <div className="max-h-80 overflow-auto">
-            <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+            <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
               <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                 <tr><th className="text-left py-2 px-3">Stage</th><th className="text-left py-2 px-2">Industry</th><th className="text-right py-2 px-2">Capital</th><th className="text-right py-2 px-2">Trend</th></tr>
               </thead>
@@ -1246,7 +1246,7 @@ function TwinTab() {
             <CardHeader><CardTitle className="text-base">Synergy / clash zones (overlap = {(data.summary.jaccard * 100).toFixed(1)}%)</CardTitle></CardHeader>
             <CardContent className="p-0">
               <div className="max-h-96 overflow-auto">
-                <div className="w-full overflow-x-auto"><table className="w-full text-sm">
+                <div className="w-full overflow-x-auto"><table className="w-full text-sm responsive-table">
                   <thead className="sticky top-0 bg-muted/30 border-b text-xs uppercase text-muted-foreground">
                     <tr><th className="text-left py-2 px-3">Capability</th><th className="py-2 px-2">A quadrant</th><th className="py-2 px-2">B quadrant</th><th className="text-right py-2 px-2">Synergy</th><th className="py-2 px-2">Status</th></tr>
                   </thead>

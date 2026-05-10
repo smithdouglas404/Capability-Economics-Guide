@@ -245,7 +245,7 @@ export default function Companies() {
               <Card>
                 <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="w-5 h-5" />Top {sortedCompanies.length} companies — ranked by CE composite</CardTitle></CardHeader>
                 <CardContent className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm responsive-table">
                     <thead className="border-b">
                       <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                         <th className="py-2 pr-2 w-6"></th>
@@ -428,7 +428,7 @@ export default function Companies() {
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2"><Activity className="w-5 h-5" />Value-chain stage profile</CardTitle></CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full text-sm">
+                <table className="w-full text-sm responsive-table">
                   <thead className="border-b">
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="py-2 pr-2">Stage</th>

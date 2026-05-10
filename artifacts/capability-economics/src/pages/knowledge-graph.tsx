@@ -994,7 +994,7 @@ export default function KnowledgeGraph() {
                 <h2 className="text-xl font-serif mb-4 text-foreground">Average Benchmark by Industry</h2>
                 <Card className="rounded-none">
                   <CardContent className="pt-6">
-                    <div className="h-[300px]">
+                    <div className="chart-mobile" style={{"--chart-desktop-h":"300px"} as React.CSSProperties}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={comparison.industries} layout="vertical" margin={{ left: 20 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted-foreground)/0.15)" />
