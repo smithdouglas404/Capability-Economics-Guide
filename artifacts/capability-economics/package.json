@@ -1,13 +1,10 @@
 {
   "name": "@workspace/capability-economics",
   "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+  "dependencies": {
+    "@clerk/react": "^6.4.1",
+    "d3": "^7.9.0",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -75,9 +72,12 @@
     "wouter": "^3.3.5",
     "zod": "catalog:"
   },
-  "dependencies": {
-    "@clerk/react": "^6.4.1",
-    "d3": "^7.9.0",
-    "react-markdown": "^10.1.0"
-  }
+  "private": true,
+  "scripts": {
+    "build": "vite build --config vite.config.ts",
+    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "type": "module"
 }

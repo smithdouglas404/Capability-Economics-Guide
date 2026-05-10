@@ -1,14 +1,6 @@
 {
   "name": "@workspace/mockup-sandbox",
   "version": "2.0.0",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -70,5 +62,13 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "zod": "catalog:"
-  }
+  },
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite dev",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "type": "module"
 }

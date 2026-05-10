@@ -1,8 +1,15 @@
 {
   "name": "@workspace/scripts",
   "version": "0.0.0",
+  "dependencies": {
+    "@workspace/db": "workspace:*",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:"
+  },
   "private": true,
-  "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "seed": "tsx ./src/seed.ts",
@@ -10,12 +17,5 @@
     "sync:foundry": "tsx ./src/foundry/sync.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
-  "devDependencies": {
-    "@types/node": "catalog:",
-    "tsx": "catalog:"
-  },
-  "dependencies": {
-    "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:"
-  }
+  "type": "module"
 }

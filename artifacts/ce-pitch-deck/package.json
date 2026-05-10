@@ -1,15 +1,6 @@
 {
   "name": "@workspace/ce-pitch-deck",
   "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "vite build --config vite.config.ts",
-    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "validate-slides": "pnpm exec tsx scripts/validate-slides.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
   "devDependencies": {
     "@replit/vite-plugin-cartographer": "catalog:",
     "@replit/vite-plugin-dev-banner": "catalog:",
@@ -26,5 +17,14 @@
     "tsx": "catalog:",
     "vite": "catalog:",
     "zod": "catalog:"
-  }
+  },
+  "private": true,
+  "scripts": {
+    "build": "vite build --config vite.config.ts",
+    "dev": "vite --config vite.config.ts --host 0.0.0.0",
+    "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate-slides": "pnpm exec tsx scripts/validate-slides.ts"
+  },
+  "type": "module"
 }
