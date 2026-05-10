@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useEventStream } from "@workspace/api-client-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -186,32 +187,22 @@ interface AgentSSEEvent {
   skipped?: number;
 }
 
+// Backed by the shared `useEventStream` hook, which gives us
+// exponential-backoff reconnect and a portable parser (works in RN too).
+// We keep this thin wrapper so the rest of the page can keep its existing
+// `{ events, connected }` shape and event-type filter.
 function useAgentEvents() {
-  const [events, setEvents] = useState<AgentSSEEvent[]>([]);
-  const [connected, setConnected] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
-
-  useEffect(() => {
-    const es = new EventSource(`${API_BASE}/agent/events`);
-    esRef.current = es;
-
-    es.onmessage = (e) => {
-      try {
-        const event = JSON.parse(e.data) as AgentSSEEvent;
-        if (event.type === "connected") {
-          setConnected(true);
-          return;
-        }
-        setEvents(prev => [event, ...prev].slice(0, 50));
-      } catch {}
-    };
-
-    es.onerror = () => setConnected(false);
-
-    return () => es.close();
-  }, []);
-
-  return { events, connected };
+  const { events, status } = useEventStream<AgentSSEEvent>(
+    `${API_BASE}/agent/events/stream`,
+    {
+      maxBuffered: 50,
+      // Drop the server's "connected" handshake from the visible feed —
+      // it's noise, not an agent event. We surface connection state via
+      // `status` instead.
+      filter: (evt) => evt.type !== "connected",
+    },
+  );
+  return { events, connected: status === "open" };
 }
 
 function MetricHelp({ children, className = "" }: { children: React.ReactNode; className?: string }) {

@@ -102,6 +102,13 @@ router.get("/agent/events", (req, res) => {
   addSSEClient(res);
 });
 
+// `/stream` is the spec'd public name (referenced in docs and the new
+// shared `useEventStream` client). Keep `/agent/events` as the legacy alias
+// — both fan out to the same SSE bus so existing consumers don't break.
+router.get("/agent/events/stream", (req, res) => {
+  addSSEClient(res);
+});
+
 router.get("/agent/memories", async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
