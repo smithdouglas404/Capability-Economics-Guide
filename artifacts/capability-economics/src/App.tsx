@@ -147,6 +147,40 @@ function ClerkProviderWithRoutes() {
       proxyUrl={clerkProxyUrl}
       routerPush={(to) => setLocation(stripBase(to))}
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
+      appearance={{
+        variables: {
+          colorPrimary: "hsl(244 47% 50%)",
+          colorTextOnPrimaryBackground: "hsl(210 40% 98%)",
+          colorBackground: "hsl(210 40% 98%)",
+          colorInputBackground: "hsl(0 0% 100%)",
+          colorInputText: "hsl(222 47% 11%)",
+          colorText: "hsl(222 47% 11%)",
+          colorTextSecondary: "hsl(215 16% 47%)",
+          colorDanger: "hsl(0 84% 60%)",
+          colorSuccess: "hsl(142 71% 45%)",
+          borderRadius: "0px",
+          fontFamily: "'Outfit', sans-serif",
+          fontFamilyButtons: "'Outfit', sans-serif",
+          fontSize: "14px",
+        },
+        elements: {
+          card: "shadow-none border border-border/40 rounded-none bg-background",
+          headerTitle: "font-serif tracking-tight text-foreground",
+          headerSubtitle: "text-muted-foreground text-sm",
+          socialButtonsBlockButton: "rounded-none border-border/60 hover:bg-muted/40 transition-colors",
+          socialButtonsBlockButtonText: "font-sans text-sm",
+          formButtonPrimary: "rounded-none bg-foreground hover:bg-foreground/90 text-background font-mono text-[11px] uppercase tracking-[0.18em] transition-colors",
+          formFieldInput: "rounded-none border-border/60 bg-background focus:border-foreground focus:ring-0 font-sans text-sm",
+          formFieldLabel: "font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground",
+          footerActionLink: "text-accent hover:text-accent/80 font-mono text-[11px]",
+          identityPreviewEditButton: "text-accent font-mono text-[11px]",
+          formResendCodeLink: "text-accent font-mono text-[11px]",
+          dividerLine: "bg-border/40",
+          dividerText: "font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground",
+          navbar: "hidden",
+          logoBox: "hidden",
+        },
+      }}
     >
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
