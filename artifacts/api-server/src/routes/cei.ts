@@ -6,6 +6,7 @@ import { db } from "@workspace/db";
 import { industriesTable, capabilitiesTable, ceiComponentsTable, sourceTriangulationsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { deriveLifecycleStage } from "../services/lifecycle";
 
 const router: IRouter = Router();
 
@@ -271,7 +272,16 @@ router.get("/cei/components", async (req, res) => {
       components = await db.select().from(ceiComponentsTable)
         .orderBy(desc(ceiComponentsTable.consensusScore));
     }
-    res.json(components);
+    // Derive lifecycle stage on read; never persisted.
+    const enriched = components.map((c) => ({
+      ...c,
+      lifecycleStage: deriveLifecycleStage({
+        consensusScore: c.consensusScore,
+        velocity: c.velocity,
+        benchmarkScore: null,
+      }),
+    }));
+    res.json(enriched);
   } catch (err: unknown) {
     console.error("CEI components failed:", err);
     res.status(500).json({ error: "Failed to get CEI components" });

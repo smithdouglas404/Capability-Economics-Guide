@@ -56,6 +56,7 @@ export * from "./industryComparisonSharedCapabilitiesItem";
 export * from "./industryComparisonSharedCapabilitiesItemIndustriesItem";
 export * from "./industryDetail";
 export * from "./leaderboardEntry";
+export * from "./lifecycleStage";
 export * from "./listCapabilitiesParams";
 export * from "./listDataSourcesParams";
 export * from "./listInsightsParams";

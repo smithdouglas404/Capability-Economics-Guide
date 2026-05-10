@@ -9,6 +9,7 @@ import {
   ceiComponentsTable,
 } from "@workspace/db";
 import { eq, and, inArray, avg, count } from "drizzle-orm";
+import { deriveLifecycleStage } from "../services/lifecycle";
 
 const router = Router();
 
@@ -118,6 +119,11 @@ router.get("/war-room/compare", async (req, res) => {
         aiExposure: econ?.aiExposureScore ?? null,
         velocity: comp?.velocity ?? null,
         consensusScore: comp?.consensusScore ?? benchmark ?? null,
+        lifecycleStage: deriveLifecycleStage({
+          consensusScore: comp?.consensusScore ?? null,
+          velocity: comp?.velocity ?? null,
+          benchmarkScore: benchmark,
+        }),
       };
     });
 

@@ -51,6 +51,12 @@ export const GetIndustryResponse = zod.object({
       traditionalView: zod.string(),
       economicView: zod.string(),
       benchmarkScore: zod.number(),
+      lifecycleStage: zod
+        .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
+        .optional()
+        .describe(
+          "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+        ),
     }),
   ),
 });
@@ -71,6 +77,12 @@ export const ListCapabilitiesResponseItem = zod.object({
   traditionalView: zod.string(),
   economicView: zod.string(),
   benchmarkScore: zod.number(),
+  lifecycleStage: zod
+    .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
+    .optional()
+    .describe(
+      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+    ),
 });
 export const ListCapabilitiesResponse = zod.array(ListCapabilitiesResponseItem);
 
@@ -90,6 +102,12 @@ export const GetCapabilityResponse = zod.object({
   traditionalView: zod.string(),
   economicView: zod.string(),
   benchmarkScore: zod.number(),
+  lifecycleStage: zod
+    .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
+    .optional()
+    .describe(
+      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+    ),
   metrics: zod.array(
     zod.object({
       id: zod.number(),

@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { LifecycleStage } from "./lifecycleStage";
 
 export interface Capability {
   id: number;
@@ -15,4 +16,5 @@ export interface Capability {
   traditionalView: string;
   economicView: string;
   benchmarkScore: number;
+  lifecycleStage?: LifecycleStage;
 }

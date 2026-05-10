@@ -22,6 +22,24 @@ export interface Industry {
   capabilityCount: number;
 }
 
+/**
+ * Derived (never persisted) capability lifecycle stage. Computed on
+read from the capability's current ceiComponents posterior
+(consensusScore + velocity); falls back to benchmarkScore when no
+posterior exists. See `services/lifecycle.ts` for thresholds.
+
+ */
+export type LifecycleStage =
+  (typeof LifecycleStage)[keyof typeof LifecycleStage];
+
+export const LifecycleStage = {
+  emerging: "emerging",
+  adopted: "adopted",
+  mature: "mature",
+  decaying: "decaying",
+  obsolete: "obsolete",
+} as const;
+
 export interface Capability {
   id: number;
   industryId: number;
@@ -31,6 +49,7 @@ export interface Capability {
   traditionalView: string;
   economicView: string;
   benchmarkScore: number;
+  lifecycleStage?: LifecycleStage;
 }
 
 export interface IndustryDetail {
@@ -74,6 +93,7 @@ export interface CapabilityDetail {
   traditionalView: string;
   economicView: string;
   benchmarkScore: number;
+  lifecycleStage?: LifecycleStage;
   metrics: CapabilityMetric[];
   dependencies: CapabilityDependency[];
   roleMappings: RoleMapping[];

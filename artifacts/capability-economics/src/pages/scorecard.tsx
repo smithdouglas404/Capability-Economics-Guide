@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Swords, AlertTriangle, Shield, Brain, TrendingDown, RefreshCw } from "lucide-react";
+import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 
 const API_BASE = "/api";
 
@@ -17,6 +18,7 @@ type MatrixRow = {
   aiExposure: number | null;
   velocity: number;
   consensusScore: number;
+  lifecycleStage: LifecycleStage;
 };
 
 type Alert = { type: string; message: string; severity: string; capabilityId: number };
@@ -31,6 +33,7 @@ export default function CapabilityScorecard() {
   const [industryId, setIndustryId] = useState<number | null>(null);
   const [mode, setMode] = useState<"user" | "industry-average">("user");
   const [aggregatedFromOrgs, setAggregatedFromOrgs] = useState(0);
+  const [stageFilter, setStageFilter] = useState<LifecycleStage | "all">("all");
   const sessionToken = localStorage.getItem("ce_session_token") ?? "";
 
   const load = async (overrideIndustryId?: number | null) => {
@@ -70,7 +73,12 @@ export default function CapabilityScorecard() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const sortedByGap = [...matrix].filter((m) => m.gap !== null).sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0));
+  const filteredMatrix = stageFilter === "all" ? matrix : matrix.filter((m) => m.lifecycleStage === stageFilter);
+  const sortedByGap = [...filteredMatrix].filter((m) => m.gap !== null).sort((a, b) => (a.gap ?? 0) - (b.gap ?? 0));
+  const stageCounts = LIFECYCLE_STAGES.reduce<Record<LifecycleStage, number>>((acc, s) => {
+    acc[s] = matrix.filter((m) => m.lifecycleStage === s).length;
+    return acc;
+  }, { emerging: 0, adopted: 0, mature: 0, decaying: 0, obsolete: 0 });
   const criticalAlerts = alerts.filter((a) => a.severity === "critical");
   const warningAlerts = alerts.filter((a) => a.severity === "warning");
 
@@ -103,6 +111,18 @@ export default function CapabilityScorecard() {
               {industries.map((i) => (<option key={i.id} value={i.id}>{i.name}</option>))}
             </select>
           )}
+          <select
+            value={stageFilter}
+            onChange={(e) => setStageFilter(e.target.value as LifecycleStage | "all")}
+            className="border rounded px-3 py-2 bg-background text-sm"
+            data-testid="scorecard-lifecycle-filter"
+            title="Filter capabilities by derived lifecycle stage"
+          >
+            <option value="all">All lifecycle stages ({matrix.length})</option>
+            {LIFECYCLE_STAGES.map((s) => (
+              <option key={s} value={s}>{lifecycleLabel(s)} ({stageCounts[s]})</option>
+            ))}
+          </select>
           <Button onClick={() => load()} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
         </div>
       </div>
@@ -159,6 +179,24 @@ export default function CapabilityScorecard() {
         </Card>
       </div>
 
+      {/* Lifecycle stage legend / docs */}
+      <Card>
+        <CardHeader className="pb-3"><CardTitle className="font-serif tracking-tight text-base">Lifecycle stages</CardTitle></CardHeader>
+        <CardContent className="text-xs text-muted-foreground space-y-2">
+          <p>
+            Each capability is tagged with a derived lifecycle stage, computed on every read from its current
+            posterior consensus score and EMA velocity (never persisted, never goes stale).
+          </p>
+          <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5">
+            <div className="flex items-start gap-2"><LifecycleChip stage="emerging" /><span>Score &lt; 40 and velocity ≥ +0.03 — early adopters investing.</span></div>
+            <div className="flex items-start gap-2"><LifecycleChip stage="adopted" /><span>Mid-range maturity with positive or neutral momentum.</span></div>
+            <div className="flex items-start gap-2"><LifecycleChip stage="mature" /><span>Score ≥ 65 and |velocity| &lt; 0.015 — table stakes.</span></div>
+            <div className="flex items-start gap-2"><LifecycleChip stage="decaying" /><span>Velocity ≤ −0.03 at any score — losing relevance.</span></div>
+            <div className="flex items-start gap-2"><LifecycleChip stage="obsolete" /><span>Score &lt; 30 and falling — being abandoned.</span></div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Comparison Matrix */}
       <Card>
         <CardHeader><CardTitle className="font-serif tracking-tight">Capability Comparison Matrix</CardTitle></CardHeader>
@@ -168,6 +206,7 @@ export default function CapabilityScorecard() {
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2">Capability</th>
+                  <th className="text-left py-2 px-2">Stage</th>
                   <th className="text-right py-2 px-2">Your Score</th>
                   <th className="text-right py-2 px-2">Benchmark</th>
                   <th className="text-right py-2 px-2">Gap</th>
@@ -181,6 +220,7 @@ export default function CapabilityScorecard() {
                 {sortedByGap.map((row) => (
                   <tr key={row.capabilityId} className="border-b hover:bg-muted/30">
                     <td className="py-2 px-2 font-medium">{row.capabilityName}</td>
+                    <td className="py-2 px-2"><LifecycleChip stage={row.lifecycleStage} /></td>
                     <td className="text-right py-2 px-2">{row.myScore?.toFixed(0) ?? "—"}</td>
                     <td className="text-right py-2 px-2">{row.benchmark.toFixed(0)}</td>
                     <td className="text-right py-2 px-2">

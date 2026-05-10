@@ -7,6 +7,7 @@
  */
 import type { CapabilityDependency } from "./capabilityDependency";
 import type { CapabilityMetric } from "./capabilityMetric";
+import type { LifecycleStage } from "./lifecycleStage";
 import type { RoleMapping } from "./roleMapping";
 
 export interface CapabilityDetail {
@@ -18,6 +19,7 @@ export interface CapabilityDetail {
   traditionalView: string;
   economicView: string;
   benchmarkScore: number;
+  lifecycleStage?: LifecycleStage;
   metrics: CapabilityMetric[];
   dependencies: CapabilityDependency[];
   roleMappings: RoleMapping[];

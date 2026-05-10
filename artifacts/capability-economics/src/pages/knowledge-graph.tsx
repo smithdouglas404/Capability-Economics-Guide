@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useListIndustries, useGetIndustry, useGetCapability, useCompareIndustries, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
+import { LifecycleChip, type LifecycleStage } from "@/components/lifecycle-chip";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -207,7 +208,10 @@ export default function KnowledgeGraph() {
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to {industryDetail?.name}
                 </Button>
-                <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{capabilityDetail.name}</h1>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h1 className="text-3xl md:text-4xl font-serif font-medium text-foreground">{capabilityDetail.name}</h1>
+                  <LifecycleChip stage={capabilityDetail.lifecycleStage as LifecycleStage | undefined} />
+                </div>
                 <p className="text-lg text-muted-foreground mt-2">{capabilityDetail.description}</p>
               </div>
               <div className="hidden md:flex flex-col items-end gap-2">

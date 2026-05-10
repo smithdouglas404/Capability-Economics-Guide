@@ -6,9 +6,11 @@ import {
   capabilityDependenciesTable,
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
+  ceiComponentsTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
+import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 
 const router: IRouter = Router();
 
@@ -31,7 +33,21 @@ router.get("/capabilities", async (req, res) => {
     query = query.where(eq(capabilitiesTable.reviewStatus, "approved")) as typeof query;
   }
   const capabilities = await query;
-  res.json(capabilities);
+
+  // Enrich every cap with a derived lifecycle stage (Emerging / Adopted /
+  // Mature / Decaying / Obsolete) computed from its current ceiComponents
+  // posterior. Computed on read so it can never go stale.
+  const capIds = capabilities.map((c) => c.id);
+  const components = capIds.length > 0
+    ? await db.select({
+        capabilityId: ceiComponentsTable.capabilityId,
+        consensusScore: ceiComponentsTable.consensusScore,
+        velocity: ceiComponentsTable.velocity,
+      }).from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
+    : [];
+  const lifecycleByCap = buildLifecycleMap(capabilities, components);
+
+  res.json(capabilities.map((c) => ({ ...c, lifecycleStage: lifecycleByCap.get(c.id) ?? "adopted" })));
 });
 
 router.get("/capabilities/:id", async (req, res) => {
@@ -74,8 +90,21 @@ router.get("/capabilities/:id", async (req, res) => {
     .innerJoin(cSuiteRolesTable, eq(cSuiteRolesTable.id, capabilityRoleMappingsTable.roleId))
     .where(eq(capabilityRoleMappingsTable.capabilityId, id));
 
+  // Derived lifecycle stage from the cap's current CEI posterior.
+  const [comp] = await db
+    .select({ consensusScore: ceiComponentsTable.consensusScore, velocity: ceiComponentsTable.velocity })
+    .from(ceiComponentsTable)
+    .where(eq(ceiComponentsTable.capabilityId, id))
+    .limit(1);
+  const lifecycleStage = deriveLifecycleStage({
+    consensusScore: comp?.consensusScore ?? null,
+    velocity: comp?.velocity ?? null,
+    benchmarkScore: capability.benchmarkScore,
+  });
+
   res.json({
     ...capability,
+    lifecycleStage,
     metrics,
     dependencies: depsRaw,
     roleMappings: roleMappingsRaw,

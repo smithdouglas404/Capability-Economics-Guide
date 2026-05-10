@@ -839,6 +839,15 @@ components:
             $ref: "#/components/schemas/Capability"
       required: [id, slug, name, description, icon, capabilities]
 
+    LifecycleStage:
+      type: string
+      enum: [emerging, adopted, mature, decaying, obsolete]
+      description: |
+        Derived (never persisted) capability lifecycle stage. Computed on
+        read from the capability's current ceiComponents posterior
+        (consensusScore + velocity); falls back to benchmarkScore when no
+        posterior exists. See `services/lifecycle.ts` for thresholds.
+
     Capability:
       type: object
       properties:
@@ -858,6 +867,8 @@ components:
           type: string
         benchmarkScore:
           type: number
+        lifecycleStage:
+          $ref: "#/components/schemas/LifecycleStage"
       required: [id, industryId, slug, name, description, traditionalView, economicView, benchmarkScore]
 
     CapabilityDetail:
@@ -879,6 +890,8 @@ components:
           type: string
         benchmarkScore:
           type: number
+        lifecycleStage:
+          $ref: "#/components/schemas/LifecycleStage"
         metrics:
           type: array
           items:
