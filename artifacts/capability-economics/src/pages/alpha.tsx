@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, AlertTriangle, Shield, FileText, GitMerge, BookOpen, ExternalLink, Info } from "lucide-react";
+import { Loader2, Zap, TrendingDown, Network, GitCompare, Layers, ShieldAlert, Waves, Users, ArrowRight, RefreshCw, Shield, FileText, GitMerge, BookOpen, ExternalLink, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -708,35 +708,7 @@ function NarrativeColumn({ title, subtitle, items, color }: { title: string; sub
   );
 }
 
-/* ============================= Stubs ============================= */
-function StubTab({ title, desc, method, needsEnrichment }: { title: string; desc: string; method: string[]; needsEnrichment?: boolean }) {
-  return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
-          <div>
-            <CardTitle>{title}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">{desc}</p>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">Methodology</div>
-        <ol className="text-sm space-y-1.5 list-decimal pl-5 text-muted-foreground">
-          {method.map((m, i) => <li key={i}>{m}</li>)}
-        </ol>
-        {needsEnrichment && (
-          <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3 w-3" />
-            Unlocked after EVaR + Cascade enrichment completes for tracked industries.
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
+/* ============================= Empty State ============================= */
 function EmptyPrompt({ title, msg }: { title: string; msg: string }) {
   return (
     <Card>
