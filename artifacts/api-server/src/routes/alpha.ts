@@ -266,13 +266,25 @@ router.get("/evar", async (req: Request, res: Response) => {
       : [];
     const qByCapId = new Map(quadrantRows.map(q => [q.capabilityId, q]));
 
-    const items = econRows.map(r => {
+    // Strict policy (mirrors Moat/Fragility): drop any row missing the required
+    // enriched economics fields. No fallback constants for halfLifeMonths,
+    // commoditizationVelocity, marginStructurePct, or revenueExposureMm.
+    // consensusConfidence is the only field allowed to default (0.5) because it
+    // only widens the confidence band — it never gates the projection itself.
+    const eligible = econRows.filter(r =>
+      r.halfLifeMonths != null &&
+      r.commoditizationVelocity != null &&
+      r.marginStructurePct != null &&
+      r.revenueExposureMm != null
+    );
+
+    const items = eligible.map(r => {
       const cap = capById.get(r.capabilityId);
       const q = qByCapId.get(r.capabilityId);
-      const halfLife = r.halfLifeMonths ?? 36;
-      const velocity = r.commoditizationVelocity ?? 0.2;
-      const revenue = r.revenueExposureMm ?? r.tamUsdMm ?? 0;
-      const margin = (r.marginStructurePct ?? 40) / 100;
+      const halfLife = r.halfLifeMonths!;
+      const velocity = r.commoditizationVelocity!;
+      const revenue = r.revenueExposureMm!;
+      const margin = r.marginStructurePct! / 100;
       const disruption = q?.disruptionIntensity ?? 0.3;
 
       // Decay model: share of current differentiated margin that collapses by month t
@@ -323,7 +335,15 @@ router.get("/evar", async (req: Request, res: Response) => {
       count: items.length,
     };
 
-    res.json({ items, totals });
+    const totalCapabilities = industryId
+      ? (await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId))).length
+      : (await db.select().from(capabilitiesTable)).length;
+
+    res.json({
+      items,
+      totals,
+      coverage: { scored: items.length, totalCapabilities },
+    });
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
@@ -428,7 +448,11 @@ router.get("/narrative-delta", async (_req: Request, res: Response) => {
     const industries = await db.select().from(industriesTable);
     const indById = new Map(industries.map(i => [i.id, i.name]));
 
-    const quadRank: Record<string, number> = { cooling: 0, table_stakes: 1, emerging: 2, hot: 3 };
+    // 5-level ladder: declining < cooling < table_stakes < emerging < hot.
+    // `declining` = -1 so that a CE-bearish call against a hot consensus
+    // ("we think this melts") shows up as a properly large negative delta
+    // instead of being clamped to 0 by a missing-key lookup.
+    const quadRank: Record<string, number> = { declining: -1, cooling: 0, table_stakes: 1, emerging: 2, hot: 3 };
 
     const items = econ
       .filter(e => e.consensusQuadrant && qByCapId.get(e.capabilityId)?.quadrant)
@@ -690,8 +714,20 @@ router.get("/arbitrage", async (_req: Request, res: Response) => {
     const quads = await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${inIds})`);
     const quadByCapId = new Map(quads.map(q => [q.capabilityId, q]));
 
+    // Cashflow multiples by quadrant — used to translate annual capability
+    // margin into an enterprise-value-equivalent so CE and consensus can be
+    // compared on the same axis. Calibration rationale:
+    //   hot          = 15  — secular growth, scarce supply, premium pricing
+    //   emerging     = 10  — early traction, rapid TAM expansion
+    //   cooling      = 7   — defensible-but-decelerating cashflow; still
+    //                        earns a premium over table_stakes because the
+    //                        moat hasn't fully eroded, but trades at a clear
+    //                        discount to emerging because growth is rolling
+    //                        over (sits between table_stakes:4 and emerging:10)
+    //   table_stakes = 4   — commoditized, competitive, mid-cycle multiple
+    //   declining    = 1   — terminal value only; near-zero growth premium
     const QUADRANT_MULTIPLE: Record<string, number> = {
-      hot: 15, emerging: 10, table_stakes: 4, declining: 1,
+      hot: 15, emerging: 10, cooling: 7, table_stakes: 4, declining: 1,
     };
 
     const items = econ

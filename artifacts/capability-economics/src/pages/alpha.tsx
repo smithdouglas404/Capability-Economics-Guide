@@ -223,7 +223,7 @@ function TraceabilityDialog() {
               spread    = ceValue − consensus<br/>
               <br/>
               Multiples (annual margin → enterprise-value-equivalent):<br/>
-              {"  hot=15×   emerging=10×   table_stakes=4×   declining=1×"}<br/>
+              {"  hot=15×   emerging=10×   cooling=7×   table_stakes=4×   declining=1×"}<br/>
               <br/>
               direction = spread &gt; 10% &amp; conf ≥ 0.55 → long<br/>
               direction = spread &lt; −10% &amp; conf ≥ 0.55 → short<br/>
@@ -959,7 +959,7 @@ function ArbitrageTab() {
         <CardHeader>
           <CardTitle className="text-base">CE quadrant valuation vs street consensus valuation</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). Multiples: hot 15×, emerging 10×, table-stakes 4×, declining 1×.
+            Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). Multiples: hot 15×, emerging 10×, cooling 7×, table-stakes 4×, declining 1×.
             Direction requires consensus confidence ≥ {data.methodology.minConfidenceForSignal} — otherwise neutral.
           </p>
         </CardHeader>

@@ -8,7 +8,7 @@ Audited 2026-05-10 against live data: 274 / 356 capabilities enriched, 30 depend
 - Requires consensus quadrant + revenue exposure + margin + CE quadrant: **Arbitrage**.
 - Drops stages without real `capitalFlowMm`: **Flows**.
 - Uses scored edges only when building cascade adjacency: **Cascade**.
-- Loose — applies fallback constants when fields are missing: **EVaR** (see below).
+- Strict enriched-only (drop rows missing real economics): **EVaR** (see below).
 - Pure aggregation over whatever is present: **Talent**, **Twin**, **Status**, **Thesis** (Thesis itself is admin-gated and synthesizes a memo from whichever inputs exist).
 
 When component scores are weighted (Moat, Fragility), weights are **renormalized over only the components that exist**, so a missing input is rendered as `—`/dashed bar instead of being silently treated as 0.
@@ -17,17 +17,15 @@ When component scores are weighted (Moat, Fragility), weights are **renormalized
 
 ## 1. EVaR — Economic Value at Risk
 **Endpoint:** `GET /api/alpha/evar?industryId=`
-**Source data:** `capability_economics` (revenueExposureMm, tamUsdMm, marginStructurePct, halfLifeMonths, commoditizationVelocity), `capability_quadrants.disruptionIntensity`, `consensusConfidence`.
+**Source data:** `capability_economics` (revenueExposureMm, marginStructurePct, halfLifeMonths, commoditizationVelocity), `capability_quadrants.disruptionIntensity`, `consensusConfidence`.
 
-**⚠️ Fallback defaults applied when fields are missing** (rows are not dropped):
-| Field                    | Fallback        |
-|--------------------------|-----------------|
-| `halfLifeMonths`         | 36              |
-| `commoditizationVelocity`| 0.2             |
-| `revenueExposureMm`      | `tamUsdMm` else 0 |
-| `marginStructurePct`     | 40 (i.e. 0.40)  |
-| `disruptionIntensity`    | 0.3             |
-| `consensusConfidence`    | 0.5             |
+**Strict enriched-only policy (rows dropped when any required field is missing):** rows must have non-null `halfLifeMonths`, `commoditizationVelocity`, `marginStructurePct`, AND `revenueExposureMm`. The `.filter()` runs before `.map()`, mirroring Moat/Fragility. The response includes a `coverage: { scored, totalCapabilities }` block so the frontend can show "N of M capabilities scored".
+
+**Allowed defaults (band-width inputs only — never gate the projection):**
+| Field                    | Default | Used for                                 |
+|--------------------------|---------|------------------------------------------|
+| `disruptionIntensity`    | 0.3     | market-erosion factor (additive)         |
+| `consensusConfidence`    | 0.5     | confidence band width only (`bandPct`)   |
 
 **Formula:**
 ```
@@ -67,15 +65,15 @@ Frontend horizon slider (6–48 months) hides edges where `timeToImpactMonths > 
 **Source data:** rows where both `capability_economics.consensusQuadrant` AND `capability_quadrants.quadrant` exist.
 **Formula:**
 ```
-quadRank   = { cooling: 0, table_stakes: 1, emerging: 2, hot: 3 }     // 4-level ladder; "declining" is NOT in the rank map
-deltaSteps = quadRank[ceQuadrant] − quadRank[consensusQuadrant]       // missing key → 0
+quadRank   = { declining: -1, cooling: 0, table_stakes: 1, emerging: 2, hot: 3 }   // 5-level ladder (declining included)
+deltaSteps = quadRank[ceQuadrant] − quadRank[consensusQuadrant]                    // every emitted quadrant has a key
 direction  = "long" if delta > 0
              "short" if delta < 0
              "agree" if delta == 0  (filtered out)
 sort       = |deltaSteps| desc
 ```
 Source URLs come from `consensus_sources`.
-**Interpret:** Long column = CE is more bullish than the street (potential undervalued long); Short column = CE is more bearish (potential short / sell-side risk). A capability whose CE or consensus quadrant is `declining` will receive `0` for that side of the rank lookup — treat large `declining`-vs-`hot` deltas with extra care.
+**Interpret:** Long column = CE is more bullish than the street (potential undervalued long); Short column = CE is more bearish (potential short / sell-side risk). With `declining = -1` in the ladder, a CE-bearish call against a `hot` consensus now produces a delta of −4 (the largest possible spread) instead of being silently clamped to −3.
 
 ## 4. Moat — Replication Difficulty Score
 **Endpoint:** `GET /api/alpha/moat?industryId=`
@@ -115,7 +113,7 @@ Severity: ≥70 critical, ≥50 elevated, ≥30 moderate, else stable.
 **Source filter:** rows with `consensusQuadrant && revenueExposureMm != null && marginStructurePct != null` AND a CE quadrant in `capability_quadrants`. Pairs whose either-side multiple isn't in the table are dropped.
 **Formula:**
 ```
-QUADRANT_MULTIPLE = { hot: 15, emerging: 10, table_stakes: 4, declining: 1 }     // cooling NOT priced
+QUADRANT_MULTIPLE = { hot: 15, emerging: 10, cooling: 7, table_stakes: 4, declining: 1 }     // 5-level coverage
 annualMarginMm    = revenueExposureMm × (marginStructurePct / 100)
 ceValueMm         = annualMarginMm × QUADRANT_MULTIPLE[ceQuadrant]
 consensusValueMm  = annualMarginMm × QUADRANT_MULTIPLE[consensusQuadrant]
@@ -124,7 +122,7 @@ direction         = "long"  if conf ≥ 0.55 and spread > max(consensus×10%, $1
                     "short" if conf ≥ 0.55 and spread < −max(consensus×10%, $100M)
                     "neutral" otherwise
 ```
-**Note:** `cooling` is not in the multiple table, so any pair where either side is `cooling` is dropped (returns `null` and is filtered).
+**Note:** `cooling = 7` sits between `table_stakes:4` and `emerging:10`. Rationale: a cooling capability still earns a defensible-cashflow premium over commodity table-stakes (the moat hasn't fully eroded), but trades at a clear discount to emerging because growth is decelerating. Pairs touching `cooling` now produce a real spread instead of being silently filtered.
 Confidence gate prevents low-conviction noise from becoming actionable signals.
 **Interpret:** Positive spread (green) = CE thinks the capability is worth more than street is paying — long candidate. Negative (red) = street is over-paying — short candidate. Neutral = either too small or too low confidence.
 
@@ -171,15 +169,24 @@ Synergy is `null` (rendered "—") when either side lacks revenue exposure — n
 
 ---
 
-## Audit Findings (2026-05-10)
+## Audit + Repair Log (2026-05-10)
 
-**Functional, real data live:** EVaR, Cascade roots, Narrative Delta, Moat, Fragility, Arbitrage, Flows, Talent, Twin (Insurance vs Healthcare verified), Thesis (admin-gated).
+**Functional, real data live:** EVaR, Cascade roots + graph, Narrative Delta, Moat, Fragility, Arbitrage, Flows, Talent, Twin (Insurance vs Healthcare verified), Thesis (admin-gated).
 
-**Coverage / behaviour gaps surfaced for follow-up:**
-- **Cascade graph:** only 8 capabilities have scored upstream/downstream edges; 30 edges total. The roots panel populates from those 8 (top-40 cap means we still get a list), but selecting any of the other 348 capabilities shows root-only with no graph. Either run more iterations of the dependency-edge enrichment loop or seed more `capability_dependencies` rows.
-- **EVaR placeholder policy:** `/evar` does NOT drop rows missing economics; instead it applies fallback constants (halfLife=36, velocity=0.2, margin=40%, revenue=tamUsdMm or 0, disruption=0.3, confidence=0.5). This is inconsistent with Moat/Fragility's strict-enriched policy. Decide policy: tighten `/evar` to drop unenriched rows, or document this as intentional "show-everything-with-defaults".
-- **Quadrant rank coverage:** Narrative-delta `quadRank` only contains `{cooling, table_stakes, emerging, hot}`; capabilities classified `declining` get `0` (same as `cooling`), which understates "we're bearish" deltas. Arbitrage's `QUADRANT_MULTIPLE` is the inverse: includes `declining`, omits `cooling` — pairs touching `cooling` are silently dropped.
-- **Talent coverage:** only 5 of 6 industries have `company_capability_mappings`. The 6th renders empty correctly.
-- **Industries seeded:** Insurance, Healthcare, Banking, Manufacturing, Technology, Retail. **"Residential Solar" is not seeded** — adding it requires a separate industry-seed task.
+**Industries seeded (7):** Insurance, Healthcare, Banking & Financial Services, Manufacturing, Technology, Retail, **Residential Solar** (added this session — industryId=7, 15 capabilities seeded with real Perplexity citations stored in `consensus_sources` and `perplexity_sources`; quadrant distribution: 4 hot, 5 table_stakes, 5 emerging, 1 cooling).
 
-**Cleanup applied:** removed unused `StubTab` component and `AlertTriangle` import from `artifacts/capability-economics/src/pages/alpha.tsx` (dead code).
+**Repairs shipped this session:**
+- **EVaR policy tightened**: dropped fallback constants for `halfLifeMonths`, `commoditizationVelocity`, `marginStructurePct`, `revenueExposureMm`. Rows missing those fields are now filtered out before the EVaR formula runs (matching Moat/Fragility's strict-enriched posture). `consensusConfidence` defaults to 0.5 only as a band-width input. Response now includes a `coverage: { scored, totalCapabilities }` block. Verified live: `coverage = { scored: 259, totalCapabilities: 446 }`.
+- **Quadrant maps reconciled**: `quadRank` in `/narrative-delta` extended to 5 levels `{declining: -1, cooling: 0, table_stakes: 1, emerging: 2, hot: 3}`. `QUADRANT_MULTIPLE` in `/arbitrage` extended with `cooling: 7` (between `table_stakes:4` and `emerging:10`). Arbitrage now surfaces 34 cooling-touching pairs that were previously dropped.
+- **Cascade enrichment burst**: scored dependency edges raised from 30 → 114; capabilities with at least one scored outgoing edge raised from ~8 → 60+. Cascade roots panel now shows 40/40 nonzero; sample top root `Inventory Management` resolves to a 4-node, 4-edge graph with $12.5B p-weighted downstream impact. Edge insertion is constrained to fuzzy-matched existing capabilities in the same industry — no inventing new caps.
+- **Frontend cleanup**: removed unused `StubTab` component and `AlertTriangle` import from `artifacts/capability-economics/src/pages/alpha.tsx`.
+
+**No-fallback policy in repair scripts** (firm rule: no hardcoded editorial values):
+- `scripts-seed-residential-solar.mts` no longer substitutes synthetic quadrants (`emerging`) or synthetic 0-100 scores (`50`) when Perplexity omits them. Missing fields → row is skipped and logged to `errors[]`; rerun the script to retry. Quadrant labels are still validated against the allowed set.
+- `scripts-edge-enrichment-burst.mts` no longer applies a synthetic `dollar_impact_mm = 50` fallback. `bucketToDollarMm()` now returns `null` for unrecognized buckets and the per-edge loop drops the edge instead of inserting a fabricated dollar value. The bucket→$M anchoring (small=25, medium=100, large=500) is documented as a unit conversion of Perplexity's own bucket choice, not an editorial value.
+- Frontend traceability text in `pages/alpha.tsx` (in-page methodology panels at lines ~229 and ~965) updated to include `cooling=7×`, matching the backend `QUADRANT_MULTIPLE`.
+
+**Known remaining gaps (deferred to sibling tasks #18-#40):**
+- Cascade still has ~225 capabilities with no scored outgoing edges (114/340 covered). Further enrichment bursts (`MAX_CALLS=N tsx scripts-edge-enrichment-burst.mts`) can raise coverage incrementally without code changes.
+- Talent: 6/7 industries now have `company_capability_mappings` (Residential Solar added this session — 14 real companies via `scripts-seed-residential-solar-companies.mts`, 80 mappings, all Perplexity-cited). One legacy industry remains uncovered.
+- 32 of the 446 capabilities counted in `/api/alpha/status.totalCapabilities` are unenriched scaffolding rows from earlier seed passes; they correctly drop out of all strict-enriched tabs (EVaR/Moat/Fragility) and render as missing rather than zero.
