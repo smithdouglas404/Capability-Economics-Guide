@@ -293,11 +293,12 @@ async function buildPlaceholderPdf(report: SeedReport): Promise<Buffer> {
 async function ensureSeedSeller(): Promise<typeof marketplaceSellersTable.$inferSelect> {
   const [existing] = await db.select().from(marketplaceSellersTable).where(eq(marketplaceSellersTable.userId, SEED_SELLER_USER_ID));
   if (existing) {
-    if (existing.tier !== "featured") {
+    const needsTierBump = existing.tier !== "featured";
+    const needsEmailFix = existing.email !== "research@capabilityeconomics.com";
+    if (needsTierBump || needsEmailFix) {
       const [updated] = await db.update(marketplaceSellersTable).set({
-        tier: "featured",
-        tierGrantedBy: "system_seed",
-        tierGrantedAt: new Date(),
+        ...(needsTierBump && { tier: "featured", tierGrantedBy: "system_seed", tierGrantedAt: new Date() }),
+        ...(needsEmailFix && { email: "research@capabilityeconomics.com" }),
         updatedAt: new Date(),
       }).where(eq(marketplaceSellersTable.id, existing.id)).returning();
       return updated;
@@ -306,7 +307,7 @@ async function ensureSeedSeller(): Promise<typeof marketplaceSellersTable.$infer
   }
   const [created] = await db.insert(marketplaceSellersTable).values({
     userId: SEED_SELLER_USER_ID,
-    email: "research@capability-economics.com",
+    email: "research@capabilityeconomics.com",
     displayName: "Capability Economics Research",
     stripeAccountId: SEED_SELLER_STRIPE_ACCOUNT,
     chargesEnabled: false,
