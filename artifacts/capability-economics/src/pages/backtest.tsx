@@ -6,10 +6,20 @@ import {
   ArrowLeft, BarChart3, CheckCircle2, XCircle, MinusCircle,
   PlayCircle, RefreshCw, Calendar, ExternalLink, ChevronDown, ChevronRight,
 } from "lucide-react";
+import {
+  ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ReferenceLine, ZAxis,
+} from "recharts";
 
 const API_BASE = "/api";
 
 type Direction = "positive" | "negative" | "neutral";
+
+interface ForecastDistribution {
+  positive: number;
+  negative: number;
+  neutral: number;
+}
 
 interface CapResult {
   capabilityId: number | null;
@@ -18,11 +28,30 @@ interface CapResult {
   baseline: number | null;
   predicted: number | null;
   predictedDelta: number;
+  predictedSigma: number | null;
   predictedDirection: Direction;
   expectedDirection: Direction;
   rationale: string | null;
+  forecast: ForecastDistribution | null;
+  brier: number | null;
+  logLoss: number | null;
   match: boolean;
   excluded: "not_found" | "below_epsilon" | null;
+}
+
+interface ReliabilityBin {
+  binLow: number;
+  binHigh: number;
+  meanConfidence: number;
+  accuracy: number;
+  count: number;
+}
+
+interface ProbabilisticMetrics {
+  count: number;
+  brier: number | null;
+  logLoss: number | null;
+  reliability: ReliabilityBin[];
 }
 
 interface EventResult {
@@ -39,6 +68,7 @@ interface EventResult {
   scored: number;
   notFound: number;
   accuracy: number; // -1 if scored=0
+  probabilistic: ProbabilisticMetrics;
 }
 
 interface BacktestSummary {
@@ -46,8 +76,9 @@ interface BacktestSummary {
   aggregateMatched: number;
   aggregateScored: number;
   aggregateAccuracy: number;
+  probabilistic: ProbabilisticMetrics;
   ranAt: string;
-  notes: { timeAnchorCaveat: string };
+  notes: { timeAnchorCaveat: string; probabilistic?: string };
 }
 
 interface CatalogEvent {
@@ -71,6 +102,56 @@ function dirIcon(d: Direction) {
 
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function ReliabilityChart({ bins }: { bins: ReliabilityBin[] }) {
+  const data = bins.map((b) => ({
+    confidence: Math.round(b.meanConfidence * 1000) / 1000,
+    accuracy: Math.round(b.accuracy * 1000) / 1000,
+    count: b.count,
+    label: `${(b.binLow * 100).toFixed(0)}–${(b.binHigh * 100).toFixed(0)}%`,
+  }));
+  return (
+    <div className="w-full h-72">
+      <ResponsiveContainer>
+        <ScatterChart margin={{ top: 8, right: 16, bottom: 32, left: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            type="number"
+            dataKey="confidence"
+            name="Mean confidence"
+            domain={[0, 1]}
+            tickFormatter={(v) => `${Math.round(v * 100)}%`}
+            label={{ value: "Forecast confidence (top class)", position: "insideBottom", offset: -16, fontSize: 12 }}
+          />
+          <YAxis
+            type="number"
+            dataKey="accuracy"
+            name="Observed accuracy"
+            domain={[0, 1]}
+            tickFormatter={(v) => `${Math.round(v * 100)}%`}
+            label={{ value: "Observed accuracy", angle: -90, position: "insideLeft", fontSize: 12 }}
+          />
+          <ZAxis type="number" dataKey="count" range={[60, 400]} name="Caps in bin" />
+          <ReferenceLine
+            segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]}
+            stroke="#999"
+            strokeDasharray="4 4"
+            ifOverflow="extendDomain"
+          />
+          <Tooltip
+            cursor={{ strokeDasharray: "3 3" }}
+            formatter={(value: number | string, name: string) =>
+              typeof value === "number" && (name === "Mean confidence" || name === "Observed accuracy")
+                ? [`${(value * 100).toFixed(1)}%`, name]
+                : [value, name]
+            }
+          />
+          <Scatter data={data} fill="hsl(var(--primary))" />
+        </ScatterChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 function AccuracyBadge({ accuracy, scored }: { accuracy: number; scored: number }) {
@@ -177,12 +258,12 @@ export default function BacktestPage() {
       {/* Headline aggregate */}
       <Card>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-6">
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
-                Aggregate directional accuracy
+                Directional accuracy
               </p>
-              <p className="text-4xl font-bold">
+              <p className="text-3xl font-bold">
                 {summary && summary.aggregateScored > 0
                   ? `${Math.round(summary.aggregateAccuracy * 100)}%`
                   : running
@@ -191,19 +272,43 @@ export default function BacktestPage() {
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {summary
-                  ? `${summary.aggregateMatched} of ${summary.aggregateScored} cap-level predictions matched ground truth`
-                  : "Run the harness to compute"}
+                  ? `${summary.aggregateMatched}/${summary.aggregateScored} matched`
+                  : "Run to compute"}
+              </p>
+            </div>
+            <div title="Multiclass Brier score across {positive, negative, neutral}. Lower is better. 0 = perfect, 0.667 = uniform 1/3 prior, 2 = certain & wrong.">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Brier score</p>
+              <p className="text-3xl font-bold">
+                {summary?.probabilistic.brier != null
+                  ? summary.probabilistic.brier.toFixed(3)
+                  : running ? "…" : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                lower is better · uniform = 0.667
+              </p>
+            </div>
+            <div title="Mean negative log-likelihood of the actual direction under the engine's forecast. Lower is better. ln(3) ≈ 1.099 = uniform 1/3 prior.">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Log-loss</p>
+              <p className="text-3xl font-bold">
+                {summary?.probabilistic.logLoss != null
+                  ? summary.probabilistic.logLoss.toFixed(3)
+                  : running ? "…" : "—"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                lower is better · uniform = 1.099
               </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Events replayed</p>
-              <p className="text-4xl font-bold">{summary?.events.length ?? catalog?.length ?? 0}</p>
-              <p className="text-xs text-muted-foreground mt-1">curated, Perplexity-cited</p>
+              <p className="text-3xl font-bold">{summary?.events.length ?? catalog?.length ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">curated, cited</p>
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Capabilities scored</p>
-              <p className="text-4xl font-bold">{summary?.aggregateScored ?? 0}</p>
-              <p className="text-xs text-muted-foreground mt-1">|Δ| ≥ 0.5 threshold to count</p>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Caps scored</p>
+              <p className="text-3xl font-bold">{summary?.aggregateScored ?? 0}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {summary?.probabilistic.count ? `${summary.probabilistic.count} probabilistic` : "|Δ| ≥ 0.5"}
+              </p>
             </div>
             <div>
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Last run</p>
@@ -214,6 +319,23 @@ export default function BacktestPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Reliability / calibration diagram */}
+      {summary?.probabilistic.reliability && summary.probabilistic.reliability.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Reliability diagram</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Each dot = one confidence bin. X = engine's mean confidence in its top-class
+              forecast; Y = how often that top class was actually correct. Perfect calibration
+              tracks the dashed y = x diagonal. Dot size = bin sample count.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ReliabilityChart bins={summary.probabilistic.reliability} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Per-event breakdown */}
       <Card>
@@ -234,12 +356,14 @@ export default function BacktestPage() {
                 <th className="text-center p-3 font-medium" title="Event's primary direction (what the live macro pipeline tags it as)">Sentiment</th>
                 <th className="text-center p-3 font-medium">Caps moved</th>
                 <th className="text-right p-3 font-medium">Accuracy</th>
+                <th className="text-right p-3 font-medium" title="Mean multiclass Brier across this event's cap forecasts">Brier</th>
+                <th className="text-right p-3 font-medium" title="Mean log-loss across this event's cap forecasts">Log-loss</th>
               </tr>
             </thead>
             <tbody>
               {(summary?.events ?? []).length === 0 && !running && (
                 <tr>
-                  <td colSpan={8} className="p-6 text-center text-muted-foreground text-sm">
+                  <td colSpan={10} className="p-6 text-center text-muted-foreground text-sm">
                     No results yet. Click "Re-run harness".
                   </td>
                 </tr>
@@ -284,10 +408,16 @@ export default function BacktestPage() {
                       <td className="p-3 text-right">
                         <AccuracyBadge accuracy={evt.accuracy} scored={evt.scored} />
                       </td>
+                      <td className="p-3 text-right font-mono text-xs">
+                        {evt.probabilistic.brier != null ? evt.probabilistic.brier.toFixed(3) : "—"}
+                      </td>
+                      <td className="p-3 text-right font-mono text-xs">
+                        {evt.probabilistic.logLoss != null ? evt.probabilistic.logLoss.toFixed(3) : "—"}
+                      </td>
                     </tr>
                     {isOpen && (
                       <tr key={`${evt.eventId}-detail`} className="bg-muted/10">
-                        <td colSpan={8} className="p-4">
+                        <td colSpan={10} className="p-4">
                           <p className="text-sm text-muted-foreground mb-3 italic">{evt.description}</p>
                           {evt.citations.length > 0 && (
                             <p className="text-xs text-muted-foreground mb-3">
@@ -314,9 +444,12 @@ export default function BacktestPage() {
                                 <th className="text-left py-1.5 font-medium">Industry</th>
                                 <th className="text-right py-1.5 font-medium">Baseline (T-1)</th>
                                 <th className="text-right py-1.5 font-medium">Predicted (T+1)</th>
-                                <th className="text-right py-1.5 font-medium">Δ</th>
+                                <th className="text-right py-1.5 font-medium">Δ ± σ</th>
+                                <th className="text-center py-1.5 font-medium" title="Forecast distribution: P(positive) / P(negative) / P(neutral)">P(pos / neg / neu)</th>
                                 <th className="text-center py-1.5 font-medium">Predicted</th>
                                 <th className="text-center py-1.5 font-medium">Expected</th>
+                                <th className="text-right py-1.5 font-medium" title="Multiclass Brier score for this cap">Brier</th>
+                                <th className="text-right py-1.5 font-medium" title="Negative log-likelihood of expected direction">−ln L</th>
                                 <th className="text-center py-1.5 font-medium">Match</th>
                               </tr>
                             </thead>
@@ -331,9 +464,25 @@ export default function BacktestPage() {
                                     <td className="py-1.5 text-right font-mono">
                                       {c.predictedDelta > 0 ? "+" : ""}
                                       {c.predictedDelta.toFixed(1)}
+                                      {c.predictedSigma != null && (
+                                        <span className="text-muted-foreground"> ± {c.predictedSigma.toFixed(1)}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-1.5 text-center font-mono text-xs">
+                                      {c.forecast ? (
+                                        <span>
+                                          <span className="text-green-700">{(c.forecast.positive * 100).toFixed(0)}</span>
+                                          <span className="text-muted-foreground"> / </span>
+                                          <span className="text-red-700">{(c.forecast.negative * 100).toFixed(0)}</span>
+                                          <span className="text-muted-foreground"> / </span>
+                                          <span className="text-muted-foreground">{(c.forecast.neutral * 100).toFixed(0)}</span>
+                                        </span>
+                                      ) : "—"}
                                     </td>
                                     <td className="py-1.5 text-center">{dirIcon(c.predictedDirection)}</td>
                                     <td className="py-1.5 text-center">{dirIcon(c.expectedDirection)}</td>
+                                    <td className="py-1.5 text-right font-mono">{c.brier != null ? c.brier.toFixed(2) : "—"}</td>
+                                    <td className="py-1.5 text-right font-mono">{c.logLoss != null ? c.logLoss.toFixed(2) : "—"}</td>
                                     <td className="py-1.5 text-center">
                                       {c.excluded === "not_found" ? (
                                         <span className="text-xs text-amber-600" title="Capability not in this DB">
@@ -350,7 +499,7 @@ export default function BacktestPage() {
                                   </tr>
                                   {c.rationale && (
                                     <tr key={`${i}-rationale`} className="border-b border-border/50">
-                                      <td colSpan={8} className="py-1 pl-4 text-xs text-muted-foreground italic">
+                                      <td colSpan={11} className="py-1 pl-4 text-xs text-muted-foreground italic">
                                         Analyst note: {c.rationale}
                                       </td>
                                     </tr>
@@ -389,6 +538,17 @@ export default function BacktestPage() {
             under the EU AI Act, supply-chain visibility under tariffs). A naive engine that infers
             cap direction from event sentiment alone will MISS these cases — and the harness is
             built to surface that gap.
+          </p>
+          <p>
+            <strong className="text-foreground">Probabilistic skill scores.</strong> Beyond
+            directional %, the harness reports the <em>multiclass Brier score</em> (Σ(qᵢ−yᵢ)²
+            over {"{positive, negative, neutral}"}) and <em>log-loss</em> (−ln q[expected]).
+            The forecast distribution per capability is derived from the engine's Gaussian
+            posterior on the predicted score (σ floored at 1.0 to avoid spurious overconfidence
+            when many high-weight triangulation sources agree). A perfectly uninformed
+            uniform-1/3 forecast scores Brier ≈ 0.667 and log-loss ≈ 1.099 — a calibrated
+            engine should beat both. The reliability diagram bins forecasts by top-class
+            confidence; a well-calibrated engine sits on the y = x diagonal.
           </p>
           {summary?.notes?.timeAnchorCaveat && (
             <p>

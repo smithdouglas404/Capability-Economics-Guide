@@ -74,10 +74,15 @@ export interface ComputeCEIOptions {
   capturePerCap?: boolean;
 }
 
-export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, number> }> {
+export interface CapPosterior {
+  score: number;
+  variance: number;
+}
+
+export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, CapPosterior> }> {
   const persist = opts.persist !== false;
   const additionalEvents = opts.additionalEvents ?? [];
-  const captureMap = opts.capturePerCap ? new Map<number, number>() : null;
+  const captureMap = opts.capturePerCap ? new Map<number, CapPosterior>() : null;
   // Snapshot per-cap state BEFORE the new run so subscription hooks can
   // diff against it after persist. Skipped on non-persist (backtest) runs.
   const prevCapStates = persist ? await snapshotCapStates() : null;
@@ -284,7 +289,7 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
         }
       }
 
-      if (captureMap) captureMap.set(cap.id, consensusScore);
+      if (captureMap) captureMap.set(cap.id, { score: consensusScore, variance: posteriorVariance });
       leafPosterior.set(cap.id, { consensusScore, confidence, velocity, variance: posteriorVariance });
     }
 
@@ -347,7 +352,7 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
           });
         }
       }
-      if (captureMap) captureMap.set(parent.id, consensusScore);
+      if (captureMap) captureMap.set(parent.id, { score: consensusScore, variance: posteriorVariance });
     }
 
     // Industry index uses leaf caps only.

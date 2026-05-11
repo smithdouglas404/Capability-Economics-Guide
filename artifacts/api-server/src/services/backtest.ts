@@ -7,7 +7,7 @@ import {
   type MacroEvent,
 } from "@workspace/db";
 import { asc, desc } from "drizzle-orm";
-import { computeCEI } from "./cei-engine";
+import { computeCEI, type CapPosterior } from "./cei-engine";
 
 /**
  * CEI backtesting harness — replays curated historical events through the
@@ -45,8 +45,17 @@ import { computeCEI } from "./cei-engine";
  */
 
 const SHOCK_EPSILON = 0.5;
+// Floor on per-cap σ used for probabilistic forecasts. The engine's posterior
+// variance can collapse to a few units when many high-weight triangulation
+// sources agree; without a floor the Gaussian forecast becomes overconfident
+// (≈0/1 probabilities) and a single miss tanks log-loss. 1.0 ≈ 2× the
+// directional epsilon and matches the engine's score-rounding granularity.
+const FORECAST_SIGMA_FLOOR = 1.0;
+// Numerical clip for log-loss to avoid -Infinity on a wrong-with-certainty.
+const PROB_CLIP = 1e-6;
 
 type Direction = "positive" | "negative" | "neutral";
+const DIRECTIONS: Direction[] = ["positive", "negative", "neutral"];
 
 interface SeedCap { name: string; expectedDirection: Direction; rationale?: string; }
 
@@ -60,6 +69,66 @@ function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// Abramowitz & Stegun 7.1.26 — max abs error ≈ 1.5e-7. Sufficient for the
+// reliability/Brier accounting here; we don't ship erf in stdlib Node.
+function erf(x: number): number {
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+  const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x);
+  const t = 1.0 / (1.0 + p * ax);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-ax * ax);
+  return sign * y;
+}
+function normalCdf(x: number): number {
+  return 0.5 * (1 + erf(x / Math.SQRT2));
+}
+
+/**
+ * Convert a Gaussian-distributed delta into a probability over the three
+ * directional outcomes the engine can declare (positive/negative/neutral).
+ *
+ * Forecast: delta ~ N(meanDelta, σ²) where σ is the engine's posterior std
+ * for the predicted (post-event) score, floored at FORECAST_SIGMA_FLOOR.
+ * Decision boundary: |delta| < SHOCK_EPSILON ⇒ neutral. Probabilities sum
+ * to 1 by construction; tiny rounding leftovers are absorbed into neutral.
+ */
+function distributionFromGaussian(meanDelta: number, sigma: number): Record<Direction, number> {
+  const s = Math.max(FORECAST_SIGMA_FLOOR, sigma);
+  const pPos = 1 - normalCdf((SHOCK_EPSILON - meanDelta) / s);
+  const pNeg = normalCdf((-SHOCK_EPSILON - meanDelta) / s);
+  const pNeu = Math.max(0, 1 - pPos - pNeg);
+  // Renormalize for any numerical drift (e.g. negative pNeu rounding).
+  const total = pPos + pNeg + pNeu;
+  return {
+    positive: pPos / total,
+    negative: pNeg / total,
+    neutral: pNeu / total,
+  };
+}
+
+/** Multiclass Brier (Brier 1950): Σ (qᵢ − yᵢ)² over outcome classes. */
+function brierScore(dist: Record<Direction, number>, actual: Direction): number {
+  let sum = 0;
+  for (const d of DIRECTIONS) {
+    const y = d === actual ? 1 : 0;
+    sum += (dist[d] - y) ** 2;
+  }
+  return sum;
+}
+
+/** Negative log-likelihood of the actual outcome under the forecast. */
+function logLoss(dist: Record<Direction, number>, actual: Direction): number {
+  const p = clamp(dist[actual], PROB_CLIP, 1 - PROB_CLIP);
+  return -Math.log(p);
+}
+
+export interface ForecastDistribution {
+  positive: number;
+  negative: number;
+  neutral: number;
+}
+
 export interface CapResult {
   capabilityId: number | null;
   capabilityName: string;
@@ -69,9 +138,43 @@ export interface CapResult {
   baseline: number | null;
   predicted: number | null;
   predictedDelta: number;
+  predictedSigma: number | null;
   predictedDirection: Direction;
+  /**
+   * Probabilistic forecast over outcome direction, derived from the engine's
+   * Gaussian posterior on the predicted score (σ floored at 1.0). null when
+   * the engine produced no posterior for this cap (excluded from Brier/log-loss).
+   */
+  forecast: ForecastDistribution | null;
+  /** Multiclass Brier score for this cap (lower is better, 0–2 range). */
+  brier: number | null;
+  /** Negative log-likelihood of expectedDirection under `forecast`. */
+  logLoss: number | null;
   match: boolean;
   excluded: "not_found" | "below_epsilon" | null;
+}
+
+export interface ReliabilityBin {
+  binLow: number;
+  binHigh: number;
+  meanConfidence: number; // mean of max(forecast) within bin
+  accuracy: number;       // share of caps in bin where argmax(forecast) == expectedDirection
+  count: number;
+}
+
+export interface ProbabilisticMetrics {
+  /** Caps contributing to the probabilistic metrics (anyone with a forecast). */
+  count: number;
+  /** Mean multiclass Brier across `count` caps. */
+  brier: number | null;
+  /** Mean log-loss across `count` caps. */
+  logLoss: number | null;
+  /**
+   * 10-bin reliability diagram: bin = max-class probability ∈ [0, 1].
+   * Empty bins are omitted. Plotting meanConfidence vs accuracy yields the
+   * familiar reliability curve (perfect = y=x).
+   */
+  reliability: ReliabilityBin[];
 }
 
 export interface EventResult {
@@ -88,6 +191,7 @@ export interface EventResult {
   scored: number;
   notFound: number;
   accuracy: number; // -1 if scored=0
+  probabilistic: ProbabilisticMetrics;
 }
 
 export interface BacktestSummary {
@@ -95,9 +199,61 @@ export interface BacktestSummary {
   aggregateMatched: number;
   aggregateScored: number;
   aggregateAccuracy: number;
+  /** Aggregate Brier/log-loss/reliability pooled across every cap result. */
+  probabilistic: ProbabilisticMetrics;
   ranAt: string;
   notes: {
     timeAnchorCaveat: string;
+    probabilistic: string;
+  };
+}
+
+/** Aggregate per-cap forecast/expected pairs into Brier, log-loss, and reliability. */
+function computeProbabilisticMetrics(
+  pairs: Array<{ forecast: ForecastDistribution; actual: Direction }>,
+): ProbabilisticMetrics {
+  if (pairs.length === 0) {
+    return { count: 0, brier: null, logLoss: null, reliability: [] };
+  }
+  let brierSum = 0;
+  let llSum = 0;
+  // 10 fixed-width bins over the [0, 1] confidence range. Argmax on a
+  // 3-class distribution can dip as low as 1/3, so the bottom bins will
+  // typically be empty; that's fine — empty bins are dropped on output.
+  const bins = Array.from({ length: 10 }, (_, i) => ({
+    binLow: i / 10,
+    binHigh: (i + 1) / 10,
+    confSum: 0,
+    accSum: 0,
+    count: 0,
+  }));
+  for (const { forecast, actual } of pairs) {
+    brierSum += brierScore(forecast, actual);
+    llSum += logLoss(forecast, actual);
+    let argmax: Direction = "neutral";
+    let maxP = -Infinity;
+    for (const d of DIRECTIONS) {
+      if (forecast[d] > maxP) { maxP = forecast[d]; argmax = d; }
+    }
+    const idx = Math.min(9, Math.floor(maxP * 10));
+    bins[idx].confSum += maxP;
+    bins[idx].accSum += argmax === actual ? 1 : 0;
+    bins[idx].count += 1;
+  }
+  const reliability: ReliabilityBin[] = bins
+    .filter((b) => b.count > 0)
+    .map((b) => ({
+      binLow: b.binLow,
+      binHigh: b.binHigh,
+      meanConfidence: b.confSum / b.count,
+      accuracy: b.accSum / b.count,
+      count: b.count,
+    }));
+  return {
+    count: pairs.length,
+    brier: brierSum / pairs.length,
+    logLoss: llSum / pairs.length,
+    reliability,
   };
 }
 
@@ -201,42 +357,66 @@ async function buildInjection(event: HistoricalEvent): Promise<{
  * capturePerCap: true })` run with no `additionalEvents` so the diff truly
  * isolates the event's impact through the engine pipeline.
  */
+/**
+ * Internal replay return shape: the public `EventResult` (with display-rounded
+ * forecasts) plus the *unrounded* per-cap (forecast, actual) pairs so the
+ * caller can pool them into aggregate Brier/log-loss/reliability without
+ * re-introducing display-rounding drift.
+ */
+interface ReplayOutput {
+  result: EventResult;
+  probPairs: Array<{ forecast: ForecastDistribution; actual: Direction }>;
+}
+
 export async function replayEvent(
   event: HistoricalEvent,
-  baselineCapScores: Map<number, number>,
-): Promise<EventResult> {
+  baselineCapScores: Map<number, CapPosterior>,
+): Promise<ReplayOutput> {
   const { injection, resolvedCaps } = await buildInjection(event);
+
+  const emptyCap = (
+    capId: number | null,
+    r: typeof resolvedCaps[number],
+  ): CapResult => ({
+    capabilityId: capId,
+    capabilityName: r.capabilityName,
+    industryName: r.industryName,
+    expectedDirection: r.expectedDirection,
+    rationale: r.rationale,
+    baseline: null,
+    predicted: null,
+    predictedDelta: 0,
+    predictedSigma: null,
+    predictedDirection: "neutral",
+    forecast: null,
+    brier: null,
+    logLoss: null,
+    match: false,
+    excluded: "not_found",
+  });
 
   // No resolvable caps in this DB → emit a "not found" record per seed cap
   // and short-circuit (engine call would be a no-op anyway).
   if (!injection) {
-    const capResults: CapResult[] = resolvedCaps.map((r) => ({
-      capabilityId: null,
-      capabilityName: r.capabilityName,
-      industryName: r.industryName,
-      expectedDirection: r.expectedDirection,
-      rationale: r.rationale,
-      baseline: null,
-      predicted: null,
-      predictedDelta: 0,
-      predictedDirection: "neutral",
-      match: false,
-      excluded: "not_found",
-    }));
+    const capResults: CapResult[] = resolvedCaps.map((r) => emptyCap(null, r));
     return {
-      eventId: event.id,
-      title: event.title,
-      eventDate: event.eventDate.toISOString(),
-      eventType: event.eventType,
-      severity: event.severity,
-      sentimentDirection: event.sentimentDirection as Direction,
-      description: event.description,
-      citations: (event.citations ?? []) as string[],
-      capResults,
-      matched: 0,
-      scored: 0,
-      notFound: capResults.length,
-      accuracy: -1,
+      result: {
+        eventId: event.id,
+        title: event.title,
+        eventDate: event.eventDate.toISOString(),
+        eventType: event.eventType,
+        severity: event.severity,
+        sentimentDirection: event.sentimentDirection as Direction,
+        description: event.description,
+        citations: (event.citations ?? []) as string[],
+        capResults,
+        matched: 0,
+        scored: 0,
+        notFound: capResults.length,
+        accuracy: -1,
+        probabilistic: computeProbabilisticMetrics([]),
+      },
+      probPairs: [],
     };
   }
 
@@ -246,56 +426,39 @@ export async function replayEvent(
     capturePerCap: true,
     additionalEvents: [injection],
   });
-  const predictedCapScores = predicted.capScores ?? new Map<number, number>();
+  const predictedCapScores = predicted.capScores ?? new Map<number, CapPosterior>();
 
   let matched = 0;
   let scored = 0;
   let notFound = 0;
   const capResults: CapResult[] = [];
+  const probPairs: Array<{ forecast: ForecastDistribution; actual: Direction }> = [];
 
   for (const r of resolvedCaps) {
     if (r.capId == null) {
       notFound += 1;
-      capResults.push({
-        capabilityId: null,
-        capabilityName: r.capabilityName,
-        industryName: r.industryName,
-        expectedDirection: r.expectedDirection,
-        rationale: r.rationale,
-        baseline: null,
-        predicted: null,
-        predictedDelta: 0,
-        predictedDirection: "neutral",
-        match: false,
-        excluded: "not_found",
-      });
+      capResults.push(emptyCap(null, r));
       continue;
     }
 
     const baseline = baselineCapScores.get(r.capId);
     const post = predictedCapScores.get(r.capId);
-    if (baseline == null || post == null) {
-      // Engine ran but didn't surface this cap (no leaf data, no triangulation).
-      // Skip rather than invent.
+    if (!baseline || !post) {
       notFound += 1;
-      capResults.push({
-        capabilityId: r.capId,
-        capabilityName: r.capabilityName,
-        industryName: r.industryName,
-        expectedDirection: r.expectedDirection,
-        rationale: r.rationale,
-        baseline: null,
-        predicted: null,
-        predictedDelta: 0,
-        predictedDirection: "neutral",
-        match: false,
-        excluded: "not_found",
-      });
+      capResults.push(emptyCap(r.capId, r));
       continue;
     }
 
-    const delta = post - baseline;
+    const delta = post.score - baseline.score;
+    const sigma = Math.sqrt(post.variance);
     const predictedDir = dirOfDelta(delta);
+
+    // Probabilistic forecast: same posterior σ used for the directional call.
+    // The expected (ground-truth) direction is what we score against.
+    const forecast = distributionFromGaussian(delta, sigma);
+    const cellBrier = brierScore(forecast, r.expectedDirection);
+    const cellLL = logLoss(forecast, r.expectedDirection);
+    probPairs.push({ forecast, actual: r.expectedDirection });
 
     let excluded: CapResult["excluded"] = null;
     let match = false;
@@ -313,29 +476,43 @@ export async function replayEvent(
       industryName: r.industryName,
       expectedDirection: r.expectedDirection,
       rationale: r.rationale,
-      baseline: Math.round(baseline * 10) / 10,
-      predicted: Math.round(clamp(post, 0, 100) * 10) / 10,
+      baseline: Math.round(baseline.score * 10) / 10,
+      predicted: Math.round(clamp(post.score, 0, 100) * 10) / 10,
       predictedDelta: Math.round(delta * 10) / 10,
+      predictedSigma: Math.round(sigma * 100) / 100,
       predictedDirection: predictedDir,
+      forecast: {
+        positive: Math.round(forecast.positive * 1000) / 1000,
+        negative: Math.round(forecast.negative * 1000) / 1000,
+        neutral: Math.round(forecast.neutral * 1000) / 1000,
+      },
+      brier: Math.round(cellBrier * 1000) / 1000,
+      logLoss: Math.round(cellLL * 1000) / 1000,
       match,
       excluded,
     });
   }
 
   return {
-    eventId: event.id,
-    title: event.title,
-    eventDate: event.eventDate.toISOString(),
-    eventType: event.eventType,
-    severity: event.severity,
-    sentimentDirection: event.sentimentDirection as Direction,
-    description: event.description,
-    citations: (event.citations ?? []) as string[],
-    capResults,
-    matched,
-    scored,
-    notFound,
-    accuracy: scored > 0 ? matched / scored : -1,
+    result: {
+      eventId: event.id,
+      title: event.title,
+      eventDate: event.eventDate.toISOString(),
+      eventType: event.eventType,
+      severity: event.severity,
+      sentimentDirection: event.sentimentDirection as Direction,
+      description: event.description,
+      citations: (event.citations ?? []) as string[],
+      capResults,
+      matched,
+      scored,
+      notFound,
+      accuracy: scored > 0 ? matched / scored : -1,
+      // Per-event metrics use the unrounded probPairs computed below; per-cap
+      // capResults carry the display-rounded forecast for the UI only.
+      probabilistic: computeProbabilisticMetrics(probPairs),
+    },
+    probPairs,
   };
 }
 
@@ -352,16 +529,23 @@ export async function runBacktest(): Promise<BacktestSummary> {
 
   // Single baseline engine pass — all event diffs are taken against this.
   const baseline = await computeCEI({ persist: false, capturePerCap: true });
-  const baselineCapScores = baseline.capScores ?? new Map<number, number>();
+  const baselineCapScores = baseline.capScores ?? new Map<number, CapPosterior>();
 
   const results: EventResult[] = [];
   let aggMatched = 0;
   let aggScored = 0;
+  // Pool every per-cap forecast across events so the aggregate Brier/log-loss
+  // and reliability diagram are computed on the full sample (not an average
+  // of per-event averages, which would bias toward small-sample events).
+  // Pull from `probPairs` (full precision) rather than the display-rounded
+  // capResults forecast field, so aggregate metrics match per-event metrics.
+  const aggPairs: Array<{ forecast: ForecastDistribution; actual: Direction }> = [];
   for (const e of events) {
-    const r = await replayEvent(e, baselineCapScores);
-    results.push(r);
-    aggMatched += r.matched;
-    aggScored += r.scored;
+    const { result, probPairs } = await replayEvent(e, baselineCapScores);
+    results.push(result);
+    aggMatched += result.matched;
+    aggScored += result.scored;
+    aggPairs.push(...probPairs);
   }
 
   return {
@@ -369,10 +553,13 @@ export async function runBacktest(): Promise<BacktestSummary> {
     aggregateMatched: aggMatched,
     aggregateScored: aggScored,
     aggregateAccuracy: aggScored > 0 ? aggMatched / aggScored : 0,
+    probabilistic: computeProbabilisticMetrics(aggPairs),
     ranAt: new Date().toISOString(),
     notes: {
       timeAnchorCaveat:
         "T-1 baseline is the engine's current state without the event; T+1 is the same state with the event injected at peak shock. Per-capability score history is not retained, so this measures model propagation quality, not historical reconstruction.",
+      probabilistic:
+        "Forecast distribution is derived from the engine's Gaussian posterior on the predicted score (σ floored at 1.0 to avoid spurious overconfidence when many high-weight triangulation sources agree). Brier is the multiclass form (Σ(qᵢ−yᵢ)²) over {positive, negative, neutral}; log-loss is −log(q[expected]) clipped at 1e-6. Reliability bins by max-class probability — argmax accuracy vs mean confidence per bin should track the y=x diagonal under perfect calibration.",
     },
   };
 }
