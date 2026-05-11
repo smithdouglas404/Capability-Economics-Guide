@@ -17,6 +17,15 @@ import disruptionRouter from "./disruption";
 import stackOptimizerRouter from "./stack-optimizer";
 import peerCoopRouter from "./peer-coop";
 import semanticSearchRouter from "./semantic-search";
+import proofRouter from "./proof";
+import ideationRouter from "./ideation";
+import workbenchRouter from "./workbench";
+import disruptionPatternsRouter from "./disruption-patterns";
+import analoguesRouter from "./analogues";
+import disruptionWatchRouter from "./disruption-watch";
+import marketplaceWorkspaceRouter from "./marketplace-workspace";
+import onboardingRouter from "./onboarding";
+import digestsRouter from "./digests";
 import embedRouter from "./embed";
 import agentRouter from "./agent";
 import contentRouter from "./content";
@@ -91,6 +100,19 @@ router.use(disruptionRouter);
 router.use(stackOptimizerRouter);
 router.use(peerCoopRouter);
 router.use(semanticSearchRouter);
+router.use(proofRouter);
+router.use(ideationRouter);
+router.use(workbenchRouter);
+// disruptionPatternsRouter mounts BEFORE adminRouter so its /admin/patterns/*
+// routes use their own per-route requireAdmin middleware rather than the catch-all.
+router.use(disruptionPatternsRouter);
+router.use(analoguesRouter);
+router.use(disruptionWatchRouter);
+router.use(marketplaceWorkspaceRouter);
+router.use(onboardingRouter);
+// digestsRouter mounts BEFORE adminRouter so its /admin/digest/run route uses
+// its own per-route requireAdmin middleware rather than the catch-all.
+router.use(digestsRouter);
 router.use(embedRouter);
 router.use(agentRouter);
 router.use(contentRouter);

@@ -362,5 +362,140 @@ export function _resetDisruptionCacheForTest(): void {
   rankingInFlight = null;
 }
 
+// ─── Disruption Watch — filtered feed of capabilities CURRENTLY disrupting ───
+//
+// Surfaces caps where: probability band ≥ "high", velocity > +1.5 (rising
+// fast), macro events touching the cap, and cap age < AGE_LIMIT_MONTHS.
+// This is what gets pinned to the home page + dedicated /disruption surface.
+
+export interface DisruptionWatchEntry {
+  capabilityId: number;
+  capabilityName: string;
+  industryId: number;
+  industryName: string;
+  probability: number;
+  band: DisruptionRisk["band"];
+  velocity: number | null;
+  consensusScore: number | null;
+  lifecycleStage: string;
+  topDrivers: string[];
+  ageMonths: number;
+  macroEventCount: number;
+  vcCapitalUsd: number;
+  startupCount: number;
+}
+
+export interface DisruptionWatchResult {
+  generatedAt: string;
+  ttlSeconds: number;
+  rows: DisruptionWatchEntry[];
+  filters: {
+    minBand: DisruptionRisk["band"];
+    minVelocity: number;
+    requireMacroEvent: boolean;
+    maxAgeMonths: number;
+  };
+}
+
+const WATCH_CACHE_TTL_MS = 10 * 60 * 1000;
+let watchCache: { at: number; value: DisruptionWatchResult } | null = null;
+
+export async function getDisruptionWatch(opts?: {
+  minBand?: DisruptionRisk["band"];
+  minVelocity?: number;
+  requireMacroEvent?: boolean;
+  maxAgeMonths?: number;
+  limit?: number;
+}): Promise<DisruptionWatchResult> {
+  const minBand: DisruptionRisk["band"] = opts?.minBand ?? "high";
+  const minVelocity = opts?.minVelocity ?? 1.5;
+  const requireMacroEvent = opts?.requireMacroEvent ?? true;
+  const maxAgeMonths = opts?.maxAgeMonths ?? 36;
+  const limit = opts?.limit ?? 25;
+
+  if (
+    !opts &&
+    watchCache &&
+    Date.now() - watchCache.at < WATCH_CACHE_TTL_MS
+  ) {
+    return watchCache.value;
+  }
+
+  // Reuse ranking (cached); rebuild hydrated rows with velocity + age + macro count.
+  const ranking = await getDisruptionRanking();
+  const bandRank: Record<DisruptionRisk["band"], number> = { low: 0, moderate: 1, high: 2, critical: 3 };
+  const minBandRank = bandRank[minBand];
+
+  // Hydrate with capability data + cei components + macro counts.
+  const candidateIds = ranking.rows.filter(r => bandRank[r.band] >= minBandRank).map(r => r.capabilityId);
+  if (candidateIds.length === 0) {
+    const empty: DisruptionWatchResult = {
+      generatedAt: new Date().toISOString(),
+      ttlSeconds: WATCH_CACHE_TTL_MS / 1000,
+      rows: [],
+      filters: { minBand, minVelocity, requireMacroEvent, maxAgeMonths },
+    };
+    return empty;
+  }
+  const [caps, comps] = await Promise.all([
+    db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, candidateIds)),
+    db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, candidateIds)),
+  ]);
+  const capById = new Map(caps.map(c => [c.id, c]));
+  const compById = new Map(comps.map(c => [c.capabilityId, c]));
+
+  // Per-cap macro event count over the last 90d (touching the cap directly).
+  const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+  const macroRows = await db
+    .select({ affected: macroEventsTable.affectedCapabilityIds })
+    .from(macroEventsTable)
+    .where(gte(macroEventsTable.startedAt, since90));
+  const macroCountByCap = new Map<number, number>();
+  for (const m of macroRows) {
+    const aff = (m.affected ?? []) as number[];
+    for (const id of aff) macroCountByCap.set(id, (macroCountByCap.get(id) ?? 0) + 1);
+  }
+
+  const now = Date.now();
+  const MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+
+  const rows: DisruptionWatchEntry[] = ranking.rows
+    .filter(r => bandRank[r.band] >= minBandRank)
+    .map(r => {
+      const cap = capById.get(r.capabilityId);
+      const comp = compById.get(r.capabilityId);
+      const ageMonths = cap ? (now - cap.createdAt.getTime()) / MONTH_MS : 0;
+      return {
+        capabilityId: r.capabilityId,
+        capabilityName: r.capabilityName,
+        industryId: r.industryId,
+        industryName: r.industryName,
+        probability: r.probability,
+        band: r.band,
+        velocity: comp?.velocity ?? null,
+        consensusScore: comp?.consensusScore ?? null,
+        lifecycleStage: r.lifecycleStage,
+        topDrivers: r.topDrivers,
+        ageMonths: Math.round(ageMonths * 10) / 10,
+        macroEventCount: macroCountByCap.get(r.capabilityId) ?? 0,
+        vcCapitalUsd: cap?.vcCapitalUsd ?? 0,
+        startupCount: cap?.startupCount ?? 0,
+      };
+    })
+    .filter(r => (r.velocity ?? 0) >= minVelocity)
+    .filter(r => !requireMacroEvent || r.macroEventCount > 0)
+    .filter(r => r.ageMonths <= maxAgeMonths)
+    .slice(0, limit);
+
+  const result: DisruptionWatchResult = {
+    generatedAt: new Date().toISOString(),
+    ttlSeconds: WATCH_CACHE_TTL_MS / 1000,
+    rows,
+    filters: { minBand, minVelocity, requireMacroEvent, maxAgeMonths },
+  };
+  if (!opts) watchCache = { at: Date.now(), value: result };
+  return result;
+}
+
 // satisfy unused-import linter
 void inArray;

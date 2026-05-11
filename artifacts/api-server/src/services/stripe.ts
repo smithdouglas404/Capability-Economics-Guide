@@ -204,6 +204,12 @@ export interface MarketplaceCheckoutInput {
   sellerStripeAccountId: string;
   successUrl: string;
   cancelUrl: string;
+  /** Internal purchase row id — included in Stripe metadata so the webhook can mark the right row paid. */
+  purchaseId?: number;
+  /** Clerk user id of the buyer — recorded in metadata for audit. */
+  buyerClerkUserId?: string;
+  /** Clerk org id when the buyer is purchasing on behalf of a team. The webhook copies this back onto the purchase row. */
+  buyerClerkOrgId?: string | null;
 }
 
 /**
@@ -234,6 +240,9 @@ export async function createMarketplaceCheckoutSession(input: MarketplaceCheckou
     metadata: {
       listingId: String(input.listingId),
       kind: "marketplace",
+      ...(input.purchaseId !== undefined ? { purchaseId: String(input.purchaseId) } : {}),
+      ...(input.buyerClerkUserId ? { buyerClerkUserId: input.buyerClerkUserId } : {}),
+      ...(input.buyerClerkOrgId ? { buyerClerkOrgId: input.buyerClerkOrgId } : {}),
     },
     payment_intent_data: {
       application_fee_amount: input.platformFeeCents,
@@ -243,6 +252,9 @@ export async function createMarketplaceCheckoutSession(input: MarketplaceCheckou
       metadata: {
         listingId: String(input.listingId),
         kind: "marketplace",
+        ...(input.purchaseId !== undefined ? { purchaseId: String(input.purchaseId) } : {}),
+        ...(input.buyerClerkUserId ? { buyerClerkUserId: input.buyerClerkUserId } : {}),
+        ...(input.buyerClerkOrgId ? { buyerClerkOrgId: input.buyerClerkOrgId } : {}),
       },
     },
   });

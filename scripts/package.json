@@ -15,7 +15,9 @@
     "seed": "tsx ./src/seed.ts",
     "seed:marketplace": "tsx ./src/seed-marketplace-listings.ts",
     "seed:organizations": "tsx ./src/seed-organizations.ts",
+    "seed:reports": "tsx ./src/seed-marketplace-reports.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
+    "deploy:migrate": "tsx ./src/deploy-migrate.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "type": "module"

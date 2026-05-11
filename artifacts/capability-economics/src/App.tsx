@@ -56,6 +56,15 @@ import CapabilityDetailPage from "@/pages/capability-detail";
 import ComparePage from "@/pages/compare";
 import WhatIfPage from "@/pages/whatif";
 import SearchPage from "@/pages/search";
+import ProofPage from "@/pages/proof";
+import WorkbenchPage from "@/pages/workbench";
+import PatternsPage from "@/pages/patterns";
+import DisruptionPage from "@/pages/disruption";
+import SecurityPage from "@/pages/security";
+import DemoPage from "@/pages/demo";
+import MarketplaceWorkspacePage from "@/pages/marketplace-workspace";
+import WorkbenchExamplePage from "@/pages/workbench-example";
+import OnboardingPage from "@/pages/onboarding";
 import EmbedCei from "@/pages/embed-cei";
 import EmbedCapability from "@/pages/embed-capability";
 
@@ -117,6 +126,16 @@ function Router() {
       <Route path="/compare" component={ComparePage} />
       <Route path="/whatif" component={WhatIfPage} />
       <Route path="/search" component={SearchPage} />
+      <Route path="/proof" component={ProofPage} />
+      <Route path="/workbench" component={WorkbenchPage} />
+      <Route path="/patterns" component={PatternsPage} />
+      <Route path="/patterns/:slug" component={PatternsPage} />
+      <Route path="/disruption" component={DisruptionPage} />
+      <Route path="/security" component={SecurityPage} />
+      <Route path="/demo" component={DemoPage} />
+      <Route path="/marketplace/workspace" component={MarketplaceWorkspacePage} />
+      <Route path="/workbench/example" component={WorkbenchExamplePage} />
+      <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/embed/cei" component={EmbedCei} />
       <Route path="/embed/capability/:id" component={EmbedCapability} />
       <Route path="/insurance-example" component={InsuranceExample} />

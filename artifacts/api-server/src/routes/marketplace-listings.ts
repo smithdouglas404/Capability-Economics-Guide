@@ -360,6 +360,23 @@ router.post("/admin/marketplace/listings/:id/feature", requireAdmin, async (req,
   res.json({ listing: updated });
 });
 
+router.post("/admin/marketplace/seed-reports", requireAdmin, async (req, res) => {
+  try {
+    const { seedMarketplaceReports } = await import("../services/marketplace-seed");
+    const summary = await seedMarketplaceReports();
+    await logAdminAction(req, {
+      action: "tier.update",
+      targetType: "marketplace_listing",
+      targetId: "seed",
+      details: { ...summary, op: "seed_reports" },
+    });
+    res.json({ ok: true, ...summary });
+  } catch (err) {
+    logger.error({ err }, "[marketplace] seed failed");
+    res.status(500).json({ error: "Seed failed", message: (err as Error).message });
+  }
+});
+
 router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }

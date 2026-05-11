@@ -446,4 +446,111 @@ router.delete("/organizations/:sessionToken/assessments/:capabilityId", async (r
   res.status(204).send();
 });
 
+// ───────────────────── Clerk linkage: claim + share + list-mine ─────────────────────
+
+/**
+ * Claim an existing session-token-only organization for the current Clerk
+ * user. After claim, the org is readable via /me/organizations and the
+ * (clerkUserId = me) gate. The session token continues to work for the
+ * legacy assess flow.
+ */
+router.post("/organizations/:sessionToken/claim", async (req, res) => {
+  const { getAuth } = await import("@clerk/express");
+  const auth = getAuth(req);
+  if (!auth?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const sessionToken = req.params.sessionToken;
+  if (typeof sessionToken !== "string" || sessionToken.length < 8) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
+  if (!org) { res.status(404).json({ error: "Organization not found" }); return; }
+  if (org.clerkUserId && org.clerkUserId !== auth.userId) {
+    res.status(409).json({ error: "Organization already claimed by another user" });
+    return;
+  }
+  const [updated] = await db.update(organizationsTable).set({
+    clerkUserId: auth.userId,
+    updatedAt: new Date(),
+  }).where(eq(organizationsTable.id, org.id)).returning();
+  res.json({ organization: updated });
+});
+
+/**
+ * Promote a personal org to team-shared by attaching a Clerk org id. Only
+ * the current owner (clerkUserId = me) may share. To unshare, call with
+ * clerkOrgId = null.
+ */
+router.post("/organizations/:sessionToken/share", async (req, res) => {
+  const { getAuth, clerkClient } = await import("@clerk/express");
+  const auth = getAuth(req);
+  if (!auth?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const sessionToken = req.params.sessionToken;
+  if (typeof sessionToken !== "string" || sessionToken.length < 8) {
+    res.status(400).json({ error: "Invalid session token" });
+    return;
+  }
+  const body = req.body as { clerkOrgId?: string | null };
+  if (body.clerkOrgId !== null && (typeof body.clerkOrgId !== "string" || !body.clerkOrgId.startsWith("org_"))) {
+    res.status(400).json({ error: "Provide a Clerk org id (org_…) or null to unshare" });
+    return;
+  }
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.sessionToken, sessionToken));
+  if (!org) { res.status(404).json({ error: "Organization not found" }); return; }
+  if (org.clerkUserId !== auth.userId) {
+    res.status(403).json({ error: "Only the owner can share or unshare this organization" });
+    return;
+  }
+  // Verify caller is a member of the target Clerk org.
+  if (body.clerkOrgId) {
+    try {
+      const memberships = await clerkClient.users.getOrganizationMembershipList({ userId: auth.userId });
+      const data = (memberships as unknown as { data?: Array<{ organization?: { id?: string } }> }).data
+        ?? (memberships as unknown as Array<{ organization?: { id?: string } }>);
+      const isMember = (data ?? []).some(m => m?.organization?.id === body.clerkOrgId);
+      if (!isMember) {
+        res.status(403).json({ error: "You are not a member of that Clerk organization" });
+        return;
+      }
+    } catch (err) {
+      res.status(500).json({ error: "Failed to verify Clerk org membership", message: (err as Error).message });
+      return;
+    }
+  }
+  const [updated] = await db.update(organizationsTable).set({
+    clerkOrgId: body.clerkOrgId ?? null,
+    updatedAt: new Date(),
+  }).where(eq(organizationsTable.id, org.id)).returning();
+  res.json({ organization: updated });
+});
+
+/** List orgs accessible to the current Clerk user (owned + team-shared). */
+router.get("/me/organizations", async (req, res) => {
+  const { listAccessibleOrgIds } = await import("../services/org-access");
+  const ids = await listAccessibleOrgIds(req);
+  if (ids.length === 0) { res.json({ organizations: [] }); return; }
+  const rows = await db
+    .select({
+      id: organizationsTable.id,
+      name: organizationsTable.name,
+      industryId: organizationsTable.industryId,
+      industryName: industriesTable.name,
+      size: organizationsTable.size,
+      clerkUserId: organizationsTable.clerkUserId,
+      clerkOrgId: organizationsTable.clerkOrgId,
+      sessionToken: organizationsTable.sessionToken,
+      createdAt: organizationsTable.createdAt,
+    })
+    .from(organizationsTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, organizationsTable.industryId))
+    .where(sql`${organizationsTable.id} IN (${sql.join(ids.map(i => sql`${i}`), sql`, `)})`);
+  res.json({
+    organizations: rows.map(r => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      mode: r.clerkOrgId ? "team" as const : r.clerkUserId ? "personal" as const : "legacy" as const,
+    })),
+  });
+});
+
 export default router;

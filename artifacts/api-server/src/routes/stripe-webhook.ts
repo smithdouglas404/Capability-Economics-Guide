@@ -37,18 +37,29 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
         const listingId = Number(session.metadata.listingId ?? 0);
         const sessionFull = event.data.object as { id?: string; payment_intent?: unknown; customer_details?: { email?: string | null } };
         const paymentIntentId = stringId(sessionFull.payment_intent);
+        // Tenancy metadata stamped at checkout creation. We re-affirm here so
+        // the webhook is the source-of-truth update — if the pre-insert lost
+        // the org attribution for any reason, the webhook fixes it.
+        const buyerClerkOrgId = (session.metadata.buyerClerkOrgId as string | undefined) || null;
+        const buyerClerkUserId = (session.metadata.buyerClerkUserId as string | undefined) || null;
         if (Number.isFinite(listingId) && listingId > 0) {
-          const rows = await db.update(marketplacePurchasesTable).set({
+          // Build the update set conditionally so we never overwrite a previously
+          // set buyerClerkOrgId with null (the pending row inserted it; metadata
+          // may be missing if Stripe stripped it).
+          const updates: Record<string, unknown> = {
             status: "paid",
             purchasedAt: new Date(),
             stripePaymentIntentId: paymentIntentId,
             buyerEmail: sessionFull.customer_details?.email ?? undefined,
-          }).where(and(
+          };
+          if (buyerClerkOrgId) updates.buyerClerkOrgId = buyerClerkOrgId;
+
+          const rows = await db.update(marketplacePurchasesTable).set(updates).where(and(
             eq(marketplacePurchasesTable.listingId, listingId),
             eq(marketplacePurchasesTable.stripeCheckoutSessionId, sessionFull.id ?? ""),
-          )).returning({ id: marketplacePurchasesTable.id });
+          )).returning({ id: marketplacePurchasesTable.id, buyerClerkOrgId: marketplacePurchasesTable.buyerClerkOrgId });
           if (rows.length > 0) {
-            console.log(`[stripe webhook] marketplace purchase ${rows[0].id} marked paid`);
+            console.log(`[stripe webhook] marketplace purchase ${rows[0].id} marked paid (scope=${rows[0].buyerClerkOrgId ? "team" : "personal"}, buyerUser=${buyerClerkUserId ?? "—"})`);
           }
         }
         res.json({ received: true });

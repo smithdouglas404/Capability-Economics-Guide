@@ -5,6 +5,7 @@ import { rotateTriangulations } from "../triangulation";
 import { computeCEI } from "../cei-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
+import { runDigestSweep } from "../digest";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -15,6 +16,11 @@ const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
 const WORLD_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Digest sweep ticks every 6 hours; the sweep itself filters to subscriptions
+// whose lastSentAt is past their frequency cutoff (weekly/daily). Six hours
+// keeps daily-frequency subscribers within their 24h window even when the
+// scheduler restarts overnight.
+const DIGEST_TICK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
 const URGENCY_STALE_DAYS = 10;
@@ -23,14 +29,18 @@ let routineTimer: ReturnType<typeof setInterval> | null = null;
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
+let digestTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
+let isDigesting = false;
 let lastRunAt: Date | null = null;
 let lastRotationAt: Date | null = null;
 let lastWorldScanAt: Date | null = null;
+let lastDigestAt: Date | null = null;
 let lastRotationResult: { attempted: number; succeeded: number; failed: number } | null = null;
 let lastWorldScanResult: { totalInserted: number; industryCount: number } | null = null;
+let lastDigestResult: { attempted: number; succeeded: number; failed: number } | null = null;
 let lastRunResult: Awaited<ReturnType<typeof runAgent>> | null = null;
 
 async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: string }> {
@@ -221,6 +231,7 @@ export function startScheduler(): void {
   watchdogTimer = setInterval(() => watchdogCheck(), WATCHDOG_INTERVAL_MS);
   rotationTimer = setInterval(() => executeRotation("daily"), ROTATION_INTERVAL_MS);
   worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
+  digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_INTERVAL_MS / 60000 });
 
@@ -230,6 +241,9 @@ export function startScheduler(): void {
   executeRun("startup");
 
   setTimeout(() => executeRotation("startup"), 30_000);
+  // Run the digest sweep once at startup but staggered so we don't pile up
+  // outbound mail in the first minute after deploy.
+  setTimeout(() => executeDigestSweep("startup"), 90_000);
 }
 
 export function stopScheduler(): void {
@@ -237,10 +251,38 @@ export function stopScheduler(): void {
   if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
+  if (digestTimer) { clearInterval(digestTimer); digestTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
+}
+
+/**
+ * Sweep the digest_subscriptions table and send digests to anyone whose
+ * lastSentAt is past their per-row frequency cutoff. The sweep is internally
+ * idempotent — each row is filtered by its own frequency, so calling this
+ * every 6h does not double-send. Guarded by isDigesting so a slow sweep
+ * doesn't overlap with the next tick.
+ */
+async function executeDigestSweep(trigger: string): Promise<void> {
+  if (isDigesting) {
+    console.log("[Digest] Sweep already in progress, skipping tick");
+    return;
+  }
+  isDigesting = true;
+  try {
+    const result = await runDigestSweep();
+    lastDigestAt = new Date();
+    lastDigestResult = { attempted: result.attempted, succeeded: result.succeeded, failed: result.failed };
+    if (result.attempted > 0) {
+      console.log(`[Digest] ${trigger} sweep: attempted=${result.attempted} succeeded=${result.succeeded} failed=${result.failed}`);
+    }
+  } catch (err) {
+    console.error("[Digest] Sweep failed:", err);
+  } finally {
+    isDigesting = false;
+  }
 }
 
 export async function triggerRotationNow(limit?: number, industryId?: number): Promise<{ attempted: number; succeeded: number; failed: number; capabilities: string[] }> {
@@ -276,6 +318,12 @@ export function getSchedulerStatus(): {
     lastScanAt: string | null;
     lastScanResult: { totalInserted: number; industryCount: number } | null;
   };
+  digest: {
+    isDigesting: boolean;
+    intervalHours: number;
+    lastDigestAt: string | null;
+    lastDigestResult: { attempted: number; succeeded: number; failed: number } | null;
+  };
 } {
   return {
     active: routineTimer !== null,
@@ -295,6 +343,12 @@ export function getSchedulerStatus(): {
       batchSize: ROTATION_BATCH_SIZE,
       lastRotationAt: lastRotationAt?.toISOString() ?? null,
       lastRotationResult,
+    },
+    digest: {
+      isDigesting,
+      intervalHours: DIGEST_TICK_INTERVAL_MS / (60 * 60 * 1000),
+      lastDigestAt: lastDigestAt?.toISOString() ?? null,
+      lastDigestResult,
     },
   };
 }

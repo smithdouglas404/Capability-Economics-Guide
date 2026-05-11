@@ -1,0 +1,288 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
+import {
+  ArrowLeft,
+  Activity,
+  Zap,
+  TrendingUp,
+  Sparkles,
+  Loader2,
+  Lightbulb,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+const API_BASE = "/api";
+
+type Band = "low" | "moderate" | "high" | "critical";
+
+interface WatchEntry {
+  capabilityId: number;
+  capabilityName: string;
+  industryId: number;
+  industryName: string;
+  probability: number;
+  band: Band;
+  velocity: number | null;
+  consensusScore: number | null;
+  lifecycleStage: string;
+  topDrivers: string[];
+  ageMonths: number;
+  macroEventCount: number;
+  vcCapitalUsd: number;
+  startupCount: number;
+}
+
+interface WatchResult {
+  generatedAt: string;
+  rows: WatchEntry[];
+  filters: { minBand: Band; minVelocity: number; requireMacroEvent: boolean; maxAgeMonths: number };
+}
+
+interface NewCapEntry {
+  capabilityId: number;
+  capabilityName: string;
+  capabilityDescription: string;
+  industryId: number;
+  industryName: string;
+  consensusScore: number | null;
+  velocity: number | null;
+  lifecycleStage: string;
+  ageMonths: number;
+  createdAt: string;
+  vcCapitalUsd: number;
+  startupCount: number;
+  patentCount: number;
+}
+
+interface NewCapResult {
+  generatedAt: string;
+  rows: NewCapEntry[];
+  filters: { maxAgeMonths: number; minScore: number };
+}
+
+const BAND_TONE: Record<Band, string> = {
+  low: "bg-muted text-muted-foreground border-border/60",
+  moderate: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+  high: "bg-rose-500/15 text-rose-500 border-rose-500/40",
+  critical: "bg-rose-600/20 text-rose-600 border-rose-600/40",
+};
+
+const LIFECYCLE_TONE: Record<string, string> = {
+  emerging: "bg-violet-500/15 text-violet-500 border-violet-500/40",
+  adopted: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  mature: "bg-emerald-500/15 text-emerald-500 border-emerald-500/40",
+  decaying: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+  obsolete: "bg-rose-500/15 text-rose-500 border-rose-500/40",
+};
+
+export default function DisruptionPage() {
+  const [watch, setWatch] = useState<WatchResult | null>(null);
+  const [newCaps, setNewCaps] = useState<NewCapResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetch(`${API_BASE}/disruption/watch`).then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))),
+      fetch(`${API_BASE}/capabilities/new?maxAgeMonths=24&minScore=30&limit=30`).then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))),
+    ])
+      .then(([w, n]) => {
+        if (cancelled) return;
+        setWatch(w);
+        setNewCaps(n);
+      })
+      .catch(e => { if (!cancelled) setErr(e instanceof Error ? e.message : "Failed to load"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const industriesInPlay = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of watch?.rows ?? []) s.add(r.industryName);
+    return Array.from(s);
+  }, [watch]);
+
+  return (
+    <div className="container mx-auto px-4 py-10 max-w-6xl space-y-8">
+      <div>
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-2">
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Home
+        </Link>
+        <div className="flex items-center gap-2 mb-1">
+          <Zap className="w-5 h-5 text-rose-500" />
+          <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">Disruption surface</Badge>
+        </div>
+        <h1 className="font-serif text-4xl tracking-tight">What's disrupting industries right now</h1>
+        <p className="text-base text-muted-foreground mt-3 max-w-3xl leading-relaxed">
+          Two feeds. Top: capabilities flagged for active disruption — high probability bands, rising velocity,
+          recent macro events. Bottom: net-new capabilities that didn't exist 12-24 months ago and are already
+          showing meaningful CEI. Drop any of these onto the{" "}
+          <Link href="/workbench" className="text-primary hover:underline">Capability Workbench</Link> to ideate against them.
+        </p>
+      </div>
+
+      {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-3 text-sm">{err}</div>}
+      {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
+
+      {/* ─── Disruption Watch ─── */}
+      {watch && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Activity className="w-4 h-4 text-rose-500" />
+              <h2 className="font-serif text-2xl tracking-tight">Disruption Watch</h2>
+              <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">
+                {watch.rows.length} active
+              </Badge>
+            </div>
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              filters: band ≥ {watch.filters.minBand}, velocity ≥ {watch.filters.minVelocity}, age ≤ {watch.filters.maxAgeMonths}mo
+            </span>
+          </div>
+          {watch.rows.length === 0 ? (
+            <Card className="rounded-none border-border/60">
+              <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                No capabilities currently meet the disruption-watch criteria. Either the index is quiet, or the rotation needs a refresh.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {watch.rows.map(r => (
+                <Card key={r.capabilityId} className="rounded-none border-border/60">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={`/capability/${r.capabilityId}`} className="font-serif text-base hover:underline flex-1 min-w-0">
+                        {r.capabilityName}
+                      </Link>
+                      <Badge variant="outline" className={`rounded-none font-mono text-[10px] uppercase tracking-wider ${BAND_TONE[r.band]}`}>
+                        {r.band}
+                      </Badge>
+                    </div>
+                    <div className="font-mono text-[10px] text-muted-foreground">{r.industryName}</div>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">P(disrupt)</div>
+                        <div className="font-mono text-lg tabular-nums">{(r.probability * 100).toFixed(0)}%</div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Velocity</div>
+                        <div className="font-mono text-lg tabular-nums">{r.velocity === null ? "—" : (r.velocity > 0 ? "+" : "") + r.velocity.toFixed(1)}</div>
+                      </div>
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CEI</div>
+                        <div className="font-mono text-lg tabular-nums">{r.consensusScore === null ? "—" : r.consensusScore.toFixed(0)}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap pt-1">
+                      <Badge variant="outline" className={`rounded-none font-mono text-[9px] uppercase tracking-wider ${LIFECYCLE_TONE[r.lifecycleStage] ?? "bg-muted text-muted-foreground border-border/60"}`}>
+                        {r.lifecycleStage}
+                      </Badge>
+                      {r.macroEventCount > 0 && (
+                        <Badge variant="outline" className="rounded-none font-mono text-[9px] uppercase tracking-wider">
+                          {r.macroEventCount} macro event{r.macroEventCount === 1 ? "" : "s"}
+                        </Badge>
+                      )}
+                    </div>
+                    {r.topDrivers.length > 0 && (
+                      <div className="font-mono text-[9px] text-muted-foreground pt-1 border-t border-border/40">
+                        Drivers: {r.topDrivers.join(", ")}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+          {industriesInPlay.length > 0 && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mt-2">
+              Industries in play: {industriesInPlay.join(" · ")}
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* ─── Net-new capabilities ─── */}
+      {newCaps && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <h2 className="font-serif text-2xl tracking-tight">Net-new capabilities ({newCaps.filters.maxAgeMonths}-month window)</h2>
+              <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">
+                {newCaps.rows.length} tracked
+              </Badge>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground mb-3">
+            Capabilities that did not exist in the ontology when we started tracking — the platform records capability <em>genesis</em>, not just maturity.
+          </p>
+          {newCaps.rows.length === 0 ? (
+            <Card className="rounded-none border-border/60">
+              <CardContent className="p-6 text-sm text-muted-foreground text-center">
+                No net-new capabilities in the current window. Increase <code className="font-mono text-xs bg-muted px-1">maxAgeMonths</code> or lower <code className="font-mono text-xs bg-muted px-1">minScore</code>.
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="rounded-none border-border/60">
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr className="text-left font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+                        <th className="px-4 py-3">Capability</th>
+                        <th className="px-4 py-3">Industry</th>
+                        <th className="px-4 py-3">Lifecycle</th>
+                        <th className="px-4 py-3 text-right">Age (mo)</th>
+                        <th className="px-4 py-3 text-right">CEI</th>
+                        <th className="px-4 py-3 text-right">Velocity</th>
+                        <th className="px-4 py-3 text-right">VC ($B)</th>
+                        <th className="px-4 py-3 text-right">Startups</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {newCaps.rows.map(r => (
+                        <tr key={r.capabilityId} className="border-t border-border/40">
+                          <td className="px-4 py-2 max-w-[260px]">
+                            <Link href={`/capability/${r.capabilityId}`} className="hover:underline font-medium">{r.capabilityName}</Link>
+                            <div className="text-[10px] text-muted-foreground line-clamp-1">{r.capabilityDescription}</div>
+                          </td>
+                          <td className="px-4 py-2 text-muted-foreground">{r.industryName}</td>
+                          <td className="px-4 py-2">
+                            <Badge variant="outline" className={`rounded-none font-mono text-[9px] uppercase tracking-wider ${LIFECYCLE_TONE[r.lifecycleStage] ?? "bg-muted text-muted-foreground border-border/60"}`}>
+                              {r.lifecycleStage}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums">{r.ageMonths.toFixed(1)}</td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums">{r.consensusScore === null ? "—" : r.consensusScore.toFixed(1)}</td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums inline-flex items-center gap-1 justify-end">
+                            {(r.velocity ?? 0) > 0.5 && <TrendingUp className="w-3 h-3 text-emerald-500" />}
+                            {r.velocity === null ? "—" : (r.velocity > 0 ? "+" : "") + r.velocity.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums">{(r.vcCapitalUsd / 1e9).toFixed(1)}</td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums">{r.startupCount}</td>
+                          <td className="px-4 py-2">
+                            <Link href={`/workbench?seed=${r.capabilityId}`}>
+                              <Button size="sm" variant="ghost" className="rounded-none h-7 px-2 text-[10px] font-mono uppercase tracking-wider">
+                                <Lightbulb className="w-3 h-3 mr-1" />
+                                Ideate
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}

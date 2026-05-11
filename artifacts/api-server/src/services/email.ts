@@ -294,6 +294,19 @@ function appUrl(path: string): string {
   return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+/**
+ * Capability-disruption digest delivery — caller supplies the full HTML/text
+ * (no wrapper). Distinct from the older notification-digest sendDigestEmail
+ * which takes a list of items. Throws on provider failure so the
+ * subscription's lastError can record what went wrong.
+ */
+export async function sendCapabilityDigestEmail(args: { to: string; subject: string; html: string; text: string }): Promise<void> {
+  const ok = await sendRawStrict({ to: args.to, subject: args.subject, html: args.html, text: args.text });
+  if (!ok) {
+    throw new Error("Email not configured (RESEND_API_KEY or EMAIL_FROM missing)");
+  }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")

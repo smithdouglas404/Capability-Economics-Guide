@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, real, boolean, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, boolean, uniqueIndex, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { industriesTable } from "./industries";
@@ -20,10 +20,22 @@ export const organizationsTable = pgTable("organizations", {
   // Flag indicating the org has opted in to peer benchmarking. Default false —
   // contributions are never used without an explicit opt-in.
   peerOptIn: boolean("peer_opt_in").notNull().default(false),
+  // Clerk identity linkage. Both nullable: an org row may exist with
+  // sessionToken-only ownership (the legacy public assess flow). When a
+  // signed-in user "claims" an org, clerkUserId is set. When an admin
+  // promotes a personal org to team-shared, clerkOrgId is set. Read access
+  // for any org-scoped feature gates on (clerkUserId = me) OR
+  // (clerkOrgId IN myClerkOrgs); legacy sessionToken-only orgs remain
+  // accessible to whoever holds the token.
+  clerkUserId: text("clerk_user_id"),
+  clerkOrgId: text("clerk_org_id"),
   sessionToken: text("session_token").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => [
+  index("organizations_clerk_user_idx").on(table.clerkUserId),
+  index("organizations_clerk_org_idx").on(table.clerkOrgId),
+]);
 
 export const organizationCapabilitiesTable = pgTable("organization_capabilities", {
   id: serial("id").primaryKey(),

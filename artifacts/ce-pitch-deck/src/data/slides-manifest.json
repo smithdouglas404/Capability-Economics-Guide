@@ -104,8 +104,32 @@
     "speakerNotes": ""
   },
   {
-    "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+    "id": "c5d6e7f8-a9b0-1234-cdef-345678901234",
     "position": 14,
+    "filepath": "src/pages/slides/WorkbenchSlide.tsx",
+    "title": "The Capability Workbench",
+    "description": "Double-Diamond kanban with five Claude action kinds per card. Personal + team-shared boards.",
+    "speakerNotes": "Headline: this is where the user spends their time. The five lanes are the design-thinking pipeline. The five Claude actions per card are the ideation engine."
+  },
+  {
+    "id": "d6e7f8a9-b0c1-2345-def0-456789012345",
+    "position": 15,
+    "filepath": "src/pages/slides/ProofSlide.tsx",
+    "title": "Proof: did the model see it coming?",
+    "description": "Backtest harness aggregate accuracy + per-event breakdown across COVID, ChatGPT, SVB, tariffs.",
+    "speakerNotes": "Note for the speaker: the harness measures model propagation under shock, not historical reconstruction — say this explicitly so the buyer doesn't misread the claim."
+  },
+  {
+    "id": "e7f8a9b0-c1d2-3456-ef01-567890123456",
+    "position": 16,
+    "filepath": "src/pages/slides/MarketplaceTiersSlide.tsx",
+    "title": "Marketplace + multi-tenant",
+    "description": "Three seller tiers, four listing types, team-attributed purchases via Clerk org.",
+    "speakerNotes": "CEI is the moat, marketplace is the revenue mechanism. Take rates: 20/15/12 across the three tiers."
+  },
+  {
+    "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+    "position": 17,
     "filepath": "src/pages/slides/NextSteps.tsx",
     "title": "Next Steps",
     "description": "Three engagement paths: Quick Assessment, Deep-Dive Workshop, Platform License",

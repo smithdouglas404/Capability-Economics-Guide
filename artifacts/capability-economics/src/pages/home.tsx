@@ -275,8 +275,19 @@ export default function Home() {
                 transition={{ delay: 0.4, duration: 0.6, ease: "easeOut" }}
                 className="font-serif text-lg lg:text-xl text-foreground/60 leading-relaxed max-w-xl italic mb-4"
               >
-                The discipline of understanding, measuring, and optimizing the economic value of your organization's core capabilities.
+                The world's first probabilistic capability index — and the design-thinking workbench that helps you invent the capabilities your industry doesn't have yet. Numbers tell one story; the next move tells another.
               </motion.p>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.45, duration: 0.5 }}
+                className="flex flex-wrap items-center gap-2 mb-6 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground"
+              >
+                <Link href="/proof" className="border border-border/60 px-2 py-1 hover:border-accent hover:text-accent transition-colors">Proof: backtests</Link>
+                <Link href="/workbench" className="border border-border/60 px-2 py-1 hover:border-accent hover:text-accent transition-colors">Ideate: workbench</Link>
+                <Link href="/disruption" className="border border-border/60 px-2 py-1 hover:border-accent hover:text-accent transition-colors">Disruption watch</Link>
+                <Link href="/patterns" className="border border-border/60 px-2 py-1 hover:border-accent hover:text-accent transition-colors">Patterns</Link>
+              </motion.div>
 
               <motion.div
                 initial={{ opacity: 0 }}
@@ -294,12 +305,20 @@ export default function Home() {
                 className="flex flex-col sm:flex-row gap-3"
               >
                 <Link
-                  href="/c-suite"
-                  data-testid="hero-cta-csuite"
+                  href="/workbench"
+                  data-testid="hero-cta-workbench"
                   className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] bg-foreground text-background hover:bg-foreground/90 transition-colors group gap-2"
                 >
-                  C-Suite Perspectives
+                  Open the Workbench
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </Link>
+                <Link
+                  href="/c-suite"
+                  data-testid="hero-cta-csuite"
+                  className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] border border-border hover:border-accent/50 hover:text-accent transition-colors group gap-2"
+                >
+                  C-Suite Perspectives
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
                 </Link>
                 <Link
                   href={heroHref}

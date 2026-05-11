@@ -11,6 +11,11 @@ export const marketplaceSellersTable = pgTable(
   {
     id: serial("id").primaryKey(),
     userId: text("user_id").notNull().unique(),
+    // Optional Clerk org id. When set, the seller record is org-owned —
+    // every member of the Clerk org can see this seller's listings, payouts,
+    // and analytics in the marketplace workspace view. SaaS-only feature;
+    // on-prem deployments leave this null and treat sellers as per-user.
+    clerkOrgId: text("clerk_org_id"),
     email: text("email"),
     displayName: text("display_name"),
     stripeAccountId: text("stripe_account_id").notNull().unique(),
@@ -39,6 +44,7 @@ export const marketplaceSellersTable = pgTable(
   (table) => [
     index("marketplace_sellers_user_idx").on(table.userId),
     index("marketplace_sellers_tier_idx").on(table.tier),
+    index("marketplace_sellers_org_idx").on(table.clerkOrgId),
   ],
 );
 
@@ -103,6 +109,12 @@ export const marketplacePurchasesTable = pgTable(
     id: serial("id").primaryKey(),
     listingId: integer("listing_id").notNull().references(() => marketplaceListingsTable.id, { onDelete: "restrict" }),
     buyerUserId: text("buyer_user_id").notNull(),
+    // Optional Clerk org id of the buying team. When set, every member of
+    // the Clerk org can see the purchase in the marketplace workspace and
+    // download the file (entitlement check on download still requires the
+    // download itself to be performed by an org member). Null = personal
+    // purchase, only the buyerUserId sees it. SaaS-only feature.
+    buyerClerkOrgId: text("buyer_clerk_org_id"),
     buyerEmail: text("buyer_email"),
     priceCents: integer("price_cents").notNull(),       // what the buyer paid
     platformFeeCents: integer("platform_fee_cents").notNull(),
@@ -121,6 +133,7 @@ export const marketplacePurchasesTable = pgTable(
     index("marketplace_purchases_listing_idx").on(table.listingId),
     index("marketplace_purchases_buyer_idx").on(table.buyerUserId),
     index("marketplace_purchases_status_idx").on(table.status),
+    index("marketplace_purchases_buyer_org_idx").on(table.buyerClerkOrgId),
   ],
 );
 

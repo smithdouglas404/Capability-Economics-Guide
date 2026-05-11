@@ -9,7 +9,7 @@ import {
   ScanSearch, Inbox, Shield,
   Users,
   Swords, FlaskConical, Target, Rocket, BarChart3, PieChart,
-  Lightbulb, MessageSquare,
+  Lightbulb, MessageSquare, Zap,
   Settings2, ChevronDown, CreditCard, LogOut, Sparkles,
   Store, Menu,
 } from "lucide-react";
@@ -57,6 +57,15 @@ const navGroups: NavGroup[] = [
       { href: "/projects", label: "Projects", icon: Layers, description: "Your active engagements" },
       { href: "/watchlist", label: "Watchlist", icon: Bell, description: "Saved capabilities & alerts" },
       { href: "/collaborate", label: "Strategy Decisions", icon: MessageCircle, description: "Recorded executive decisions & rationale" },
+    ],
+  },
+  {
+    label: "Ideate",
+    matchPaths: ["/workbench", "/disruption", "/patterns"],
+    children: [
+      { href: "/workbench", label: "Capability Workbench", icon: Lightbulb, description: "Drag capabilities through Scan → Frame → Ideate → Validate → Launch. Claude critiques per card." },
+      { href: "/disruption", label: "Disruption Watch", icon: Zap, description: "Capabilities actively disrupting industries + the net-new capabilities emerging now." },
+      { href: "/patterns", label: "Design-Thinking Patterns", icon: Sparkles, description: "Uber, Stripe, OpenAI — case studies on inventing new capabilities." },
     ],
   },
   {

@@ -17,6 +17,9 @@
 import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing } from "../agent/letta";
 import { FOUNDRY } from "../foundry/config";
+import { db } from "@workspace/db";
+import { organizationsTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured";
 
@@ -114,7 +117,16 @@ const probeOpenRouter: Probe = async () => {
       };
       const remaining = body?.data?.limit_remaining;
       if (typeof remaining === "number" && remaining <= 0) {
-        return { status: "degraded", latencyMs, lastError: "OpenRouter credit balance exhausted" };
+        return { status: "down", latencyMs, lastError: "OpenRouter credit balance exhausted" };
+      }
+      // Warn early so ops can top up before a demo. Threshold of $10 leaves
+      // enough headroom for a full agent run + a dozen CXO perspectives.
+      if (typeof remaining === "number" && remaining < 10) {
+        return {
+          status: "degraded",
+          latencyMs,
+          lastError: `OpenRouter credit balance low: $${remaining.toFixed(2)} (top up at openrouter.ai/credits)`,
+        };
       }
       return { status: "ok", latencyMs, lastError: null };
     }
@@ -271,6 +283,33 @@ const probeClerk: Probe = async () => {
   }
 };
 
+/**
+ * Demo-readiness probe. Reports `degraded` when the platform is technically
+ * up but a VC walkthrough would land on empty screens. Three signals checked:
+ *  - at least 1 organization in organizationsTable (scorecard data)
+ *  - at least 10 capabilities in capabilitiesTable (otherwise the catalog is bare)
+ *  - at least 1 cei_components row (otherwise the index is uninitialised)
+ *
+ * Cheap query — three count() rolled into one round-trip.
+ */
+const probeDemoReadiness: Probe = async () => {
+  const start = Date.now();
+  try {
+    const [orgs] = await db.select({ c: sql<number>`count(*)::int` }).from(organizationsTable);
+    const [caps] = await db.select({ c: sql<number>`count(*)::int` }).from(capabilitiesTable);
+    const [comps] = await db.select({ c: sql<number>`count(*)::int` }).from(ceiComponentsTable);
+    const latencyMs = Date.now() - start;
+    const issues: string[] = [];
+    if ((orgs?.c ?? 0) === 0) issues.push("organizations table is empty — run `pnpm tsx scripts/src/seed-organizations.ts`");
+    if ((caps?.c ?? 0) < 10) issues.push(`only ${caps?.c ?? 0} capabilities — catalog will look sparse`);
+    if ((comps?.c ?? 0) === 0) issues.push("cei_components table is empty — run enrichment");
+    if (issues.length === 0) return { status: "ok", latencyMs, lastError: null };
+    return { status: "degraded", latencyMs, lastError: issues.join("; ") };
+  } catch (err) {
+    return { status: "down", latencyMs: Date.now() - start, lastError: (err as Error).message?.slice(0, 240) ?? String(err) };
+  }
+};
+
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
@@ -280,6 +319,7 @@ const PROBES: Record<string, Probe> = {
   foundry: probeFoundry,
   stripe: probeStripe,
   clerk: probeClerk,
+  demo_readiness: probeDemoReadiness,
 };
 
 async function runProbe(service: string, probe: Probe): Promise<ServiceHealth> {

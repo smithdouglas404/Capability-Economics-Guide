@@ -33,3 +33,6 @@ export * from "./historical-events";
 export * from "./subscriptions";
 export * from "./dashboard-views";
 export * from "./capability-annotations";
+export * from "./workbench";
+export * from "./disruption-patterns";
+export * from "./digests";

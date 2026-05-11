@@ -1,8 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { FileText, ShoppingCart, Store } from "lucide-react";
+import { FileText, ShoppingCart, Store, Users } from "lucide-react";
 
 const TABS = [
   { href: "/marketplace",              label: "Browse",     Icon: Store,        match: (p: string) => p === "/marketplace" || p.startsWith("/marketplace/listings") },
+  { href: "/marketplace/workspace",    label: "Workspace",  Icon: Users,        match: (p: string) => p.startsWith("/marketplace/workspace") },
   { href: "/marketplace/my-purchases", label: "My Library", Icon: ShoppingCart, match: (p: string) => p.startsWith("/marketplace/my-purchases") },
   { href: "/marketplace/sell",         label: "Sell",       Icon: FileText,     match: (p: string) => p.startsWith("/marketplace/sell") },
 ];
