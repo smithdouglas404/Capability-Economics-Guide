@@ -24,6 +24,13 @@ WORKDIR /app/server
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Mem0 keeps a SQLite "history" DB alongside its pgvector store. The default
+# path comes from HISTORY_DB_PATH env var (e.g. /app/history/history.db) and
+# Mem0 won't create the parent directory itself — it just calls sqlite3.connect
+# and crashes with "unable to open database file" if the dir doesn't exist.
+# Mount a Railway Volume here for persistence across restarts.
+RUN mkdir -p /app/history && chmod 755 /app/history
+
 EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
