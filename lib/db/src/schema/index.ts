@@ -32,3 +32,4 @@ export * from "./foundry-sync";
 export * from "./historical-events";
 export * from "./subscriptions";
 export * from "./dashboard-views";
+export * from "./capability-annotations";

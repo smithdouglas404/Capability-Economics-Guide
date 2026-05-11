@@ -23,19 +23,22 @@ async function getSellerForCurrentUser(userId: string) {
 
 // ───────────────────── Public browse ─────────────────────
 
-/** Public listings browse — only approved, non-archived. */
+/** Public listings browse — only approved, non-archived. Featured first. */
 router.get("/marketplace/listings", async (_req, res) => {
   const rows = await db
     .select({
       id: marketplaceListingsTable.id,
       sellerId: marketplaceListingsTable.sellerId,
       sellerName: marketplaceSellersTable.displayName,
+      sellerTier: marketplaceSellersTable.tier,
       type: marketplaceListingsTable.type,
       title: marketplaceListingsTable.title,
       description: marketplaceListingsTable.description,
       priceCents: marketplaceListingsTable.priceCents,
       coverImageUrl: marketplaceListingsTable.coverImageUrl,
       tags: marketplaceListingsTable.tags,
+      featured: marketplaceListingsTable.featured,
+      featuredUntil: marketplaceListingsTable.featuredUntil,
       approvedAt: marketplaceListingsTable.approvedAt,
     })
     .from(marketplaceListingsTable)
@@ -47,8 +50,16 @@ router.get("/marketplace/listings", async (_req, res) => {
         gt(marketplaceListingsTable.expiresAt, sql`now()`),
       ),
     ))
-    .orderBy(desc(marketplaceListingsTable.approvedAt));
-  res.json({ listings: rows });
+    .orderBy(desc(marketplaceListingsTable.featured), desc(marketplaceListingsTable.approvedAt));
+  // Honor featuredUntil at read time so the response never reports a listing
+  // as featured past its cutoff — the nightly sweep also clears it, but this
+  // is the safety net.
+  const now = Date.now();
+  const projected = rows.map(r => ({
+    ...r,
+    featured: r.featured && (!r.featuredUntil || r.featuredUntil.getTime() > now),
+  }));
+  res.json({ listings: projected });
 });
 
 /** Detail for a single public listing (approved) or any listing the caller owns. */
@@ -94,7 +105,7 @@ const CreateListingBody = z.object({
   title: z.string().min(3).max(200),
   description: z.string().min(10).max(5000),
   priceCents: z.number().int().min(100).max(100_000_00), // $1 – $100,000
-  type: z.enum(["report", "service", "template"]).default("report"),
+  type: z.enum(["report", "dataset", "template", "service"]).default("report"),
   tags: z.array(z.string().min(1).max(40)).max(10).default([]),
 });
 
@@ -314,6 +325,39 @@ router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req,
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "approved" } });
   void notifySeller(id, "approved");
   res.json({ ok: true });
+});
+
+const FeatureBody = z.object({
+  featured: z.boolean(),
+  // ISO-8601 datetime; when featured=true and no until is provided we default to 30 days.
+  featuredUntil: z.string().datetime().nullable().optional(),
+});
+
+router.post("/admin/marketplace/listings/:id/feature", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "bad id" }); return; }
+  const parsed = FeatureBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+  const [existing] = await db.select().from(marketplaceListingsTable).where(eq(marketplaceListingsTable.id, id));
+  if (!existing) { res.status(404).json({ error: "not found" }); return; }
+  let featuredUntil: Date | null = null;
+  if (parsed.data.featured) {
+    featuredUntil = parsed.data.featuredUntil
+      ? new Date(parsed.data.featuredUntil)
+      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  }
+  const [updated] = await db.update(marketplaceListingsTable).set({
+    featured: parsed.data.featured,
+    featuredUntil,
+    updatedAt: new Date(),
+  }).where(eq(marketplaceListingsTable.id, id)).returning();
+  await logAdminAction(req, {
+    action: "tier.update",
+    targetType: "marketplace_listing",
+    targetId: id,
+    details: { feature: parsed.data.featured, featuredUntil: featuredUntil?.toISOString() ?? null, title: existing.title },
+  });
+  res.json({ listing: updated });
 });
 
 router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, res) => {

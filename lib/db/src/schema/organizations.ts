@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, timestamp, real, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, real, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { industriesTable } from "./industries";
@@ -9,6 +9,17 @@ export const organizationsTable = pgTable("organizations", {
   name: text("name").notNull(),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
   size: text("size").notNull().default("mid"),
+  // Coarse-grained region for peer-cohort grouping. Optional — when unset the
+  // org falls into a "global" bucket and only matches against industry+size.
+  // Values: na | emea | apac | latam | global | other
+  geography: text("geography"),
+  // Revenue band — coarser than `size` (which is employee count): "lt_10m" |
+  // "10m_100m" | "100m_1b" | "1b_10b" | "gt_10b". Used as a cohort dimension
+  // in peer benchmarking when present.
+  revenueBand: text("revenue_band"),
+  // Flag indicating the org has opted in to peer benchmarking. Default false —
+  // contributions are never used without an explicit opt-in.
+  peerOptIn: boolean("peer_opt_in").notNull().default(false),
   sessionToken: text("session_token").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

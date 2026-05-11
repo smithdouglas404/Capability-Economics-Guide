@@ -62,11 +62,10 @@ Each has a CE replacement listed below.
 Every score below: (a) is built from one of the seven verbs, (b) maps to a
 column we will write in `company_scores`, (c) is a pure function in
 `services/companies.ts` (the company-scoring "Moneyball block") and
-`services/cei-engine.ts` (the Bayesian capability posterior). The §9
-implementation footprint plans extracting these into a dedicated
-`services/posterior.ts`; until that rename lands, treat `companies.ts`
-+ `cei-engine.ts` as the canonical home and read the §3 trace lines as
-the contract regardless of file location.
+`services/cei-engine.ts` (the Bayesian capability posterior). The
+canonical home for these scores is those two files. A planned refactor
+to extract them into a dedicated `services/posterior.ts` has not been
+started — do not create that file until it is explicitly tasked.
 
 ### 3.1 Posterior CEI Coverage `posteriorCeiCoverage`
 - **Was:** `ceiWeighted` + `capabilityCoverage` (two overlapping scores).

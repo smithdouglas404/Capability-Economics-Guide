@@ -93,7 +93,11 @@ export default function Watchlist() {
   const checkNow = async () => {
     setChecking(true);
     try {
-      await fetch(`${API_BASE}/watchlist/check`, { method: "POST" });
+      await fetch(`${API_BASE}/watchlist/check-my`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionToken }),
+      });
       await load();
     } catch (err) { console.error(err); }
     setChecking(false);

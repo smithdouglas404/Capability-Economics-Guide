@@ -137,7 +137,7 @@ export default function ExplorePage() {
                       {cap.sourceCount} sources ·{" "}
                       {cap.lastUpdatedAt ? new Date(cap.lastUpdatedAt).toLocaleDateString() : "—"}
                     </div>
-                    <Link href={`/cei?capability=${cap.id}`}>
+                    <Link href={`/capability/${cap.id}`}>
                       <Button size="sm" variant="ghost" className="text-[11px] h-7 gap-1">
                         See full data
                         <Lock className="w-3 h-3" />

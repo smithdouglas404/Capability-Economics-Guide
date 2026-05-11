@@ -17,6 +17,7 @@ import CEIDashboard from "@/pages/cei-dashboard";
 import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
 import AdminPaymentsPage from "@/pages/admin-payments";
+import AdminSourceQualityPage from "@/pages/admin-source-quality";
 import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
 import VCE from "@/pages/vce";
@@ -51,6 +52,10 @@ import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
+import CapabilityDetailPage from "@/pages/capability-detail";
+import ComparePage from "@/pages/compare";
+import WhatIfPage from "@/pages/whatif";
+import SearchPage from "@/pages/search";
 import EmbedCei from "@/pages/embed-cei";
 import EmbedCapability from "@/pages/embed-capability";
 
@@ -108,6 +113,10 @@ function Router() {
       <Route path="/methodology" component={Methodology} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
+      <Route path="/capability/:id" component={CapabilityDetailPage} />
+      <Route path="/compare" component={ComparePage} />
+      <Route path="/whatif" component={WhatIfPage} />
+      <Route path="/search" component={SearchPage} />
       <Route path="/embed/cei" component={EmbedCei} />
       <Route path="/embed/capability/:id" component={EmbedCapability} />
       <Route path="/insurance-example" component={InsuranceExample} />
@@ -119,6 +128,7 @@ function Router() {
       <Route path="/assess" component={Assess} />
       <Route path="/admin">{() => <AdminOnly component={AdminDashboard} />}</Route>
       <Route path="/admin/payments">{() => <AdminOnly component={AdminPaymentsPage} />}</Route>
+      <Route path="/admin/source-quality">{() => <AdminOnly component={AdminSourceQualityPage} />}</Route>
       <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />

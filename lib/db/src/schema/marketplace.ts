@@ -17,6 +17,20 @@ export const marketplaceSellersTable = pgTable(
     chargesEnabled: boolean("charges_enabled").notNull().default(false),
     payoutsEnabled: boolean("payouts_enabled").notNull().default(false),
     detailsSubmitted: boolean("details_submitted").notNull().default(false),
+    // Three-tier seller model. "open" anyone can list once Stripe Connect is
+    // complete. "analyst" is admin-promoted; vetted consultants/researchers
+    // who get a badge + a lower platform fee. "featured" is a curated
+    // showcase — also admin-set, gets top placement. tierGrantedBy/At record
+    // the admin promotion for audit.
+    tier: text("tier").notNull().default("open"), // "open" | "analyst" | "featured"
+    tierGrantedBy: text("tier_granted_by"),
+    tierGrantedAt: timestamp("tier_granted_at"),
+    tierNote: text("tier_note"),
+    // Public-facing bio shown on listing pages and (eventually) a seller
+    // profile route. Open sellers may write this themselves; analysts/featured
+    // can be edited by admins too.
+    bio: text("bio"),
+    websiteUrl: text("website_url"),
     // Latest Stripe account object snapshot for debugging / audit.
     accountSnapshot: jsonb("account_snapshot"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -24,6 +38,7 @@ export const marketplaceSellersTable = pgTable(
   },
   (table) => [
     index("marketplace_sellers_user_idx").on(table.userId),
+    index("marketplace_sellers_tier_idx").on(table.tier),
   ],
 );
 
@@ -42,7 +57,7 @@ export const marketplaceListingsTable = pgTable(
   {
     id: serial("id").primaryKey(),
     sellerId: integer("seller_id").notNull().references(() => marketplaceSellersTable.id, { onDelete: "restrict" }),
-    type: text("type").notNull().default("report"), // "report" | "service" | "template"
+    type: text("type").notNull().default("report"), // "report" | "dataset" | "template" | "service"
     title: text("title").notNull(),
     description: text("description").notNull(),
     priceCents: integer("price_cents").notNull(), // full price to buyer; platform fee is taken on top
@@ -61,6 +76,12 @@ export const marketplaceListingsTable = pgTable(
     // When set, the listing auto-archives at this time. Null = open-ended (still
     // subject to the 30-day-after-approval auto-archive sweep).
     expiresAt: timestamp("expires_at"),
+    // Featured placement on /marketplace browse. featuredUntil is the
+    // expiration; nightly sweep flips `featured` to false past the cutoff.
+    // Independent of seller.tier — an "analyst" seller doesn't get featured
+    // automatically; admins promote per-listing.
+    featured: boolean("featured").notNull().default(false),
+    featuredUntil: timestamp("featured_until"),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -68,6 +89,7 @@ export const marketplaceListingsTable = pgTable(
   (table) => [
     index("marketplace_listings_seller_idx").on(table.sellerId),
     index("marketplace_listings_status_idx").on(table.status),
+    index("marketplace_listings_featured_idx").on(table.featured),
   ],
 );
 

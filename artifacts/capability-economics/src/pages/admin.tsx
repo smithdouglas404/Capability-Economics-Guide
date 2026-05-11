@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,7 +9,7 @@ import {
   FileText, Lightbulb, Trophy, BookOpen, Network, Mic, File, Briefcase,
   ChevronUp, ChevronDown, Minus, Zap, Building2, GitBranch, Layers,
   LayoutDashboard, ShieldCheck, Gift, CreditCard, BookMarked, BookOpenCheck,
-  Settings, Store,
+  Settings, Store, ShieldAlert,
 } from "lucide-react";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
@@ -318,6 +319,10 @@ export default function AdminDashboard() {
                 <button onClick={() => setTab("enrichment")} className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
                   <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> Trigger capability enrichment</span>
                 </button>
+                <Link href="/admin/source-quality" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
+                  <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Source quality audit</span>
+                  <span className="text-xs text-muted-foreground">Stale / single-source / no consulting</span>
+                </Link>
               </CardContent>
             </Card>
 

@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, Loader2, ShoppingCart } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, FileText, Loader2, ShoppingCart, Sparkles, BadgeCheck, Star, Store, Globe } from "lucide-react";
 
 const API_BASE = "/api";
+
+type SellerTier = "open" | "analyst" | "featured";
 
 type Listing = {
   id: number;
@@ -14,6 +17,8 @@ type Listing = {
   priceCents: number;
   tags: string[];
   status: string;
+  featured: boolean;
+  featuredUntil: string | null;
   fileKey: string | null;
   previewFileKey: string | null;
 };
@@ -21,6 +26,25 @@ type Listing = {
 type Seller = {
   displayName: string | null;
   email: string | null;
+  tier: SellerTier | null;
+  bio: string | null;
+  websiteUrl: string | null;
+};
+
+const TIER_LABEL: Record<SellerTier, string> = {
+  open: "Open",
+  analyst: "Verified Analyst",
+  featured: "Featured Author",
+};
+const TIER_TONE: Record<SellerTier, string> = {
+  open: "bg-muted text-muted-foreground border-border/60",
+  analyst: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  featured: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+};
+const TIER_ICON: Record<SellerTier, typeof Sparkles> = {
+  open: Store,
+  analyst: BadgeCheck,
+  featured: Star,
 };
 
 const fmtMoney = (c: number) => `$${(c / 100).toFixed(2)}`;
@@ -69,11 +93,41 @@ export default function MarketplaceListingPage() {
         <Link href="/marketplace"><ArrowLeft className="w-4 h-4" /> <span className="ml-1">All listings</span></Link>
       </Button>
 
-      <Card className="rounded-none">
+      <Card className={`rounded-none ${listing.featured ? "ring-1 ring-amber-500/40" : ""}`}>
         <CardHeader>
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">{listing.type}</div>
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-wider">{listing.type}</Badge>
+            {listing.featured && (
+              <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-wider bg-amber-500/15 text-amber-500 border-amber-500/40 inline-flex items-center gap-1">
+                <Sparkles className="w-3 h-3" />
+                Featured
+              </Badge>
+            )}
+          </div>
           <CardTitle className="font-serif text-3xl">{listing.title}</CardTitle>
-          {seller?.displayName && <div className="text-sm text-muted-foreground">by {seller.displayName}</div>}
+          {seller?.displayName && (
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
+              <span>by {seller.displayName}</span>
+              {seller.tier && seller.tier !== "open" && (() => {
+                const TIcon = TIER_ICON[seller.tier];
+                return (
+                  <Badge variant="outline" className={`rounded-none text-[10px] uppercase tracking-wider inline-flex items-center gap-1 ${TIER_TONE[seller.tier]}`}>
+                    <TIcon className="w-3 h-3" />
+                    {TIER_LABEL[seller.tier]}
+                  </Badge>
+                );
+              })()}
+              {seller.websiteUrl && (
+                <a href={seller.websiteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline text-xs">
+                  <Globe className="w-3 h-3" />
+                  Website
+                </a>
+              )}
+            </div>
+          )}
+          {seller?.bio && (
+            <p className="text-xs text-muted-foreground mt-2 leading-relaxed">{seller.bio}</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="whitespace-pre-wrap leading-relaxed">{listing.description}</div>

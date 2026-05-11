@@ -2,26 +2,48 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Loader2, Search, Store } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Search, Store, Sparkles, BadgeCheck, Star } from "lucide-react";
 import { MarketplaceNav } from "@/components/marketplace-nav";
 
 const API_BASE = "/api";
+
+type SellerTier = "open" | "analyst" | "featured";
 
 type Listing = {
   id: number;
   sellerId: number;
   sellerName: string | null;
-  type: "report" | "service" | "template";
+  sellerTier: SellerTier | null;
+  type: "report" | "dataset" | "template" | "service";
   title: string;
   description: string;
   priceCents: number;
   tags: string[];
+  featured: boolean;
+  featuredUntil: string | null;
   approvedAt: string | null;
 };
 
 type Segment = "all" | "technology" | "insurance" | "healthcare";
-type TypeFilter = "all" | "report" | "template" | "service";
-type SortMode = "newest" | "price_asc" | "price_desc";
+type TypeFilter = "all" | "report" | "dataset" | "template" | "service";
+type SortMode = "newest" | "price_asc" | "price_desc" | "featured";
+
+const TIER_LABEL: Record<SellerTier, string> = {
+  open: "Open",
+  analyst: "Verified Analyst",
+  featured: "Featured Author",
+};
+const TIER_TONE: Record<SellerTier, string> = {
+  open: "bg-muted text-muted-foreground border-border/60",
+  analyst: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  featured: "bg-amber-500/15 text-amber-500 border-amber-500/40",
+};
+const TIER_ICON: Record<SellerTier, typeof Sparkles> = {
+  open: Store,
+  analyst: BadgeCheck,
+  featured: Star,
+};
 
 const fmtMoney = (c: number) => `$${(c / 100).toFixed(2)}`;
 
@@ -35,6 +57,7 @@ const SEGMENT_LABELS: Record<Segment, string> = {
 const TYPE_LABELS: Record<TypeFilter, string> = {
   all: "All types",
   report: "Reports",
+  dataset: "Datasets",
   template: "Templates",
   service: "Services",
 };
@@ -65,7 +88,8 @@ export default function MarketplacePage() {
     });
     if (sort === "price_asc") out = [...out].sort((a, b) => a.priceCents - b.priceCents);
     else if (sort === "price_desc") out = [...out].sort((a, b) => b.priceCents - a.priceCents);
-    // "newest" = server order (already desc by approvedAt)
+    else if (sort === "featured") out = [...out].sort((a, b) => Number(b.featured) - Number(a.featured));
+    // "newest" = server order (already featured-first, then desc by approvedAt)
     return out;
   }, [listings, segment, typeFilter, query, sort]);
 
@@ -120,6 +144,7 @@ export default function MarketplacePage() {
             className="h-9 px-3 text-sm border border-input bg-background rounded-none"
           >
             <option value="newest">Newest</option>
+            <option value="featured">Featured first</option>
             <option value="price_asc">Price ↑</option>
             <option value="price_desc">Price ↓</option>
           </select>
@@ -141,23 +166,45 @@ export default function MarketplacePage() {
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map(l => (
-            <Link key={l.id} href={`/marketplace/listings/${l.id}`}>
-              <Card className="rounded-none cursor-pointer hover:border-primary transition-colors h-full">
-                <CardContent className="p-5 flex flex-col h-full">
-                  <div className="flex-1">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{l.type}</div>
-                    <h3 className="font-serif text-lg mb-2">{l.title}</h3>
-                    <p className="text-sm text-muted-foreground line-clamp-3">{l.description}</p>
-                  </div>
-                  <div className="mt-4 pt-3 border-t flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">{l.sellerName ?? "Author"}</span>
-                    <span className="font-mono font-semibold">{fmtMoney(l.priceCents)}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {filtered.map(l => {
+            const tier: SellerTier = (l.sellerTier ?? "open");
+            const TierIcon = TIER_ICON[tier];
+            return (
+              <Link key={l.id} href={`/marketplace/listings/${l.id}`}>
+                <Card className={`rounded-none cursor-pointer hover:border-primary transition-colors h-full ${l.featured ? "ring-1 ring-amber-500/40" : ""}`}>
+                  <CardContent className="p-5 flex flex-col h-full">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-wider">
+                        {l.type}
+                      </Badge>
+                      {l.featured && (
+                        <Badge variant="outline" className="rounded-none text-[10px] uppercase tracking-wider bg-amber-500/15 text-amber-500 border-amber-500/40 inline-flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" />
+                          Featured
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-serif text-lg mb-2">{l.title}</h3>
+                      <p className="text-sm text-muted-foreground line-clamp-3">{l.description}</p>
+                    </div>
+                    <div className="mt-4 pt-3 border-t flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-xs text-muted-foreground truncate">{l.sellerName ?? "Author"}</span>
+                        {tier !== "open" && (
+                          <Badge variant="outline" className={`rounded-none text-[10px] uppercase tracking-wider inline-flex items-center gap-1 ${TIER_TONE[tier]}`}>
+                            <TierIcon className="w-3 h-3" />
+                            {TIER_LABEL[tier]}
+                          </Badge>
+                        )}
+                      </div>
+                      <span className="font-mono font-semibold">{fmtMoney(l.priceCents)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

@@ -61,6 +61,7 @@ export default function MarketplaceSellPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priceDollars, setPriceDollars] = useState("");
+  const [listingType, setListingType] = useState<"report" | "dataset" | "template" | "service">("report");
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -124,10 +125,10 @@ export default function MarketplaceSellPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), priceCents: cents, type: "report" }),
+        body: JSON.stringify({ title: title.trim(), description: description.trim(), priceCents: cents, type: listingType }),
       });
       if (!res.ok) throw new Error(await res.text());
-      setTitle(""); setDescription(""); setPriceDollars("");
+      setTitle(""); setDescription(""); setPriceDollars(""); setListingType("report");
       await load();
     } catch (e) {
       alert((e as Error).message);
@@ -272,7 +273,21 @@ export default function MarketplaceSellPage() {
             <Label htmlFor="ml-desc">Description</Label>
             <Textarea id="ml-desc" rows={5} placeholder="What's inside, who it's for, key findings..." value={description} onChange={e => setDescription(e.target.value)} className="rounded-none" />
           </div>
-          <div className="flex gap-2 items-end">
+          <div className="flex flex-wrap gap-2 items-end">
+            <div className="w-40">
+              <Label htmlFor="ml-type">Listing type</Label>
+              <select
+                id="ml-type"
+                value={listingType}
+                onChange={e => setListingType(e.target.value as typeof listingType)}
+                className="w-full h-9 px-2 text-sm border border-input bg-background rounded-none"
+              >
+                <option value="report">Report</option>
+                <option value="dataset">Dataset</option>
+                <option value="template">Template</option>
+                <option value="service">Service</option>
+              </select>
+            </div>
             <div className="w-32">
               <Label htmlFor="ml-price">Price (USD)</Label>
               <Input id="ml-price" type="number" step="0.01" placeholder="49.00" value={priceDollars} onChange={e => setPriceDollars(e.target.value)} className="rounded-none font-mono" />
