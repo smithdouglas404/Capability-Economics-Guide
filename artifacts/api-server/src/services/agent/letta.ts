@@ -3,9 +3,20 @@ import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents"
 import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
 
-const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
-const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
-const LETTA_ENABLED = Boolean(LETTA_API_KEY || process.env.LETTA_BASE_URL);
+const LETTA_BASE_URL = process.env.LETTA_BASE_URL;
+const LETTA_API_KEY = process.env.LETTA_API_KEY;
+
+if (!LETTA_BASE_URL && !LETTA_API_KEY) {
+  throw new Error("[Letta] LETTA_BASE_URL and LETTA_API_KEY are required but not set. Configure the self-hosted Letta Railway service.");
+}
+if (!LETTA_BASE_URL) {
+  throw new Error("[Letta] LETTA_BASE_URL is required but not set. Configure the self-hosted Letta Railway service.");
+}
+if (!LETTA_API_KEY) {
+  throw new Error("[Letta] LETTA_API_KEY is required but not set. Configure the self-hosted Letta Railway service.");
+}
+
+const LETTA_ENABLED = true;
 const LETTA_AGENT_NAME = "cei-autonomous-agent";
 const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-3.7-sonnet";
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
@@ -106,7 +117,7 @@ async function doInit(): Promise<boolean> {
     const { default: Letta } = await import("@letta-ai/letta-client");
     lettaClient = new Letta({
       baseURL: LETTA_BASE_URL,
-      ...(LETTA_API_KEY ? { apiKey: LETTA_API_KEY } : {}),
+      apiKey: LETTA_API_KEY,
     });
 
     try {
@@ -294,13 +305,12 @@ export async function lettaPing(): Promise<{
   ok: boolean;
   error: string | null;
 }> {
-  if (!LETTA_ENABLED) return { configured: false, ok: false, error: null };
   try {
     if (!lettaClient) {
       const { default: Letta } = await import("@letta-ai/letta-client");
       lettaClient = new Letta({
         baseURL: LETTA_BASE_URL,
-        ...(LETTA_API_KEY ? { apiKey: LETTA_API_KEY } : {}),
+        apiKey: LETTA_API_KEY,
       });
     }
     await Promise.race([

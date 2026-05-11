@@ -40,16 +40,17 @@ export interface StoreOptions {
 // Mem0 REST client — talks to the self-hosted server via MEM0_BASE_URL
 // ---------------------------------------------------------------------------
 
-function getMem0Config(): { baseUrl: string; apiKey: string } | null {
+function getMem0Config(): { baseUrl: string; apiKey: string } {
   const baseUrl = process.env.MEM0_BASE_URL;
   const apiKey = process.env.MEM0_API_KEY;
-  if (!baseUrl || !apiKey) {
-    if (!baseUrl && !apiKey) {
-      console.warn("[Mem0] MEM0_BASE_URL and MEM0_API_KEY not set — using local DB only");
-    } else {
-      console.warn("[Mem0] Both MEM0_BASE_URL and MEM0_API_KEY must be set — using local DB only");
-    }
-    return null;
+  if (!baseUrl && !apiKey) {
+    throw new Error("[Mem0] MEM0_BASE_URL and MEM0_API_KEY are required but not set. Configure the self-hosted Mem0 Railway service.");
+  }
+  if (!baseUrl) {
+    throw new Error("[Mem0] MEM0_BASE_URL is required but not set. Configure the self-hosted Mem0 Railway service.");
+  }
+  if (!apiKey) {
+    throw new Error("[Mem0] MEM0_API_KEY is required but not set. Configure the self-hosted Mem0 Railway service.");
   }
   return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey };
 }
@@ -60,7 +61,6 @@ async function mem0Fetch(
   body?: unknown,
 ): Promise<unknown> {
   const cfg = getMem0Config();
-  if (!cfg) throw new Error("Mem0 not configured");
   const res = await fetch(`${cfg.baseUrl}${path}`, {
     method,
     headers: {
@@ -77,7 +77,12 @@ async function mem0Fetch(
 }
 
 export function isMem0Available(): boolean {
-  return !!(process.env.MEM0_BASE_URL && process.env.MEM0_API_KEY);
+  try {
+    getMem0Config();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -86,7 +91,7 @@ export function isMem0Available(): boolean {
  * non-2xx so callers can classify the failure.
  */
 export async function mem0Ping(): Promise<void> {
-  if (!isMem0Available()) throw new Error("Mem0 not configured");
+  getMem0Config(); // throws with a descriptive error if env vars are missing
   await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=1`, "GET");
 }
 
