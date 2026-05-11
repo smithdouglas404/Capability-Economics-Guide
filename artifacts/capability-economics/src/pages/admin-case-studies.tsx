@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, RefreshCw, Star, StarOff, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, RefreshCw, Star, StarOff, Loader2, ExternalLink, KeyRound, Copy, CheckCircle2, Eye } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,15 @@ interface CaseStudyRow {
   generatedAt: string;
 }
 
+interface EconomicsBreakdown {
+  companyName: string;
+  eventTitle: string;
+  costBreakdown: Array<{ label: string; amountUsdMm: number }>;
+  valueGeneratedUsdMm: number;
+  unlockedUsdMm: number;
+  sources: Array<{ url: string; title: string }>;
+}
+
 const ADMIN_KEY_STORAGE = "ce.admin-key";
 
 function getAdminKey(): string | null {
@@ -52,6 +61,11 @@ export default function AdminCaseStudiesPage() {
   const [regenerating, setRegenerating] = useState<Record<number, boolean>>({});
   const [companyInputs, setCompanyInputs] = useState<Record<number, string>>({});
   const [adminKey, setAdminKey] = useState<string>(getAdminKey() ?? "");
+  const [rotating, setRotating] = useState(false);
+  const [newKeyJustRotated, setNewKeyJustRotated] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [previewId, setPreviewId] = useState<number | null>(null);
+  const [previewBreakdown, setPreviewBreakdown] = useState<EconomicsBreakdown | null>(null);
 
   function persistAdminKey(v: string) {
     setAdminKey(v);
@@ -122,6 +136,58 @@ export default function AdminCaseStudiesPage() {
     }
   }
 
+  async function rotateAdminKey() {
+    if (!confirm("Generate a NEW admin key? The current key stops working immediately. You'll get the new value once — copy it into your password manager + paste back into the field below.")) return;
+    setRotating(true);
+    setError(null);
+    setNewKeyJustRotated(null);
+    try {
+      const res = await fetch("/api/admin/security/rotate-admin-key", {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ reason: "manual rotation from admin UI" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "Unknown" }));
+        setError(`Rotation failed: ${body.error ?? res.status}`);
+        return;
+      }
+      const data = await res.json() as { newKey: string };
+      setNewKeyJustRotated(data.newKey);
+      // Auto-replace the current admin key in localStorage so the UI keeps
+      // working post-rotation.
+      persistAdminKey(data.newKey);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setRotating(false);
+    }
+  }
+
+  async function copyNewKey() {
+    if (!newKeyJustRotated) return;
+    try {
+      await navigator.clipboard.writeText(newKeyJustRotated);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError("Clipboard write failed — select the value manually");
+    }
+  }
+
+  async function loadPreview(id: number, industrySlug: string) {
+    setPreviewId(id);
+    setPreviewBreakdown(null);
+    try {
+      const res = await fetch(`/api/case-study/${industrySlug}/economics-breakdown`);
+      if (!res.ok) return;
+      const data = await res.json() as { economicsBreakdown: EconomicsBreakdown | null };
+      setPreviewBreakdown(data.economicsBreakdown);
+    } catch {
+      // ignore
+    }
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-6xl">
       <div className="mb-6">
@@ -137,20 +203,60 @@ export default function AdminCaseStudiesPage() {
 
       <Card className="rounded-none border-border/60 mb-4">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Admin key</CardTitle>
+          <CardTitle className="text-sm flex items-center gap-2">
+            <KeyRound className="w-3.5 h-3.5" /> Admin key
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-3">
           <Label htmlFor="admin-key" className="text-xs text-muted-foreground">
-            Pasted once and stored in localStorage. Required for the admin endpoints.
+            Pasted once and stored in localStorage. Required for the admin endpoints. Use <strong>Rotate</strong> to generate a new value when the current one is compromised or stale.
           </Label>
-          <Input
-            id="admin-key"
-            type="password"
-            value={adminKey}
-            onChange={e => persistAdminKey(e.target.value)}
-            placeholder="X-Admin-Key value"
-            className="rounded-none font-mono text-xs"
-          />
+          <div className="flex gap-2">
+            <Input
+              id="admin-key"
+              type="password"
+              value={adminKey}
+              onChange={e => persistAdminKey(e.target.value)}
+              placeholder="X-Admin-Key value"
+              className="rounded-none font-mono text-xs flex-1"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="rounded-none text-[11px]"
+              onClick={rotateAdminKey}
+              disabled={rotating}
+            >
+              {rotating
+                ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                : <RefreshCw className="w-3 h-3 mr-1" />}
+              Rotate key
+            </Button>
+          </div>
+          {newKeyJustRotated && (
+            <div className="border border-amber-500/40 bg-amber-500/10 p-3 space-y-2 text-xs">
+              <div className="font-mono uppercase tracking-wider text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                <KeyRound className="w-3 h-3" /> New admin key — save now, shown ONCE
+              </div>
+              <div className="font-mono text-xs break-all bg-background border border-border/60 p-2 select-all">
+                {newKeyJustRotated}
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-muted-foreground text-[11px]">
+                  The previous key stopped working immediately. Copy to your password manager. localStorage has already been updated.
+                </p>
+                <Button type="button" size="sm" variant="outline" className="rounded-none text-[11px]" onClick={copyNewKey}>
+                  {copied
+                    ? <><CheckCircle2 className="w-3 h-3 mr-1 text-emerald-500" /> Copied</>
+                    : <><Copy className="w-3 h-3 mr-1" /> Copy</>}
+                </Button>
+              </div>
+            </div>
+          )}
+          <p className="text-[10px] text-muted-foreground">
+            Rotations are logged with a sha256 hash of the previous key (never the plaintext) in <code>system_secrets.audit_log</code> — blockchain-anchor-ready when that infrastructure ships.
+          </p>
         </CardContent>
       </Card>
 
@@ -240,6 +346,17 @@ export default function AdminCaseStudiesPage() {
                             : <><Star className="w-3 h-3 mr-1" /> Feature</>}
                         </Button>
                       </div>
+                      {r.hasEconomicsBreakdown && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-none text-[11px] w-full"
+                          onClick={() => loadPreview(r.id, r.industrySlug)}
+                        >
+                          <Eye className="w-3 h-3 mr-1" />
+                          Preview analogy card
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -248,6 +365,83 @@ export default function AdminCaseStudiesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Preview pane — renders the analogy-card layout for the selected row. */}
+      {previewId !== null && (
+        <Card className="rounded-none border-border/60 mt-6">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Preview — homepage analogy card</span>
+              <Button size="sm" variant="ghost" onClick={() => { setPreviewId(null); setPreviewBreakdown(null); }} className="rounded-none text-[11px]">
+                Close
+              </Button>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {previewBreakdown === null ? (
+              <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading breakdown…</div>
+            ) : (
+              <div className="grid md:grid-cols-[1fr_320px] gap-6 max-w-4xl">
+                <div className="space-y-3 text-sm">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+                    {previewBreakdown.companyName} — {previewBreakdown.eventTitle}
+                  </div>
+                  <h3 className="font-serif text-xl tracking-tight">How this renders on the homepage:</h3>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    The card on the right replaces the "Traditional view → Capability view → Value unlocked" trio on the homepage analogy section. Hit <strong>Feature</strong> to make this the live homepage card.
+                  </p>
+                  <div className="border-t border-border/40 pt-3">
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Sources</div>
+                    <ul className="space-y-1">
+                      {previewBreakdown.sources.map((s, i) => (
+                        <li key={i} className="text-xs">
+                          <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                            {s.title}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {previewBreakdown.costBreakdown[0] && (
+                    <div className="border border-border/50 bg-background p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1">Traditional view</div>
+                          <div className="font-serif text-lg tracking-tight">{previewBreakdown.costBreakdown[0].label}</div>
+                        </div>
+                        <div className="font-mono text-xl font-light tabular-nums text-foreground/40">${previewBreakdown.costBreakdown[0].amountUsdMm.toFixed(1)}M</div>
+                      </div>
+                    </div>
+                  )}
+                  {previewBreakdown.costBreakdown[1] && (
+                    <div className="border border-accent/30 bg-accent/[0.04] p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1">Capability view</div>
+                          <div className="font-serif text-lg tracking-tight">{previewBreakdown.costBreakdown[1].label}</div>
+                        </div>
+                        <div className="font-mono text-xl font-light tabular-nums text-foreground/60">${previewBreakdown.costBreakdown[1].amountUsdMm.toFixed(1)}M</div>
+                      </div>
+                      <div className="font-mono text-[10px] text-muted-foreground mt-2">
+                        Value generated: <span className="text-accent">${previewBreakdown.valueGeneratedUsdMm.toFixed(1)}M</span>
+                        {" · "}
+                        {(previewBreakdown.valueGeneratedUsdMm / previewBreakdown.costBreakdown[1].amountUsdMm).toFixed(1)}× return
+                      </div>
+                    </div>
+                  )}
+                  <div className="border border-border/40 bg-background p-3 flex items-center justify-between">
+                    <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">Unlocked</span>
+                    <span className="font-serif text-lg text-accent font-medium">+${previewBreakdown.unlockedUsdMm.toFixed(1)}M</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

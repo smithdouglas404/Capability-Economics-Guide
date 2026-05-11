@@ -42,26 +42,37 @@ const TARGETS: SeedTarget[] = [
   { industrySlug: "retail",       companyName: "Walmart Inc.",           transformationHint: "supply-chain automation, omnichannel fulfillment investment vs digital sales contribution" },
   { industrySlug: "healthcare",   companyName: "UnitedHealth Group",     transformationHint: "Optum data and AI platform investments, claims-automation savings" },
   { industrySlug: "manufacturing",companyName: "Caterpillar Inc.",       transformationHint: "Cat Connect / industrial-IoT fleet telematics, Services revenue contribution" },
+  // Additional rotation pool members — same industries as above (Insurance,
+  // Technology) but different companies/programs. case_studies has no
+  // unique constraint on industryId so multiple rows per industry coexist.
+  { industrySlug: "insurance",    companyName: "Allstate Corporation",   transformationHint: "Drivewise telematics program — loss-ratio impact, app-based onboarding" },
+  { industrySlug: "technology",   companyName: "Sunrun Inc.",            transformationHint: "Residential solar operations platform — fleet management, customer acquisition cost reduction" },
 ];
 
-async function ensureCaseStudyForIndustry(industryId: number, industryName: string): Promise<typeof caseStudiesTable.$inferSelect | null> {
-  // Prefer the featured row; otherwise the most recent. Mirror the pattern
-  // in /api/featured-case-study.
-  const existingRows = await db
+/**
+ * Find an existing case_studies row in the given industry whose
+ * economics_breakdown is for the named company. Returns null if no match.
+ * Used to make the seed idempotent across multiple companies per industry.
+ */
+async function findCaseStudyForCompany(industryId: number, companyName: string): Promise<typeof caseStudiesTable.$inferSelect | null> {
+  const rows = await db
     .select()
     .from(caseStudiesTable)
     .where(eq(caseStudiesTable.industryId, industryId));
-  const featured = existingRows.find(r => r.isFeatured) ?? existingRows[0];
-  if (featured) return featured;
+  const match = rows.find(r => r.economicsBreakdown?.companyName === companyName);
+  return match ?? null;
+}
 
-  // Create a stub. The agent's generateCaseStudyContent flow can later
-  // regenerate executive_summary / situation / recommendations on top of
-  // the same row; the economics_breakdown we attach is independent of
-  // those fields.
+/**
+ * Create a stub case_studies row for a target. The agent's
+ * generateCaseStudyContent flow can later regenerate the narrative fields
+ * (executive_summary, situation, recommendations) on top of the same row.
+ */
+async function createStubCaseStudy(industryId: number, industryName: string, companyName: string): Promise<typeof caseStudiesTable.$inferSelect> {
   const [created] = await db.insert(caseStudiesTable).values({
     industryId,
-    title: `${industryName} capability transformation — featured analogy`,
-    executiveSummary: `Reference economics for a real ${industryName.toLowerCase()} sector capability program. Pulled from public filings; see economics_breakdown.sources for citations.`,
+    title: `${companyName} — ${industryName} capability transformation`,
+    executiveSummary: `Reference economics for ${companyName}'s capability program in the ${industryName.toLowerCase()} sector. Pulled from public filings; see economics_breakdown.sources for citations.`,
     situation: "Auto-generated stub — regenerate with the case-study agent to populate the full narrative.",
     challenges: [],
     recommendations: [],
@@ -101,16 +112,15 @@ async function main(): Promise<void> {
       skipped += 1;
       continue;
     }
-    const caseStudy = await ensureCaseStudyForIndustry(industry.id, industry.name);
-    if (!caseStudy) {
-      console.log(`[seed:case-study-economics] could not get/create case study for ${industry.name} — skipping`);
-      skipped += 1;
-      continue;
-    }
-    if (caseStudy.economicsBreakdown) {
+    // Idempotency: look for an existing row with this company's breakdown.
+    let caseStudy = await findCaseStudyForCompany(industry.id, target.companyName);
+    if (caseStudy?.economicsBreakdown) {
       console.log(`[seed:case-study-economics] ${industry.name}/${target.companyName}: already populated, skipping`);
       skipped += 1;
       continue;
+    }
+    if (!caseStudy) {
+      caseStudy = await createStubCaseStudy(industry.id, industry.name, target.companyName);
     }
     console.log(`[seed:case-study-economics] researching ${target.companyName} in ${industry.name}…`);
     const breakdown = await researchEconomicsBreakdown({

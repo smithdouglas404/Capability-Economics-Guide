@@ -75,6 +75,7 @@ import subscriptionsRouter from "./subscriptions";
 import exportsRouter from "./exports";
 import apiVolumeRouter from "./api-volume";
 import metricsRouter from "./metrics";
+import adminSecurityRouter from "./admin-security";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -184,5 +185,6 @@ router.use(nlQueryRouter);
 router.use(regulationsRouter);
 router.use(collaborationRouter);
 router.use(metricsRouter);
+router.use(adminSecurityRouter);
 
 export default router;

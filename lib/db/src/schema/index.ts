@@ -16,6 +16,7 @@ export * from "./case-studies";
 export * from "./vce";
 export * from "./alpha";
 export * from "./alpha-config";
+export * from "./system-secrets";
 export * from "./membership";
 export * from "./memory-graph";
 export * from "./macro-events";
