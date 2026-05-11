@@ -1,9 +1,10 @@
 import type { Request, Response, NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { db } from "@workspace/db";
 import { systemSecretsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { anchorSecurityViolation } from "./rateLimit";
 
 const adminCache = new Map<string, { isAdmin: boolean; expiresAt: number }>();
 const CACHE_TTL_MS = 60_000;
@@ -88,6 +89,21 @@ export async function requireAdmin(req: Request, res: Response, next: NextFuncti
   if (expected && typeof provided === "string" && constantTimeStringEq(provided, expected)) {
     next();
     return;
+  }
+
+  // High-signal security event: someone presented an x-admin-key header
+  // that didn't match the current value. Anchor it. (Throttled inside
+  // anchorSecurityViolation to one per IP+endpoint+hour.)
+  if (typeof provided === "string" && provided.length > 0) {
+    const ip = (req.ip ?? req.socket.remoteAddress ?? "unknown").toString();
+    const ipHash = createHash("sha256").update(ip).digest("hex");
+    void anchorSecurityViolation("admin_auth_failed", {
+      bucket: `admin_auth:${ipHash}:${req.method}:${req.path}`,
+      ipHash,
+      method: req.method,
+      path: req.path,
+      providedKeyLength: provided.length,
+    });
   }
 
   res.status(401).json({ error: "Unauthorized" });

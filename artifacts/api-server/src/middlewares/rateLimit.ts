@@ -145,6 +145,34 @@ function currentDay(): string {
 
 export const VOLUME_24H_KEY_PREFIX = "ce:apivol:";
 
+/**
+ * Anchor a security violation to Hedera. Throttled so a misbehaving client
+ * doesn't blow up the chain — at most one anchor per (eventType + bucket
+ * key) per hour. The bucket key is whatever identifier you pass in `context`
+ * (typically rate-limit bucket id or IP hash).
+ */
+const securityAnchorThrottle = new Map<string, number>();
+const SECURITY_ANCHOR_THROTTLE_MS = 60 * 60 * 1000;
+
+export async function anchorSecurityViolation(
+  reason: string,
+  context: Record<string, string | number | boolean | null>,
+): Promise<void> {
+  const key = `${reason}:${context.bucket ?? context.ipHash ?? "unknown"}`;
+  const last = securityAnchorThrottle.get(key) ?? 0;
+  if (Date.now() - last < SECURITY_ANCHOR_THROTTLE_MS) return;
+  securityAnchorThrottle.set(key, Date.now());
+  try {
+    const { anchorEvent, canonicalHash } = await import("../services/blockchain-audit");
+    await anchorEvent("security_violation", {
+      contextHash: canonicalHash({ reason, ...context, ts: new Date().toISOString() }),
+      contextSnapshot: { reason, ...context },
+    });
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), reason }, "[rateLimit] anchor failed (non-fatal)");
+  }
+}
+
 export function rateLimitMiddleware() {
   return async function rateLimit(req: Request, res: Response, next: NextFunction): Promise<void> {
     if (shouldSkip(req.originalUrl)) { next(); return; }
@@ -203,6 +231,15 @@ export function rateLimitMiddleware() {
         tier: id.tier,
         limitPerMin: limit,
         retryAfterSec: retryAfter,
+      });
+      // Anchor this as a security incident. Throttled: at most one anchor per
+      // (bucket, hour) — see anchorSecurityViolation for the throttle.
+      void anchorSecurityViolation("rate_limit_exceeded", {
+        bucket: id.bucket,
+        tier: id.tier,
+        path: req.originalUrl,
+        usedThisMinute: used,
+        limitPerMin: limit,
       });
       return;
     }

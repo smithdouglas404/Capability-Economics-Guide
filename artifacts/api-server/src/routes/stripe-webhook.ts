@@ -57,9 +57,36 @@ router.post("/stripe/webhook", express.raw({ type: "application/json" }), async 
           const rows = await db.update(marketplacePurchasesTable).set(updates).where(and(
             eq(marketplacePurchasesTable.listingId, listingId),
             eq(marketplacePurchasesTable.stripeCheckoutSessionId, sessionFull.id ?? ""),
-          )).returning({ id: marketplacePurchasesTable.id, buyerClerkOrgId: marketplacePurchasesTable.buyerClerkOrgId });
+          )).returning({ id: marketplacePurchasesTable.id, buyerClerkOrgId: marketplacePurchasesTable.buyerClerkOrgId, priceCents: marketplacePurchasesTable.priceCents });
           if (rows.length > 0) {
             console.log(`[stripe webhook] marketplace purchase ${rows[0].id} marked paid (scope=${rows[0].buyerClerkOrgId ? "team" : "personal"}, buyerUser=${buyerClerkUserId ?? "—"})`);
+
+            // Anchor the sale on Hedera. No PII / payment details on chain —
+            // we hash the buyer identity + Stripe session id and publish only
+            // the public listing + price + outcome.
+            try {
+              const { anchorEvent, canonicalHash } = await import("../services/blockchain-audit");
+              const sensitivePayload = {
+                buyerClerkUserId,
+                buyerClerkOrgId,
+                buyerEmail: sessionFull.customer_details?.email ?? null,
+                stripeSessionId: sessionFull.id,
+                stripePaymentIntentId: paymentIntentId,
+              };
+              void anchorEvent("marketplace_purchase", {
+                contextHash: canonicalHash(sensitivePayload),
+                contextSnapshot: {
+                  purchaseId: rows[0].id,
+                  listingId,
+                  priceCents: rows[0].priceCents,
+                  scope: rows[0].buyerClerkOrgId ? "team" : "personal",
+                  buyerIdentityHash: canonicalHash({ buyerClerkUserId, buyerClerkOrgId }),
+                },
+                relatedEntity: `marketplace_purchases:${rows[0].id}`,
+              });
+            } catch (err) {
+              console.error("[stripe webhook] anchor failed (non-fatal):", err);
+            }
           }
         }
         res.json({ received: true });
