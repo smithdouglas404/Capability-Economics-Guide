@@ -112,8 +112,8 @@ If the env var is unset, both seeds short-circuit at the top and insert nothing 
 
 | File | Email | Status |
 |---|---|---|
-| `scripts/src/seed-marketplace-listings.ts:7` | `research@capability-economics.local` (invalid TLD) | Changed to `research@capability-economics.com` |
-| `services/marketplace-seed.ts:309` | `research@capability-economics.com` | Already valid — no change |
+| `scripts/src/seed-marketplace-listings.ts:7` | `research@capability-economics.local` (invalid TLD) | Changed to `research@capabilityeconomics.com` |
+| `services/marketplace-seed.ts:309` | `research@capabilityeconomics.com` | Already valid — no change |
 | `routes/sec.ts`, `assess.ts` | `research@capabilityeconomics.ai` | User-Agent header on Perplexity calls, not user-facing — fine |
 
 ### 3.4 Fallback / placeholder patterns
@@ -144,7 +144,7 @@ Several services export `_resetXForTest()` helpers: `coverage.ts`, `semantic-sea
 | `/workbench/example` | `pages/workbench-example.tsx` | **Sign-in required** | 8-card Kanban board with illustrative metrics. |
 | `/vce` "Try with sample brief" button | `pages/vce.tsx` | **Hidden when not signed-in** | Hardcoded "Atlas Copper Holdings" brief. |
 | `/insurance-example` | `pages/insurance-example.tsx` | none | Legacy redirect — harmless. |
-| `/security` | `pages/security.tsx` | none (intentionally public — compliance page) | Email replaced from `security@example.com` → `security@capability-economics.com`. |
+| `/security` | `pages/security.tsx` | none (intentionally public — compliance page) | Email replaced from `security@example.com` → `security@capabilityeconomics.com`. |
 
 ### 4.2 Placeholder text in forms (resolved)
 
@@ -175,7 +175,7 @@ The `"Patterns not yet seeded. Run POST /api/admin/patterns/seed with admin auth
 | Demo pages (`/demo`, `/workbench/example`) | **Auth-gate both** | New `RequireAuth` wrapper in `App.tsx` using Clerk's `useAuth()`. `/vce` sample-brief CTA conditional-rendered. |
 | Marketplace seeds | **Env-var-gated real test Connect account** | Both seeds read `DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID`; if unset they no-op. |
 | `APP_BASE_URL` on api-server | **Leave as-is** | Revisit when a custom production domain is provisioned. |
-| `security@example.com` replacement | **`security@capability-economics.com`** | Matches the valid domain already used in marketplace-seed.ts. |
+| `security@example.com` replacement | **`security@capabilityeconomics.com`** | Matches the valid domain already used in marketplace-seed.ts. |
 
 ---
 
@@ -188,7 +188,7 @@ The `"Patterns not yet seeded. Run POST /api/admin/patterns/seed with admin auth
 
 ### 6.B One-time Stripe setup (when demo marketplace is desired)
 
-1. Stripe Dashboard (test mode) → Connected accounts → **Create test Express account** with email `research@capability-economics.com`, country US.
+1. Stripe Dashboard (test mode) → Connected accounts → **Create test Express account** with email `research@capabilityeconomics.com`, country US.
 2. Complete the test-mode Express onboarding (Stripe accepts dummy SSN / bank routing numbers in test mode — onboarding completes in ~30 s and flips `charges_enabled: true`).
 3. Copy the resulting `acct_xxx` ID.
 4. Railway → `capabilityeconomics` service → Variables → add `DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID=acct_xxx`. Save → service redeploys → next deploy populates the demo listings.
@@ -223,7 +223,7 @@ docs/limited-production-readiness.md                        (this document)
 4. **Marketplace gating:**
    - Without the env var: `GET /api/marketplace/listings` returns 0 items at boot; no `acct_xxx` seller strings in the database.
    - With the env var set to a real test Connect account: listings are present and Stripe Checkout completes with a Stripe test card (`4242 4242 4242 4242`).
-5. **Security page:** `/security` shows `security@capability-economics.com`, not `@example.com`.
+5. **Security page:** `/security` shows `security@capabilityeconomics.com`, not `@example.com`.
 6. **Form placeholders:** `/account`, `/organization`, and a manual-comp-form context show no `Acme` strings.
 7. **Admin auth:** `curl -H "X-Admin-Key: <ADMIN_API_KEY>" https://capabilityeconomics-staging.up.railway.app/api/admin/...` returns 200; without the header it returns 401.
 

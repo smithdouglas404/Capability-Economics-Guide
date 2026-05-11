@@ -274,7 +274,7 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
       version: "1.0.0",
       description:
         "Stable, versioned access to industries, capabilities, the Capability Economic Index (CEI), macro events, and value-chain stages. Authenticate every request with `Authorization: Bearer ce_live_...`. Issue a key at /developers.",
-      contact: { name: "Capability Economics", url: "https://capability-economics.com" },
+      contact: { name: "Capability Economics", url: "https://capabilityeconomics.com" },
     },
     servers: [{ url: serverUrl, description: "Production" }],
     security: [{ bearerAuth: [] }],

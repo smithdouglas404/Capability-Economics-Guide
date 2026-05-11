@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 const SEED_SELLER_USER_ID = "seed_platform_seller";
 const SEED_SELLER_DISPLAY_NAME = "Capability Economics Research";
-const SEED_SELLER_EMAIL = "research@capability-economics.com";
+const SEED_SELLER_EMAIL = "research@capabilityeconomics.com";
 
 const day = 24 * 60 * 60 * 1000;
 const daysFromNow = (n: number) => new Date(Date.now() + n * day);

@@ -323,7 +323,7 @@ async function ensureSeedSeller(stripeAccountId: string): Promise<typeof marketp
   }
   const [created] = await db.insert(marketplaceSellersTable).values({
     userId: SEED_SELLER_USER_ID,
-    email: "research@capability-economics.com",
+    email: "research@capabilityeconomics.com",
     displayName: "Capability Economics Research",
     stripeAccountId,
     chargesEnabled: true,

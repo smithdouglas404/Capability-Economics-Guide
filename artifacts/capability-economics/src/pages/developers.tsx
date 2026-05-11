@@ -374,17 +374,17 @@ export default function DevelopersPage() {
               <div>
                 <div className="font-medium mb-1">Inspect your key</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  https://capability-economics.com/v1/me`}</pre>
+  https://capabilityeconomics.com/v1/me`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">Latest CEI snapshot</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  https://capability-economics.com/v1/cei/current`}</pre>
+  https://capabilityeconomics.com/v1/cei/current`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">List capabilities for an industry</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  "https://capability-economics.com/v1/capabilities?industrySlug=insurance&limit=50"`}</pre>
+  "https://capabilityeconomics.com/v1/capabilities?industrySlug=insurance&limit=50"`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">Response headers</div>
