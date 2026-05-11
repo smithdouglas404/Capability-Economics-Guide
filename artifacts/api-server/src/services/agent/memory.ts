@@ -65,7 +65,7 @@ async function mem0Fetch(
     method,
     headers: {
       "Content-Type": "application/json",
-      "X-API-Key": cfg.apiKey,
+      Authorization: `Bearer ${cfg.apiKey}`,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
