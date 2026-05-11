@@ -81,9 +81,9 @@ type FinalReport = {
 const KIND_COLORS: Record<string, string> = {
   capability_gap: "bg-rose-100 text-rose-800 border-rose-200",
   opportunity: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  recommendation: "bg-blue-100 text-blue-800 border-blue-200",
+  recommendation: "bg-primary/10 text-primary border-primary/20",
   risk: "bg-amber-100 text-amber-800 border-amber-200",
-  insight: "bg-violet-100 text-violet-800 border-violet-200",
+  insight: "bg-accent/10 text-accent-foreground border-accent/20",
   benchmark: "bg-muted/50 text-muted-foreground border-border/40",
   evidence_gap: "bg-orange-100 text-orange-800 border-orange-200",
   contradiction: "bg-red-100 text-red-800 border-red-200",
@@ -91,10 +91,10 @@ const KIND_COLORS: Record<string, string> = {
 
 const CYCLE_STATUS_COLOR: Record<string, string> = {
   scheduled: "bg-muted/50 text-muted-foreground",
-  planning: "bg-blue-100 text-blue-700 animate-pulse",
-  researching: "bg-violet-100 text-violet-700 animate-pulse",
+  planning: "bg-primary/10 text-primary animate-pulse",
+  researching: "bg-primary/10 text-primary animate-pulse",
   critiquing: "bg-amber-100 text-amber-700 animate-pulse",
-  synthesizing: "bg-blue-100 text-blue-700 animate-pulse",
+  synthesizing: "bg-primary/10 text-primary animate-pulse",
   completed: "bg-emerald-100 text-emerald-700",
   failed: "bg-rose-100 text-rose-700",
 };
@@ -175,15 +175,15 @@ export default function VCEPage() {
                       <button
                         key={a.id}
                         onClick={() => setSelectedId(a.id)}
-                        className={`w-full text-left p-3 rounded-none border transition ${selectedId === a.id ? "border-violet-400 bg-violet-50 shadow-sm" : "hover:bg-muted/50"}`}
+                        className={`w-full text-left p-3 rounded-none border transition ${selectedId === a.id ? "border-primary bg-primary/5 shadow-sm" : "hover:bg-muted/50"}`}
                       >
                         <div className="font-medium text-sm truncate">{a.clientName}</div>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <StatusBadge status={a.status} />
                           <span className="text-xs text-muted-foreground">Day {a.currentCycle}/{a.totalCycles}</span>
                         </div>
-                        <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                        <div className="mt-2 h-1.5 bg-muted rounded-none overflow-hidden">
+                          <div className="h-full bg-primary rounded-none transition-all" style={{ width: `${pct}%` }} />
                         </div>
                       </button>
                     );
@@ -220,35 +220,20 @@ export default function VCEPage() {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     planning: "bg-muted/50 text-muted-foreground",
-    active: "bg-blue-100 text-blue-700",
+    active: "bg-primary/10 text-primary",
     paused: "bg-amber-100 text-amber-700",
-    review: "bg-violet-100 text-violet-700",
+    review: "bg-primary/10 text-primary",
     finalized: "bg-emerald-100 text-emerald-700",
     cancelled: "bg-rose-100 text-rose-700",
   };
   return <Badge variant="outline" className={`${map[status] ?? ""} text-xs border-transparent`}>{status}</Badge>;
 }
 
-// A real, citation-grounded sample brief so a buyer clicking "Try with sample"
-// sees the agent doing real work end-to-end without having to write their own.
-// Public sources: BHP FY24 results (bhp.com), IEA Critical Minerals Outlook 2024
-// (iea.org), Wood Mackenzie copper deficit forecasts (woodmac.com).
-const SAMPLE_BRIEF = {
-  clientName: "Atlas Copper Holdings",
-  valueCase: `Atlas Copper Holdings is a mid-tier copper producer (~280kt Cu/yr) operating two open-pit mines in Chile and one underground mine in Zambia. Average head grade has fallen from 0.82% to 0.54% over the past decade, mirroring the industry-wide grade decline (BHP FY24 results show similar patterns at Escondida, where grade dropped ~30% over 10 years). All-in sustaining cost (AISC) has risen to $3.10/lb against a 2025 LME copper price of ~$4.20/lb.
-
-The board has earmarked $1.2B for capability investment over the next 3 years and is debating where to deploy it. Three theses are on the table:
-
-1. AUTONOMOUS HAULAGE: Catch up to Rio Tinto and BHP, who have ~80% of haul fleets autonomous at flagship operations. Atlas is at 0%. Vendor quotes suggest 15-22% opex reduction on haulage.
-
-2. ORE-SORTING & SENSOR-BASED PRE-CONCENTRATION: Lift effective head grade by rejecting waste before milling. Limited mid-tier deployments to date; technology risk is real.
-
-3. RENEWABLE POWER + STORAGE PPAs: Power is 28% of AISC. BHP has signed 100% renewable PPAs at Escondida (2022). Atlas is on grid power at $0.11/kWh; PPA quotes are $0.06-0.08/kWh.
-
-Strategic question: where does $1.2B go to defend margin against grade decline AND position for the IEA-projected copper demand doubling by 2040 (IEA Critical Minerals Outlook 2024)? What capability gap is most exposed if copper enters the structural deficit Wood Mackenzie forecasts post-2027?
-
-Constraints: must keep net debt / EBITDA below 1.8x; community license-to-operate in Zambia is fragile; CTO retiring in 18 months.`,
-};
+// SAMPLE_BRIEF used to be a hardcoded "Atlas Copper Holdings" mining case
+// hardwired into the bundle. Now loaded from /api/vce/sample-brief at click
+// time, which returns an anonymized real completed assessment. See
+// docs/Must Fix/PLAN.md item #8.
+type SampleBrief = { clientName: string; valueCase: string };
 
 function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; onCreated: (a: Assessment) => void }) {
   const { isSignedIn } = useAuth();
@@ -260,11 +245,29 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function loadSample() {
-    setClientName(SAMPLE_BRIEF.clientName);
-    setValueCase(SAMPLE_BRIEF.valueCase);
-    setSource("typed");
+  const [sampleLoading, setSampleLoading] = useState(false);
+  async function loadSample() {
+    setSampleLoading(true);
     setError(null);
+    try {
+      const res = await fetch(`${apiBase}/api/vce/sample-brief`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          setError("No sample brief available yet — once any real assessment completes, this button will load it for testing.");
+        } else {
+          setError(`Failed to load sample (${res.status})`);
+        }
+        return;
+      }
+      const data = (await res.json()) as SampleBrief;
+      setClientName(data.clientName);
+      setValueCase(data.valueCase);
+      setSource("typed");
+    } catch {
+      setError("Network error loading sample brief");
+    } finally {
+      setSampleLoading(false);
+    }
   }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -308,8 +311,11 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
             <p className="text-sm text-muted-foreground mt-1">A multi-day agent plans each cycle, runs deep web research, cross-validates every claim against its sources, and asks the client follow-up questions. Findings and questions all land in the single-pane inbox for review.</p>
           </div>
           {isSignedIn ? (
-            <Button type="button" size="sm" variant="outline" onClick={loadSample} className="flex-shrink-0">
-              <Sparkles className="w-3.5 h-3.5 mr-1.5" />Try with sample brief
+            <Button type="button" size="sm" variant="outline" onClick={loadSample} disabled={sampleLoading} className="flex-shrink-0">
+              {sampleLoading
+                ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+              Try with sample brief
             </Button>
           ) : null}
         </div>
@@ -341,12 +347,12 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
           <div className="flex items-center justify-between mb-2">
             <Label>Value case</Label>
             <div className="flex items-center gap-1 text-xs">
-              <button type="button" onClick={() => setSource("typed")} className={`px-2 py-1 rounded inline-flex items-center gap-1 ${source === "typed" ? "bg-violet-100 text-violet-700" : "text-muted-foreground"}`}><Type className="w-3 h-3" />Typed</button>
-              <label className={`px-2 py-1 rounded inline-flex items-center gap-1 cursor-pointer ${source === "uploaded" ? "bg-violet-100 text-violet-700" : "text-muted-foreground"}`}>
+              <button type="button" onClick={() => setSource("typed")} className={`px-2 py-1 rounded-none inline-flex items-center gap-1 ${source === "typed" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}><Type className="w-3 h-3" />Typed</button>
+              <label className={`px-2 py-1 rounded-none inline-flex items-center gap-1 cursor-pointer ${source === "uploaded" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}>
                 <Upload className="w-3 h-3" />Upload
                 <input type="file" className="hidden" accept=".txt,.md,.json,.csv" onChange={onFile} />
               </label>
-              <button type="button" onClick={() => setSource("voice_transcript")} className={`px-2 py-1 rounded inline-flex items-center gap-1 ${source === "voice_transcript" ? "bg-violet-100 text-violet-700" : "text-muted-foreground"}`}><Mic className="w-3 h-3" />Voice transcript</button>
+              <button type="button" onClick={() => setSource("voice_transcript")} className={`px-2 py-1 rounded-none inline-flex items-center gap-1 ${source === "voice_transcript" ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}><Mic className="w-3 h-3" />Voice transcript</button>
             </div>
           </div>
           <Textarea value={valueCase} onChange={e => setValueCase(e.target.value)} className="min-h-[220px] font-mono text-sm" placeholder={`Paste a partner-level brief on the situation. The richer this is, the sharper the research.
@@ -439,8 +445,8 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
         </CardHeader>
         <CardContent className="space-y-3">
           {assessment.objective && (
-            <div className="bg-violet-50 border border-violet-200 rounded-none p-3">
-              <p className="text-xs uppercase tracking-wide text-violet-700 font-semibold mb-1">Campaign Objective</p>
+            <div className="bg-primary/5 border border-primary/20 rounded-none p-3">
+              <p className="text-xs uppercase tracking-wide text-primary font-semibold mb-1">Campaign Objective</p>
               <p className="text-sm">{assessment.objective}</p>
             </div>
           )}
@@ -578,7 +584,7 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
             {item.contradictions?.length > 0 && <Badge variant="destructive" className="text-xs">{item.contradictions.length} contradictions</Badge>}
             {item.status === "approved" && <Badge className="text-xs bg-emerald-600">Approved</Badge>}
             {item.status === "rejected" && <Badge variant="destructive" className="text-xs">Rejected</Badge>}
-            {item.status === "edited" && <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700">Edited</Badge>}
+            {item.status === "edited" && <Badge variant="outline" className="text-xs bg-primary/10 text-primary">Edited</Badge>}
           </div>
           <h4 className="font-semibold text-sm">{item.title}</h4>
         </div>
@@ -606,8 +612,8 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
             <summary className="cursor-pointer text-xs text-muted-foreground">Full detail · {item.sources.length} sources</summary>
             <p className="text-sm mt-2 whitespace-pre-wrap leading-relaxed">{item.body}</p>
             {item.contradictions?.length > 0 && (
-              <div className="mt-3 bg-red-50 border border-red-200 rounded p-2">
-                <p className="text-xs font-medium text-red-800 mb-1">Contradictions flagged</p>
+              <div className="mt-3 bg-destructive/5 border border-destructive/20 rounded-none p-2">
+                <p className="text-xs font-medium text-destructive mb-1">Contradictions flagged</p>
                 <ul className="text-xs space-y-0.5 list-disc pl-4">{item.contradictions.map((c, i) => <li key={i}>{c}</li>)}</ul>
               </div>
             )}
@@ -615,7 +621,7 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
               <div className="mt-3">
                 <p className="text-xs font-medium text-muted-foreground mb-1">Sources</p>
                 <ul className="text-xs space-y-0.5">
-                  {item.sources.map((s, i) => <li key={i}><a href={s.url} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline truncate inline-block max-w-full">{s.title || s.url}</a></li>)}
+                  {item.sources.map((s, i) => <li key={i}><a href={s.url} target="_blank" rel="noreferrer" className="text-primary hover:underline truncate inline-block max-w-full">{s.title || s.url}</a></li>)}
                 </ul>
               </div>
             )}
@@ -681,10 +687,10 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
           <CardHeader className="pb-3"><CardTitle className="text-base">{client} <span className="text-muted-foreground font-normal text-sm">— {list.length} pending</span></CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {list.map(it => it._kind === "f" ? (
-              <div key={`f${it.id}`} className="border rounded-none p-3 flex items-start justify-between gap-3 bg-blue-50/30">
+              <div key={`f${it.id}`} className="border rounded-none p-3 flex items-start justify-between gap-3 bg-muted/20">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-transparent"><Bot className="w-3 h-3 mr-1" />Agent finding</Badge>
+                    <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-transparent"><Bot className="w-3 h-3 mr-1" />Agent finding</Badge>
                     <Badge variant="outline" className={`text-xs ${KIND_COLORS[(it.raw as InboxFinding).kind] ?? ""}`}>{(it.raw as InboxFinding).kind.replace(/_/g, " ")}</Badge>
                     <Badge variant="outline" className="text-xs">{Math.round((it.raw as InboxFinding).confidenceScore * 100)}%</Badge>
                     <Badge variant="outline" className="text-xs">{(it.raw as InboxFinding).evidenceCount} sources</Badge>
@@ -700,11 +706,11 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
                 </div>
               </div>
             ) : (
-              <div key={`q${it.id}`} className="border rounded-none p-3 bg-violet-50/30">
+              <div key={`q${it.id}`} className="border rounded-none p-3 bg-primary/5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <Badge variant="outline" className="text-xs bg-violet-100 text-violet-700 border-transparent"><MessageCircle className="w-3 h-3 mr-1" />Question for client</Badge>
+                      <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-transparent"><MessageCircle className="w-3 h-3 mr-1" />Question for client</Badge>
                       <Badge variant="outline" className="text-xs">priority {(it.raw as InboxQuestion).priority}</Badge>
                       {(it.raw as InboxQuestion).cycleId && <Badge variant="outline" className="text-xs">from cycle</Badge>}
                     </div>
@@ -735,7 +741,7 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
 
 function FinalReportView({ report, clientName }: { report: FinalReport; clientName: string }) {
   return (
-    <Card className="border-emerald-200 bg-gradient-to-br from-white to-emerald-50/40">
+    <Card className="border-emerald-200">
       <CardHeader>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-none bg-emerald-600 text-white flex items-center justify-center"><FileText className="w-5 h-5" /></div>
@@ -771,7 +777,7 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
           <section><h3 className="font-serif text-lg tracking-tight mb-3">Capability Quadrant Insights</h3>
             <div className="grid md:grid-cols-2 gap-3">
               <QuadrantBlock label="Hot" color="bg-amber-50 border-amber-200 text-amber-900" items={report.quadrantInsights.hot} />
-              <QuadrantBlock label="Emerging" color="bg-blue-50 border-blue-200 text-blue-900" items={report.quadrantInsights.emerging} />
+              <QuadrantBlock label="Emerging" color="bg-primary/5 border-primary/20 text-foreground" items={report.quadrantInsights.emerging} />
               <QuadrantBlock label="Cooling" color="bg-muted/30 border-border text-muted-foreground" items={report.quadrantInsights.cooling} />
               <QuadrantBlock label="Table-Stakes" color="bg-muted/20 border-border text-muted-foreground" items={report.quadrantInsights.tableStakes} />
             </div></section>

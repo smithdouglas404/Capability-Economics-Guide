@@ -266,6 +266,25 @@ function TierRow({ tier, billing, index }: { tier: Tier; billing: "monthly" | "a
   );
 }
 
+/**
+ * Compute the maximum annual-billing savings across tiers as a percentage.
+ * Returns null if no priced tier has both monthly and annual prices.
+ * Replaces the hardcoded "save ~17%" badge (PLAN.md item #11).
+ */
+function computeMaxAnnualSavingsPct(tiers: Tier[] | null): number | null {
+  if (!tiers) return null;
+  let best = 0;
+  for (const t of tiers) {
+    const monthly = t.monthlyPriceCents ?? 0;
+    const annual = t.annualPriceCents ?? 0;
+    if (monthly > 0 && annual > 0) {
+      const pct = ((monthly * 12 - annual) / (monthly * 12)) * 100;
+      if (pct > best) best = pct;
+    }
+  }
+  return best > 0 ? Math.round(best) : null;
+}
+
 export default function Membership() {
   const [tiers, setTiers] = useState<Tier[] | null>(null);
   const [billing, setBilling] = useState<"monthly" | "annual">("annual");
@@ -276,6 +295,8 @@ export default function Membership() {
       .then(setTiers)
       .catch(() => setTiers([]));
   }, []);
+
+  const annualSavingsPct = computeMaxAnnualSavingsPct(tiers);
 
   return (
     <div className="min-h-screen bg-background">
@@ -334,13 +355,13 @@ export default function Membership() {
               >
                 Annual
               </button>
-              {billing === "annual" && (
+              {billing === "annual" && annualSavingsPct !== null && (
                 <motion.span
                   initial={{ opacity: 0, x: -4 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="ml-1 px-2 py-0.5 bg-accent/15 text-accent normal-case tracking-normal text-[10px] font-sans"
                 >
-                  save ~17%
+                  save up to {annualSavingsPct}%
                 </motion.span>
               )}
             </div>

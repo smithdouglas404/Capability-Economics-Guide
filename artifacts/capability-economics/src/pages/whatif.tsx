@@ -62,13 +62,12 @@ interface WhatIfResult {
   narrative: string;
 }
 
-const SUGGESTED_EVENTS: Array<{ label: string; eventType: string; severity: number; direction: Sentiment; decayDays: number }> = [
-  { label: "Taiwan semiconductor restriction", eventType: "regulation", severity: 8, direction: "negative", decayDays: 180 },
-  { label: "Major LLM capability breakthrough", eventType: "tech_shift", severity: 6, direction: "positive", decayDays: 90 },
-  { label: "European data privacy escalation", eventType: "regulation", severity: 5, direction: "negative", decayDays: 365 },
-  { label: "Regional conflict / supply shock", eventType: "war", severity: 7, direction: "negative", decayDays: 90 },
-  { label: "Cross-industry AI productivity gains", eventType: "tech_shift", severity: 7, direction: "positive", decayDays: 120 },
-];
+// Preset shape — populated from /api/whatif/presets at mount time. The
+// hardcoded scenarios that used to live here ("Taiwan semiconductor
+// restriction", etc.) are gone — those weren't real signals. The presets
+// now come from real entries in the macro_events table populated by the
+// world-scanner. See docs/Must Fix/PLAN.md item #10.
+type WhatIfPreset = { label: string; eventType: string; severity: number; direction: Sentiment; decayDays: number };
 
 function DirIcon({ d }: { d: number | null }) {
   if (d === null || d === 0) return <Minus className="w-3.5 h-3.5 text-muted-foreground" />;
@@ -91,10 +90,15 @@ export default function WhatIfPage() {
   const [result, setResult] = useState<WhatIfResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [presets, setPresets] = useState<WhatIfPreset[]>([]);
 
   useEffect(() => {
     fetch(`${API_BASE}/industries`).then(r => r.json()).then((d: Industry[]) => setIndustries(d ?? [])).catch(() => {});
     fetch(`${API_BASE}/capabilities`).then(r => r.json()).then((d: Capability[]) => setCapabilities(d ?? [])).catch(() => {});
+    fetch(`${API_BASE}/whatif/presets`)
+      .then(r => r.json())
+      .then((d: { presets?: WhatIfPreset[] }) => setPresets(Array.isArray(d?.presets) ? d.presets : []))
+      .catch(() => setPresets([]));
   }, []);
 
   function toggleIndustry(id: number) {
@@ -108,7 +112,7 @@ export default function WhatIfPage() {
     setSelectedCaps(selectedCaps.filter(x => x !== id));
   }
 
-  function applyPreset(p: typeof SUGGESTED_EVENTS[number]) {
+  function applyPreset(p: WhatIfPreset) {
     setEventType(p.eventType);
     setSeverity(p.severity);
     setDirection(p.direction);
@@ -170,16 +174,18 @@ export default function WhatIfPage() {
 
       <Card className="rounded-none border-border/60">
         <CardContent className="p-5 space-y-4">
-          <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Quick presets</div>
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTED_EVENTS.map(p => (
-                <Button key={p.label} size="sm" variant="outline" onClick={() => applyPreset(p)} className="rounded-none text-xs h-7">
-                  {p.label}
-                </Button>
-              ))}
+          {presets.length > 0 && (
+            <div>
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Active macro events</div>
+              <div className="flex flex-wrap gap-2">
+                {presets.map(p => (
+                  <Button key={p.label} size="sm" variant="outline" onClick={() => applyPreset(p)} className="rounded-none text-xs h-7">
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>

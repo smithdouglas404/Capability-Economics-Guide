@@ -18,10 +18,10 @@ function Section({
   return (
     <section id={id} className="scroll-mt-24">
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-9 h-9 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+        <div className="w-9 h-9 rounded-none bg-primary/10 text-primary flex items-center justify-center">
           <Icon className="w-4 h-4" />
         </div>
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
+        <h2 className="font-serif text-2xl tracking-tight text-foreground">{title}</h2>
       </div>
       <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/85 leading-relaxed space-y-3">
         {children}
@@ -32,7 +32,7 @@ function Section({
 
 function Formula({ children }: { children: React.ReactNode }) {
   return (
-    <div className="my-3 px-4 py-3 rounded-md border border-border/60 bg-muted/40 font-mono text-[12.5px] text-foreground/90 overflow-x-auto whitespace-pre-wrap">
+    <div className="my-3 px-4 py-3 rounded-none border border-border/60 bg-muted/40 font-mono text-[12.5px] text-foreground/90 overflow-x-auto whitespace-pre-wrap">
       {children}
     </div>
   );
@@ -67,7 +67,7 @@ export default function Methodology() {
             </Badge>
             <Badge variant="secondary" className="text-[10px]">Public</Badge>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-foreground">
+          <h1 className="font-serif text-4xl sm:text-5xl tracking-tight text-foreground">
             How the Capability Economics Index is calculated
           </h1>
           <p className="mt-4 text-lg text-muted-foreground max-w-3xl leading-relaxed">
@@ -96,7 +96,7 @@ export default function Methodology() {
                 ))}
               </nav>
               <Separator className="my-4" />
-              <Card className="rounded-md">
+              <Card className="rounded-none">
                 <CardContent className="p-3 text-[11px] text-muted-foreground leading-relaxed">
                   Hover or focus any score in the app to see its sources, citation count,
                   last-updated time, and confidence band — every number traces back to this document.
@@ -147,7 +147,7 @@ export default function Methodology() {
                   { label: "Academic Researcher", weight: "0.20", note: "Peer-reviewed research and maturity models (CMMI, TDWI). Strong on causal claims, lagging on real-time signal." },
                   { label: "Industry Practitioner", weight: "0.20", note: "Seasoned CDO insight, CIO surveys (Harvey Nash, Foundry, Flexera). High realism on blockers and timelines, narrower sample." },
                 ].map((s) => (
-                  <Card key={s.label} className="rounded-md">
+                  <Card key={s.label} className="rounded-none">
                     <CardContent className="p-3">
                       <div className="flex items-center justify-between mb-1">
                         <div className="text-sm font-semibold">{s.label}</div>
@@ -308,7 +308,7 @@ export default function Methodology() {
                 Suppose we&apos;re scoring &ldquo;Generative AI in Underwriting&rdquo; inside the
                 Insurance industry. Four perspectives report:
               </p>
-              <div className="not-prose my-4 border border-border/60 rounded-md overflow-hidden">
+              <div className="not-prose my-4 border border-border/60 rounded-none overflow-hidden">
                 <table className="w-full text-xs font-mono responsive-table">
                   <thead className="bg-muted/50 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <tr>
@@ -364,6 +364,30 @@ export default function Methodology() {
                 share of, say, 7.4% (cited from an IMF release with sourceYear 2024), the industry
                 contributes <code>580 · 0.074 ≈ 42.9</code> to the global CEI numerator — one of dozens
                 of contributions summed across all industries with cited weights.
+              </p>
+            </Section>
+
+            <Section id="quadrant-multiples" icon={Calculator} title="Quadrant → EV multiples">
+              <p>
+                The /alpha tab translates a capability's quadrant into an
+                enterprise-value-equivalent dollar figure using annual-margin
+                multiples. The mapping comes from public-comp medians on growth-stage
+                SaaS / financial-services valuations as of 2024–2026:
+              </p>
+              <ul className="list-disc pl-5 space-y-1.5 mt-3">
+                <li><strong>Hot</strong> (rapid scoring, top-quartile velocity) — <code>15× annual margin</code>. Approximates rule-of-40 SaaS comps at high-growth tier.</li>
+                <li><strong>Emerging</strong> — <code>10×</code>. Mainstream growth-stage software.</li>
+                <li><strong>Cooling</strong> — <code>7×</code>. Mature SaaS / vertical infrastructure.</li>
+                <li><strong>Table stakes</strong> — <code>4×</code>. Commodity infrastructure, slow-growth utility tier.</li>
+                <li><strong>Declining</strong> — <code>1×</code>. Run-off business, no multiple expansion.</li>
+              </ul>
+              <p className="mt-3 text-muted-foreground">
+                These multiples are tunable via the <code>alpha_config</code> table
+                (no frontend deploy needed for adjustments) and live-fetched by
+                the /alpha tab via <code>GET /api/alpha/config/quadrant-multiples</code>.
+                They are not derived from any single capability's data — they
+                are an industry-wide valuation prior applied uniformly across
+                capabilities in the arbitrage view.
               </p>
             </Section>
 
