@@ -631,7 +631,7 @@ function PatternsSlide({ rows }: { rows: Pattern[] | null }) {
       ) : rows.length === 0 ? (
         <Card className="rounded-none border-amber-500/40 bg-amber-500/10">
           <CardContent className="p-6 text-sm text-center">
-            <p>Patterns not yet seeded. Run <code className="font-mono text-xs bg-muted px-1">POST /api/admin/patterns/seed</code> with admin auth.</p>
+            <p>Disruption patterns are still populating. Check back in a moment.</p>
           </CardContent>
         </Card>
       ) : (

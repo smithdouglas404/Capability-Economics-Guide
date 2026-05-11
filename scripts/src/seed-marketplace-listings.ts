@@ -1,5 +1,5 @@
 import { db, marketplaceSellersTable, marketplaceListingsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 const SEED_SELLER_USER_ID = "seed_platform_seller";
 const SEED_SELLER_STRIPE_ACCT = "acct_seed_platform_000000";
@@ -147,6 +147,15 @@ const LISTINGS: SeedListing[] = [
 ];
 
 async function seedMarketplaceListings() {
+  // Force chargesEnabled=false on the synthetic seed sellers regardless of
+  // their current DB state. Earlier seed runs flipped these to true; the
+  // public marketplace listings query now joins on chargesEnabled=true, so
+  // any row left as true would still leak demo listings to users.
+  await db
+    .update(marketplaceSellersTable)
+    .set({ chargesEnabled: false, payoutsEnabled: false, detailsSubmitted: false, updatedAt: new Date() })
+    .where(inArray(marketplaceSellersTable.stripeAccountId, [SEED_SELLER_STRIPE_ACCT, "acct_ce_demo_seller"]));
+
   const [existingSeller] = await db
     .select()
     .from(marketplaceSellersTable)
@@ -162,9 +171,9 @@ async function seedMarketplaceListings() {
       email: SEED_SELLER_EMAIL,
       displayName: SEED_SELLER_DISPLAY_NAME,
       stripeAccountId: SEED_SELLER_STRIPE_ACCT,
-      chargesEnabled: true,
-      payoutsEnabled: true,
-      detailsSubmitted: true,
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
     }).returning();
     sellerId = created.id;
     console.log(`[seed] Created seed seller (id=${sellerId})`);

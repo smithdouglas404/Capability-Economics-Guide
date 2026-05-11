@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -250,6 +251,7 @@ Constraints: must keep net debt / EBITDA below 1.8x; community license-to-operat
 };
 
 function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; onCreated: (a: Assessment) => void }) {
+  const { isSignedIn } = useAuth();
   const [clientName, setClientName] = useState("");
   const [industryId, setIndustryId] = useState<string>("none");
   const [valueCase, setValueCase] = useState("");
@@ -305,9 +307,11 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
             <CardTitle>Launch Research Campaign</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">A multi-day agent plans each cycle, runs deep web research, cross-validates every claim against its sources, and asks the client follow-up questions. Findings and questions all land in the single-pane inbox for review.</p>
           </div>
-          <Button type="button" size="sm" variant="outline" onClick={loadSample} className="flex-shrink-0">
-            <Sparkles className="w-3.5 h-3.5 mr-1.5" />Try with sample brief
-          </Button>
+          {isSignedIn && (
+            <Button type="button" size="sm" variant="outline" onClick={loadSample} className="flex-shrink-0">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" />Try with sample brief
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-5">

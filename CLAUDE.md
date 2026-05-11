@@ -121,7 +121,7 @@ Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railwa
 
 **api-server service** — wire to both:
 - `MEM0_BASE_URL=http://<mem0-service-name>.railway.internal:8000` — the internal hostname Railway assigned to the template's Mem0 service (visible under that service's Settings → Networking)
-- `MEM0_API_KEY=<ADMIN_API_KEY value from the Mem0 service>` — the api-server sends it as `Authorization: Bearer <key>`, which is the standard self-hosted Mem0 auth scheme (not `X-API-Key`)
+- `MEM0_API_KEY=<ADMIN_API_KEY value from the Mem0 service>` — the api-server sends it as `X-API-Key: <key>`, the auth scheme self-hosted Mem0 expects against `ADMIN_API_KEY` (see `artifacts/api-server/src/services/agent/memory.ts:74`)
 - `LETTA_BASE_URL=http://letta.railway.internal:8283`
 - `LETTA_API_KEY=<same value as LETTA_SERVER_PASSWORD on Letta service>`
 

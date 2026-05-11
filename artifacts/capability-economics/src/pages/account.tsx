@@ -464,7 +464,7 @@ export default function AccountPage() {
               <Label htmlFor="new-org">Create a new team</Label>
               <Input
                 id="new-org"
-                placeholder="Team name (e.g. Acme Strategy)"
+                placeholder="Team name"
                 value={newOrgName}
                 onChange={e => setNewOrgName(e.target.value)}
                 className="rounded-none"

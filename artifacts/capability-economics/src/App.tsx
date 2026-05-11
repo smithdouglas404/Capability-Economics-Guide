@@ -1,6 +1,6 @@
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ClerkProvider, SignIn, SignUp } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useAuth } from "@clerk/react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -111,6 +111,13 @@ function AdminOnly({ component: Component }: { component: React.ComponentType })
   return <Component />;
 }
 
+function RequireSignedIn({ component: Component }: { component: React.ComponentType }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  if (!isLoaded) return null;
+  if (!isSignedIn) return <Redirect to="/sign-in" />;
+  return <Component />;
+}
+
 function Router() {
   return (
     <Switch>
@@ -132,9 +139,9 @@ function Router() {
       <Route path="/patterns/:slug" component={PatternsPage} />
       <Route path="/disruption" component={DisruptionPage} />
       <Route path="/security" component={SecurityPage} />
-      <Route path="/demo" component={DemoPage} />
+      <Route path="/demo">{() => <RequireSignedIn component={DemoPage} />}</Route>
       <Route path="/marketplace/workspace" component={MarketplaceWorkspacePage} />
-      <Route path="/workbench/example" component={WorkbenchExamplePage} />
+      <Route path="/workbench/example">{() => <RequireSignedIn component={WorkbenchExamplePage} />}</Route>
       <Route path="/onboarding" component={OnboardingPage} />
       <Route path="/embed/cei" component={EmbedCei} />
       <Route path="/embed/capability/:id" component={EmbedCapability} />

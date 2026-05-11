@@ -45,6 +45,10 @@ router.get("/marketplace/listings", async (_req, res) => {
     .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
     .where(and(
       eq(marketplaceListingsTable.status, "approved"),
+      // Hide listings from sellers without a working Stripe Connect account.
+      // Demo/seed sellers carry chargesEnabled=false so they never surface to
+      // public browse, which keeps prospects out of broken Checkout flows.
+      eq(marketplaceSellersTable.chargesEnabled, true),
       or(
         isNull(marketplaceListingsTable.expiresAt),
         gt(marketplaceListingsTable.expiresAt, sql`now()`),
@@ -79,7 +83,8 @@ router.get("/marketplace/listings/:id", async (req, res) => {
 
   const isOwner = auth.userId && row.seller?.userId === auth.userId;
   const isExpired = row.listing.expiresAt && row.listing.expiresAt.getTime() < Date.now();
-  if ((row.listing.status !== "approved" || isExpired) && !isOwner) {
+  const sellerNotLive = !row.seller?.chargesEnabled;
+  if ((row.listing.status !== "approved" || isExpired || sellerNotLive) && !isOwner) {
     res.status(404).json({ error: "not found" });
     return;
   }
