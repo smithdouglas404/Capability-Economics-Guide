@@ -113,7 +113,7 @@ Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railwa
 
 ### Mem0 + Letta on Railway
 
-**Mem0** — Deploy via Railway's official **Mem0 template** (mem0ai/mem0 built from its repo's `server/Dockerfile` + pgvector for embeddings). The template auto-generates `ADMIN_API_KEY` + `JWT_SECRET` and auto-wires Postgres between the two services. You only need to drop `OPENAI_API_KEY` on the Mem0 service. **Do not use the Docker Hub `mem0/mem0-api-server` image** — it's arm64-only and won't run on Railway's amd64 infra (this is also why there is no `mem0/` subdirectory in this repo).
+**Mem0** — Built from `mem0/Dockerfile` in this repo (Railway → New Service → root directory `mem0`). The Dockerfile installs `libpq5` (which mem0ai/mem0's `server/Dockerfile` *forgets* — the upstream image crashes on import with `ImportError: no pq wrapper available … libpq library not found`), then clones mem0ai/mem0 at a pinned release tag, installs Python deps, and runs uvicorn. Set `OPENAI_API_KEY`, `JWT_SECRET`, `ADMIN_API_KEY`, plus the `POSTGRES_*` set pointing at a pgvector service in the same Railway project. **Do not point this service at the Docker Hub `mem0/mem0-api-server` image** — it's arm64-only and won't run on Railway's amd64 infra. Pair it with a `pgvector/pgvector:pg18` service for vector storage.
 
 **Letta** — Built from `letta/Dockerfile` in this repo. Railway → New Service → your repo → root directory: `letta`. Set on the Letta service:
 - `LETTA_SERVER_PASSWORD` — any strong string
