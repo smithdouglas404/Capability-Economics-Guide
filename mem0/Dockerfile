@@ -1,5 +1,13 @@
 FROM mem0/mem0-api-server:latest
 
+# libpq5 is the runtime Postgres client lib that psycopg2 dynamically links
+# against. The upstream image ships without it, so any Mem0 build that points
+# at Postgres for vector/history storage fails on import with
+# `libpq.so.5: cannot open shared object file`.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libpq5 \
+ && rm -rf /var/lib/apt/lists/*
+
 # Mem0 self-hosted server listens on 8000 internally.
 # Railway will map this to whatever public port it assigns.
 EXPOSE 8000
