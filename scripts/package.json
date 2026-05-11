@@ -18,6 +18,7 @@
     "seed:patterns": "tsx ./src/seed-patterns.ts",
     "seed:reports": "tsx ./src/seed-marketplace-reports.ts",
     "seed:alpha-config": "tsx ./src/seed-alpha-config.ts",
+    "seed:case-study-economics": "tsx ./src/seed-case-study-economics.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
     "deploy:migrate": "tsx ./src/deploy-migrate.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"

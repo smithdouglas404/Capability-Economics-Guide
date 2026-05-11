@@ -18,6 +18,7 @@ import Assess from "@/pages/assess";
 import AdminDashboard from "@/pages/admin";
 import AdminPaymentsPage from "@/pages/admin-payments";
 import AdminSourceQualityPage from "@/pages/admin-source-quality";
+import AdminCaseStudiesPage from "@/pages/admin-case-studies";
 import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
 import VCE from "@/pages/vce";
@@ -155,6 +156,7 @@ function Router() {
       <Route path="/admin">{() => <AdminOnly component={AdminDashboard} />}</Route>
       <Route path="/admin/payments">{() => <AdminOnly component={AdminPaymentsPage} />}</Route>
       <Route path="/admin/source-quality">{() => <AdminOnly component={AdminSourceQualityPage} />}</Route>
+      <Route path="/admin/case-studies">{() => <AdminOnly component={AdminCaseStudiesPage} />}</Route>
       <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vce" component={VCE} />

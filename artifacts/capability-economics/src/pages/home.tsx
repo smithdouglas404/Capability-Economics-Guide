@@ -206,10 +206,24 @@ export default function Home() {
   const heroName = hero?.industryName ?? "Insurance";
   const heroHref = `/case-study/${heroSlug}`;
 
+  // Featured case study — driven by the admin "Feature" toggle (PATCH
+  // /api/admin/case-studies/:id/feature, surfaced in /admin/case-studies).
+  // Falls back to the slot system, then to the hero industry. This is the
+  // source of truth for which case study the analogy card displays.
+  const [featuredCS, setFeaturedCS] = useState<{ industrySlug: string; industryName: string; title?: string; executiveSummary?: string } | null>(null);
+  useEffect(() => {
+    fetch("/api/featured-case-study")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { featured: { industrySlug: string; industryName: string; title: string; executiveSummary: string } | null } | null) => {
+        if (d?.featured) setFeaturedCS(d.featured);
+      })
+      .catch(() => {});
+  }, []);
+
   const card = cardSlot?.content;
-  const cardSlug = card?.industrySlug ?? heroSlug;
-  const cardName = card?.industryName ?? heroName;
-  const cardBlurb = card?.executiveSummary
+  const cardSlug = featuredCS?.industrySlug ?? card?.industrySlug ?? heroSlug;
+  const cardName = featuredCS?.industryName ?? card?.industryName ?? heroName;
+  const cardBlurb = featuredCS?.executiveSummary ?? card?.executiveSummary
     ?? "See capability economics in action. Watch how an organization optimized its core operating capabilities.";
   const cardHref = `/case-study/${cardSlug}`;
 

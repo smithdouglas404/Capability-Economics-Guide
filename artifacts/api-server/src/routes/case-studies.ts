@@ -80,6 +80,91 @@ router.get("/case-studies/diagnostics", async (_req, res) => {
 });
 
 /**
+ * POST /api/admin/case-studies/:id/regenerate-economics-breakdown
+ *
+ * Admin-triggered Perplexity research that re-populates the
+ * economics_breakdown column for a single case study. Idempotent: any
+ * existing breakdown is overwritten with the fresh research result.
+ *
+ * Body shape (optional): { companyName: string, transformationHint?: string }
+ * If omitted, the route picks the company from the most-recent case-study
+ * row's title — but explicit companyName is recommended.
+ */
+router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+  const [study] = await db
+    .select()
+    .from(caseStudiesTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, caseStudiesTable.industryId))
+    .where(eq(caseStudiesTable.id, id));
+  if (!study) { res.status(404).json({ error: "Case study not found" }); return; }
+
+  const body = (req.body ?? {}) as { companyName?: string; transformationHint?: string };
+  const companyName = (body.companyName ?? "").trim();
+  if (!companyName) {
+    res.status(400).json({ error: "companyName is required in body" });
+    return;
+  }
+
+  try {
+    const { researchEconomicsBreakdown } = await import("../services/case-study-economics-research");
+    const breakdown = await researchEconomicsBreakdown({
+      companyName,
+      industryName: study.industries.name,
+      transformationHint: body.transformationHint,
+    });
+    if (!breakdown) {
+      res.status(502).json({ error: "Perplexity research did not produce a valid breakdown — check server logs" });
+      return;
+    }
+    await db.update(caseStudiesTable).set({ economicsBreakdown: breakdown }).where(eq(caseStudiesTable.id, id));
+    res.json({ ok: true, breakdown });
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err), id }, "[admin/regenerate-economics-breakdown] failed");
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed" });
+  }
+});
+
+/**
+ * GET /api/admin/case-studies
+ *
+ * Lists every case study with a compact admin payload (id, industry, title,
+ * isFeatured, whether economicsBreakdown is populated). Used by the admin
+ * UI to render the rotation table. Requires admin auth.
+ */
+router.get("/admin/case-studies", requireAdmin, async (_req, res) => {
+  const rows = await db
+    .select({
+      id: caseStudiesTable.id,
+      industryId: caseStudiesTable.industryId,
+      industrySlug: industriesTable.slug,
+      industryName: industriesTable.name,
+      title: caseStudiesTable.title,
+      isFeatured: caseStudiesTable.isFeatured,
+      economicsBreakdown: caseStudiesTable.economicsBreakdown,
+      generatedAt: caseStudiesTable.generatedAt,
+    })
+    .from(caseStudiesTable)
+    .innerJoin(industriesTable, eq(industriesTable.id, caseStudiesTable.industryId))
+    .orderBy(desc(caseStudiesTable.isFeatured), desc(caseStudiesTable.generatedAt));
+  res.json({
+    caseStudies: rows.map(r => ({
+      id: r.id,
+      industryId: r.industryId,
+      industrySlug: r.industrySlug,
+      industryName: r.industryName,
+      title: r.title,
+      isFeatured: r.isFeatured,
+      hasEconomicsBreakdown: !!r.economicsBreakdown,
+      economicsCompanyName: r.economicsBreakdown?.companyName ?? null,
+      economicsEventTitle: r.economicsBreakdown?.eventTitle ?? null,
+      generatedAt: r.generatedAt,
+    })),
+  });
+});
+
+/**
  * GET /api/case-study/:industrySlug/economics-breakdown
  *
  * Backs the homepage analogy card (was the hardcoded "WireDrop closed $1.2B
