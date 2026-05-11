@@ -17,6 +17,19 @@ export const caseStudiesTable = pgTable("case_studies", {
   // Admin can pin one case study to be the homepage "featured example". When no
   // row is featured, the homepage falls back to the most-recently generated study.
   isFeatured: boolean("is_featured").notNull().default(false),
+  // Structured finance decomposition used by the homepage analogy card.
+  // Optional — only populated for case studies that have been research-backed
+  // with an economics breakdown. When null, the analogy card falls back to a
+  // less-detailed presentation. Replaces the formerly hardcoded "WireDrop
+  // $1.2B Series B" prose in home.tsx (commit 145ed9a's PLAN.md item #4).
+  economicsBreakdown: jsonb("economics_breakdown").$type<{
+    companyName: string;
+    eventTitle: string; // e.g. "Series B funding", "Q3 transformation program"
+    costBreakdown: Array<{ label: string; amountUsdMm: number }>;
+    valueGeneratedUsdMm: number;
+    unlockedUsdMm: number;
+    sources: Array<{ url: string; title: string }>;
+  }>(),
 });
 
 export type CaseStudy = typeof caseStudiesTable.$inferSelect;
