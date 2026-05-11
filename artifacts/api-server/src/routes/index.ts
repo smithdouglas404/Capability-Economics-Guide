@@ -74,6 +74,7 @@ import productsRouter from "./products";
 import subscriptionsRouter from "./subscriptions";
 import exportsRouter from "./exports";
 import apiVolumeRouter from "./api-volume";
+import metricsRouter from "./metrics";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -182,5 +183,6 @@ router.use(watchlistRouter);
 router.use(nlQueryRouter);
 router.use(regulationsRouter);
 router.use(collaborationRouter);
+router.use(metricsRouter);
 
 export default router;
