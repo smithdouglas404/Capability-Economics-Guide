@@ -65,7 +65,13 @@ async function mem0Fetch(
     method,
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${cfg.apiKey}`,
+      // Mem0 self-hosted v2.x distinguishes auth schemes:
+      //   - X-API-Key       → admin api key (what ADMIN_API_KEY actually is)
+      //   - Authorization   → JWT token (issued via /auth/login)
+      // The Mem0 Railway template doc says to use `Bearer <ADMIN_API_KEY>`,
+      // but the upstream server rejects that with 401 because it tries to
+      // verify ADMIN_API_KEY as a JWT. Always use X-API-Key.
+      "X-API-Key": cfg.apiKey,
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
