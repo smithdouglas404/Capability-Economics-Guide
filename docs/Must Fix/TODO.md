@@ -1,71 +1,82 @@
 # Hardcoded Data Remediation — TODO
 
-Canonical task list. Tick items as they complete. Safe to resume mid-stream — every step is independent and idempotent.
+**Status: ✅ IMPLEMENTATION COMPLETE — awaiting Railway deploy + real-world verification.**
+
+Canonical task list. All implementation work is committed and pushed to `main`. The remaining items are operator tasks (curl prod, run drizzle-kit on prod, optionally populate real case-study economics).
 
 **Spec:** `docs/Must Fix/PLAN.md`
 
 ---
 
-## Phase 1 — Backend (do first; frontend depends on these)
+## Phase 1 — Backend ✅ COMPLETE
 
-### Schema
-- [ ] **B4-schema:** Add `economics_breakdown jsonb` column to `case_studies` table in `lib/db/src/schema/case-studies.ts`. Run `drizzle-kit push --force`.
-- [ ] **B6-schema:** Create `alpha_config` single-row table in `lib/db/src/schema/alpha-config.ts` (fields: `quadrant_hot`, `quadrant_emerging`, `quadrant_cooling`, `quadrant_table_stakes`, `quadrant_declining`, `methodology_url`). Push schema.
+### Schema (commit `e38e0c1`)
+- [x] **B4-schema:** Added `economics_breakdown jsonb` column to `case_studies` table.
+- [x] **B6-schema:** Created `alpha_config` single-row table.
+- [x] Auto-pushes to prod DB on next Railway deploy via `scripts/src/deploy-migrate.ts` boot chain.
 
-### Seeds / data backfill
-- [ ] **B4-seed:** Write `scripts/src/seed-case-study-economics.ts` populating the new column for Progressive with real numbers. Add to Dockerfile boot chain after `seed-organizations.ts`.
-- [ ] **B6-seed:** Insert the single `alpha_config` row: `(hot=15, emerging=10, cooling=7, table_stakes=4, declining=1, methodology_url='/methodology#quadrant-multiples')`.
+### Seeds / data backfill (commit `524804a`)
+- [ ] **B4-seed:** *Skipped* — populating `case_studies.economics_breakdown` requires real public-company financials. The column is added; the frontend handles null gracefully. When you have real numbers (e.g. from a Perplexity research run on Progressive), insert them via the admin tool or one-off SQL.
+- [x] **B6-seed:** `scripts/src/seed-alpha-config.ts` inserts `(hot=15, emerging=10, cooling=7, table_stakes=4, declining=1)` on every boot.
 
-### Routes
-- [ ] **B1:** `GET /api/metrics/home-ticker` — top 8 capabilities by 30d ROI movement
-- [ ] **B2:** `GET /api/metrics/principle-stats` — `{ avgROIMultiple, medianMarginImprovement }`
-- [ ] **B3:** `GET /api/metrics/home-tiles` — `{ valueUnlocked, topROI, quarterlyDelta }`
-- [ ] **B4:** `GET /api/case-study/:slug/economics-breakdown`
-- [ ] **B5:** `GET /api/cei/exemplars` — top + bottom leaf
-- [ ] **B6:** `GET /api/alpha/config/quadrant-multiples`
-- [ ] **B7:** `GET /api/vce/sample-brief` — anonymized real brief
-- [ ] **B8:** `GET /api/workbench/example` — 8 real capability cards
-- [ ] **B9:** `GET /api/whatif/presets` — 5 real recent macro events
+### Routes (commits `2f22bc9`, `532da43`)
+- [x] **B1:** `GET /api/metrics/home-ticker`
+- [x] **B2:** `GET /api/metrics/principle-stats`
+- [x] **B3:** `GET /api/metrics/home-tiles`
+- [x] **B4:** `GET /api/case-study/:industrySlug/economics-breakdown`
+- [x] **B5:** `GET /api/cei/exemplars`
+- [x] **B6:** `GET /api/alpha/config/quadrant-multiples`
+- [x] **B7:** `GET /api/vce/sample-brief`
+- [x] **B8:** `GET /api/workbench/example`
+- [x] **B9:** `GET /api/whatif/presets`
 
-### Spec + codegen
-- [ ] Declare all 9 new endpoints in `lib/api-spec/openapi.yaml` (request + response schemas).
-- [ ] Run `pnpm --filter @workspace/api-spec run codegen`. Verify `lib/api-client-react/src/generated/api.ts` and `lib/api-zod/src/generated/api.ts` regenerated. Revert any duplicate `export * from "./generated/api"` that Orval re-adds to `lib/api-zod/src/index.ts`.
-
----
-
-## Phase 2 — Frontend rewrites
-
-- [ ] **Item 1** (`home.tsx` ticker) — replace `TICKER_ITEMS` constant with `useQuery` of B1.
-- [ ] **Item 2** (`home.tsx` principle stats) — replace "4.2×" / "18%" with B2 fields.
-- [ ] **Item 3** (`home.tsx` hero tiles) — drive 4 tiles from `/api/cei/current`, `/api/capabilities` count, and B3 fields.
-- [ ] **Item 4** (`home.tsx` analogy card) — `useSlot("homepage_case_card")` returns real `economics_breakdown` (B4 backs this).
-- [ ] **Item 5** (`cei-dashboard.tsx` dialog) — replace every literal in lines 551-633 with values from already-fetched `freshness` object + B5 exemplars.
-- [ ] **Item 6** (`alpha.tsx` EVaR) — change `?? 36` / `?? 0.2` / `?? 40` in lines 371-374 to render `—` with hover tooltip.
-- [ ] **Item 7** (`alpha.tsx` arbitrage multiples) — fetch B6 and surface multiples + methodology link on the Arbitrage card.
-- [ ] **Item 7 supporting** — add `#quadrant-multiples` anchor section to `methodology.tsx`.
-- [ ] **Item 8** (`vce.tsx` sample brief) — replace `SAMPLE_BRIEF` constant with `useQuery` of B7 inside `loadSample`.
-- [ ] **Item 9** (`workbench-example.tsx`) — replace `FIXTURE` array with `useQuery` of B8; keep visual layout identical.
-- [ ] **Item 10** (`whatif.tsx` presets) — replace `SUGGESTED_EVENTS` with `useQuery` of B9.
-- [ ] **Item 11** (`membership.tsx` savings) — replace static "~17%" with computed savings per tier.
+### Spec + codegen — DEFERRED
+- [ ] OpenAPI specs + codegen — frontend uses plain `fetch()` instead. Not blocking; add later if typesafety is required.
 
 ---
 
-## Phase 3 — Deferred (not blocking limited-prod)
+## Phase 2 — Frontend rewrites ✅ COMPLETE (commits `109ec60`, `df84b23`)
 
-- [ ] **Item 12** (`nl-query.tsx` suggestions) — leave as-is for now; revisit if team wants dynamic suggestions.
+- [x] **Item 1** `home.tsx` ticker → live data from B1.
+- [x] **Item 2** `home.tsx` principle stats → B2.
+- [x] **Item 3** `home.tsx` hero tiles → `/api/cei/current`, `/api/capabilities` count, B3.
+- [x] **Item 4** `home.tsx` analogy card → B4 with graceful fallback when economics_breakdown is null.
+- [x] **Item 5** `cei-dashboard.tsx` dialog → freshness + B5 interpolation.
+- [x] **Item 6** `alpha.tsx` EVaR fallbacks → "—" instead of `?? 36` / `?? 0.2` / `?? 40`.
+- [x] **Item 7** `alpha.tsx` quadrant multiples → B6 + methodology link in Arbitrage card.
+- [x] **Item 7 supporting** `methodology.tsx` → new `#quadrant-multiples` anchor section.
+- [x] **Item 8** `vce.tsx` sample brief → B7.
+- [x] **Item 9** `workbench-example.tsx` FIXTURE → B8.
+- [x] **Item 10** `whatif.tsx` SUGGESTED_EVENTS → B9.
+- [x] **Item 11** `membership.tsx` savings → computed from tier prices.
 
 ---
 
-## Phase 4 — Verification (per item)
+## Phase 3 — Deferred
 
-For each completed item, run the verification in `PLAN.md` § 4.
+- [ ] **Item 12** (`nl-query.tsx` suggestions) — leave as-is for now; UI prompt chips, not data.
 
 ---
 
-## Phase 5 — Final smoke test
+## Phase 5 — Verification ✅ PASSED LOCALLY, PENDING PROD
 
-- [ ] `pnpm run typecheck` passes
-- [ ] `pnpm run build` passes
-- [ ] Manual browser walkthrough on each touched route (signed-in normal user) — no `NaN`, no `undefined`, no stale fake strings.
-- [ ] Repo grep: `grep -rn "WireDrop\|Atlas Copper\|Adam Patel\|Sarah Chen\|illustrative\|TICKER_ITEMS\|SUGGESTED_EVENTS\|SAMPLE_BRIEF\|FIXTURE" artifacts/capability-economics/src` → zero non-comment matches.
-- [ ] Curl each new endpoint against prod and verify response shape.
+- [x] `pnpm run typecheck` — passes (all 5 packages).
+- [x] `pnpm run build` — passes (capability-economics frontend builds clean).
+- [x] Repo grep `WireDrop|Atlas Copper|Adam Patel|Sarah Chen|illustrative|TICKER_ITEMS|SUGGESTED_EVENTS|SAMPLE_BRIEF|FIXTURE` against `artifacts/capability-economics/src` — zero non-comment matches.
+- [ ] **Pending:** manual browser walkthrough after next Railway deploy. Watch the 4 routes that changed most: `/`, `/cei`, `/alpha`, `/workbench/example`.
+- [ ] **Pending:** curl each new endpoint against prod after deploy:
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/home-ticker`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/principle-stats`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/home-tiles`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/cei/exemplars`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/alpha/config/quadrant-multiples`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/whatif/presets`
+  - `curl https://capabilityeconomics-staging.up.railway.app/api/case-study/insurance/economics-breakdown` (will show null `economicsBreakdown` until populated)
+
+---
+
+## Follow-up (non-blocking, post-launch)
+
+1. **Populate real case-study economics_breakdown** — research one real public company's transformation via Perplexity (e.g. Progressive's digital onboarding spend per their 10-K) and insert the structured breakdown. Once present, the homepage analogy card automatically shows real numbers; until then it falls back to a directional case-study card.
+2. **Add OpenAPI specs for the 9 new endpoints** — improves typesafety; not required for limited-prod.
+3. **Surface admin tool for editing `alpha_config`** — currently the multiples are seeded but require a SQL update to change.
