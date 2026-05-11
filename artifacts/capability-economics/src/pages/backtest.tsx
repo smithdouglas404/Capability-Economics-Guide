@@ -166,7 +166,7 @@ function AccuracyBadge({ accuracy, scored }: { accuracy: number; scored: number 
         ? "bg-amber-500/10 text-amber-700 border-amber-500/30"
         : "bg-red-500/10 text-red-700 border-red-500/30";
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${cls}`}>
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-none text-xs font-semibold border ${cls}`}>
       {pct}% ({accuracy === 1 ? scored : `${Math.round(accuracy * scored)}/${scored}`})
     </span>
   );
@@ -235,7 +235,7 @@ export default function BacktestPage() {
               <ArrowLeft className="w-3 h-3" /> Admin
             </a>
           </Link>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
+          <h1 className="font-serif text-2xl tracking-tight flex items-center gap-2">
             <BarChart3 className="w-6 h-6" /> CEI Backtesting Harness
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

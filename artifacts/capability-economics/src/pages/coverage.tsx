@@ -202,7 +202,7 @@ export default function CoveragePage() {
             <Badge variant="secondary" className="text-[10px]">Public</Badge>
             {isAdmin && <Badge className="text-[10px] bg-primary/15 text-primary border-primary/40">Admin view</Badge>}
           </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+          <h1 className="font-serif text-3xl sm:text-4xl tracking-tight text-foreground">
             How mature is your industry in our data?
           </h1>
           <p className="mt-3 text-base text-muted-foreground max-w-3xl leading-relaxed">

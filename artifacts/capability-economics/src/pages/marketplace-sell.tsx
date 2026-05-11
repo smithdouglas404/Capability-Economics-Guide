@@ -44,7 +44,7 @@ const statusBadge = (s: Listing["status"]) => {
     archived:       { label: "Archived",       cls: "bg-muted/40 text-muted-foreground/60 border border-border/40", Icon: XCircle },
   }[s];
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${map.cls}`}>
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-none text-xs font-medium ${map.cls}`}>
       <map.Icon className="w-3 h-3" />
       {map.label}
     </span>

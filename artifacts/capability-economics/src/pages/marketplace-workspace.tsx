@@ -87,7 +87,7 @@ const TIER_LABEL: Record<WorkspaceSeller["tier"], string> = {
 };
 const TIER_TONE: Record<WorkspaceSeller["tier"], string> = {
   open: "bg-muted text-muted-foreground border-border/60",
-  analyst: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  analyst: "bg-primary/10 text-primary border-primary/30",
   featured: "bg-amber-500/15 text-amber-500 border-amber-500/40",
 };
 const TIER_ICON: Record<WorkspaceSeller["tier"], typeof Sparkles> = {
@@ -199,7 +199,7 @@ export default function MarketplaceWorkspacePage() {
         </Link>
         <MarketplaceNav />
         <div className="flex items-center gap-2 mb-1 mt-4">
-          {data?.mode === "team" ? <Users className="w-5 h-5 text-sky-500" /> : <UserIcon className="w-5 h-5 text-muted-foreground" />}
+          {data?.mode === "team" ? <Users className="w-5 h-5 text-primary" /> : <UserIcon className="w-5 h-5 text-muted-foreground" />}
           <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">
             {data?.mode === "team" ? `Team workspace · ${data.clerkOrgIds.length} org${data.clerkOrgIds.length === 1 ? "" : "s"}` : "Personal workspace"}
           </Badge>
@@ -264,7 +264,7 @@ export default function MarketplaceWorkspacePage() {
                     </div>
                     {mySeller.clerkOrgId ? (
                       <>
-                        <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider bg-sky-500/15 text-sky-500 border-sky-500/40">
+                        <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider bg-primary/10 text-primary border-primary/30">
                           <Users className="w-3 h-3 mr-1 inline" />
                           Team-shared · {mySeller.clerkOrgId.slice(0, 12)}…
                         </Badge>

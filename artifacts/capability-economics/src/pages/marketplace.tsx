@@ -36,7 +36,7 @@ const TIER_LABEL: Record<SellerTier, string> = {
 };
 const TIER_TONE: Record<SellerTier, string> = {
   open: "bg-muted text-muted-foreground border-border/60",
-  analyst: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  analyst: "bg-primary/10 text-primary border-primary/30",
   featured: "bg-amber-500/15 text-amber-500 border-amber-500/40",
 };
 const TIER_ICON: Record<SellerTier, typeof Sparkles> = {

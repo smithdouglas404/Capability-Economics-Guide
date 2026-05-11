@@ -50,7 +50,7 @@ export default function ExplorePage() {
           </Badge>
           <Badge variant="secondary" className="text-[10px]">No login required</Badge>
         </div>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+        <h1 className="font-serif text-3xl sm:text-4xl tracking-tight">
           Browse a sample of capabilities we track
         </h1>
         <p className="mt-3 text-base text-muted-foreground max-w-3xl leading-relaxed">
@@ -90,7 +90,7 @@ export default function ExplorePage() {
               : cap.velocity < -0.5 ? "text-rose-500"
               : "text-muted-foreground";
             return (
-              <Card key={cap.id} className="rounded-md hover:border-primary/40 transition-colors">
+              <Card key={cap.id} className="rounded-none hover:border-primary/40 transition-colors">
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>

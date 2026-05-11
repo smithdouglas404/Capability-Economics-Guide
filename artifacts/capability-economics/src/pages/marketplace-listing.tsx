@@ -38,7 +38,7 @@ const TIER_LABEL: Record<SellerTier, string> = {
 };
 const TIER_TONE: Record<SellerTier, string> = {
   open: "bg-muted text-muted-foreground border-border/60",
-  analyst: "bg-sky-500/15 text-sky-500 border-sky-500/40",
+  analyst: "bg-primary/10 text-primary border-primary/30",
   featured: "bg-amber-500/15 text-amber-500 border-amber-500/40",
 };
 const TIER_ICON: Record<SellerTier, typeof Sparkles> = {
@@ -135,7 +135,7 @@ export default function MarketplaceListingPage() {
           {listing.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {listing.tags.map(t => (
-                <span key={t} className="px-2 py-0.5 text-xs bg-muted rounded-full">{t}</span>
+                <span key={t} className="px-2 py-0.5 text-xs bg-muted rounded-none">{t}</span>
               ))}
             </div>
           )}

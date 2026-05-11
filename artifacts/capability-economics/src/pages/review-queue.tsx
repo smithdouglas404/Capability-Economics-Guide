@@ -109,7 +109,7 @@ function NewCapabilityForm({ industries, onCreated }: { industries: Industry[]; 
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Capability name</label>
             <input
               value={name} onChange={e => setName(e.target.value)}
-              className="w-full h-9 px-3 border bg-background rounded text-sm"
+              className="w-full h-9 px-3 border bg-background rounded-none text-sm"
               placeholder="e.g. Real-Time Fraud Detection"
             />
           </div>
@@ -117,7 +117,7 @@ function NewCapabilityForm({ industries, onCreated }: { industries: Industry[]; 
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Industry</label>
             <select
               value={industryId} onChange={e => setIndustryId(e.target.value ? Number(e.target.value) : "")}
-              className="w-full h-9 px-3 border bg-background rounded text-sm"
+              className="w-full h-9 px-3 border bg-background rounded-none text-sm"
             >
               <option value="">Select…</option>
               {industries.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
@@ -129,12 +129,12 @@ function NewCapabilityForm({ industries, onCreated }: { industries: Industry[]; 
           <textarea
             value={description} onChange={e => setDescription(e.target.value)}
             rows={3}
-            className="w-full px-3 py-2 border bg-background rounded text-sm"
+            className="w-full px-3 py-2 border bg-background rounded-none text-sm"
             placeholder="What does this capability do, in 1-2 sentences?"
           />
         </div>
         {msg && (
-          <div className={`px-3 py-2 rounded text-sm ${msg.ok ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>
+          <div className={`px-3 py-2 rounded-none text-sm ${msg.ok ? "bg-green-500/10 text-green-700" : "bg-red-500/10 text-red-700"}`}>
             {msg.text}
           </div>
         )}
@@ -167,22 +167,22 @@ function PreviewPane({ id }: { id: number }) {
 
   return (
     <div className="space-y-3 text-sm">
-      <div className="border rounded p-3 bg-muted/20">
+      <div className="border rounded-none p-3 bg-muted/20">
         <div className="text-xs text-muted-foreground mb-1">What this capability is</div>
         <p>{e?.summaryNarrative ?? <span className="italic text-muted-foreground">Pending enrichment…</span>}</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div className="border rounded p-3">
+        <div className="border rounded-none p-3">
           <div className="text-xs font-medium text-amber-700 mb-1">Why the conventional view is wrong</div>
           <p className="text-sm">{e?.traditionalNarrative ?? <span className="italic text-muted-foreground">—</span>}</p>
         </div>
-        <div className="border rounded p-3">
+        <div className="border rounded-none p-3">
           <div className="text-xs font-medium text-emerald-700 mb-1">Economic value</div>
           <p className="text-sm">{e?.economicNarrative ?? <span className="italic text-muted-foreground">—</span>}</p>
         </div>
       </div>
-      <div className="border rounded p-3">
-        <div className="text-xs font-medium text-purple-700 mb-1">AI exposure</div>
+      <div className="border rounded-none p-3">
+        <div className="text-xs font-medium text-primary mb-1">AI exposure</div>
         <p className="text-sm">{e?.aiNarrative ?? <span className="italic text-muted-foreground">—</span>}</p>
         <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
           {e?.aiExposureScore != null && <span>Risk: <b className="text-foreground font-mono">{e.aiExposureScore}%</b></span>}
@@ -191,18 +191,18 @@ function PreviewPane({ id }: { id: number }) {
         </div>
       </div>
       {e?.playbook && e.playbook.length > 0 && (
-        <div className="border rounded p-3">
-          <div className="text-xs font-medium text-blue-700 mb-1">Playbook (this week)</div>
+        <div className="border rounded-none p-3">
+          <div className="text-xs font-medium text-primary mb-1">Playbook (this week)</div>
           <ol className="list-decimal list-inside space-y-0.5 text-sm">
             {e.playbook.map((p, i) => <li key={i}>{p}</li>)}
           </ol>
         </div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-        <div className="border rounded p-2"><div className="text-muted-foreground">CE Quadrant</div><div className="font-mono font-semibold">{e?.consensusQuadrant ?? "—"}</div></div>
-        <div className="border rounded p-2"><div className="text-muted-foreground">Half-life</div><div className="font-mono font-semibold">{e?.halfLifeMonths ?? "—"}mo</div></div>
-        <div className="border rounded p-2"><div className="text-muted-foreground">Margin %</div><div className="font-mono font-semibold">{e?.marginStructurePct ?? "—"}</div></div>
-        <div className="border rounded p-2"><div className="text-muted-foreground">Rev exposure $M</div><div className="font-mono font-semibold">{e?.revenueExposureMm ?? "—"}</div></div>
+        <div className="border rounded-none p-2"><div className="text-muted-foreground">CE Quadrant</div><div className="font-mono font-semibold">{e?.consensusQuadrant ?? "—"}</div></div>
+        <div className="border rounded-none p-2"><div className="text-muted-foreground">Half-life</div><div className="font-mono font-semibold">{e?.halfLifeMonths ?? "—"}mo</div></div>
+        <div className="border rounded-none p-2"><div className="text-muted-foreground">Margin %</div><div className="font-mono font-semibold">{e?.marginStructurePct ?? "—"}</div></div>
+        <div className="border rounded-none p-2"><div className="text-muted-foreground">Rev exposure $M</div><div className="font-mono font-semibold">{e?.revenueExposureMm ?? "—"}</div></div>
       </div>
     </div>
   );
@@ -259,15 +259,15 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold">{item.name}</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-muted">{item.industryName}</span>
-            <span className="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-700">{item.submittedBy ?? "?"}</span>
+            <span className="text-xs px-2 py-0.5 rounded-none bg-muted">{item.industryName}</span>
+            <span className="text-xs px-2 py-0.5 rounded-none bg-primary/10 text-primary">{item.submittedBy ?? "?"}</span>
             {item.revisionCount > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded bg-purple-500/10 text-purple-700 flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded-none bg-primary/10 text-primary flex items-center gap-1">
                 <History className="w-3 h-3" /> rev {item.revisionCount}
               </span>
             )}
             {item.enrichmentStatus === "running" && (
-              <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded-none bg-amber-500/10 text-amber-700 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" />
                 {item.enrichmentStage === "alpha"
                   ? "running alpha…"
@@ -277,17 +277,17 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
               </span>
             )}
             {item.enrichmentStatus === "failed" && (
-              <span className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-700 flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded-none bg-red-500/10 text-red-700 flex items-center gap-1">
                 <AlertCircle className="w-3 h-3" /> failed{item.enrichmentStage ? ` at ${item.enrichmentStage}` : ""}
               </span>
             )}
             {item.enrichmentStatus === "ready" && (
-              <span className="text-xs px-2 py-0.5 rounded bg-green-500/10 text-green-700 flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded-none bg-green-500/10 text-green-700 flex items-center gap-1">
                 <CheckCircle2 className="w-3 h-3" /> enrichment ready
               </span>
             )}
             {item.enrichmentStatus !== "running" && item.enrichmentStatus !== "failed" && item.enrichmentStatus !== "ready" && !item.enrichmentReady && (
-              <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 rounded-none bg-amber-500/10 text-amber-700 flex items-center gap-1">
                 <Loader2 className="w-3 h-3 animate-spin" /> enriching…
               </span>
             )}
