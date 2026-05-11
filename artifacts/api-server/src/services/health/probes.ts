@@ -63,6 +63,25 @@ async function timed<T>(fn: () => Promise<T>): Promise<{ value: T; latencyMs: nu
   return { value, latencyMs: Date.now() - start };
 }
 
+/**
+ * Walks the `err.cause` chain so probe errors carry the actual reason.
+ * Node's `fetch` flattens DNS/TCP failures into the useless top-level
+ * message "fetch failed" and stashes the real cause (ENOTFOUND,
+ * ECONNREFUSED, certificate errors, etc.) one level deeper. We render
+ * them as `outer → inner → …` so logs show the full story without
+ * needing a debugger.
+ */
+function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const parts: string[] = [err.message];
+  let cause: unknown = (err as Error & { cause?: unknown }).cause;
+  while (cause instanceof Error && parts.length < 4) {
+    parts.push(cause.message);
+    cause = (cause as Error & { cause?: unknown }).cause;
+  }
+  return parts.filter((p) => p && p.length > 0).join(" → ");
+}
+
 type Probe = () => Promise<Omit<ServiceHealth, "service" | "checkedAt">>;
 
 // ── Per-service probes ────────────────────────────────────────────────────
@@ -75,7 +94,7 @@ const probeMem0: Probe = async () => {
     const { latencyMs } = await timed(() => withTimeout(mem0Ping(), PROBE_TIMEOUT_MS, "mem0"));
     return { status: "ok", latencyMs, lastError: null };
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
+    const msg = describeError(err);
     // Quota / 429 → degraded (still reachable, just rate-limited).
     if (/\b429\b|quota|rate.?limit/i.test(msg)) {
       return { status: "degraded", latencyMs: null, lastError: msg.slice(0, 240) };
@@ -136,7 +155,7 @@ const probeOpenRouter: Probe = async () => {
       lastError: `OpenRouter /auth/key → ${value.status}`,
     };
   } catch (err) {
-    return { status: "down", latencyMs: null, lastError: (err as Error).message.slice(0, 240) };
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -163,7 +182,7 @@ const probeAnthropic: Probe = async () => {
     });
     return { status: "ok", latencyMs, lastError: null };
   } catch (err) {
-    return { status: "down", latencyMs: null, lastError: (err as Error).message?.slice(0, 240) ?? String(err) };
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -200,7 +219,7 @@ const probePerplexity: Probe = async () => {
     }
     return { status: "degraded", latencyMs, lastError: `Perplexity → ${value.status}` };
   } catch (err) {
-    return { status: "down", latencyMs: null, lastError: (err as Error).message.slice(0, 240) };
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -211,7 +230,7 @@ const probeFoundry: Probe = async () => {
     baseUrl = FOUNDRY.baseUrl;
     token = FOUNDRY.token;
   } catch (err) {
-    return { status: "not_configured", latencyMs: null, lastError: (err as Error).message.slice(0, 240) };
+    return { status: "not_configured", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
   try {
     // Hit a cheap authed endpoint. Foundry's user/me path varies by stack
@@ -237,7 +256,7 @@ const probeFoundry: Probe = async () => {
     // 2xx, 3xx, 404, etc. — service is up and authenticating us.
     return { status: "ok", latencyMs, lastError: null };
   } catch (err) {
-    return { status: "down", latencyMs: null, lastError: (err as Error).message.slice(0, 240) };
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -252,7 +271,7 @@ const probeStripe: Probe = async () => {
     );
     return { status: "ok", latencyMs, lastError: null };
   } catch (err) {
-    const msg = (err as Error).message ?? String(err);
+    const msg = describeError(err);
     if (/\b401\b|invalid.*api.*key|authentication/i.test(msg)) {
       return { status: "down", latencyMs: null, lastError: msg.slice(0, 240) };
     }
@@ -279,7 +298,7 @@ const probeClerk: Probe = async () => {
     }
     return { status: "degraded", latencyMs, lastError: `Clerk /v1/jwks → ${value.status}` };
   } catch (err) {
-    return { status: "down", latencyMs: null, lastError: (err as Error).message.slice(0, 240) };
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -306,7 +325,7 @@ const probeDemoReadiness: Probe = async () => {
     if (issues.length === 0) return { status: "ok", latencyMs, lastError: null };
     return { status: "degraded", latencyMs, lastError: issues.join("; ") };
   } catch (err) {
-    return { status: "down", latencyMs: Date.now() - start, lastError: (err as Error).message?.slice(0, 240) ?? String(err) };
+    return { status: "down", latencyMs: Date.now() - start, lastError: describeError(err).slice(0, 240) };
   }
 };
 
@@ -332,7 +351,7 @@ async function runProbe(service: string, probe: Probe): Promise<ServiceHealth> {
       checkedAt: new Date().toISOString(),
       status: "down",
       latencyMs: null,
-      lastError: (err as Error).message?.slice(0, 240) ?? String(err),
+      lastError: describeError(err).slice(0, 240),
     };
   }
 }
