@@ -227,4 +227,42 @@ router.delete("/vce/assessments/:id", async (req: Request, res: Response) => {
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Delete failed" }); }
 });
 
+/**
+ * GET /api/vce/sample-brief
+ *
+ * Returns an anonymized real brief from a previously-completed VCE
+ * assessment for the "Try with sample brief" button on /vce. Replaces
+ * the hardcoded SAMPLE_BRIEF "Atlas Copper Holdings" constant in
+ * pages/vce.tsx:236-251.
+ *
+ * Anonymization: clientName is replaced with a generic descriptor
+ * derived from the industry. The value_case prose is returned as-is
+ * (which itself was researched by Perplexity, not invented).
+ *
+ * When no completed assessments exist yet, returns 404 — the frontend
+ * should hide the "Try with sample brief" button gracefully.
+ */
+router.get("/vce/sample-brief", async (_req: Request, res: Response) => {
+  const [row] = await db
+    .select({
+      clientName: vceAssessmentsTable.clientName,
+      industryId: vceAssessmentsTable.industryId,
+      valueCase: vceAssessmentsTable.valueCase,
+    })
+    .from(vceAssessmentsTable)
+    .where(ne(vceAssessmentsTable.status, "draft"))
+    .orderBy(desc(vceAssessmentsTable.createdAt))
+    .limit(1);
+
+  if (!row) {
+    res.status(404).json({ error: "No completed briefs available yet" });
+    return;
+  }
+
+  res.json({
+    clientName: "A reference enterprise (anonymized)",
+    valueCase: row.valueCase,
+  });
+});
+
 export default router;

@@ -574,4 +574,67 @@ router.delete("/workbench/insights/:id", async (req, res) => {
   res.status(204).send();
 });
 
+/**
+ * GET /api/workbench/example
+ *
+ * Auto-generated example board: top 8 capabilities by absolute recent CEI
+ * velocity, paired with their real economics (revenue × margin, lifecycle
+ * stage, narrative). Replaces the hardcoded `FIXTURE` array in
+ * pages/workbench-example.tsx — same shape, real data.
+ *
+ * Auth: inherits requireSession() from the /workbench namespace mount.
+ * Cached 30 min server-side.
+ */
+const exampleCache: { value: unknown; expiresAt: number } = { value: null, expiresAt: 0 };
+const EXAMPLE_TTL_MS = 30 * 60 * 1000;
+
+router.get("/workbench/example", async (_req, res) => {
+  if (exampleCache.value && exampleCache.expiresAt > Date.now()) {
+    res.json(exampleCache.value);
+    return;
+  }
+  try {
+    const { capabilityEconomicsTable } = await import("@workspace/db");
+    const rows = await db
+      .select({
+        capabilityId: ceiComponentsTable.capabilityId,
+        capabilityName: capabilitiesTable.name,
+        capabilitySlug: capabilitiesTable.slug,
+        industryName: industriesTable.name,
+        score: ceiComponentsTable.consensusScore,
+        velocity: ceiComponentsTable.velocity,
+        summaryNarrative: capabilityEconomicsTable.summaryNarrative,
+        revenueExposureMm: capabilityEconomicsTable.revenueExposureMm,
+        marginStructurePct: capabilityEconomicsTable.marginStructurePct,
+      })
+      .from(ceiComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
+      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, ceiComponentsTable.capabilityId))
+      .orderBy(desc(sql<number>`abs(${ceiComponentsTable.velocity})`))
+      .limit(8);
+
+    const cards = rows.map(r => ({
+      id: r.capabilitySlug ?? `cap-${r.capabilityId}`,
+      capabilityName: r.capabilityName,
+      industry: r.industryName,
+      lifecycle: deriveLifecycleStage({ consensusScore: r.score, velocity: r.velocity, benchmarkScore: null }),
+      cei: Number((r.score ?? 0).toFixed(1)),
+      velocity: Number((r.velocity ?? 0).toFixed(2)),
+      annualMarginUsdMm: r.revenueExposureMm && r.marginStructurePct
+        ? Number(((r.revenueExposureMm * r.marginStructurePct) / 100).toFixed(1))
+        : null,
+      summaryNarrative: r.summaryNarrative ?? null,
+    }));
+
+    const result = { cards };
+    exampleCache.value = result;
+    exampleCache.expiresAt = Date.now() + EXAMPLE_TTL_MS;
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "[workbench/example] failed");
+    res.status(500).json({ cards: [], error: "failed" });
+  }
+});
+
 export default router;

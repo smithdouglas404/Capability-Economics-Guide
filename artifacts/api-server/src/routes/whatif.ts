@@ -1,9 +1,38 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { runWhatIf } from "../services/whatif";
+import { listActiveEvents } from "../services/macro-events";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
+
+/**
+ * GET /api/whatif/presets
+ *
+ * Up to 5 recent active macro events for the "Suggested" quick-select
+ * buttons on /whatif. Replaces the hardcoded SUGGESTED_EVENTS array in
+ * pages/whatif.tsx:65-71. Sourced from the macro_events table that the
+ * world-scanner populates. Empty array when no events exist yet — the
+ * frontend should hide the suggestions section in that case.
+ */
+router.get("/whatif/presets", async (_req, res) => {
+  try {
+    const events = await listActiveEvents();
+    const presets = events
+      .slice(0, 5)
+      .map((e: any) => ({
+        label: e.title ?? e.eventType,
+        eventType: e.eventType,
+        severity: e.severity ?? 5,
+        direction: e.sentimentDirection ?? "negative",
+        decayDays: e.decayDays ?? 90,
+      }));
+    res.json({ presets });
+  } catch (err) {
+    logger.error({ err }, "[whatif/presets] failed");
+    res.status(500).json({ presets: [], error: "failed" });
+  }
+});
 
 const Body = z.object({
   eventType: z.string().min(1).max(60),

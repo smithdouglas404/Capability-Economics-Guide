@@ -79,6 +79,48 @@ router.get("/case-studies/diagnostics", async (_req, res) => {
   });
 });
 
+/**
+ * GET /api/case-study/:industrySlug/economics-breakdown
+ *
+ * Backs the homepage analogy card (was the hardcoded "WireDrop closed $1.2B
+ * Series B" prose in pages/home.tsx:458-497). Returns the structured
+ * finance decomposition only if it's been populated — when null, the
+ * frontend should fall back to the existing executive_summary or hide the
+ * card entirely (rather than show invented numbers).
+ *
+ * Populating the column requires real public-company financials (10-K
+ * filings, press releases). Use the admin tool or a one-off SQL update
+ * once you have sourced numbers. See docs/Must Fix/PLAN.md item #4.
+ */
+router.get("/case-study/:industrySlug/economics-breakdown", async (req, res) => {
+  const [industry] = await db
+    .select()
+    .from(industriesTable)
+    .where(eq(industriesTable.slug, req.params.industrySlug));
+  if (!industry) { res.status(404).json({ error: "Industry not found" }); return; }
+  const [study] = await db
+    .select({
+      id: caseStudiesTable.id,
+      title: caseStudiesTable.title,
+      executiveSummary: caseStudiesTable.executiveSummary,
+      economicsBreakdown: caseStudiesTable.economicsBreakdown,
+      generatedAt: caseStudiesTable.generatedAt,
+    })
+    .from(caseStudiesTable)
+    .where(eq(caseStudiesTable.industryId, industry.id))
+    .orderBy(desc(caseStudiesTable.isFeatured), desc(caseStudiesTable.generatedAt))
+    .limit(1);
+  if (!study) { res.status(404).json({ error: "No case study for this industry" }); return; }
+  res.json({
+    industrySlug: industry.slug,
+    industryName: industry.name,
+    title: study.title,
+    executiveSummary: study.executiveSummary,
+    economicsBreakdown: study.economicsBreakdown, // null until populated with real data
+    generatedAt: study.generatedAt,
+  });
+});
+
 router.get("/case-studies", async (_req, res) => {
   const rows = await db
     .select({

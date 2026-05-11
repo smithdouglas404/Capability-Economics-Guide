@@ -1004,4 +1004,45 @@ router.post("/thesis", requireAdmin, deductCredits(CREDIT_COSTS.INVESTMENT_THESI
   }
 });
 
+/**
+ * GET /api/alpha/config/quadrant-multiples
+ *
+ * Returns the annual-margin → enterprise-value multiples by quadrant.
+ * Previously these lived as hardcoded constants inside the TraceabilityDialog
+ * in pages/alpha.tsx; moved to alpha_config so they can be tuned without a
+ * frontend deploy and so the frontend can surface them + a methodology link
+ * outside the buried dialog.
+ *
+ * Single-row table; cheap query.
+ */
+router.get("/config/quadrant-multiples", async (_req: Request, res: Response) => {
+  try {
+    const { alphaConfigTable } = await import("@workspace/db");
+    const [row] = await db.select().from(alphaConfigTable).limit(1);
+    if (!row) {
+      // Fall back to documented defaults if seed hasn't run. Matches the
+      // numbers that were in the TraceabilityDialog before this change.
+      res.json({
+        hot: 15, emerging: 10, cooling: 7, table_stakes: 4, declining: 1,
+        methodologyUrl: "/methodology#quadrant-multiples",
+        source: "default",
+      });
+      return;
+    }
+    res.json({
+      hot: row.quadrantHot,
+      emerging: row.quadrantEmerging,
+      cooling: row.quadrantCooling,
+      table_stakes: row.quadrantTableStakes,
+      declining: row.quadrantDeclining,
+      methodologyUrl: row.methodologyUrl,
+      source: "config",
+      updatedAt: row.updatedAt,
+    });
+  } catch (err) {
+    logger.error({ err }, "[alpha/config/quadrant-multiples] failed");
+    res.status(500).json({ error: "Failed to fetch quadrant multiples" });
+  }
+});
+
 export default router;

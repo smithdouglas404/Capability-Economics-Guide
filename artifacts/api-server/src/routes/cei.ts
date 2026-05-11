@@ -85,6 +85,62 @@ router.get("/cei/methodology", async (_req, res) => {
   res.json({ methodology: CEI_METHODOLOGY, version: "1.1" });
 });
 
+/**
+ * GET /api/cei/exemplars
+ *
+ * Top + bottom scoring leaf capabilities right now. Replaces the hardcoded
+ * "Agentic AI ~26, AML/KYC ~42" call-outs in the cei-dashboard "How to read
+ * the CEI right now" dialog (pages/cei-dashboard.tsx:597). Both are single
+ * rows — cheap query, no caching.
+ */
+router.get("/cei/exemplars", async (_req, res) => {
+  try {
+    const [topRow] = await db
+      .select({
+        capabilityId: ceiComponentsTable.capabilityId,
+        name: capabilitiesTable.name,
+        score: ceiComponentsTable.consensusScore,
+        industryName: industriesTable.name,
+      })
+      .from(ceiComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
+      .orderBy(desc(ceiComponentsTable.consensusScore))
+      .limit(1);
+
+    const [bottomRow] = await db
+      .select({
+        capabilityId: ceiComponentsTable.capabilityId,
+        name: capabilitiesTable.name,
+        score: ceiComponentsTable.consensusScore,
+        industryName: industriesTable.name,
+      })
+      .from(ceiComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
+      .orderBy(ceiComponentsTable.consensusScore) // asc
+      .limit(1);
+
+    res.json({
+      topLeaf: topRow ? {
+        capabilityId: topRow.capabilityId,
+        name: topRow.name,
+        score: Number(topRow.score?.toFixed(1) ?? 0),
+        industryName: topRow.industryName,
+      } : null,
+      bottomLeaf: bottomRow ? {
+        capabilityId: bottomRow.capabilityId,
+        name: bottomRow.name,
+        score: Number(bottomRow.score?.toFixed(1) ?? 0),
+        industryName: bottomRow.industryName,
+      } : null,
+    });
+  } catch (err) {
+    console.error("CEI exemplars failed:", err);
+    res.status(500).json({ error: "Failed to fetch exemplars" });
+  }
+});
+
 router.get("/cei/freshness", async (_req, res) => {
   try {
     const caps = await db.select().from(capabilitiesTable);
