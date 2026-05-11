@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowLeft,
@@ -77,197 +77,72 @@ const INSIGHT_LABEL: Record<ExampleInsight["kind"], string> = {
   lifecycle_outlook: "Leading or declining?",
 };
 
-const FIXTURE: ExampleCard[] = [
-  // ─── SCAN ───────────────────────────────────────────────────────────
-  {
-    id: "agentic-orch",
-    lane: "scan",
-    capabilityName: "Agentic AI orchestration",
-    industry: "Technology",
-    description: "Multi-step LLM agents that plan, call tools, recover from failure, and persist state across sessions to complete complex business workflows.",
-    lifecycle: "emerging",
-    cei: 64,
-    velocity: 4.2,
-    notes: "Tracking velocity carefully — this category did not exist 18 months ago.",
-    insights: [
-      {
-        kind: "generate_applications",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-08T14:22:00Z",
-        bullets: [
-          "Insurance — adjudicate first-notice-of-loss claims end-to-end without a human until exception is flagged.",
-          "Healthcare — pre-authorisation workflows that read the chart, call payer APIs, and queue the rejection appeal.",
-          "Sales operations — ICP-to-outreach pipelines that research, write, send, and book meetings without an SDR.",
-          "Legal — contract review agents that flag deviations from preferred terms and propose redlines.",
-          "Manufacturing — supply-chain agents that watch supplier health and reroute purchase orders pre-emptively.",
-          "Customer support — Tier-1 resolution agents that escalate only when the user's tone signals frustration.",
-          "Compliance — quarterly attestation agents that gather evidence from 12 systems and assemble the binder.",
-          "Personal finance — agents that audit subscriptions and renegotiate or cancel without owner involvement.",
-          "Recruiting — sourcing agents that search five platforms, score candidates, and book screens.",
-          "Field service — dispatch agents that triage incidents and pre-stage parts on the truck.",
-        ],
-      },
-      {
-        kind: "lifecycle_outlook",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-08T14:23:18Z",
-        prose: "Leading. Velocity of +4.2 over the last window is unambiguously rising, and the macro events touching this capability are positive: agentic frameworks landing in OpenAI, Anthropic, and Google SDKs within a single quarter. The 12-24 month trajectory is continued sharp ascent with the substrate consolidating around two or three foundation-model providers. Successor risk: low for the orchestration layer itself; high for the per-vertical agent vendors who'll get compressed once the substrate adds reliability primitives natively.",
-        bullets: [],
-      },
-    ],
-  },
-  {
-    id: "rt-fraud",
-    lane: "scan",
-    capabilityName: "Real-time fraud detection in payment streams",
-    industry: "FinTech",
-    description: "Sub-100ms decisioning on streaming payment authorizations using a mix of supervised ML and graph features.",
-    lifecycle: "mature",
-    cei: 82,
-    velocity: 0.4,
-    insights: [
-      {
-        kind: "find_analogues",
-        userPrompt: "healthcare claims",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-08T15:01:42Z",
-        prose: "The analogous capability in healthcare claims is *real-time claims adjudication fraud detection* — and it sits at CEI ≈ 51, two full points behind payments. The white-space gap is 31 points, with $4B of VC flowing into healthcare claims-AI startups (Cohere Health, Anomaly Insurance, Itiliti Health) and 47 active companies. First move for an operator: build a graph-features layer over the payer-provider network that mirrors the network features Stripe Radar uses on payment graphs. The capabilities you'd cross-pollinate: payer-provider claims feeds (mature), graph databases (mature), behavioural scoring (mature in payments, emerging in claims). The bottleneck is data access — payer claims feeds require BAA-grade integrations that take 9-12 months to land. Operators who already have payer relationships win this market.",
-        bullets: [],
-      },
-    ],
-  },
-  {
-    id: "vec-retrieval",
-    lane: "scan",
-    capabilityName: "Vector retrieval at billion-document scale",
-    industry: "Technology",
-    description: "Approximate nearest neighbour search over embeddings, supporting billions of documents with sub-second p95 latency.",
-    lifecycle: "adopted",
-    cei: 71,
-    velocity: 1.8,
-    insights: [],
-  },
+// FIXTURE removed (PLAN.md item #9). The example board is now sourced from
+// /api/workbench/example which returns the top 8 capabilities by recent CEI
+// velocity + their real economics + each capability's actual summaryNarrative.
+// The page maps that response into the existing ExampleCard shape so the
+// visual stays identical (5-lane Double-Diamond Kanban, click-to-view detail).
 
-  // ─── FRAME ──────────────────────────────────────────────────────────
-  {
-    id: "healthcare-claims-whitespace",
-    lane: "frame",
-    capabilityName: "Healthcare claims adjudication automation",
-    industry: "Healthcare",
-    description: "End-to-end automation of payer claims adjudication including pre-auth, eligibility, coding review, and rejection appeals.",
-    lifecycle: "emerging",
-    cei: 51,
-    velocity: 2.6,
-    notes: "31-pt gap vs. payments fraud. Worth investigating who owns the payer-relationship moat.",
-    insights: [
-      {
-        kind: "what_to_invent",
-        userPrompt: "healthcare claims market",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-08T15:48:11Z",
-        bullets: [
-          "Cross-payer claims agent platform — combines: payer API integrations (emerging), agentic AI orchestration (emerging, see above), graph databases (mature), workflow tooling (mature), HIPAA-compliant LLM substrate (emerging). New capability: 'payer-agnostic claims agent' — works against every major payer without per-payer training. Moat: the integration breadth itself + the audit trail of accepted appeals.",
-          "Patient-side claims advocacy agent — combines: consumer chat UI (mature), payer plan summaries (data set, emerging), agentic orchestration. New capability: 'patient-side claims agent' — files appeals on behalf of patients against their own insurance. Moat: brand + the trust to be granted POA on insurance correspondence.",
-          "Provider-side coding copilot — combines: medical coding NLP (adopted), agentic tool-use (emerging), EHR write-back (mature). New capability: 'real-time coding correction at the point of charting' — fixes coding mistakes BEFORE the claim is filed, eliminating downstream denials. Moat: EHR integration depth.",
-        ],
-      },
-    ],
-  },
-  {
-    id: "regulated-llm",
-    lane: "frame",
-    capabilityName: "HIPAA-compliant LLM inference substrate",
-    industry: "Healthcare",
-    description: "Foundation-model inference with audited PHI handling, BAA-grade vendor agreements, and inspectable redaction.",
-    lifecycle: "emerging",
-    cei: 47,
-    velocity: 3.1,
-    insights: [],
-  },
+// Shape returned by /api/workbench/example.
+type ApiCard = {
+  id: string;
+  capabilityName: string;
+  industry: string;
+  lifecycle: ExampleCard["lifecycle"];
+  cei: number;
+  velocity: number;
+  annualMarginUsdMm: number | null;
+  summaryNarrative: string | null;
+};
 
-  // ─── IDEATE ─────────────────────────────────────────────────────────
-  {
-    id: "patient-claims-agent",
-    lane: "ideate",
-    capabilityName: "Patient-side claims advocacy agent",
-    industry: "Healthcare",
-    description: "Concept: a B2C agent that reviews a patient's insurance denial, drafts the appeal letter, files it on the patient's behalf, and tracks the response.",
-    lifecycle: "emerging",
-    cei: 32,
-    velocity: 5.4,
-    notes: "Validated this with two friends who got insurance denials last quarter. Both said they'd pay $40 to make it go away.",
-    insights: [
-      {
-        kind: "critique_idea",
-        userPrompt: "Patient-side appeals agent — $40 per denial, success-fee 20% of recovered amount.",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-08T16:12:33Z",
-        prose: "Pursue, with reshapes. (1) Displaceability: the incumbent is patient inertia, not a competitor — most denials go unappealed, which is exactly the gap you'd close. Displaceable. (2) Defensibility: the *capability* of running appeals is undefended, but the moat is in the appeal-data flywheel. Every appeal teaches the next one — model this as a precedent database, not a service business. (3) Time-to-traction: 4-6 months to first paying user is realistic if you buy denied-claim leads. The risk is regulatory: filing on behalf of a patient may require power-of-attorney or HIPAA authorization in many states. Get a healthcare lawyer to scope this before building. (4) Biggest failure mode: the success-fee model creates an adverse incentive — you only appeal the high-recovery cases and ignore the small-but-righteous ones. Patients smell that. Fixed fee + free for small claims is the brand-positive shape. Verdict: reshape from success-fee to subscription ($15/mo) with included appeals.",
-        bullets: [],
-      },
-      {
-        kind: "find_analogues",
-        userPrompt: "consumer financial advocacy",
-        modelUsed: "anthropic/claude-haiku-4.5",
-        generatedAt: "2026-05-08T16:14:02Z",
-        bullets: [
-          "DoNotPay applied the same pattern to traffic tickets and subscription cancellations — proves consumers will hand over POA for adversarial financial workflows.",
-          "Cushion did it for bank-fee disputes — got to $1B in fees recovered before pivoting; the pivot suggests the unit economics are thinner than they look.",
-          "Bilt Rewards turned rent-payment into a loyalty surface — not analogous in mechanism but proves the pattern of inserting yourself into a forced consumer payment flow.",
-        ],
-      },
-    ],
-  },
-  {
-    id: "ehr-coding-copilot",
-    lane: "ideate",
-    capabilityName: "Real-time coding correction copilot in EHR",
-    industry: "Healthcare",
-    description: "Concept: a copilot embedded in Epic/Cerner that catches coding errors as the physician charts, before the claim is filed. Reduces denials at the source.",
-    lifecycle: "emerging",
-    cei: 28,
-    velocity: 6.1,
-    insights: [
-      {
-        kind: "what_to_invent",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-09T09:38:21Z",
-        bullets: [
-          "Cross-pollinate: medical coding NLP (adopted, ICD-10 mature) + agentic tool-use over EHR APIs (emerging) + denial-pattern dataset (proprietary, must be built). New capability: 'in-the-flow coding correction' — fires while the physician types the encounter note, suggests the higher-specificity code, surfaces the denial-risk delta in real time. The Uber-style invention is the FUSION of upstream coding + downstream denial intelligence — neither alone is the product.",
-          "Moat: the EHR write-back permission is the hardest part. Vendors who get Epic to whitelist them are 3-5 years ahead of vendors building outside the EHR. Distribution-as-moat.",
-          "First move: pilot with a single specialty (orthopaedic surgery has the worst denial economics) at a single mid-size health system. Get to $100k ARR with one customer before pitching the next.",
-        ],
-      },
-    ],
-  },
+// Distribute the 8 capabilities across the 5 lanes by lifecycle. Cards with
+// no explicit lifecycle map to "frame" (the middle lane) — the visual
+// doesn't depend on a perfect mapping, just on the lanes being populated.
+const LIFECYCLE_TO_LANE: Record<ExampleCard["lifecycle"], Lane> = {
+  emerging: "scan",
+  adopted: "frame",
+  mature: "validate",
+  decaying: "ideate",
+  obsolete: "launch",
+};
 
-  // ─── VALIDATE ───────────────────────────────────────────────────────
-  {
-    id: "claims-pilot",
-    lane: "validate",
-    capabilityName: "Patient-side claims advocacy agent (pilot)",
-    industry: "Healthcare",
-    description: "Currently piloting with 47 users recruited from r/HealthInsurance. Filing real appeals on real denials. Subscription model, no success fee.",
-    lifecycle: "emerging",
-    cei: 35,
-    velocity: 8.2,
-    notes: "47 users, $15/mo, 64% retention at 60 days. First-pass appeal success rate 41% vs. 23% industry baseline. Talking to two health-tech accelerators about a $500k pre-seed.",
-    insights: [
-      {
-        kind: "lifecycle_outlook",
-        modelUsed: "anthropic/claude-sonnet-4.5",
-        generatedAt: "2026-05-09T11:14:50Z",
-        prose: "Leading. Velocity of +8.2 over the last window is among the fastest-rising signals in the platform. The 41% first-pass appeal success rate is the headline number for the pre-seed pitch — it's 1.8x the industry baseline and is durable under load (you've shown it across 47 users, not a curated three). The 12-24 month risk is that one of the integrated EHR vendors (Athenahealth most likely) builds the patient-facing equivalent natively and bundles it. Counter: lock in the appeal-precedent database as the moat now, before the EHRs realize this is a distinct product line.",
-        bullets: [],
-      },
-    ],
-  },
-];
+function apiCardToExample(c: ApiCard): ExampleCard {
+  return {
+    id: c.id,
+    lane: LIFECYCLE_TO_LANE[c.lifecycle] ?? "frame",
+    capabilityName: c.capabilityName,
+    industry: c.industry,
+    description: c.summaryNarrative ?? "Capability under active enrichment — narrative pending.",
+    lifecycle: c.lifecycle,
+    cei: c.cei,
+    velocity: c.velocity,
+    notes: c.annualMarginUsdMm != null
+      ? `Estimated annual margin captured: $${c.annualMarginUsdMm.toFixed(1)}M`
+      : undefined,
+    insights: [], // Workbench-card insights live in workbench_card_insights and are per-board; not surfaced here.
+  };
+}
 
 export default function WorkbenchExamplePage() {
-  const [activeCardId, setActiveCardId] = useState<string | null>("patient-claims-agent");
-  const activeCard = FIXTURE.find(c => c.id === activeCardId) ?? null;
-  const cardsByLane = (lane: Lane) => FIXTURE.filter(c => c.lane === lane);
+  const [cards, setCards] = useState<ExampleCard[] | null>(null);
+  const [activeCardId, setActiveCardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/workbench/example")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { cards?: ApiCard[] } | null) => {
+        const mapped = (d?.cards ?? []).map(apiCardToExample);
+        setCards(mapped);
+        if (mapped.length > 0) setActiveCardId(prev => prev ?? mapped[0].id);
+      })
+      .catch(() => setCards([]));
+  }, []);
+
+  const activeCard = useMemo(
+    () => (cards ?? []).find(c => c.id === activeCardId) ?? null,
+    [cards, activeCardId],
+  );
+  const cardsByLane = (lane: Lane) => (cards ?? []).filter(c => c.lane === lane);
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-[1600px]">

@@ -470,11 +470,15 @@ function formatEventMessage(event: AgentSSEEvent): string {
   return event.type;
 }
 
-function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
+type CeiExemplar = { capabilityId: number; name: string; score: number; industryName: string };
+type ExemplarsResponse = { topLeaf: CeiExemplar | null; bottomLeaf: CeiExemplar | null };
+
+function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars }: {
   cei: CEIData;
   historyData: { time: string; timestamp: number; index: number }[];
   macroEvents: MacroEventsResponse | null;
   freshness: FreshnessResponse | null;
+  exemplars: ExemplarsResponse | null;
 }) {
   const events = macroEvents?.active ?? [];
   const sentimentShock = events.reduce((sum, e) => {
@@ -502,6 +506,37 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
 
   const baseSentiment = 50 + sentimentShock;
   const sentimentLabel = cei.marketSentiment > 60 ? "Bullish" : cei.marketSentiment < 40 ? "Bearish" : "Neutral";
+
+  // Compute the actual range of industry leaf averages from the live CEI
+  // payload, replacing the hardcoded "56-64" string in the dialog
+  // (PLAN.md item #5). When industry data isn't loaded, fall back to a
+  // dash so we never display invented numbers.
+  const industryIndexes = Object.values(cei.industryBreakdowns ?? {})
+    .map(b => b.indexValue)
+    .filter(v => typeof v === "number" && Number.isFinite(v));
+  const industryLeafAvgs = industryIndexes.map(v => v / 10); // composite scaled ×10
+  const leafAvgMin = industryLeafAvgs.length > 0 ? Math.min(...industryLeafAvgs) : null;
+  const leafAvgMax = industryLeafAvgs.length > 0 ? Math.max(...industryLeafAvgs) : null;
+  const leafAvgRangeText = leafAvgMin !== null && leafAvgMax !== null
+    ? `${leafAvgMin.toFixed(0)}–${leafAvgMax.toFixed(0)}`
+    : "—";
+  const baselineIndex = leafAvgMin !== null && leafAvgMax !== null
+    ? ((leafAvgMin + leafAvgMax) / 2) * 10
+    : null;
+
+  // stddev component of volatility, computed by subtracting the macro
+  // boost from the published volatility (which is stddev + boost).
+  const stddevComponent = Math.max(0, cei.volatility - volBoost);
+
+  // Bucket label for the leaf-average range — derived from cei.overallIndex
+  // bands instead of hardcoded "Developing Maturity".
+  const overallTenth = cei.overallIndex / 10;
+  const maturityLabel = overallTenth >= 80 ? "Strong Maturity"
+    : overallTenth >= 60 ? "Developing Maturity"
+    : overallTenth >= 40 ? "Early Maturity"
+    : "Foundational";
+
+  const leafCount = freshness?.summary.total ?? "—";
 
   return (
     <Dialog>
@@ -548,7 +583,7 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
               Two things drive movement: (a) <strong>per-capability shocks</strong> — each active macro event
               subtracts severity-weighted penalties from the individual capabilities it tags, which feeds up into
               the GDP-weighted composite; and (b) <strong>fresh triangulation evidence</strong> from the leaf
-              rotation, which can nudge any of the 297 leaf scores by a few points per refresh.
+              rotation, which can nudge any of the {leafCount} leaf scores by a few points per refresh.
             </p>
             {events.length > 0 && (
               <p>
@@ -562,19 +597,19 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
           <section className="space-y-2">
             <h3 className="font-serif text-base border-b pb-1">2. Is the math working?</h3>
             <div className="bg-muted/40 p-3 space-y-2 font-mono text-xs">
-              <div><strong>Composite ({cei.overallIndex.toFixed(1)}):</strong> GDP-weighted average of industry sub-indices, scaled ×10. Industry leaf averages currently span roughly 56–64, so the un-shocked baseline sits near ~600; per-capability shocks compress it to where you see it now.</div>
+              <div><strong>Composite ({cei.overallIndex.toFixed(1)}):</strong> GDP-weighted average of industry sub-indices, scaled ×10. Industry leaf averages currently span roughly {leafAvgRangeText}, so the un-shocked baseline sits near ~{baselineIndex !== null ? baselineIndex.toFixed(0) : "—"}; per-capability shocks compress it to where you see it now.</div>
               <div><strong>Market sentiment ({cei.marketSentiment.toFixed(1)} — {sentimentLabel}):</strong></div>
               <div className="pl-3">
                 = 50 (neutral base)<br />
-                + avgVelocity × 100 (≈ 0 right now — no fresh evidence is moving leaves this minute)<br />
+                + avgVelocity × 100<br />
                 + macroShock ({sentimentShock.toFixed(1)})<br />
                 ≈ <strong>{baseSentiment.toFixed(1)}</strong>
               </div>
               <div><strong>Volatility ({(cei.volatility * 100).toFixed(1)}%):</strong></div>
               <div className="pl-3">
-                = stddev(leaf velocities) (~0.01)<br />
+                = stddev(leaf velocities) ({stddevComponent.toFixed(3)})<br />
                 + macroVolBoost ({volBoost.toFixed(3)})<br />
-                ≈ <strong>{(0.01 + volBoost).toFixed(3)}</strong>
+                ≈ <strong>{cei.volatility.toFixed(3)}</strong>
               </div>
             </div>
             <p>
@@ -591,10 +626,15 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
             <div className="bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-500 p-3 space-y-1">
               <div className="font-semibold">A. "Are humanity's capabilities good enough?" → look at underlying scores.</div>
               <div>
-                Average leaf capability across {freshness?.leaves ?? 297} measurable sub-capabilities sits in the
-                <strong> 56–64</strong> range — which the system labels <strong>Developing Maturity</strong>.
-                Translation: median enterprise execution is competent-but-not-great. Best-in-class leaves hit 80+;
-                worst (Agentic AI ~26, AML/KYC fragments ~42) sit well below.
+                Average leaf capability across {leafCount} measurable sub-capabilities sits in the
+                <strong> {leafAvgRangeText}</strong> range — which the system labels <strong>{maturityLabel}</strong>.
+                Translation: median enterprise execution is competent-but-not-great.
+                {exemplars?.topLeaf && exemplars?.bottomLeaf && (
+                  <>
+                    {" "}Best-scoring leaf right now: <strong>{exemplars.topLeaf.name}</strong> ({exemplars.topLeaf.score.toFixed(0)}, {exemplars.topLeaf.industryName}); lowest:{" "}
+                    <strong>{exemplars.bottomLeaf.name}</strong> ({exemplars.bottomLeaf.score.toFixed(0)}, {exemplars.bottomLeaf.industryName}).
+                  </>
+                )}
               </div>
             </div>
             <div className="bg-amber-50 dark:bg-amber-950/30 border-l-4 border-amber-500 p-3 space-y-1">
@@ -625,12 +665,12 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness }: {
                 </>
               )}
               <div className="mt-2">
-                Read it as: <em>"Capabilities still function at ~60/100, but the wind is in their face."</em>
+                Read it as: <em>"Capabilities still function at ~{overallTenth.toFixed(0)}/100, but the wind is in their face."</em>
               </div>
             </div>
             <div className="bg-muted/40 p-3 space-y-1">
               <div className="font-semibold">Honest synthesis</div>
-              <div>• Capability quality globally: ~60/100 — competent, not excellent.</div>
+              <div>• Capability quality globally: ~{overallTenth.toFixed(0)}/100 — {maturityLabel.toLowerCase()}.</div>
               <div>• Capability trajectory: severe headwinds, justified by {events.length} active real-world disruptions.</div>
               <div>• Best lever to move the number: rotate triangulation faster on the lowest-confidence leaves, or wait for offsetting positive macro events.</div>
             </div>
@@ -650,6 +690,7 @@ export default function CEIDashboard() {
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
   const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cei/freshness`);
+  const { data: exemplars } = useApi<ExemplarsResponse>(`${API_BASE}/cei/exemplars`);
   const { data: macroEvents, refetch: refetchMacroEvents } = useApi<MacroEventsResponse>(`${API_BASE}/macro-events/active`);
   const { data: allMacroEvents } = useApi<{ events: MacroEvent[]; total: number }>(`${API_BASE}/macro-events`);
   const { data: industryList } = useApi<IndustryListItem[]>(`${API_BASE}/industries`);
@@ -2144,6 +2185,7 @@ export default function CEIDashboard() {
                     historyData={historyData}
                     macroEvents={macroEvents}
                     freshness={freshness}
+                    exemplars={exemplars}
                   />
                 </div>
               </CardHeader>

@@ -135,7 +135,7 @@ export default function Alpha() {
             <Zap className="h-4 w-4" />
             <span className="font-medium tracking-wider uppercase">CE Alpha</span>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Capability-level intelligence no one else ships</h1>
+          <h1 className="font-serif text-3xl tracking-tight text-foreground">Capability-level intelligence no one else ships</h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Seven forward-causal analyses that decompose enterprise value down to the capability — each priced, timed, and tied to a real dependency graph. PitchBook and CBI stop at companies and sectors. We don't.
           </p>
@@ -365,13 +365,24 @@ function EvarTab() {
 
   const selected = useMemo(() => data?.items.find(x => x.capabilityId === selectedId) ?? null, [data, selectedId]);
 
+  // We only render the EVaR curve when ALL required fields are present on the
+  // selected capability. Previously the code defaulted halfLife→36, velocity→
+  // 0.2, margin→0.4 — those silent fallbacks made an underspecified row LOOK
+  // like real EVaR data (PLAN.md item #6). Now we return null and the render
+  // side shows a "data unavailable" message.
   const curve = useMemo(() => {
     if (!selected) return [] as { month: number; evar: number; low: number; high: number }[];
+    if (selected.halfLifeMonths == null
+        || selected.commoditizationVelocity == null
+        || selected.marginStructurePct == null
+        || selected.revenueExposureMm == null) {
+      return null;
+    }
     const pts: { month: number; evar: number; low: number; high: number }[] = [];
-    const halfLife = Math.max(6, (selected.halfLifeMonths ?? 36) * halfLifeAdj);
-    const velocity = Math.min(1, (selected.commoditizationVelocity ?? 0.2) * velocityAdj);
+    const halfLife = Math.max(6, selected.halfLifeMonths * halfLifeAdj);
+    const velocity = Math.min(1, selected.commoditizationVelocity * velocityAdj);
     const revenue = selected.revenueExposureMm;
-    const margin = (selected.marginStructurePct ?? 40) / 100;
+    const margin = selected.marginStructurePct / 100;
     const band = selected.bandPct;
     for (let m = 0; m <= 48; m += 3) {
       const halfLifeDecay = 1 - Math.pow(0.5, m / halfLife);
@@ -388,7 +399,9 @@ function EvarTab() {
     return <EmptyPrompt title="No EVaR data yet" msg="Run Alpha Enrichment to compute per-capability revenue-at-risk curves." />;
   }
 
-  const maxEvar = Math.max(...curve.map(p => p.high), 1);
+  // curve === null means the selected capability is missing required fields;
+  // we render a "data unavailable" panel instead of an invented chart.
+  const maxEvar = curve && curve.length > 0 ? Math.max(...curve.map(p => p.high), 1) : 1;
 
   return (
     <div className="space-y-4">
@@ -452,12 +465,18 @@ function EvarTab() {
             {selected ? (
               <>
                 <div className="mb-3 grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-muted-foreground">Revenue exposure:</span> <span className="font-medium">{fmtMoney(selected.revenueExposureMm)}</span></div>
-                  <div><span className="text-muted-foreground">Margin:</span> <span className="font-medium">{selected.marginStructurePct?.toFixed(0) ?? "—"}%</span></div>
-                  <div><span className="text-muted-foreground">Half-life:</span> <span className="font-medium">{Math.round(selected.halfLifeMonths * halfLifeAdj)}mo</span></div>
-                  <div><span className="text-muted-foreground">Velocity:</span> <span className="font-medium">{((selected.commoditizationVelocity ?? 0) * velocityAdj * 100).toFixed(0)}%/yr</span></div>
+                  <div><span className="text-muted-foreground">Revenue exposure:</span> <span className="font-medium">{selected.revenueExposureMm != null ? fmtMoney(selected.revenueExposureMm) : "—"}</span></div>
+                  <div><span className="text-muted-foreground">Margin:</span> <span className="font-medium">{selected.marginStructurePct != null ? `${selected.marginStructurePct.toFixed(0)}%` : "—"}</span></div>
+                  <div><span className="text-muted-foreground">Half-life:</span> <span className="font-medium">{selected.halfLifeMonths != null ? `${Math.round(selected.halfLifeMonths * halfLifeAdj)}mo` : "—"}</span></div>
+                  <div><span className="text-muted-foreground">Velocity:</span> <span className="font-medium">{selected.commoditizationVelocity != null ? `${(selected.commoditizationVelocity * velocityAdj * 100).toFixed(0)}%/yr` : "—"}</span></div>
                 </div>
-                <EvarSparkline curve={curve} maxEvar={maxEvar} />
+                {curve === null ? (
+                  <div className="border border-dashed border-border/60 p-6 text-center text-sm text-muted-foreground">
+                    EVaR curve unavailable — this capability is missing one or more of half-life, velocity, margin, or revenue exposure. Re-run Alpha Enrichment to populate them.
+                  </div>
+                ) : (
+                  <EvarSparkline curve={curve} maxEvar={maxEvar} />
+                )}
                 <div className="mt-4 space-y-3">
                   <div>
                     <div className="flex justify-between text-xs mb-1"><span>Half-life adjustment</span><span className="tabular-nums">{halfLifeAdj.toFixed(2)}×</span></div>
@@ -964,13 +983,28 @@ type ArbitrageResp = {
   methodology: { formula: string; multiples: Record<string, number>; minConfidenceForSignal: number };
 };
 
+type QuadrantMultiples = { hot: number; emerging: number; cooling: number; table_stakes: number; declining: number; methodologyUrl: string };
+
 function ArbitrageTab() {
   const [data, setData] = useState<ArbitrageResp | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mults, setMults] = useState<QuadrantMultiples | null>(null);
   useEffect(() => { (async () => { try { const r = await fetch(`${apiBase}/api/alpha/arbitrage`); if (r.ok) setData(await r.json()); } finally { setLoading(false); } })(); }, []);
+  useEffect(() => {
+    fetch(`${apiBase}/api/alpha/config/quadrant-multiples`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: QuadrantMultiples | null) => { if (d) setMults(d); })
+      .catch(() => {});
+  }, []);
 
   if (loading) return <div className="flex items-center gap-2 text-muted-foreground p-8"><Loader2 className="h-4 w-4 animate-spin" /> Mapping arbitrage spreads…</div>;
   if (!data || data.items.length === 0) return <EmptyPrompt title="No arbitrage spreads yet" msg="Run Alpha Enrichment — needs CE quadrant, consensus quadrant, revenue exposure, and margin per capability." />;
+
+  // Multiples description string — sourced from alpha_config when available,
+  // falls back to documented defaults. Was hardcoded inline (PLAN.md item #7).
+  const multsLine = mults
+    ? `Multiples: hot ${mults.hot}×, emerging ${mults.emerging}×, cooling ${mults.cooling}×, table-stakes ${mults.table_stakes}×, declining ${mults.declining}×.`
+    : "Multiples: hot 15×, emerging 10×, cooling 7×, table-stakes 4×, declining 1×.";
 
   return (
     <div className="space-y-4">
@@ -984,8 +1018,9 @@ function ArbitrageTab() {
         <CardHeader>
           <CardTitle className="text-base">CE quadrant valuation vs street consensus valuation</CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). Multiples: hot 15×, emerging 10×, cooling 7×, table-stakes 4×, declining 1×.
-            Direction requires consensus confidence ≥ {data.methodology.minConfidenceForSignal} — otherwise neutral.
+            Spread = (revenue × margin × CE multiple) − (revenue × margin × consensus multiple). {multsLine}
+            Direction requires consensus confidence ≥ {data.methodology.minConfidenceForSignal} — otherwise neutral.{" "}
+            <a href={mults?.methodologyUrl ?? "/methodology#quadrant-multiples"} className="underline hover:text-foreground">Methodology →</a>
           </p>
         </CardHeader>
         <CardContent className="p-0">

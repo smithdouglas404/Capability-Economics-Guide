@@ -43,32 +43,33 @@ function useSlot(slotKey: string) {
   return state;
 }
 
-// ─── Ticker row (decorative) ───────────────────────────────────────────────
+// ─── Ticker row — top 8 capabilities by recent CEI velocity ─────────────────
 
-const TICKER_ITEMS = [
-  { label: "Digital Onboarding", val: "+4.7x ROI", up: true },
-  { label: "Precision Underwriting", val: "+$8.5M", up: true },
-  { label: "Order Fulfillment", val: "−12% cost", up: false },
-  { label: "Product Dev Velocity", val: "+2.1x", up: true },
-  { label: "Customer Retention", val: "+38 bps", up: true },
-  { label: "Data Governance", val: "−$2.2M risk", up: false },
-  { label: "AI-Assisted Claims", val: "+$6.1M yield", up: true },
-  { label: "Supply Chain Resilience", val: "+1.9x", up: true },
-];
+type TickerItem = { capabilityName: string; valueText: string; direction: "up" | "down"; score?: number };
 
 function TickerBar() {
-  const doubled = [...TICKER_ITEMS, ...TICKER_ITEMS];
+  const [items, setItems] = useState<TickerItem[]>([]);
+  useEffect(() => {
+    fetch("/api/metrics/home-ticker")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { items: TickerItem[] } | null) => setItems(d?.items ?? []))
+      .catch(() => setItems([]));
+  }, []);
+
+  if (items.length === 0) return null;
+
+  const doubled = [...items, ...items];
   return (
     <div className="relative overflow-hidden border-t border-b border-border/40 bg-muted/20 py-2.5">
       <div className="ticker-track flex gap-0 whitespace-nowrap">
         {doubled.map((item, i) => (
           <span key={i} className="inline-flex items-center gap-2 px-6 shrink-0">
             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-              {item.label}
+              {item.capabilityName}
             </span>
-            <span className={`font-mono text-[10px] font-medium tracking-[0.12em] flex items-center gap-0.5 ${item.up ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
-              {item.up ? <TrendingUp className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
-              {item.val}
+            <span className={`font-mono text-[10px] font-medium tracking-[0.12em] flex items-center gap-0.5 ${item.direction === "up" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-500"}`}>
+              {item.direction === "up" ? <TrendingUp className="w-2.5 h-2.5" /> : <Minus className="w-2.5 h-2.5" />}
+              {item.valueText}
             </span>
             <span className="text-border/60 mx-1">·</span>
           </span>
@@ -186,6 +187,16 @@ function MetricTile({ label, value, sub, accent = false, delay = 0 }: {
 
 // ─── Main Page ────────────────────────────────────────────────────────────
 
+// Live aggregates from /api/metrics/*. Replaces previously hardcoded
+// hero-tile and principle-row values (PLAN.md items 2, 3).
+type PrincipleStats = { avgAnnualMarginCapturedUsdMm: number; avgAnnualMarginCapturedFormatted: string; medianMarginStructurePct: number; sampleSize: number };
+type HomeTiles = {
+  valueUnlocked: { amountUsdMm: number; formatted: string };
+  topROI: { capabilityName: string; annualMarginUsdMm: number; formatted: string } | null;
+  quarterlyDelta: { pts: number; direction: "up" | "down" } | null;
+};
+type CeiCurrent = { overallIndex: number };
+
 export default function Home() {
   const heroSlot = useSlot("homepage_hero");
   const cardSlot = useSlot("homepage_case_card");
@@ -202,6 +213,57 @@ export default function Home() {
     ?? "See capability economics in action. Watch how an organization optimized its core operating capabilities.";
   const cardHref = `/case-study/${cardSlug}`;
 
+  // ── Live metrics for hero tiles + principle stats ──────────────────────
+  const [principleStats, setPrincipleStats] = useState<PrincipleStats | null>(null);
+  const [homeTiles, setHomeTiles] = useState<HomeTiles | null>(null);
+  const [ceiCurrent, setCeiCurrent] = useState<CeiCurrent | null>(null);
+  const [capCount, setCapCount] = useState<number | null>(null);
+  const [economicsBreakdown, setEconomicsBreakdown] = useState<{
+    companyName: string;
+    eventTitle: string;
+    costBreakdown: Array<{ label: string; amountUsdMm: number }>;
+    valueGeneratedUsdMm: number;
+    unlockedUsdMm: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/metrics/principle-stats")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: PrincipleStats | null) => setPrincipleStats(d))
+      .catch(() => {});
+    fetch("/api/metrics/home-tiles")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: HomeTiles | null) => setHomeTiles(d))
+      .catch(() => {});
+    fetch("/api/cei/current")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: CeiCurrent | null) => setCeiCurrent(d))
+      .catch(() => {});
+    fetch("/api/capabilities")
+      .then(r => r.ok ? r.json() : [])
+      .then((d: unknown[]) => setCapCount(Array.isArray(d) ? d.length : null))
+      .catch(() => {});
+  }, []);
+
+  // Fetch the analogy card's economics breakdown for the featured case study.
+  // economicsBreakdown is null until populated with real public-company
+  // financials (see docs/Must Fix/PLAN.md item #4). When null, the analogy
+  // card falls back to a simpler layout that doesn't show invented numbers.
+  useEffect(() => {
+    if (!cardSlug) return;
+    fetch(`/api/case-study/${cardSlug}/economics-breakdown`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { economicsBreakdown: typeof economicsBreakdown } | null) => {
+        setEconomicsBreakdown(d?.economicsBreakdown ?? null);
+      })
+      .catch(() => {});
+  }, [cardSlug]);
+
+  const traditionalCost = economicsBreakdown?.costBreakdown?.[0];
+  const capabilityCost = economicsBreakdown?.costBreakdown?.[1];
+  const valueGenerated = economicsBreakdown?.valueGeneratedUsdMm;
+  const unlocked = economicsBreakdown?.unlockedUsdMm;
+
   const principles = [
     {
       id: "01",
@@ -214,15 +276,15 @@ export default function Home() {
       id: "02",
       title: "Measure",
       body: "Quantify the baseline cost, performance, and revenue impact of each capability using hard economic metrics.",
-      stat: "4.2×",
-      statSub: "avg ROI on targeted investment",
+      stat: principleStats ? principleStats.avgAnnualMarginCapturedFormatted : "—",
+      statSub: principleStats ? `avg annual margin captured per capability (n=${principleStats.sampleSize})` : "loading…",
     },
     {
       id: "03",
       title: "Optimize",
       body: "Direct capital and leadership attention to the capabilities that drive the highest return on strategic investment.",
-      stat: "18%",
-      statSub: "median margin improvement",
+      stat: principleStats ? `${principleStats.medianMarginStructurePct.toFixed(0)}%` : "—",
+      statSub: "median capability margin structure",
     },
   ];
 
@@ -344,12 +406,35 @@ export default function Home() {
                 delay={0.3}
               />
               <div className="grid grid-cols-2 gap-2">
-                <MetricTile label="Avg CEI Score" value="74.2" sub="↑ 3.1 pts this quarter" delay={0.4} />
-                <MetricTile label="Top ROI" value="4.7×" sub="Digital onboarding" accent delay={0.45} />
+                <MetricTile
+                  label="Avg CEI Score"
+                  value={ceiCurrent ? ceiCurrent.overallIndex.toFixed(1) : "—"}
+                  sub={homeTiles?.quarterlyDelta
+                    ? `${homeTiles.quarterlyDelta.direction === "up" ? "↑" : "↓"} ${Math.abs(homeTiles.quarterlyDelta.pts)} pts this quarter`
+                    : "live composite"}
+                  delay={0.4}
+                />
+                <MetricTile
+                  label="Top capability margin"
+                  value={homeTiles?.topROI ? homeTiles.topROI.formatted : "—"}
+                  sub={homeTiles?.topROI ? homeTiles.topROI.capabilityName : "loading…"}
+                  accent
+                  delay={0.45}
+                />
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <MetricTile label="Capabilities tracked" value="840+" sub="Across 12 industries" delay={0.5} />
-                <MetricTile label="Value unlocked" value="$2.1B" sub="Identified to date" delay={0.55} />
+                <MetricTile
+                  label="Capabilities tracked"
+                  value={capCount !== null ? `${capCount}` : "—"}
+                  sub="Live capability ontology"
+                  delay={0.5}
+                />
+                <MetricTile
+                  label="Value unlocked"
+                  value={homeTiles ? homeTiles.valueUnlocked.formatted : "—"}
+                  sub="Annual margin captured (sum)"
+                  delay={0.55}
+                />
               </div>
               <Link
                 href={heroHref}
@@ -449,53 +534,73 @@ export default function Home() {
             </div>
 
             <div className="lg:sticky lg:top-24 space-y-3">
-              <div className="border border-border/50 bg-background p-6 lg:p-7">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">Traditional view</div>
-                    <div className="font-serif text-2xl lg:text-3xl tracking-tight">IT Budget</div>
+              {economicsBreakdown && traditionalCost && capabilityCost && valueGenerated != null && unlocked != null ? (
+                <>
+                  <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground mb-1 flex items-center gap-2">
+                    <span className="h-px w-4 bg-border/60" />
+                    {economicsBreakdown.companyName} — {economicsBreakdown.eventTitle}
                   </div>
-                  <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/40">$4.2M</div>
-                </div>
-                <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
-                  <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
-                </div>
-                <div className="font-mono text-[9px] text-muted-foreground/60 mt-2">Opaque cost center — no sub-allocation visibility</div>
-              </div>
-
-              <div className="border border-accent/30 bg-accent/[0.04] p-6 lg:p-7 relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" />
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">Capability view</div>
-                    <div className="font-serif text-2xl lg:text-3xl tracking-tight">Digital Onboarding</div>
+                  <div className="border border-border/50 bg-background p-6 lg:p-7">
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">Traditional view</div>
+                        <div className="font-serif text-2xl lg:text-3xl tracking-tight">{traditionalCost.label}</div>
+                      </div>
+                      <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/40">${traditionalCost.amountUsdMm.toFixed(1)}M</div>
+                    </div>
+                    <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
+                      <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
+                    </div>
+                    <div className="font-mono text-[9px] text-muted-foreground/60 mt-2">Opaque cost center — no sub-allocation visibility</div>
                   </div>
-                  <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/60">$1.8M</div>
-                </div>
-                <div className="mb-3">
-                  <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5 flex justify-between">
-                    <span>Retained value generated</span>
-                    <span className="text-accent">$8.5M</span>
+                  <div className="border border-accent/30 bg-accent/[0.04] p-6 lg:p-7 relative overflow-hidden">
+                    <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" />
+                    <div className="flex items-start justify-between mb-4">
+                      <div>
+                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">Capability view</div>
+                        <div className="font-serif text-2xl lg:text-3xl tracking-tight">{capabilityCost.label}</div>
+                      </div>
+                      <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/60">${capabilityCost.amountUsdMm.toFixed(1)}M</div>
+                    </div>
+                    <div className="mb-3">
+                      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5 flex justify-between">
+                        <span>Retained value generated</span>
+                        <span className="text-accent">${valueGenerated.toFixed(1)}M</span>
+                      </div>
+                      <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          whileInView={{ width: "80%" }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                          className="h-full bg-accent rounded-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="font-mono text-[9px] text-muted-foreground/60">
+                      {(valueGenerated / capabilityCost.amountUsdMm).toFixed(1)}× return on capability investment
+                    </div>
                   </div>
-                  <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      whileInView={{ width: "80%" }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-                      className="h-full bg-accent rounded-sm"
-                    />
+                  <div className="border border-border/40 bg-background p-4 flex items-center justify-between">
+                    <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Value unlocked with visibility</span>
+                    <span className="font-serif text-xl text-accent font-medium">+${unlocked.toFixed(1)}M</span>
                   </div>
-                </div>
-                <div className="font-mono text-[9px] text-muted-foreground/60">
-                  4.7× return on capability investment · CEI score: 82
-                </div>
-              </div>
-
-              <div className="border border-border/40 bg-background p-4 flex items-center justify-between">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Value unlocked with visibility</span>
-                <span className="font-serif text-xl text-accent font-medium">+$6.7M</span>
-              </div>
+                </>
+              ) : (
+                // Fallback when no case study has an economics breakdown yet:
+                // render the analogy as a directional callout linking to the
+                // real case study, without inventing dollar values.
+                <Link href={cardHref} className="block border border-border/50 bg-background p-6 lg:p-8 hover:border-accent/40 transition-colors group">
+                  <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground mb-3">Featured case study — {cardName}</div>
+                  <div className="font-serif text-xl lg:text-2xl tracking-tight mb-3">{card?.title ?? `${cardName} capability transformation`}</div>
+                  <div className="text-sm text-foreground/70 leading-relaxed line-clamp-4 mb-4">
+                    {cardBlurb}
+                  </div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent inline-flex items-center gap-1.5 group-hover:translate-x-0.5 transition-transform">
+                    Read full case study <ArrowRight className="w-3 h-3" />
+                  </div>
+                </Link>
+              )}
             </div>
           </div>
         </div>
