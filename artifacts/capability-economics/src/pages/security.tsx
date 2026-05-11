@@ -29,7 +29,7 @@ export default function SecurityPage() {
         <h1 className="font-serif text-4xl tracking-tight">Security, identity, and data lineage</h1>
         <p className="text-base text-muted-foreground mt-3 max-w-3xl leading-relaxed">
           A summary of how the platform handles identity, data, and deployment options for enterprise buyers.
-          For procurement documentation or a signed DPA, contact <a href="mailto:security@example.com" className="text-primary hover:underline">security@example.com</a>.
+          For procurement documentation or a signed DPA, contact <a href="mailto:security@capability-economics.com" className="text-primary hover:underline">security@capability-economics.com</a>.
         </p>
       </div>
 
@@ -178,9 +178,9 @@ export default function SecurityPage() {
       <div className="text-center pt-4">
         <p className="text-sm text-muted-foreground">
           Need a procurement packet, signed DPA, or vendor risk assessment?{" "}
-          <a href="mailto:security@example.com" className="text-primary hover:underline inline-flex items-center gap-1">
+          <a href="mailto:security@capability-economics.com" className="text-primary hover:underline inline-flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />
-            security@example.com
+            security@capability-economics.com
           </a>
         </p>
       </div>

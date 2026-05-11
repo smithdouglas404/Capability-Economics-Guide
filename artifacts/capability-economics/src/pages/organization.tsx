@@ -168,7 +168,7 @@ export default function OrganizationSetup() {
                 <Label htmlFor="orgName">Organization Name</Label>
                 <Input
                   id="orgName"
-                  placeholder="e.g. Acme Insurance Co."
+                  placeholder="Your organization name"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
                 />

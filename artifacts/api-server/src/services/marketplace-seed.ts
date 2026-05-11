@@ -26,8 +26,12 @@ import { eq, and } from "drizzle-orm";
 import { saveUpload } from "./marketplace-storage";
 import { logger } from "../lib/logger";
 
-const SEED_SELLER_USER_ID = "ce-research-house"; // synthetic — not a real Clerk user
-const SEED_SELLER_STRIPE_ACCOUNT = "acct_ce_demo_seller"; // synthetic — payouts disabled
+const SEED_SELLER_USER_ID = "ce-research-house"; // synthetic — not a real Clerk user.
+// The seed seller's Stripe Connect account ID is supplied at runtime via
+// DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID. Provision a real test-mode Express
+// account in the Stripe Dashboard once, complete onboarding, copy the acct_xxx
+// here. When the env var is unset (e.g. live mode), seedMarketplaceReports()
+// short-circuits and no demo rows are inserted.
 
 interface SeedReport {
   title: string;
@@ -290,14 +294,27 @@ async function buildPlaceholderPdf(report: SeedReport): Promise<Buffer> {
 
 // ─── Seller bootstrap + listing upsert ──────────────────────────────────────
 
-async function ensureSeedSeller(): Promise<typeof marketplaceSellersTable.$inferSelect> {
+async function ensureSeedSeller(stripeAccountId: string): Promise<typeof marketplaceSellersTable.$inferSelect> {
   const [existing] = await db.select().from(marketplaceSellersTable).where(eq(marketplaceSellersTable.userId, SEED_SELLER_USER_ID));
   if (existing) {
-    if (existing.tier !== "featured") {
+    // Sync stripeAccountId + capability flags in case the env var changed
+    // (e.g. rotated from a fake hardcoded value left over from before this fix).
+    const needsSync =
+      existing.stripeAccountId !== stripeAccountId ||
+      !existing.chargesEnabled ||
+      !existing.payoutsEnabled ||
+      !existing.detailsSubmitted ||
+      existing.tier !== "featured";
+    if (needsSync) {
       const [updated] = await db.update(marketplaceSellersTable).set({
+        stripeAccountId,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        detailsSubmitted: true,
         tier: "featured",
         tierGrantedBy: "system_seed",
         tierGrantedAt: new Date(),
+        tierNote: "In-house research imprint backed by a Stripe Connect test account.",
         updatedAt: new Date(),
       }).where(eq(marketplaceSellersTable.id, existing.id)).returning();
       return updated;
@@ -308,14 +325,14 @@ async function ensureSeedSeller(): Promise<typeof marketplaceSellersTable.$infer
     userId: SEED_SELLER_USER_ID,
     email: "research@capability-economics.com",
     displayName: "Capability Economics Research",
-    stripeAccountId: SEED_SELLER_STRIPE_ACCOUNT,
-    chargesEnabled: false,
-    payoutsEnabled: false,
-    detailsSubmitted: false,
+    stripeAccountId,
+    chargesEnabled: true,
+    payoutsEnabled: true,
+    detailsSubmitted: true,
     tier: "featured",
     tierGrantedBy: "system_seed",
     tierGrantedAt: new Date(),
-    tierNote: "In-house research imprint. Stripe Connect not enabled — listings are read-only demo content.",
+    tierNote: "In-house research imprint backed by a Stripe Connect test account.",
     bio: "The in-house research arm of the Capability Economics platform. We publish strategic briefs on capability shifts across industries, with every claim traceable to the live CEI engine and Perplexity-cited macro evidence.",
     websiteUrl: null,
   }).returning();
@@ -333,9 +350,22 @@ export interface SeedSummary {
  * Upsert the seed catalog. Re-running the function will keep listings in sync
  * with the catalog above — title-matched rows get their description / price /
  * tags / featured flag updated; new entries get inserted.
+ *
+ * Gated on `DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID`. When unset (e.g. live
+ * mode), this no-ops and returns a summary with all counts at zero. To enable
+ * the demo marketplace, provision a real test-mode Stripe Connect account and
+ * set the env var on the api-server.
  */
 export async function seedMarketplaceReports(): Promise<SeedSummary> {
-  const seller = await ensureSeedSeller();
+  const stripeAccountId = process.env.DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID;
+  if (!stripeAccountId) {
+    logger.info(
+      "[marketplace-seed] DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID not set — skipping demo marketplace reports. " +
+      "Set it to a real test-mode Stripe Connect account ID to populate the demo marketplace.",
+    );
+    return { sellerId: -1, inserted: 0, updated: 0, unchanged: 0 };
+  }
+  const seller = await ensureSeedSeller(stripeAccountId);
   let inserted = 0, updated = 0, unchanged = 0;
 
   for (const report of REPORTS) {

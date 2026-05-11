@@ -177,7 +177,7 @@ export default function ManualCompForm({ onGranted }: Props) {
             <Label htmlFor="comp-entity-name">Entity name <span className="text-destructive">*</span></Label>
             <Input
               id="comp-entity-name"
-              placeholder={entityType === "company" ? "Acme Inc." : "Jane Doe"}
+              placeholder={entityType === "company" ? "e.g. Northwind Insurance" : "Full name"}
               value={entityName}
               onChange={e => setEntityName(e.target.value)}
               className="rounded-none"

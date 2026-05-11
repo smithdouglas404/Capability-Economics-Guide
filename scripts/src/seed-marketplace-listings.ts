@@ -2,9 +2,8 @@ import { db, marketplaceSellersTable, marketplaceListingsTable } from "@workspac
 import { eq } from "drizzle-orm";
 
 const SEED_SELLER_USER_ID = "seed_platform_seller";
-const SEED_SELLER_STRIPE_ACCT = "acct_seed_platform_000000";
 const SEED_SELLER_DISPLAY_NAME = "Capability Economics Research";
-const SEED_SELLER_EMAIL = "research@capability-economics.local";
+const SEED_SELLER_EMAIL = "research@capability-economics.com";
 
 const day = 24 * 60 * 60 * 1000;
 const daysFromNow = (n: number) => new Date(Date.now() + n * day);
@@ -147,6 +146,19 @@ const LISTINGS: SeedListing[] = [
 ];
 
 async function seedMarketplaceListings() {
+  // The seed seller's Stripe Connect account ID must be a real test-mode acct_xxx
+  // that has completed Stripe Express onboarding. Provision once in Stripe
+  // Dashboard, set as DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID on the api-server.
+  // When unset (e.g. live mode), this seed no-ops — the marketplace starts empty.
+  const stripeAccountId = process.env.DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID;
+  if (!stripeAccountId) {
+    console.log(
+      "[seed] DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID not set — skipping demo marketplace listings. " +
+      "Set it to a real test-mode Stripe Connect account ID to populate the demo marketplace.",
+    );
+    return;
+  }
+
   const [existingSeller] = await db
     .select()
     .from(marketplaceSellersTable)
@@ -155,13 +167,31 @@ async function seedMarketplaceListings() {
   let sellerId: number;
   if (existingSeller) {
     sellerId = existingSeller.id;
-    console.log(`[seed] Reusing existing seed seller (id=${sellerId})`);
+    // Sync Stripe account ID in case env var changed (e.g. rotated from a fake
+    // hardcoded value left over from before this fix).
+    if (
+      existingSeller.stripeAccountId !== stripeAccountId ||
+      !existingSeller.chargesEnabled ||
+      !existingSeller.payoutsEnabled
+    ) {
+      await db.update(marketplaceSellersTable).set({
+        stripeAccountId,
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+        email: SEED_SELLER_EMAIL,
+        updatedAt: new Date(),
+      }).where(eq(marketplaceSellersTable.id, sellerId));
+      console.log(`[seed] Updated existing seed seller (id=${sellerId}) Stripe account → ${stripeAccountId}`);
+    } else {
+      console.log(`[seed] Reusing existing seed seller (id=${sellerId})`);
+    }
   } else {
     const [created] = await db.insert(marketplaceSellersTable).values({
       userId: SEED_SELLER_USER_ID,
       email: SEED_SELLER_EMAIL,
       displayName: SEED_SELLER_DISPLAY_NAME,
-      stripeAccountId: SEED_SELLER_STRIPE_ACCT,
+      stripeAccountId,
       chargesEnabled: true,
       payoutsEnabled: true,
       detailsSubmitted: true,
