@@ -76,6 +76,34 @@ router.post("/kyc/webhook", express.raw({ type: "application/json" }), async (re
       }).where(eq(kycVerificationsTable.id, record.id));
     }
 
+    // Anchor the KYC outcome on Hedera (compliance audit trail). Only
+    // non-sensitive metadata is published; identity fields (name, document
+    // number, etc.) are hashed and the hash anchors the proof-of-event.
+    try {
+      const { anchorEvent, canonicalHash } = await import("../services/blockchain-audit");
+      const sensitivePayload = {
+        userId: record.userId,
+        kycLevel: record.kycLevel,
+        idStatus,
+        documentNumberPresent: !!user_data?.document_number,
+        nationality: user_data?.nationality ?? null,
+      };
+      void anchorEvent("kyc_verification", {
+        contextHash: canonicalHash(sensitivePayload),
+        contextSnapshot: {
+          // Publish only the outcome + level — no PII. Anyone with read
+          // access to the topic can verify "user X passed identity on
+          // 2026-05-11" without learning their document number.
+          kycLevel: record.kycLevel,
+          outcome: idStatus === "Declined" ? "declined" : (record.kycLevel === "identity" ? "approved" : "in_progress"),
+          userIdHash: canonicalHash({ userId: record.userId }),
+        },
+        relatedEntity: `kyc_verifications:${record.id}`,
+      });
+    } catch (err) {
+      console.error("[kyc webhook] anchor failed (non-fatal):", err);
+    }
+
     console.log(`[kyc webhook] user ${record.userId} ID verification: ${idStatus}`);
     res.json({ received: true, idStatus });
   } catch (err) {

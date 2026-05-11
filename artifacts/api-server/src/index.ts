@@ -84,6 +84,15 @@ app.listen(port, (err) => {
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");
 
+  // Auto-rotation checker — daily tick that rotates ADMIN_API_KEY when
+  // cadence is reached (and the operator has enabled auto-rotation +
+  // configured notifyEmail). No-op when DB row doesn't exist or auto
+  // is off; see services/scheduled-rotation.ts for details.
+  void import("./services/scheduled-rotation").then(({ startScheduledRotation }) => {
+    startScheduledRotation();
+    logger.info("Scheduled admin-key rotation checker started (24h interval)");
+  });
+
   // Sub-capability self-heal — drives every environment toward the same
   // canonical state on boot. If staging and dev drift (e.g., decomposition
   // ran on one but not the other), this is what closes the gap. Idempotent

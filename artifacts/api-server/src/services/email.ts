@@ -33,6 +33,26 @@ export function isEmailConfigured(): boolean {
   return !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
 }
 
+/**
+ * Generic send for plain-text-first transactional emails (e.g. admin-key
+ * rotation notifications, system alerts). Wraps the text body in the
+ * standard HTML shell if html isn't provided. Never throws — failures
+ * are logged.
+ */
+export async function sendEmail({ to, subject, text, html }: {
+  to: string;
+  subject: string;
+  text: string;
+  html?: string;
+}): Promise<void> {
+  await sendRaw({
+    to,
+    subject,
+    text,
+    html: html ?? wrap(`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))}</pre>`),
+  });
+}
+
 async function sendRaw(payload: EmailPayload): Promise<void> {
   try {
     await sendRawStrict(payload);

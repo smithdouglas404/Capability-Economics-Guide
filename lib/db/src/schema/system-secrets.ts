@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, integer, text, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
 
 /**
  * Server-side managed secrets that admins can rotate without a Railway env-var
@@ -22,7 +22,23 @@ export const systemSecretsTable = pgTable("system_secrets", {
     reason: string | null;
     // Hash of the previous value (sha256 hex). Not the value itself.
     previousValueHash: string | null;
+    // Hedera Consensus Service anchor (when configured). Sequence number is
+    // the position in the topic; tx id is the Hedera transaction.
+    blockchainAnchor?: {
+      provider: "hedera_hcs" | "polygon_evm";
+      topicOrContractId: string;
+      sequenceNumber?: number;
+      txId?: string;
+      consensusTimestamp?: string;
+    } | null;
   }>>().notNull().default([]),
+  // Scheduled-rotation configuration. When autoRotateEnabled=true and
+  // rotatedAt is older than rotationCadenceDays, the daily check rotates
+  // the key and emails notifyEmail with the new value.
+  autoRotateEnabled: boolean("auto_rotate_enabled").notNull().default(false),
+  rotationCadenceDays: integer("rotation_cadence_days").notNull().default(90),
+  notifyEmail: text("notify_email"),
+  lastAutoCheckAt: timestamp("last_auto_check_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
