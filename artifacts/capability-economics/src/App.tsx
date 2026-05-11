@@ -181,8 +181,7 @@ function Router() {
       <Route path="/system-status" component={SystemStatus} />
       <Route path="/lifecycle" component={LifecycleDocs} />
       <Route path="/developers" component={DevelopersPage} />
-      {/* Legacy redirects — older links to /workbench or /ledger land on The Console. */}
-      <Route path="/workbench">{() => <Redirect to="/console" />}</Route>
+      {/* Legacy redirect — older links to /ledger land on The Console. */}
       <Route path="/ledger">{() => <Redirect to="/console" />}</Route>
       <Route component={NotFound} />
     </Switch>

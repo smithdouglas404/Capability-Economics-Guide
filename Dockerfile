@@ -25,16 +25,22 @@ EXPOSE 8080
 
 # Push schema + seed every idempotent catalog, then start server.
 #
+# We use `db run push-force` (drizzle-kit push --force) here so it never
+# prompts in this TTY-less container. `pnpm run start` will also invoke
+# `deploy:migrate` which is a second push-force; that's idempotent and
+# acts as a safety net if the first push silently no-ops.
+#
 # Order matters:
-#   1. db push              — schema must be current before any seed runs
+#   1. db push-force        — schema must be current before any seed runs
 #   2. seed                 — base data (industries, capabilities)
 #   3. seed:marketplace     — legacy marketplace seed (kept for back-compat)
 #   4. seed:organizations   — 12 reference orgs — fixes "Scorecard 0 scored"
 #   5. seed:patterns        — Uber/Stripe/OpenAI design-thinking exemplars
 #   6. seed:reports         — 8 substantive marketplace research listings (+ placeholder PDFs)
-#   7. start                — api-server, which also serves SPA + starts digest cron
+#   7. start                — runs deploy:migrate (push-force) then api-server,
+#                             which also serves SPA + starts digest cron
 #
 # Every seed is idempotent (upsert on slug/title/userId); safe-on-every-restart.
 # Any seed can be skipped by setting SKIP_ORG_SEED / SKIP_PATTERNS_SEED /
 # SKIP_MARKETPLACE_SEED / SKIP_MIGRATE = 1 in env.
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed:marketplace && pnpm --filter @workspace/scripts run seed:organizations && pnpm --filter @workspace/scripts run seed:patterns && pnpm --filter @workspace/scripts run seed:reports && pnpm run start"]
+CMD ["sh", "-c", "pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed:marketplace && pnpm --filter @workspace/scripts run seed:organizations && pnpm --filter @workspace/scripts run seed:patterns && pnpm --filter @workspace/scripts run seed:reports && pnpm run start"]
