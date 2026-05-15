@@ -103,6 +103,9 @@ importers:
       '@clerk/express':
         specifier: ^2.1.3
         version: 2.1.3(express@5.2.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@grpc/grpc-js':
+        specifier: 1.12.6
+        version: 1.12.6
       '@hashgraph/sdk':
         specifier: ^2.50.0
         version: 2.81.0
