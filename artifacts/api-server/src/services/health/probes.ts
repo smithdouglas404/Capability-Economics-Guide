@@ -38,7 +38,7 @@ export interface ServicesHealthResponse {
 }
 
 const CACHE_TTL_MS = 60_000;
-const PROBE_TIMEOUT_MS = 4_000;
+const PROBE_TIMEOUT_MS = 15_000;
 
 interface CacheEntry {
   result: ServiceHealth;

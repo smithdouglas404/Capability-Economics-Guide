@@ -305,7 +305,7 @@ export async function lettaPing(): Promise<{
     }
     await Promise.race([
       lettaClient.health(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Letta /health timed out")), 4000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Letta /health timed out")), 12000)),
     ]);
     lettaConnected = true;
     return { configured: true, ok: true, error: null };
