@@ -1,4 +1,5 @@
-import { pgTable, serial, text, timestamp, jsonb, integer, real, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, integer, real, boolean, index } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const agentRunsTable = pgTable("agent_runs", {
   id: serial("id").primaryKey(),
@@ -41,3 +42,69 @@ export const agentMemoriesTable = pgTable("agent_memories", {
   expiresAt: timestamp("expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+/**
+ * Proposed actions from the Letta autonomous agent that mutate canonical
+ * platform data. Every write that Letta might want to make goes here first
+ * with status="pending"; a human (admin) approves or rejects via the admin
+ * UI, and approval flips status to "applied" while the per-type applier
+ * mutates the actual table.
+ *
+ * Why a queue and not direct writes:
+ *   1. Agent reasoning can hallucinate or misread a contradiction; a bad
+ *      direct write to economic_rules or industry_priors corrupts the
+ *      institutional memory and is hard to roll back.
+ *   2. Every proposal carries the agent's chain-of-thought rationale
+ *      ("why I think this rule should change") so admins can audit the
+ *      reasoning, not just the outcome.
+ *   3. proposal expires after 30 days if no one acts on it — keeps the
+ *      queue from growing unbounded.
+ *
+ * Per plan Phase 1.5.1.
+ */
+export const agentProposalsTable = pgTable(
+  "agent_proposals",
+  {
+    id: serial("id").primaryKey(),
+    agentRunId: integer("agent_run_id"),
+    proposalType: text("proposal_type").notNull(),
+    targetEntity: text("target_entity").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    agentRationale: text("agent_rationale"),
+    status: text("status").notNull().default("pending"),
+    proposedBy: text("proposed_by").notNull().default("letta-agent"),
+    reviewedBy: text("reviewed_by"),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewNotes: text("review_notes"),
+    appliedAt: timestamp("applied_at"),
+    expiresAt: timestamp("expires_at").default(sql`now() + interval '30 days'`).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    queueIdx: index("agent_proposals_queue_idx").on(t.status, t.createdAt),
+    targetIdx: index("agent_proposals_target_idx").on(t.targetEntity, t.status),
+  }),
+);
+
+/**
+ * Admin-tunable strategic thresholds the Letta agent reasons against
+ * (CVI floor, DVX ceiling, posterior-variance limit, etc.). Distinct from
+ * agent_tuning which holds operational tunables (Perplexity cap, interval).
+ *
+ * The rendered content of this table is serialized into the Letta
+ * "economic_rules" core memory block on every change so the agent sees
+ * threshold updates immediately, not on next consolidator cycle.
+ *
+ * Per plan Phase 1.5.1.
+ */
+export const economicRulesTable = pgTable("economic_rules", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  unit: text("unit"),
+  description: text("description").notNull(),
+  lastUpdatedBy: text("last_updated_by"),
+  lastUpdatedAt: timestamp("last_updated_at").defaultNow().notNull(),
+});
+
+export type AgentProposal = typeof agentProposalsTable.$inferSelect;
+export type EconomicRule = typeof economicRulesTable.$inferSelect;

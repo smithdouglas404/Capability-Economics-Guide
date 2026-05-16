@@ -23,6 +23,7 @@
     "set:pack-stripe-ids": "tsx ./src/set-pack-stripe-ids.ts",
     "migrate:cvi-rename": "tsx ./src/migrate-cvi-rename.ts",
     "migrate:mem0-agent-id": "tsx ./src/migrate-mem0-agent-id.ts",
+    "seed:economic-rules": "tsx ./src/seed-economic-rules.ts",
     "seed:disruption-patterns": "tsx ./src/seed-disruption-patterns.ts",
     "seed:disruption-events": "tsx ./src/seed-disruption-events.ts",
     "cei:replay-history": "tsx ./src/replay-cei-history.ts",

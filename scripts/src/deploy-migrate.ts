@@ -176,6 +176,7 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "payg tier + credit packs", script: "seed:payg-tier" },
   { name: "DVX disruption patterns", script: "seed:disruption-patterns" },
   { name: "disruption events catalog", script: "seed:disruption-events" },
+  { name: "economic rules (Letta block source)", script: "seed:economic-rules" },
 ];
 
 async function runSeeds(): Promise<void> {
