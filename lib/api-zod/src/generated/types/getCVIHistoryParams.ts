@@ -6,7 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetCEIMethodology200 = {
-  methodology: string;
-  version: string;
+export type GetCVIHistoryParams = {
+  limit?: number;
 };

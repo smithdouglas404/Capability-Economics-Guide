@@ -561,24 +561,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/OntologyData"
 
-  /cei/current:
+  /cvi/current:
     get:
-      operationId: getCEICurrent
-      tags: [cei]
-      summary: Get current CEI index value and industry breakdowns
+      operationId: getCVICurrent
+      tags: [cvi]
+      summary: Get current CVI index value and industry breakdowns
       responses:
         "200":
-          description: Current CEI data
+          description: Current CVI data
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CEIData"
+                $ref: "#/components/schemas/CVIData"
 
-  /cei/history:
+  /cvi/history:
     get:
-      operationId: getCEIHistory
-      tags: [cei]
-      summary: Get historical CEI index values
+      operationId: getCVIHistory
+      tags: [cvi]
+      summary: Get historical CVI index values
       parameters:
         - name: limit
           in: query
@@ -588,19 +588,19 @@ paths:
             default: 30
       responses:
         "200":
-          description: CEI history
+          description: CVI history
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/CEIHistoryEntry"
+                  $ref: "#/components/schemas/CVIHistoryEntry"
 
-  /cei/refresh:
+  /cvi/refresh:
     post:
-      operationId: refreshCEI
-      tags: [cei]
-      summary: Trigger CEI recalculation with optional triangulation
+      operationId: refreshCVI
+      tags: [cvi]
+      summary: Trigger CVI recalculation with optional triangulation
       requestBody:
         required: false
         content:
@@ -613,14 +613,14 @@ paths:
                   nullable: true
       responses:
         "200":
-          description: Refreshed CEI data with triangulation results
+          description: Refreshed CVI data with triangulation results
           content:
             application/json:
               schema:
                 type: object
                 properties:
                   cei:
-                    $ref: "#/components/schemas/CEIData"
+                    $ref: "#/components/schemas/CVIData"
                   triangulations:
                     type: array
                     items:
@@ -632,11 +632,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /cei/methodology:
+  /cvi/methodology:
     get:
-      operationId: getCEIMethodology
-      tags: [cei]
-      summary: Get CEI calculation methodology documentation
+      operationId: getCVIMethodology
+      tags: [cvi]
+      summary: Get CVI calculation methodology documentation
       responses:
         "200":
           description: Methodology documentation
@@ -844,7 +844,7 @@ components:
       enum: [emerging, adopted, mature, decaying, obsolete]
       description: |
         Derived (never persisted) capability lifecycle stage. Computed on
-        read from the capability's current ceiComponents posterior
+        read from the capability's current cviComponents posterior
         (consensusScore + velocity); falls back to benchmarkScore when no
         posterior exists. See `services/lifecycle.ts` for thresholds.
 
@@ -1607,7 +1607,7 @@ components:
           description: Full research narrative from Perplexity
       required: [findings, citations, rawAnalysis]
 
-    CEIIndustryBreakdown:
+    CVIIndustryBreakdown:
       type: object
       properties:
         industryName:
@@ -1642,7 +1642,7 @@ components:
           description: Reporting year of the cited GDP-weight source.
       required: [industryName, indexValue, weight, velocity, capabilityCount, topMover, topMoverDelta]
 
-    CEIData:
+    CVIData:
       type: object
       properties:
         overallIndex:
@@ -1650,7 +1650,7 @@ components:
         industryBreakdowns:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/CEIIndustryBreakdown"
+            $ref: "#/components/schemas/CVIIndustryBreakdown"
         marketSentiment:
           type: number
         volatility:
@@ -1662,14 +1662,14 @@ components:
         overallCiLow:
           type: number
           nullable: true
-          description: Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).
+          description: Lower bound of 95% credible interval for the overall CVI (propagated from per-capability posterior variance).
         overallCiHigh:
           type: number
           nullable: true
-          description: Upper bound of 95% credible interval for the overall CEI.
+          description: Upper bound of 95% credible interval for the overall CVI.
       required: [overallIndex, industryBreakdowns, marketSentiment, volatility, methodology, timestamp]
 
-    CEIHistoryEntry:
+    CVIHistoryEntry:
       type: object
       properties:
         overallIndex:
@@ -1679,7 +1679,7 @@ components:
         industryBreakdowns:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/CEIIndustryBreakdown"
+            $ref: "#/components/schemas/CVIIndustryBreakdown"
         overallCiLow:
           type: number
           nullable: true

@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface CEIIndustryBreakdown {
+export interface CVIIndustryBreakdown {
   industryName: string;
   indexValue: number;
   weight: number;

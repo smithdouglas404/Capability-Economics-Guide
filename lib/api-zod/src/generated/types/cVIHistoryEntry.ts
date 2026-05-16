@@ -5,12 +5,12 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import type { CEIHistoryEntryIndustryBreakdowns } from "./cEIHistoryEntryIndustryBreakdowns";
+import type { CVIHistoryEntryIndustryBreakdowns } from "./cVIHistoryEntryIndustryBreakdowns";
 
-export interface CEIHistoryEntry {
+export interface CVIHistoryEntry {
   overallIndex: number;
   timestamp: string;
-  industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
+  industryBreakdowns?: CVIHistoryEntryIndustryBreakdowns;
   overallCiLow?: number | null;
   overallCiHigh?: number | null;
 }

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RefreshCEIBody = {
-  industryId?: number | null;
+export type GetCVIMethodology200 = {
+  methodology: string;
+  version: string;
 };

@@ -24,7 +24,7 @@ export interface Industry {
 
 /**
  * Derived (never persisted) capability lifecycle stage. Computed on
-read from the capability's current ceiComponents posterior
+read from the capability's current cviComponents posterior
 (consensusScore + velocity); falls back to benchmarkScore when no
 posterior exists. See `services/lifecycle.ts` for thresholds.
 
@@ -485,7 +485,7 @@ export interface ResearchResponse {
   rawAnalysis: string;
 }
 
-export interface CEIIndustryBreakdown {
+export interface CVIIndustryBreakdown {
   industryName: string;
   indexValue: number;
   weight: number;
@@ -503,29 +503,29 @@ export interface CEIIndustryBreakdown {
   weightSourceYear?: number | null;
 }
 
-export type CEIDataIndustryBreakdowns = { [key: string]: CEIIndustryBreakdown };
+export type CVIDataIndustryBreakdowns = { [key: string]: CVIIndustryBreakdown };
 
-export interface CEIData {
+export interface CVIData {
   overallIndex: number;
-  industryBreakdowns: CEIDataIndustryBreakdowns;
+  industryBreakdowns: CVIDataIndustryBreakdowns;
   marketSentiment: number;
   volatility: number;
   methodology: string;
   timestamp: string;
-  /** Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance). */
+  /** Lower bound of 95% credible interval for the overall CVI (propagated from per-capability posterior variance). */
   overallCiLow?: number | null;
-  /** Upper bound of 95% credible interval for the overall CEI. */
+  /** Upper bound of 95% credible interval for the overall CVI. */
   overallCiHigh?: number | null;
 }
 
-export type CEIHistoryEntryIndustryBreakdowns = {
-  [key: string]: CEIIndustryBreakdown;
+export type CVIHistoryEntryIndustryBreakdowns = {
+  [key: string]: CVIIndustryBreakdown;
 };
 
-export interface CEIHistoryEntry {
+export interface CVIHistoryEntry {
   overallIndex: number;
   timestamp: string;
-  industryBreakdowns?: CEIHistoryEntryIndustryBreakdowns;
+  industryBreakdowns?: CVIHistoryEntryIndustryBreakdowns;
   overallCiLow?: number | null;
   overallCiHigh?: number | null;
 }
@@ -548,8 +548,8 @@ export interface AgentRunResult {
   perplexityCalls?: number;
   memoriesRecalled?: number;
   memoriesStored?: number;
-  cviBeforeIndex?: number | null;
-  cviAfterIndex?: number | null;
+  ceiBeforeIndex?: number | null;
+  ceiAfterIndex?: number | null;
   startedAt?: string;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -632,22 +632,22 @@ export type GetOntologyParams = {
   industryId?: number;
 };
 
-export type GetCEIHistoryParams = {
+export type GetCVIHistoryParams = {
   limit?: number;
 };
 
-export type RefreshCEIBody = {
+export type RefreshCVIBody = {
   industryId?: number | null;
 };
 
-export type RefreshCEI200TriangulationsItem = { [key: string]: unknown };
+export type RefreshCVI200TriangulationsItem = { [key: string]: unknown };
 
-export type RefreshCEI200 = {
-  cei?: CEIData;
-  triangulations?: RefreshCEI200TriangulationsItem[];
+export type RefreshCVI200 = {
+  cei?: CVIData;
+  triangulations?: RefreshCVI200TriangulationsItem[];
 };
 
-export type GetCEIMethodology200 = {
+export type GetCVIMethodology200 = {
   methodology: string;
   version: string;
 };

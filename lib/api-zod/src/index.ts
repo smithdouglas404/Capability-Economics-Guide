@@ -1,5 +1,5 @@
 // AUTO-RESOLVED ambiguity: api.ts exports zod schemas (runtime values) for
-// GenerateInsightsResponse, GetDashboardParams, GetProjectParams, RefreshCEIBody,
+// GenerateInsightsResponse, GetDashboardParams, GetProjectParams, RefreshCVIBody,
 // UpdateOrganizationBody. The same names also exist as TS types under
 // ./generated/types/. To avoid duplicate-export errors, we re-export api.ts
 // (the schemas), then explicitly re-export every non-conflicting type module.
@@ -22,11 +22,11 @@ export * from "./generated/types/capabilityInsightSeverity";
 export * from "./generated/types/capabilityMetric";
 export * from "./generated/types/capabilityThreshold";
 export * from "./generated/types/capabilityThresholdStatus";
-export * from "./generated/types/cEIData";
-export * from "./generated/types/cEIDataIndustryBreakdowns";
-export * from "./generated/types/cEIHistoryEntry";
-export * from "./generated/types/cEIHistoryEntryIndustryBreakdowns";
-export * from "./generated/types/cEIIndustryBreakdown";
+export * from "./generated/types/cVIData";
+export * from "./generated/types/cVIDataIndustryBreakdowns";
+export * from "./generated/types/cVIHistoryEntry";
+export * from "./generated/types/cVIHistoryEntryIndustryBreakdowns";
+export * from "./generated/types/cVIIndustryBreakdown";
 export * from "./generated/types/createOrganizationRequest";
 export * from "./generated/types/createOrganizationRequestSize";
 export * from "./generated/types/cSuiteRole";
@@ -41,8 +41,8 @@ export * from "./generated/types/generateInsightsRequest";
 export * from "./generated/types/generateInsightsResponseInsightsItem";
 export * from "./generated/types/getAgentHistoryParams";
 export * from "./generated/types/getAgentMemoriesParams";
-export * from "./generated/types/getCEIHistoryParams";
-export * from "./generated/types/getCEIMethodology200";
+export * from "./generated/types/getCVIHistoryParams";
+export * from "./generated/types/getCVIMethodology200";
 export * from "./generated/types/getOntologyParams";
 export * from "./generated/types/healthStatus";
 export * from "./generated/types/industry";
@@ -69,8 +69,8 @@ export * from "./generated/types/projectCapabilityImpact";
 export * from "./generated/types/projectDetail";
 export * from "./generated/types/projectExecutiveInsight";
 export * from "./generated/types/projectRisk";
-export * from "./generated/types/refreshCEI200";
-export * from "./generated/types/refreshCEI200TriangulationsItem";
+export * from "./generated/types/refreshCVI200";
+export * from "./generated/types/refreshCVI200TriangulationsItem";
 export * from "./generated/types/researchFinding";
 export * from "./generated/types/researchFindingRelevance";
 export * from "./generated/types/researchRequest";

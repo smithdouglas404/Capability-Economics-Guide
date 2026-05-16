@@ -6,4 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type RefreshCEI200TriangulationsItem = { [key: string]: unknown };
+export type RefreshCVIBody = {
+  industryId?: number | null;
+};

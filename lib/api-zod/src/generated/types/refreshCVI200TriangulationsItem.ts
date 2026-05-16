@@ -6,6 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetCEIHistoryParams = {
-  limit?: number;
-};
+export type RefreshCVI200TriangulationsItem = { [key: string]: unknown };

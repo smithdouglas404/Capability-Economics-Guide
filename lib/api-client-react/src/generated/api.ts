@@ -21,9 +21,9 @@ import type {
   AgentRunResult,
   AgentStatusResponse,
   Assessment,
-  CEIData,
-  CEIHistoryEntry,
   CSuiteRole,
+  CVIData,
+  CVIHistoryEntry,
   Capability,
   CapabilityDetail,
   CapabilityInsight,
@@ -37,8 +37,8 @@ import type {
   GenerateInsightsResponse,
   GetAgentHistoryParams,
   GetAgentMemoriesParams,
-  GetCEIHistoryParams,
-  GetCEIMethodology200,
+  GetCVIHistoryParams,
+  GetCVIMethodology200,
   GetDashboardParams,
   GetOntologyParams,
   GetProjectParams,
@@ -58,8 +58,8 @@ import type {
   Organization,
   OrganizationDetail,
   ProjectDetail,
-  RefreshCEI200,
-  RefreshCEIBody,
+  RefreshCVI200,
+  RefreshCVIBody,
   ResearchRequest,
   ResearchResponse,
   TechnologyProject,
@@ -2216,31 +2216,31 @@ export function useGetOntology<
 }
 
 /**
- * @summary Get current CEI index value and industry breakdowns
+ * @summary Get current CVI index value and industry breakdowns
  */
-export const getGetCEICurrentUrl = () => {
-  return `/api/cei/current`;
+export const getGetCVICurrentUrl = () => {
+  return `/api/cvi/current`;
 };
 
-export const getCEICurrent = async (
+export const getCVICurrent = async (
   options?: RequestInit,
-): Promise<CEIData> => {
-  return customFetch<CEIData>(getGetCEICurrentUrl(), {
+): Promise<CVIData> => {
+  return customFetch<CVIData>(getGetCVICurrentUrl(), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCEICurrentQueryKey = () => {
-  return [`/api/cei/current`] as const;
+export const getGetCVICurrentQueryKey = () => {
+  return [`/api/cvi/current`] as const;
 };
 
-export const getGetCEICurrentQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCEICurrent>>,
+export const getGetCVICurrentQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCVICurrent>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCEICurrent>>,
+    Awaited<ReturnType<typeof getCVICurrent>>,
     TError,
     TData
   >;
@@ -2248,40 +2248,40 @@ export const getGetCEICurrentQueryOptions = <
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCEICurrentQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetCVICurrentQueryKey();
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCEICurrent>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCVICurrent>>> = ({
     signal,
-  }) => getCEICurrent({ signal, ...requestOptions });
+  }) => getCVICurrent({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCEICurrent>>,
+    Awaited<ReturnType<typeof getCVICurrent>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetCEICurrentQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCEICurrent>>
+export type GetCVICurrentQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCVICurrent>>
 >;
-export type GetCEICurrentQueryError = ErrorType<unknown>;
+export type GetCVICurrentQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get current CEI index value and industry breakdowns
+ * @summary Get current CVI index value and industry breakdowns
  */
 
-export function useGetCEICurrent<
-  TData = Awaited<ReturnType<typeof getCEICurrent>>,
+export function useGetCVICurrent<
+  TData = Awaited<ReturnType<typeof getCVICurrent>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCEICurrent>>,
+    Awaited<ReturnType<typeof getCVICurrent>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCEICurrentQueryOptions(options);
+  const queryOptions = getGetCVICurrentQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2291,9 +2291,9 @@ export function useGetCEICurrent<
 }
 
 /**
- * @summary Get historical CEI index values
+ * @summary Get historical CVI index values
  */
-export const getGetCEIHistoryUrl = (params?: GetCEIHistoryParams) => {
+export const getGetCVIHistoryUrl = (params?: GetCVIHistoryParams) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -2305,32 +2305,32 @@ export const getGetCEIHistoryUrl = (params?: GetCEIHistoryParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/cei/history?${stringifiedParams}`
-    : `/api/cei/history`;
+    ? `/api/cvi/history?${stringifiedParams}`
+    : `/api/cvi/history`;
 };
 
-export const getCEIHistory = async (
-  params?: GetCEIHistoryParams,
+export const getCVIHistory = async (
+  params?: GetCVIHistoryParams,
   options?: RequestInit,
-): Promise<CEIHistoryEntry[]> => {
-  return customFetch<CEIHistoryEntry[]>(getGetCEIHistoryUrl(params), {
+): Promise<CVIHistoryEntry[]> => {
+  return customFetch<CVIHistoryEntry[]>(getGetCVIHistoryUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCEIHistoryQueryKey = (params?: GetCEIHistoryParams) => {
-  return [`/api/cei/history`, ...(params ? [params] : [])] as const;
+export const getGetCVIHistoryQueryKey = (params?: GetCVIHistoryParams) => {
+  return [`/api/cvi/history`, ...(params ? [params] : [])] as const;
 };
 
-export const getGetCEIHistoryQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCEIHistory>>,
+export const getGetCVIHistoryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCVIHistory>>,
   TError = ErrorType<unknown>,
 >(
-  params?: GetCEIHistoryParams,
+  params?: GetCVIHistoryParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCEIHistory>>,
+      Awaited<ReturnType<typeof getCVIHistory>>,
       TError,
       TData
     >;
@@ -2339,43 +2339,43 @@ export const getGetCEIHistoryQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCEIHistoryQueryKey(params);
+  const queryKey = queryOptions?.queryKey ?? getGetCVIHistoryQueryKey(params);
 
-  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCEIHistory>>> = ({
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCVIHistory>>> = ({
     signal,
-  }) => getCEIHistory(params, { signal, ...requestOptions });
+  }) => getCVIHistory(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCEIHistory>>,
+    Awaited<ReturnType<typeof getCVIHistory>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetCEIHistoryQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCEIHistory>>
+export type GetCVIHistoryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCVIHistory>>
 >;
-export type GetCEIHistoryQueryError = ErrorType<unknown>;
+export type GetCVIHistoryQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get historical CEI index values
+ * @summary Get historical CVI index values
  */
 
-export function useGetCEIHistory<
-  TData = Awaited<ReturnType<typeof getCEIHistory>>,
+export function useGetCVIHistory<
+  TData = Awaited<ReturnType<typeof getCVIHistory>>,
   TError = ErrorType<unknown>,
 >(
-  params?: GetCEIHistoryParams,
+  params?: GetCVIHistoryParams,
   options?: {
     query?: UseQueryOptions<
-      Awaited<ReturnType<typeof getCEIHistory>>,
+      Awaited<ReturnType<typeof getCVIHistory>>,
       TError,
       TData
     >;
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCEIHistoryQueryOptions(params, options);
+  const queryOptions = getGetCVIHistoryQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -2385,42 +2385,42 @@ export function useGetCEIHistory<
 }
 
 /**
- * @summary Trigger CEI recalculation with optional triangulation
+ * @summary Trigger CVI recalculation with optional triangulation
  */
-export const getRefreshCEIUrl = () => {
-  return `/api/cei/refresh`;
+export const getRefreshCVIUrl = () => {
+  return `/api/cvi/refresh`;
 };
 
-export const refreshCEI = async (
-  refreshCEIBody?: RefreshCEIBody,
+export const refreshCVI = async (
+  refreshCVIBody?: RefreshCVIBody,
   options?: RequestInit,
-): Promise<RefreshCEI200> => {
-  return customFetch<RefreshCEI200>(getRefreshCEIUrl(), {
+): Promise<RefreshCVI200> => {
+  return customFetch<RefreshCVI200>(getRefreshCVIUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(refreshCEIBody),
+    body: JSON.stringify(refreshCVIBody),
   });
 };
 
-export const getRefreshCEIMutationOptions = <
+export const getRefreshCVIMutationOptions = <
   TError = ErrorType<ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof refreshCEI>>,
+    Awaited<ReturnType<typeof refreshCVI>>,
     TError,
-    { data: BodyType<RefreshCEIBody> },
+    { data: BodyType<RefreshCVIBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
-  Awaited<ReturnType<typeof refreshCEI>>,
+  Awaited<ReturnType<typeof refreshCVI>>,
   TError,
-  { data: BodyType<RefreshCEIBody> },
+  { data: BodyType<RefreshCVIBody> },
   TContext
 > => {
-  const mutationKey = ["refreshCEI"];
+  const mutationKey = ["refreshCVI"];
   const { mutation: mutationOptions, request: requestOptions } = options
     ? options.mutation &&
       "mutationKey" in options.mutation &&
@@ -2430,72 +2430,72 @@ export const getRefreshCEIMutationOptions = <
     : { mutation: { mutationKey }, request: undefined };
 
   const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof refreshCEI>>,
-    { data: BodyType<RefreshCEIBody> }
+    Awaited<ReturnType<typeof refreshCVI>>,
+    { data: BodyType<RefreshCVIBody> }
   > = (props) => {
     const { data } = props ?? {};
 
-    return refreshCEI(data, requestOptions);
+    return refreshCVI(data, requestOptions);
   };
 
   return { mutationFn, ...mutationOptions };
 };
 
-export type RefreshCEIMutationResult = NonNullable<
-  Awaited<ReturnType<typeof refreshCEI>>
+export type RefreshCVIMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshCVI>>
 >;
-export type RefreshCEIMutationBody = BodyType<RefreshCEIBody>;
-export type RefreshCEIMutationError = ErrorType<ErrorResponse>;
+export type RefreshCVIMutationBody = BodyType<RefreshCVIBody>;
+export type RefreshCVIMutationError = ErrorType<ErrorResponse>;
 
 /**
- * @summary Trigger CEI recalculation with optional triangulation
+ * @summary Trigger CVI recalculation with optional triangulation
  */
-export const useRefreshCEI = <
+export const useRefreshCVI = <
   TError = ErrorType<ErrorResponse>,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof refreshCEI>>,
+    Awaited<ReturnType<typeof refreshCVI>>,
     TError,
-    { data: BodyType<RefreshCEIBody> },
+    { data: BodyType<RefreshCVIBody> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
-  Awaited<ReturnType<typeof refreshCEI>>,
+  Awaited<ReturnType<typeof refreshCVI>>,
   TError,
-  { data: BodyType<RefreshCEIBody> },
+  { data: BodyType<RefreshCVIBody> },
   TContext
 > => {
-  return useMutation(getRefreshCEIMutationOptions(options));
+  return useMutation(getRefreshCVIMutationOptions(options));
 };
 
 /**
- * @summary Get CEI calculation methodology documentation
+ * @summary Get CVI calculation methodology documentation
  */
-export const getGetCEIMethodologyUrl = () => {
-  return `/api/cei/methodology`;
+export const getGetCVIMethodologyUrl = () => {
+  return `/api/cvi/methodology`;
 };
 
-export const getCEIMethodology = async (
+export const getCVIMethodology = async (
   options?: RequestInit,
-): Promise<GetCEIMethodology200> => {
-  return customFetch<GetCEIMethodology200>(getGetCEIMethodologyUrl(), {
+): Promise<GetCVIMethodology200> => {
+  return customFetch<GetCVIMethodology200>(getGetCVIMethodologyUrl(), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetCEIMethodologyQueryKey = () => {
-  return [`/api/cei/methodology`] as const;
+export const getGetCVIMethodologyQueryKey = () => {
+  return [`/api/cvi/methodology`] as const;
 };
 
-export const getGetCEIMethodologyQueryOptions = <
-  TData = Awaited<ReturnType<typeof getCEIMethodology>>,
+export const getGetCVIMethodologyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCVIMethodology>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCEIMethodology>>,
+    Awaited<ReturnType<typeof getCVIMethodology>>,
     TError,
     TData
   >;
@@ -2503,40 +2503,40 @@ export const getGetCEIMethodologyQueryOptions = <
 }) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetCEIMethodologyQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetCVIMethodologyQueryKey();
 
   const queryFn: QueryFunction<
-    Awaited<ReturnType<typeof getCEIMethodology>>
-  > = ({ signal }) => getCEIMethodology({ signal, ...requestOptions });
+    Awaited<ReturnType<typeof getCVIMethodology>>
+  > = ({ signal }) => getCVIMethodology({ signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
-    Awaited<ReturnType<typeof getCEIMethodology>>,
+    Awaited<ReturnType<typeof getCVIMethodology>>,
     TError,
     TData
   > & { queryKey: QueryKey };
 };
 
-export type GetCEIMethodologyQueryResult = NonNullable<
-  Awaited<ReturnType<typeof getCEIMethodology>>
+export type GetCVIMethodologyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCVIMethodology>>
 >;
-export type GetCEIMethodologyQueryError = ErrorType<unknown>;
+export type GetCVIMethodologyQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get CEI calculation methodology documentation
+ * @summary Get CVI calculation methodology documentation
  */
 
-export function useGetCEIMethodology<
-  TData = Awaited<ReturnType<typeof getCEIMethodology>>,
+export function useGetCVIMethodology<
+  TData = Awaited<ReturnType<typeof getCVIMethodology>>,
   TError = ErrorType<unknown>,
 >(options?: {
   query?: UseQueryOptions<
-    Awaited<ReturnType<typeof getCEIMethodology>>,
+    Awaited<ReturnType<typeof getCVIMethodology>>,
     TError,
     TData
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getGetCEIMethodologyQueryOptions(options);
+  const queryOptions = getGetCVIMethodologyQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

@@ -55,7 +55,7 @@ export const GetIndustryResponse = zod.object({
         .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
         .optional()
         .describe(
-          "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+          "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current cviComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
         ),
     }),
   ),
@@ -81,7 +81,7 @@ export const ListCapabilitiesResponseItem = zod.object({
     .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
     .optional()
     .describe(
-      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current cviComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
     ),
 });
 export const ListCapabilitiesResponse = zod.array(ListCapabilitiesResponseItem);
@@ -106,7 +106,7 @@ export const GetCapabilityResponse = zod.object({
     .enum(["emerging", "adopted", "mature", "decaying", "obsolete"])
     .optional()
     .describe(
-      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current ceiComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
+      "Derived (never persisted) capability lifecycle stage. Computed on\nread from the capability's current cviComponents posterior\n(consensusScore + velocity); falls back to benchmarkScore when no\nposterior exists. See `services\/lifecycle.ts` for thresholds.\n",
     ),
   metrics: zod.array(
     zod.object({
@@ -632,9 +632,9 @@ export const GetOntologyResponse = zod.object({
 });
 
 /**
- * @summary Get current CEI index value and industry breakdowns
+ * @summary Get current CVI index value and industry breakdowns
  */
-export const GetCEICurrentResponse = zod.object({
+export const GetCVICurrentResponse = zod.object({
   overallIndex: zod.number(),
   industryBreakdowns: zod.record(
     zod.string(),
@@ -678,24 +678,24 @@ export const GetCEICurrentResponse = zod.object({
     .number()
     .nullish()
     .describe(
-      "Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).",
+      "Lower bound of 95% credible interval for the overall CVI (propagated from per-capability posterior variance).",
     ),
   overallCiHigh: zod
     .number()
     .nullish()
-    .describe("Upper bound of 95% credible interval for the overall CEI."),
+    .describe("Upper bound of 95% credible interval for the overall CVI."),
 });
 
 /**
- * @summary Get historical CEI index values
+ * @summary Get historical CVI index values
  */
-export const getCEIHistoryQueryLimitDefault = 30;
+export const getCVIHistoryQueryLimitDefault = 30;
 
-export const GetCEIHistoryQueryParams = zod.object({
-  limit: zod.coerce.number().default(getCEIHistoryQueryLimitDefault),
+export const GetCVIHistoryQueryParams = zod.object({
+  limit: zod.coerce.number().default(getCVIHistoryQueryLimitDefault),
 });
 
-export const GetCEIHistoryResponseItem = zod.object({
+export const GetCVIHistoryResponseItem = zod.object({
   overallIndex: zod.number(),
   timestamp: zod.string(),
   industryBreakdowns: zod
@@ -737,16 +737,16 @@ export const GetCEIHistoryResponseItem = zod.object({
   overallCiLow: zod.number().nullish(),
   overallCiHigh: zod.number().nullish(),
 });
-export const GetCEIHistoryResponse = zod.array(GetCEIHistoryResponseItem);
+export const GetCVIHistoryResponse = zod.array(GetCVIHistoryResponseItem);
 
 /**
- * @summary Trigger CEI recalculation with optional triangulation
+ * @summary Trigger CVI recalculation with optional triangulation
  */
-export const RefreshCEIBody = zod.object({
+export const RefreshCVIBody = zod.object({
   industryId: zod.number().nullish(),
 });
 
-export const RefreshCEIResponse = zod.object({
+export const RefreshCVIResponse = zod.object({
   cei: zod
     .object({
       overallIndex: zod.number(),
@@ -792,21 +792,21 @@ export const RefreshCEIResponse = zod.object({
         .number()
         .nullish()
         .describe(
-          "Lower bound of 95% credible interval for the overall CEI (propagated from per-capability posterior variance).",
+          "Lower bound of 95% credible interval for the overall CVI (propagated from per-capability posterior variance).",
         ),
       overallCiHigh: zod
         .number()
         .nullish()
-        .describe("Upper bound of 95% credible interval for the overall CEI."),
+        .describe("Upper bound of 95% credible interval for the overall CVI."),
     })
     .optional(),
   triangulations: zod.array(zod.object({}).passthrough()).optional(),
 });
 
 /**
- * @summary Get CEI calculation methodology documentation
+ * @summary Get CVI calculation methodology documentation
  */
-export const GetCEIMethodologyResponse = zod.object({
+export const GetCVIMethodologyResponse = zod.object({
   methodology: zod.string(),
   version: zod.string(),
 });
@@ -833,8 +833,8 @@ export const GetAgentStatusResponse = zod.object({
       perplexityCalls: zod.number().optional(),
       memoriesRecalled: zod.number().optional(),
       memoriesStored: zod.number().optional(),
-      cviBeforeIndex: zod.number().nullish(),
-      cviAfterIndex: zod.number().nullish(),
+      ceiBeforeIndex: zod.number().nullish(),
+      ceiAfterIndex: zod.number().nullish(),
       startedAt: zod.string().optional(),
       completedAt: zod.string().nullish(),
       errorMessage: zod.string().nullish(),
@@ -861,8 +861,8 @@ export const TriggerAgentRunResponse = zod.object({
   perplexityCalls: zod.number().optional(),
   memoriesRecalled: zod.number().optional(),
   memoriesStored: zod.number().optional(),
-  cviBeforeIndex: zod.number().nullish(),
-  cviAfterIndex: zod.number().nullish(),
+  ceiBeforeIndex: zod.number().nullish(),
+  ceiAfterIndex: zod.number().nullish(),
   startedAt: zod.string().optional(),
   completedAt: zod.string().nullish(),
   errorMessage: zod.string().nullish(),
@@ -888,8 +888,8 @@ export const GetAgentHistoryResponseItem = zod.object({
   perplexityCalls: zod.number().optional(),
   memoriesRecalled: zod.number().optional(),
   memoriesStored: zod.number().optional(),
-  cviBeforeIndex: zod.number().nullish(),
-  cviAfterIndex: zod.number().nullish(),
+  ceiBeforeIndex: zod.number().nullish(),
+  ceiAfterIndex: zod.number().nullish(),
   startedAt: zod.string().optional(),
   completedAt: zod.string().nullish(),
   errorMessage: zod.string().nullish(),

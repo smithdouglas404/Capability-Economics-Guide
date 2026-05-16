@@ -8,7 +8,7 @@
 
 /**
  * Derived (never persisted) capability lifecycle stage. Computed on
-read from the capability's current ceiComponents posterior
+read from the capability's current cviComponents posterior
 (consensusScore + velocity); falls back to benchmarkScore when no
 posterior exists. See `services/lifecycle.ts` for thresholds.
 
