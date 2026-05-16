@@ -27,6 +27,7 @@ export * from "./cvi-signals";
 export * from "./dvx";
 export * from "./csuite-recommendations";
 export * from "./business-cases";
+export * from "./disruption-events";
 export * from "./system-secrets";
 export * from "./audit-chain";
 export * from "./membership";
