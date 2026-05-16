@@ -54,24 +54,83 @@ router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
   res.json({ ok: true, scores: detail?.scores ?? null });
 });
 
+/**
+ * Latest ingestion result per industry. In-memory by design — survives the
+ * lifetime of the api-server process, which is the same lifetime the user's
+ * tab cares about. On restart, status resets to "idle" and the user can
+ * re-trigger. Replaces the previous fire-and-forget pattern that hid every
+ * failure mode behind console.log.
+ */
+type IngestStatus =
+  | { state: "running"; industryId: number; startedAt: string }
+  | { state: "done"; industryId: number; startedAt: string; finishedAt: string; inserted: number; updated: number; companies: number; errors: string[] }
+  | { state: "failed"; industryId: number; startedAt: string; finishedAt: string; error: string };
+
+const ingestStatusByIndustry = new Map<number, IngestStatus>();
+
 router.post("/workbench/companies/_ingest", async (req, res) => {
   const industryId = parseInt(String(req.body?.industryId ?? ""), 10);
   if (!industryId) {
     res.status(400).json({ error: "industryId required" });
     return;
   }
+  const existing = ingestStatusByIndustry.get(industryId);
+  if (existing?.state === "running") {
+    res.status(409).json({ error: "ingestion already running for this industry", startedAt: existing.startedAt });
+    return;
+  }
   const limit = Math.min(50, parseInt(String(req.body?.limit ?? "25"), 10) || 25);
+  const startedAt = new Date().toISOString();
+  ingestStatusByIndustry.set(industryId, { state: "running", industryId, startedAt });
   setImmediate(async () => {
     try {
       const r = await ingestCompaniesForIndustry(industryId, { limit });
-      console.log(`[companies-ingest] industry ${industryId}: +${r.inserted} new, ${r.updated} updated, ${r.errors.length} errors`);
       for (const cid of r.companies) await computeCompanyScores(cid);
-      console.log(`[companies-ingest] industry ${industryId}: scored ${r.companies.length} companies`);
+      ingestStatusByIndustry.set(industryId, {
+        state: "done",
+        industryId,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        inserted: r.inserted,
+        updated: r.updated,
+        companies: r.companies.length,
+        errors: r.errors,
+      });
+      console.log(`[companies-ingest] industry ${industryId}: +${r.inserted} new, ${r.updated} updated, ${r.errors.length} errors`);
     } catch (e) {
+      const error = e instanceof Error ? e.message : String(e);
+      ingestStatusByIndustry.set(industryId, {
+        state: "failed",
+        industryId,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        error,
+      });
       console.error(`[companies-ingest] error:`, e);
     }
   });
-  res.json({ ok: true, message: "ingestion started in background", industryId });
+  res.json({ ok: true, message: "ingestion started", industryId, startedAt });
+});
+
+/**
+ * Poll-able status for the most recent ingestion of an industry. Returns
+ * `{state: "idle"}` if no ingestion has been kicked off for this industry in
+ * this process's lifetime, otherwise the latest run's state + counts +
+ * errors. Lets the UI replace the previous blind `alert("Started — refresh in
+ * 60-90 seconds")` with real progress.
+ */
+router.get("/workbench/companies/_ingest-status", async (req, res) => {
+  const industryId = parseInt(String(req.query.industryId ?? ""), 10);
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
+  const status = ingestStatusByIndustry.get(industryId);
+  if (!status) {
+    res.json({ state: "idle", industryId });
+    return;
+  }
+  res.json(status);
 });
 
 router.post("/workbench/companies/_recompute", async (req, res) => {
