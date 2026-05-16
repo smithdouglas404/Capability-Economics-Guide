@@ -15,7 +15,8 @@
  */
 
 import { isMem0Available, mem0Ping } from "../agent/memory";
-import { lettaPing } from "../agent/letta";
+// Letta probe removed in Phase 1.9 Step 6 — replaced by storePing
+// (PostgresStore liveness check below).
 import { storePing } from "../agent/store";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
@@ -86,13 +87,11 @@ function describeError(err: unknown): string {
 type Probe = () => Promise<Omit<ServiceHealth, "service" | "checkedAt">>;
 
 // ── Latency thresholds ───────────────────────────────────────────────────
-// A service that responds in 5+ seconds is technically reachable but is
-// degrading the agent's 30-min cycle (and pushing user-facing requests
+// A service that responds in 2+ seconds is technically reachable but is
+// degrading the agent's research cycle (and pushing user-facing requests
 // past the perceptible-latency budget). Flag these as `degraded` so
-// operators see "ok but slow" before "down". Tighter on Mem0 since it's
-// hit per-recall; looser on Letta since it only sees end-of-cycle traffic.
+// operators see "ok but slow" before "down".
 const MEM0_LATENCY_WARN_MS = 2000;
-const LETTA_LATENCY_WARN_MS = 5000;
 
 // ── Per-service probes ────────────────────────────────────────────────────
 
@@ -120,28 +119,8 @@ const probeMem0: Probe = async () => {
   }
 };
 
-const probeLetta: Probe = async () => {
-  const { value, latencyMs } = await timed(() => withTimeout(lettaPing(), PROBE_TIMEOUT_MS, "letta"));
-  if (!value.configured) {
-    return { status: "not_configured", latencyMs: null, lastError: "LETTA_API_KEY and LETTA_BASE_URL not set" };
-  }
-  if (value.ok) {
-    if (latencyMs > LETTA_LATENCY_WARN_MS) {
-      return {
-        status: "degraded",
-        latencyMs,
-        lastError: `High latency: ${latencyMs}ms (threshold ${LETTA_LATENCY_WARN_MS}ms)`,
-      };
-    }
-    return { status: "ok", latencyMs, lastError: null };
-  }
-  const err = value.error ?? "unknown";
-  // Auth failures (401/403) → down; transient 5xx / network → degraded.
-  if (/\b401\b|\b403\b|unauthor/i.test(err)) {
-    return { status: "down", latencyMs, lastError: err.slice(0, 240) };
-  }
-  return { status: "degraded", latencyMs, lastError: err.slice(0, 240) };
-};
+// probeLetta removed in Phase 1.9 Step 6 — Letta is decommissioned.
+// agent_store probe (below + in PROBES map) replaces it.
 
 const probeOpenRouter: Probe = async () => {
   const key = process.env.OPENROUTER_API_KEY;
@@ -367,7 +346,6 @@ const probeAgentStore: Probe = async () => {
 
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
-  letta: probeLetta,
   agent_store: probeAgentStore,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,

@@ -79,10 +79,10 @@ Key files:
 - `graph.ts` — LangGraph nodes, state transitions
 - `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cvi, recall_memories, store_memory)
 - `memory.ts` — Mem0 Cloud client with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking cloud ↔ local rows; `getAllMemories` dedupes on that.
-- `letta.ts` — optional stateful agent. Lazy-initializes against `LETTA_BASE_URL` (default `http://localhost:8283`), has a 60s retry cooldown, gracefully degrades if unreachable.
+- `store.ts` — PostgresStore (LangMem-equivalent) singleton + namespace helpers (`NS.*`) + agent-prior helpers (`getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive`). **Forward path for everything Letta used to do** — replaced in Phase 1.9.
 - `events.ts` — in-process pub/sub for SSE.
 
-All three integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `PERPLEXITY_API_KEY` / Letta unreachable.
+Both integrations (Mem0, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `PERPLEXITY_API_KEY`. **Letta has been removed** — see the `### Letta — DECOMMISSIONED` section below for history; do not re-add a Letta dependency.
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
@@ -110,7 +110,19 @@ Implementation files:
 
 If you need agents to coordinate, **use the shared store as the communication channel** — do NOT add a LangGraph supervisor node.
 
-**Letta is still running** for backward compatibility (the persona, industry_priors, current_focus, etc. core blocks). The `NS.agentPriors` store is the forward path — new agents should use `store.ts`, not `letta.ts`. Do not remove `letta.ts` until all blocks are migrated.
+### Letta — DECOMMISSIONED
+
+**Letta was removed in Phase 1.9 Step 6 (commit history searchable for "PostgresStore migration").** The `@letta-ai/letta-client` dep is gone, `services/agent/letta.ts` and `services/agent/letta-tools.ts` are deleted, the Railway Letta service has been (or should be) deleted via the dashboard. Do **NOT** re-add a Letta dependency without an architectural review.
+
+What replaced each Letta surface:
+- Core blocks (persona / industry_priors / current_focus / research_strategy / economic_rules / project_focus / market_context) → `getAgentPriorBlock` / `putAgentPriorBlock` on PostgresStore under `NS.agentPriors(agentName)`
+- Archival memory (`lettaArchivalInsert` / `lettaArchivalSearch`) → `appendAgentArchive` / `searchAgentArchive` under `NS.agentRuns(agentName)`
+- Autonomous `core_memory_replace` (the chat-puppet sending Letta messages to rewrite its own blocks) → explicit `ChatAnthropic.invoke()` call in `graph.ts:memorizeNode` that reads → asks → writes
+- Letta sleep-time agent → the existing `consolidator.ts` 24h cron (now writes to PostgresStore)
+- Letta-side custom Python tools → inline `tool()` definitions inside each of the 5 specialized agents (`services/disruption-agent.ts` etc.) and `langchain`'s `createAgent` (v1 ReactAgent)
+- `lettaPing` health probe → `storePing` (PostgresStore liveness check) at `/api/health/services`
+
+If you see legacy comments referencing `lettaXxx` symbols in commits / state-field names (e.g. `state.lettaArchivalSnippets`, `syncEconomicRulesToLetta`), those are historical names kept for diff continuity — they read from / write to PostgresStore now.
 
 ### Frontend (`artifacts/inflexcvi`)
 
@@ -129,7 +141,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 ### Required environment variables
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
-- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `LETTA_BASE_URL`, `LETTA_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer — cron silently skips if missing)
+- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer + the 5 specialized agents — cron silently skips if missing). `LETTA_*` env vars are no longer used (Letta was decommissioned in Phase 1.9 Step 6).
 - **Multi-agent + tool callback secrets**: `INFLEXCVI_AGENT_TOOL_KEY` (shared between api-server + Letta service so Letta's autonomous-tool callbacks can authenticate), `INFLEXCVI_API_BASE` (set on Letta service: the api-server's internal Railway URL the tool callbacks hit, e.g. `http://intelligent-alignment.railway.internal:8080`)
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
@@ -151,7 +163,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 **Working around missing CLI auth — diagnostics that don't need it:**
 - Prod health: `curl https://inflexcvi-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
-- Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` in `env` *may* still work (they target the live Railway Letta service) — but treat a 401 as "the local key is stale," not "Letta is broken."
+- ~~Direct Letta queries~~ — Letta was decommissioned in Phase 1.9 Step 6. Any `LETTA_*` env vars left in `/run/replit/env/latest` are dead.
 - Direct Mem0 queries: same caveat. Header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below.
 
 When the user says "you have access to Railway," verify before agreeing — `railway whoami` is the only honest signal.
@@ -176,11 +188,11 @@ Inflexcvi project IDs (verify via discovery query before relying on them — ser
 - projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
 - production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
 - service `inflexcvi` (api-server, formerly `capabilityeconomics` in Railway dashboard — id stays the same across rename): `f4585a12-c207-4faa-9171-5362997768ec`
-- service `letta-2EOT`: `b6b84d74-984e-4792-8218-3e97bcc2831c`
 - service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
 - service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c`
 - service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199`
+- ~~service `letta-2EOT`~~ — DECOMMISSIONED in Phase 1.9 Step 6. Delete from Railway dashboard if it's still around.
 
 Never reuse a token from memory or a prior session — always ask for a fresh one. The CLI's `railway login --browserless` fails from a non-TTY Claude shell ("Cannot login in non-interactive mode") — GraphQL is the only path that works.
 
@@ -188,18 +200,14 @@ Never reuse a token from memory or a prior session — always ask for a fresh on
 
 Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built inflexcvi SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
 
-### Mem0 + Letta on Railway
+### Mem0 on Railway
 
-**Mem0** — Built from `mem0/Dockerfile` in this repo (Railway → New Service → root directory `mem0`). The Dockerfile installs `libpq5` (which mem0ai/mem0's `server/Dockerfile` *forgets* — the upstream image crashes on import with `ImportError: no pq wrapper available … libpq library not found`), then clones mem0ai/mem0 at a pinned release tag, installs Python deps, and runs uvicorn. Set `OPENAI_API_KEY`, `JWT_SECRET`, `ADMIN_API_KEY`, plus the `POSTGRES_*` set pointing at a pgvector service in the same Railway project. **Do not point this service at the Docker Hub `mem0/mem0-api-server` image** — it's arm64-only and won't run on Railway's amd64 infra. Pair it with a `pgvector/pgvector:pg18` service for vector storage.
+**Mem0** — Built from `mem0/Dockerfile` in this repo (Railway → New Service → root directory `mem0`). The Dockerfile installs `libpq5` (which mem0ai/mem0's `server/Dockerfile` *forgets* — the upstream image crashes on import with `ImportError: no pq wrapper available … libpq library not found`), then clones mem0ai/mem0 at a pinned release tag (`MEM0_VERSION=v2.1.0` for the v1.0.0+ enhanced filters + multi-signal retrieval), installs Python deps, and runs uvicorn. Set `OPENAI_API_KEY` (or — preferred — OpenRouter creds: `OPENAI_API_KEY` = the OpenRouter key + `OPENAI_BASE_URL=https://openrouter.ai/api/v1`), `JWT_SECRET`, `ADMIN_API_KEY`, plus the `POSTGRES_*` set pointing at a pgvector service in the same Railway project. **Do not point this service at the Docker Hub `mem0/mem0-api-server` image** — it's arm64-only and won't run on Railway's amd64 infra. Pair it with a `pgvector/pgvector:pg18` service for vector storage.
 
-**Letta** — Built from `letta/Dockerfile` in this repo. Railway → New Service → your repo → root directory: `letta`. Set on the Letta service:
-- `LETTA_SERVER_PASSWORD` — any strong string
-- `OPENROUTER_API_KEY` (or another provider key) — without a provider key, Letta has no LLM handles registered and agent runs fail with `NOT_FOUND: Handle <model> not found, must be one of []`
-
-**api-server service** — wire to both:
-- `MEM0_BASE_URL=http://<mem0-service-name>.railway.internal:8000` — the internal hostname Railway assigned to the template's Mem0 service (visible under that service's Settings → Networking)
+**api-server service** wires to Mem0:
+- `MEM0_BASE_URL=http://<mem0-service-name>.railway.internal:8000` — the internal hostname Railway assigned to the Mem0 service (visible under that service's Settings → Networking)
 - `MEM0_API_KEY=<ADMIN_API_KEY value from the Mem0 service>` — the api-server sends it as `X-API-Key: <key>`. The Mem0 Railway template doc incorrectly recommends `Authorization: Bearer`; the upstream v2.x server rejects that with `401 Invalid or expired token` because it tries to verify the value as a JWT (which it isn't). Always `X-API-Key`.
-- `LETTA_BASE_URL=http://letta.railway.internal:8283`
-- `LETTA_API_KEY=<same value as LETTA_SERVER_PASSWORD on Letta service>`
 
-Verify with `GET /api/health/services` — `mem0` and `letta` should both report `status: "ok"`.
+Verify with `GET /api/health/services` — `mem0` and `agent_store` should both report `status: "ok"`.
+
+**Letta is gone** — see `### Letta — DECOMMISSIONED` above. The Letta Railway service should be deleted; its agent functionality moved to PostgresStore in the existing api-server DATABASE_URL.

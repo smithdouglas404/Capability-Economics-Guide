@@ -121,9 +121,6 @@ importers:
       '@langchain/langgraph-checkpoint-postgres':
         specifier: ^1.0.1
         version: 1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))(@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76))))
-      '@letta-ai/letta-client':
-        specifier: ^1.10.2
-        version: 1.10.2
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -1229,9 +1226,6 @@ packages:
     peerDependenciesMeta:
       zod-to-json-schema:
         optional: true
-
-  '@letta-ai/letta-client@1.10.2':
-    resolution: {integrity: sha512-BYAPkIl6wHYORJ+zHmlWaPSrlsMbN5YkoSnHnEUvaIJBOpa5kLwldNjzHIALcSAV19Qc0ktRoIQy0i0Vqb21yQ==}
 
   '@noble/curves@1.8.1':
     resolution: {integrity: sha512-warwspo+UYUPep0Q+vtdVB4Ugn8GGQj8iyB3gnRWsztmUHTI3S1nhdiWNsPUGL0vud7JlRRk1XEu7Lq1KGTnMQ==}
@@ -5621,8 +5615,6 @@ snapshots:
       - react-dom
       - svelte
       - vue
-
-  '@letta-ai/letta-client@1.10.2': {}
 
   '@noble/curves@1.8.1':
     dependencies:

@@ -14,7 +14,9 @@ export {
   mem0Prune,
 } from "./memory";
 export { allTools } from "./tools";
-export { getLettaStatus, lettaUpdateBlock, lettaReadBlock, lettaReadAllBlocks, lettaArchivalInsert, lettaArchivalSearch } from "./letta";
+// Letta removed in Phase 1.9 Step 6 — replaced by PostgresStore via
+// store.ts helpers (getAgentPriorBlock / putAgentPriorBlock /
+// appendAgentArchive / searchAgentArchive). See those exports above.
 export { syncEconomicRulesToLetta, renderEconomicRulesBlock } from "./economic-rules-sync";
 export { syncMarketContextToLetta } from "./market-context-sync";
 export {

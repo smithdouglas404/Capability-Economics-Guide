@@ -10,7 +10,6 @@
     "@langchain/core": "^1.1.39",
     "@langchain/langgraph": "^1.2.8",
     "@langchain/langgraph-checkpoint-postgres": "^1.0.1",
-    "@letta-ai/letta-client": "^1.10.2",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-anthropic-ai": "workspace:*",
