@@ -48,6 +48,58 @@ function safeNum(v: unknown): number | undefined {
 }
 
 /**
+ * Normalize a capability name for fuzzy comparison: lowercase, drop
+ * everything that isn't a letter or digit, collapse to a single string.
+ * "Risk Management & Analytics" → "riskmanagementanalytics"
+ * "AML / KYC Compliance"        → "amlkyccompliance"
+ */
+function normalizeCapName(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+type CapResolver = (providedName: string) => { cap: typeof capabilitiesTable.$inferSelect; matchKind: "exact" | "normalized" | "substring" } | null;
+
+/**
+ * Build a resolver that maps a Perplexity-supplied capability name to one of
+ * the industry's actual capability rows. LLMs paraphrase the menu constantly
+ * ("Risk Analytics" instead of "Risk Management & Analytics"), so we do three
+ * passes in priority order — exact lowercase, normalized (strip punct/space),
+ * then substring containment in either direction. Returns null if nothing
+ * resolves so the caller can log the unmatched name as an error.
+ */
+function buildCapResolver(industryCaps: ReadonlyArray<typeof capabilitiesTable.$inferSelect>): CapResolver {
+  const byLower = new Map(industryCaps.map(c => [c.name.toLowerCase(), c]));
+  const byNorm = new Map(industryCaps.map(c => [normalizeCapName(c.name), c]));
+  const normEntries = industryCaps.map(c => ({ cap: c, norm: normalizeCapName(c.name) }));
+
+  return (providedName: string) => {
+    if (!providedName) return null;
+    const lower = providedName.toLowerCase();
+    const exact = byLower.get(lower);
+    if (exact) return { cap: exact, matchKind: "exact" };
+
+    const norm = normalizeCapName(providedName);
+    if (!norm) return null;
+    const normHit = byNorm.get(norm);
+    if (normHit) return { cap: normHit, matchKind: "normalized" };
+
+    // Substring containment in either direction — handles "Risk Analytics" ↔
+    // "Risk Management & Analytics". Pick the longest matching menu name to
+    // prefer the most specific capability when several substrings could
+    // apply.
+    let best: { cap: typeof capabilitiesTable.$inferSelect; len: number } | null = null;
+    for (const { cap, norm: menuNorm } of normEntries) {
+      if (menuNorm.includes(norm) || norm.includes(menuNorm)) {
+        if (!best || menuNorm.length > best.len) best = { cap, len: menuNorm.length };
+      }
+    }
+    if (best) return { cap: best.cap, matchKind: "substring" };
+
+    return null;
+  };
+}
+
+/**
  * Perplexity-driven ingestion: for an industry, fetch real US-public-record-grade
  * companies with capability fingerprints anchored against the existing CE
  * capability menu so fingerprints align with our hierarchy.
@@ -61,7 +113,8 @@ export async function ingestCompaniesForIndustry(industryId: number, opts: { lim
   const industryName = ind[0].name;
 
   const caps = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId));
-  const capByLower = new Map(caps.map(c => [c.name.toLowerCase(), c]));
+  if (!caps.length) return { inserted: 0, updated: 0, companies: [], errors: [`no capabilities seeded for industry ${industryId} — run the capability seed first`] };
+  const resolveCap = buildCapResolver(caps);
   const limit = opts.limit ?? 25;
 
   const capMenu = caps.map(c => `- ${c.name}`).join("\n");
@@ -130,13 +183,31 @@ Return a JSON array of ${limit} entries.`;
   const companyIds: number[] = [];
   const errors: string[] = [];
 
+  let skippedNoCapabilities = 0;
+  const unmatchedCapNames = new Set<string>();
   for (const co of parsed) {
-    if (!co?.name || !Array.isArray(co.capabilities) || co.capabilities.length === 0) continue;
+    if (!co?.name || !Array.isArray(co.capabilities) || co.capabilities.length === 0) {
+      skippedNoCapabilities++;
+      continue;
+    }
     const slug = slugify(co.name);
-    const fpRows = co.capabilities
-      .map(fp => ({ cap: capByLower.get((fp.name || "").toLowerCase()), weight: typeof fp.weight === "number" ? Math.max(0, Math.min(1, fp.weight)) : 0.3, evidence: fp.evidence }))
-      .filter(r => r.cap);
-    if (!fpRows.length) continue;
+    const fpRows: Array<{ cap: typeof capabilitiesTable.$inferSelect; weight: number; evidence?: string }> = [];
+    for (const fp of co.capabilities) {
+      const resolved = resolveCap(fp.name || "");
+      if (!resolved) {
+        if (fp.name) unmatchedCapNames.add(fp.name);
+        continue;
+      }
+      fpRows.push({
+        cap: resolved.cap,
+        weight: typeof fp.weight === "number" ? Math.max(0, Math.min(1, fp.weight)) : 0.3,
+        evidence: fp.evidence,
+      });
+    }
+    if (!fpRows.length) {
+      skippedNoCapabilities++;
+      continue;
+    }
 
     try {
       const existing = await db.select().from(companiesTable).where(and(eq(companiesTable.industryId, industryId), eq(companiesTable.slug, slug))).limit(1);
@@ -187,7 +258,7 @@ Return a JSON array of ${limit} entries.`;
       for (const fp of fpRows) {
         await db.insert(companyCapabilityFingerprintTable).values({
           companyId,
-          capabilityId: fp.cap!.id,
+          capabilityId: fp.cap.id,
           weight: fp.weight,
           evidenceUrl: null,
           evidenceNote: fp.evidence ?? null,
@@ -196,6 +267,16 @@ Return a JSON array of ${limit} entries.`;
     } catch (e) {
       errors.push(`${co.name}: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  if (skippedNoCapabilities > 0) {
+    errors.push(`${skippedNoCapabilities} companies skipped — no capability tag from the menu resolved`);
+  }
+  if (unmatchedCapNames.size > 0) {
+    // Most useful diagnostic: which Perplexity-supplied names didn't resolve.
+    // Truncate to the first 10 so the error array stays readable.
+    const sample = Array.from(unmatchedCapNames).slice(0, 10);
+    errors.push(`unmatched capability names from Perplexity (${unmatchedCapNames.size} total): ${sample.join(" | ")}`);
   }
 
   return { inserted, updated, companies: companyIds, errors };

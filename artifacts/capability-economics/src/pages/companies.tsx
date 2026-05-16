@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers } from "lucide-react";
+import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
@@ -90,6 +90,12 @@ const QUAD_LABELS: Record<QuadPoint["quadrant"], { label: string; color: string 
   table_stakes: { label: "Table Stakes", color: "bg-muted-foreground/50" },
 };
 
+type IngestStatus =
+  | { state: "idle"; industryId: number }
+  | { state: "running"; industryId: number; startedAt: string }
+  | { state: "done"; industryId: number; startedAt: string; finishedAt: string; inserted: number; updated: number; companies: number; errors: string[] }
+  | { state: "failed"; industryId: number; startedAt: string; finishedAt: string; error: string };
+
 export default function Companies() {
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [industryId, setIndustryId] = useState<number | null>(null);
@@ -97,6 +103,8 @@ export default function Companies() {
   const [stages, setStages] = useState<StageRow[]>([]);
   const [quad, setQuad] = useState<QuadPoint[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ingestStatus, setIngestStatus] = useState<IngestStatus | null>(null);
+  const [ingestDismissed, setIngestDismissed] = useState(false);
   const [tab, setTab] = useState("shortlist");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const viewsApi = useSavedView<CompaniesViewState>("companies");
@@ -136,29 +144,66 @@ export default function Companies() {
     });
   }, []);
 
-  useEffect(() => {
-    if (!industryId) return;
+  const refetchTabs = (id: number) => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/workbench/companies?industryId=${industryId}&limit=100`).then(r => r.json()),
-      fetch(`/api/workbench/value-chain/${industryId}`).then(r => r.json()),
-      fetch(`/api/workbench/quadrant/${industryId}`).then(r => r.json()),
+      fetch(`/api/workbench/companies?industryId=${id}&limit=100`).then(r => r.json()),
+      fetch(`/api/workbench/value-chain/${id}`).then(r => r.json()),
+      fetch(`/api/workbench/quadrant/${id}`).then(r => r.json()),
     ]).then(([co, vc, q]) => {
       setCompanies(co.companies ?? []);
       setStages(vc.stages ?? []);
       setQuad(q.points ?? []);
       setLoading(false);
     }).catch(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    if (!industryId) return;
+    refetchTabs(industryId);
+    // When the user switches industries, surface any in-flight or recently-
+    // completed ingestion for the new industry; clear any dismissed flag.
+    setIngestDismissed(false);
+    fetch(`/api/workbench/companies/_ingest-status?industryId=${industryId}`)
+      .then(r => r.json())
+      .then((s: IngestStatus) => setIngestStatus(s))
+      .catch(() => { /* non-fatal */ });
   }, [industryId]);
+
+  // Poll the ingestion status while a run is in flight. Stops the moment the
+  // backend reports done/failed; also refetches the shortlist on success so
+  // the new rows appear without the user reloading.
+  useEffect(() => {
+    if (!industryId || !ingestStatus || ingestStatus.state !== "running") return;
+    const id = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/workbench/companies/_ingest-status?industryId=${industryId}`);
+        const s = await r.json() as IngestStatus;
+        setIngestStatus(s);
+        if (s.state === "done") refetchTabs(industryId);
+      } catch { /* keep polling */ }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [industryId, ingestStatus?.state]);
 
   const triggerIngest = async () => {
     if (!industryId) return;
-    await fetch("/api/workbench/companies/_ingest", {
+    const r = await fetch("/api/workbench/companies/_ingest", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ industryId, limit: 25 }),
     });
-    alert("Background ingestion started — refresh in 60-90 seconds.");
+    if (r.status === 409) {
+      // Already running — the poller below will pick it up.
+      setIngestStatus({ state: "running", industryId, startedAt: new Date().toISOString() });
+      return;
+    }
+    if (!r.ok) {
+      setIngestStatus({ state: "failed", industryId, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), error: `kickoff failed: HTTP ${r.status}` });
+      return;
+    }
+    const body = await r.json() as { startedAt: string };
+    setIngestStatus({ state: "running", industryId, startedAt: body.startedAt });
   };
 
   const triggerSignals = async () => {
@@ -226,6 +271,54 @@ export default function Companies() {
             />
           </div>
         </div>
+
+        {ingestStatus && ingestStatus.state !== "idle" && !ingestDismissed && ingestStatus.industryId === industryId && (
+          <Card className={`border-l-4 ${
+            ingestStatus.state === "running" ? "border-l-blue-500" :
+            ingestStatus.state === "failed" ? "border-l-red-500" :
+            ingestStatus.errors.length > 0 ? "border-l-amber-500" : "border-l-emerald-500"
+          }`}>
+            <CardContent className="p-4 flex items-start gap-3">
+              {ingestStatus.state === "running" && <Loader2 className="w-4 h-4 mt-0.5 animate-spin text-blue-500 shrink-0" />}
+              {ingestStatus.state === "failed" && <AlertCircle className="w-4 h-4 mt-0.5 text-red-500 shrink-0" />}
+              {ingestStatus.state === "done" && (ingestStatus.errors.length > 0
+                ? <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
+                : <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" />)}
+              <div className="flex-1 min-w-0">
+                {ingestStatus.state === "running" && (
+                  <div className="text-sm">
+                    <span className="font-medium">Ingesting companies via Perplexity…</span>
+                    <span className="text-muted-foreground ml-2">Typically 60–90s. Started {new Date(ingestStatus.startedAt).toLocaleTimeString()}.</span>
+                  </div>
+                )}
+                {ingestStatus.state === "failed" && (
+                  <div className="text-sm">
+                    <div className="font-medium text-red-700">Ingestion failed to start</div>
+                    <div className="text-xs text-muted-foreground mt-0.5 font-mono">{ingestStatus.error}</div>
+                  </div>
+                )}
+                {ingestStatus.state === "done" && (
+                  <div className="text-sm space-y-1">
+                    <div className="font-medium">
+                      Ingestion complete · <span className="text-emerald-700">{ingestStatus.inserted} new</span>
+                      {", "}<span className="text-blue-700">{ingestStatus.updated} updated</span>
+                      {ingestStatus.errors.length > 0 && <>, <span className="text-amber-700">{ingestStatus.errors.length} issue{ingestStatus.errors.length === 1 ? "" : "s"}</span></>}
+                    </div>
+                    {ingestStatus.errors.length > 0 && (
+                      <ul className="text-xs text-muted-foreground space-y-0.5 list-disc list-inside font-mono">
+                        {ingestStatus.errors.slice(0, 4).map((e, i) => <li key={i}>{e}</li>)}
+                        {ingestStatus.errors.length > 4 && <li>…+{ingestStatus.errors.length - 4} more</li>}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+              {ingestStatus.state !== "running" && (
+                <Button variant="ghost" size="sm" className="shrink-0 h-7 text-xs" onClick={() => setIngestDismissed(true)}>Dismiss</Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList>
