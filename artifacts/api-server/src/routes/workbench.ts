@@ -26,7 +26,15 @@ import { runIdeation, ideationCacheKey, type IdeationKind } from "../services/id
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
-router.use("/workbench", requireSession());
+// Scope the session guard to the routes this router owns (boards/cards/insights/example).
+// A blanket /workbench guard would also intercept /workbench/companies/* and
+// /workbench/value-chain/* etc. defined in companiesRouter, returning 401 on
+// endpoints that don't require a Clerk session (companies ingest is admin-cost-gated
+// at the Perplexity layer, not session-gated).
+router.use("/workbench/boards", requireSession());
+router.use("/workbench/cards", requireSession());
+router.use("/workbench/insights", requireSession());
+router.use("/workbench/example", requireSession());
 
 const LANES = ["scan", "frame", "ideate", "validate", "launch"] as const;
 
