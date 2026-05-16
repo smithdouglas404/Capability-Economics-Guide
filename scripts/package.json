@@ -20,6 +20,7 @@
     "seed:reports": "tsx ./src/seed-marketplace-reports.ts",
     "seed:alpha-config": "tsx ./src/seed-alpha-config.ts",
     "seed:payg-tier": "tsx ./src/seed-payg-tier.ts",
+    "set:pack-stripe-ids": "tsx ./src/set-pack-stripe-ids.ts",
     "cei:replay-history": "tsx ./src/replay-cei-history.ts",
     "seed:case-study-economics": "tsx ./src/seed-case-study-economics.ts",
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",

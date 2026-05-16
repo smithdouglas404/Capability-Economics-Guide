@@ -6,6 +6,7 @@ import { runReflectionAction, isReflectionDue } from "./actions/reflection";
 import { runCommentAction, isCommentDue } from "./actions/comment";
 import { runMarketplaceListAction, isListingDue } from "./actions/marketplace";
 import { runDeepDiveAction, isDeepDiveDue } from "./actions/deep-dive";
+import { runCrossBotReflectAction, isCrossBotReflectDue } from "./actions/cross-bot-reflect";
 import { getBotBudgetStatus } from "./budget";
 import { getPersona } from "./personas";
 import { logger } from "../../lib/logger";
@@ -103,6 +104,25 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
         result.totalCostCents += r.costCents;
       } else if (r.error) {
         result.errors.push(`comment: ${r.error}`);
+      }
+    }
+  }
+
+  // 2.5. Cross-bot reflection — bi-weekly, peer-observation pass.
+  //      Bot reads recent peer activity and writes a private reflection
+  //      (not posted publicly) noting consensus / divergence with peers.
+  if (await isCrossBotReflectDue(bot)) {
+    const budget = await getBotBudgetStatus(bot.id);
+    if (budget.overBudget) {
+      result.actionsSkippedBudget++;
+      await logBudgetSkip(bot.id, "cross_bot_reflect", budget.mtdCents, budget.capCents);
+    } else {
+      const r = await runCrossBotReflectAction(bot);
+      if (r.ok) {
+        result.actionsRun++;
+        result.totalCostCents += r.costCents;
+      } else if (r.error) {
+        result.errors.push(`cross_bot_reflect: ${r.error}`);
       }
     }
   }

@@ -24,6 +24,7 @@ import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
 import { replayHistoricalCEI } from "../services/cei-historical/replay";
 import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { detectCeiSignalEvents, listRecentSignalEvents } from "../services/cei-signals/detector";
+import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cei-signals/attribution";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -379,6 +380,31 @@ router.post("/admin/cei/signals/detect", async (req, res) => {
     res.json(r);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "detection failed" });
+  }
+});
+
+router.post("/admin/cei/signals/attribute", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const r = await attributeSignalOutcomes({
+      limit: typeof body.limit === "number" ? body.limit : undefined,
+      eventId: typeof body.eventId === "number" ? body.eventId : undefined,
+    });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "attribution failed" });
+  }
+});
+
+router.get("/admin/cei/signals/backtest", async (req, res) => {
+  try {
+    const sinceDays = Number(req.query.sinceDays);
+    const summaries = await getSignalBacktestSummary({
+      sinceDays: Number.isFinite(sinceDays) ? sinceDays : undefined,
+    });
+    res.json({ summaries });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "backtest summary failed" });
   }
 });
 

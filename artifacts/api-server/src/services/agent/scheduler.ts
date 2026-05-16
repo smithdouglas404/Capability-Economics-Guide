@@ -13,6 +13,7 @@ import { runCreditExpirySweep } from "../credit-expiry";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
 import { detectCeiSignalEvents } from "../cei-signals/detector";
+import { attributeSignalOutcomes } from "../cei-signals/attribution";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -349,8 +350,13 @@ async function ceiSignalsTick(): Promise<void> {
   isDetectingSignals = true;
   try {
     await detectCeiSignalEvents();
+    // After detection, immediately try to attribute outcomes for any events
+    // ready for measurement (windowEndAt at least 30d in the past). The
+    // attribution job has its own outcome_attributed flag so this is
+    // bounded — only sweeps unprocessed events.
+    await attributeSignalOutcomes({ limit: 50 });
   } catch (err) {
-    console.warn("[CeiSignals] detection failed:", err);
+    console.warn("[CeiSignals] detection / attribution failed:", err);
   } finally {
     isDetectingSignals = false;
   }
