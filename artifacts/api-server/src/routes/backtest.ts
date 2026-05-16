@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { listBacktestEvents, runBacktest } from "../services/backtest";
+import { listBacktestEvents, listBacktestHistory, runBacktest } from "../services/backtest";
 
 const router: IRouter = Router();
 
@@ -10,6 +10,17 @@ router.use("/admin/backtest", requireAdmin);
 router.get("/admin/backtest/events", async (_req, res) => {
   const events = await listBacktestEvents();
   res.json({ events });
+});
+
+/**
+ * Persisted run history (oldest → newest, default 20). Lets the UI render the
+ * Brier / log-loss trend without re-running the harness.
+ */
+router.get("/admin/backtest/history", async (req, res) => {
+  const limitRaw = Number(req.query.limit);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(100, Math.floor(limitRaw)) : 20;
+  const history = await listBacktestHistory(limit);
+  res.json({ history });
 });
 
 /**

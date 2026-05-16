@@ -3,11 +3,28 @@ import {
   historicalEventsTable,
   industriesTable,
   capabilitiesTable,
+  backtestRunsTable,
   type HistoricalEvent,
   type MacroEvent,
+  type BacktestRun,
 } from "@workspace/db";
 import { asc, desc } from "drizzle-orm";
 import { computeCEI, type CapPosterior } from "./cei-engine";
+
+/**
+ * Methodology tag stamped onto every persisted backtest run. Bump when the
+ * harness's scoring math changes (epsilon, σ floor, Brier formulation) so
+ * the trend chart can warn that older points used a different ruler.
+ */
+export const BACKTEST_METHODOLOGY_VERSION = "1.1";
+
+/**
+ * If the latest run's log-loss is more than this many absolute units worse
+ * than the rolling average of prior runs, the trend UI flags a regression.
+ * Calibrated against typical run-to-run noise observed during development.
+ */
+const LOG_LOSS_REGRESSION_DELTA = 0.05;
+const REGRESSION_WINDOW = 5;
 
 /**
  * CEI backtesting harness — replays curated historical events through the
@@ -202,10 +219,37 @@ export interface BacktestSummary {
   /** Aggregate Brier/log-loss/reliability pooled across every cap result. */
   probabilistic: ProbabilisticMetrics;
   ranAt: string;
+  methodologyVersion: string;
   notes: {
     timeAnchorCaveat: string;
     probabilistic: string;
   };
+  /** Trend points for the last N persisted runs (oldest → newest). */
+  history: BacktestHistoryPoint[];
+  regression: BacktestRegression | null;
+}
+
+export interface BacktestHistoryPoint {
+  id: number;
+  ranAt: string;
+  methodologyVersion: string;
+  eventCount: number;
+  aggregateMatched: number;
+  aggregateScored: number;
+  aggregateAccuracy: number;
+  brier: number | null;
+  logLoss: number | null;
+  probabilisticCount: number;
+}
+
+export interface BacktestRegression {
+  /** True when the latest run's log-loss is meaningfully worse than baseline. */
+  triggered: boolean;
+  latestLogLoss: number;
+  baselineLogLoss: number;
+  delta: number;
+  threshold: number;
+  windowSize: number;
 }
 
 /** Aggregate per-cap forecast/expected pairs into Brier, log-loss, and reliability. */
@@ -548,19 +592,120 @@ export async function runBacktest(): Promise<BacktestSummary> {
     aggPairs.push(...probPairs);
   }
 
+  const aggregateAccuracy = aggScored > 0 ? aggMatched / aggScored : 0;
+  const probabilistic = computeProbabilisticMetrics(aggPairs);
+  const ranAt = new Date();
+
+  // Persist a trend row before we compose the response so the new run shows
+  // up immediately in the history sparkline. Failures here are non-fatal —
+  // the harness must still return its results to the caller.
+  let persistedId: number | null = null;
+  try {
+    const inserted = await db
+      .insert(backtestRunsTable)
+      .values({
+        ranAt,
+        methodologyVersion: BACKTEST_METHODOLOGY_VERSION,
+        eventCount: results.length,
+        aggregateMatched: aggMatched,
+        aggregateScored: aggScored,
+        aggregateAccuracy,
+        brier: probabilistic.brier,
+        logLoss: probabilistic.logLoss,
+        probabilisticCount: probabilistic.count,
+      })
+      .returning({ id: backtestRunsTable.id });
+    persistedId = inserted[0]?.id ?? null;
+  } catch (err) {
+    console.error("[backtest] failed to persist run history:", err);
+  }
+
+  // History/regression are presentation extras — never fail the run if the
+  // trend table is unavailable (e.g. unmigrated environments). Fall back to
+  // an empty history + null regression so callers always get the core summary.
+  let history: BacktestHistoryPoint[] = [];
+  let regression: BacktestRegression | null = null;
+  try {
+    history = await listBacktestHistory(20);
+    regression = detectRegression(history, persistedId);
+  } catch (err) {
+    console.error("[backtest] failed to load run history:", err);
+  }
+
   return {
     events: results,
     aggregateMatched: aggMatched,
     aggregateScored: aggScored,
-    aggregateAccuracy: aggScored > 0 ? aggMatched / aggScored : 0,
-    probabilistic: computeProbabilisticMetrics(aggPairs),
-    ranAt: new Date().toISOString(),
+    aggregateAccuracy,
+    probabilistic,
+    ranAt: ranAt.toISOString(),
+    methodologyVersion: BACKTEST_METHODOLOGY_VERSION,
     notes: {
       timeAnchorCaveat:
         "T-1 baseline is the engine's current state without the event; T+1 is the same state with the event injected at peak shock. Per-capability score history is not retained, so this measures model propagation quality, not historical reconstruction.",
       probabilistic:
         "Forecast distribution is derived from the engine's Gaussian posterior on the predicted score (σ floored at 1.0 to avoid spurious overconfidence when many high-weight triangulation sources agree). Brier is the multiclass form (Σ(qᵢ−yᵢ)²) over {positive, negative, neutral}; log-loss is −log(q[expected]) clipped at 1e-6. Reliability bins by max-class probability — argmax accuracy vs mean confidence per bin should track the y=x diagonal under perfect calibration.",
     },
+    history,
+    regression,
+  };
+}
+
+/**
+ * Return the last `limit` persisted backtest runs, oldest → newest, so the
+ * UI can plot left-to-right time series without reversing in the browser.
+ */
+export async function listBacktestHistory(limit = 20): Promise<BacktestHistoryPoint[]> {
+  const rows: BacktestRun[] = await db
+    .select()
+    .from(backtestRunsTable)
+    .orderBy(desc(backtestRunsTable.ranAt))
+    .limit(limit);
+  return rows
+    .slice()
+    .reverse()
+    .map((r) => ({
+      id: r.id,
+      ranAt: r.ranAt.toISOString(),
+      methodologyVersion: r.methodologyVersion,
+      eventCount: r.eventCount,
+      aggregateMatched: r.aggregateMatched,
+      aggregateScored: r.aggregateScored,
+      aggregateAccuracy: r.aggregateAccuracy,
+      brier: r.brier,
+      logLoss: r.logLoss,
+      probabilisticCount: r.probabilisticCount,
+    }));
+}
+
+/**
+ * Flag a regression when the just-persisted run's log-loss is more than
+ * `LOG_LOSS_REGRESSION_DELTA` worse than the rolling average of the prior
+ * `REGRESSION_WINDOW` runs (matched on methodology version so a v-bump
+ * doesn't trigger a false positive). Returns null when there isn't enough
+ * comparable history to make a call.
+ */
+function detectRegression(
+  history: BacktestHistoryPoint[],
+  latestId: number | null,
+): BacktestRegression | null {
+  if (latestId == null || history.length < 2) return null;
+  const latest = history[history.length - 1];
+  if (latest.id !== latestId || latest.logLoss == null) return null;
+  const prior = history
+    .slice(0, -1)
+    .filter((p) => p.logLoss != null && p.methodologyVersion === latest.methodologyVersion)
+    .slice(-REGRESSION_WINDOW);
+  if (prior.length === 0) return null;
+  const baseline = prior.reduce((s, p) => s + (p.logLoss ?? 0), 0) / prior.length;
+  const delta = latest.logLoss - baseline;
+  return {
+    triggered: delta > LOG_LOSS_REGRESSION_DELTA,
+    latestLogLoss: latest.logLoss,
+    baselineLogLoss: baseline,
+    delta,
+    threshold: LOG_LOSS_REGRESSION_DELTA,
+    windowSize: prior.length,
   };
 }
 

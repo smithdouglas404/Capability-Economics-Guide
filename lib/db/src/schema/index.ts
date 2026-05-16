@@ -7,6 +7,7 @@ export * from "./insights";
 export * from "./ontology";
 export * from "./data-sources";
 export * from "./cei";
+export * from "./backtest-runs";
 export * from "./agent";
 export * from "./csuite-perspectives";
 export * from "./assessments";

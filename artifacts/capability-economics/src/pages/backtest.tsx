@@ -9,7 +9,9 @@ import {
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, ZAxis,
+  LineChart, Line, Legend,
 } from "recharts";
+import { AlertTriangle } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -71,6 +73,28 @@ interface EventResult {
   probabilistic: ProbabilisticMetrics;
 }
 
+interface BacktestHistoryPoint {
+  id: number;
+  ranAt: string;
+  methodologyVersion: string;
+  eventCount: number;
+  aggregateMatched: number;
+  aggregateScored: number;
+  aggregateAccuracy: number;
+  brier: number | null;
+  logLoss: number | null;
+  probabilisticCount: number;
+}
+
+interface BacktestRegression {
+  triggered: boolean;
+  latestLogLoss: number;
+  baselineLogLoss: number;
+  delta: number;
+  threshold: number;
+  windowSize: number;
+}
+
 interface BacktestSummary {
   events: EventResult[];
   aggregateMatched: number;
@@ -78,7 +102,10 @@ interface BacktestSummary {
   aggregateAccuracy: number;
   probabilistic: ProbabilisticMetrics;
   ranAt: string;
+  methodologyVersion?: string;
   notes: { timeAnchorCaveat: string; probabilistic?: string };
+  history?: BacktestHistoryPoint[];
+  regression?: BacktestRegression | null;
 }
 
 interface CatalogEvent {
@@ -154,6 +181,50 @@ function ReliabilityChart({ bins }: { bins: ReliabilityBin[] }) {
   );
 }
 
+function TrendChart({ history }: { history: BacktestHistoryPoint[] }) {
+  // Plot oldest → newest. Tick label is short ISO date; tooltip carries the
+  // full timestamp so multiple same-day runs stay distinguishable.
+  const data = history.map((h, i) => ({
+    idx: i + 1,
+    label: new Date(h.ranAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    fullLabel: new Date(h.ranAt).toLocaleString(),
+    brier: h.brier,
+    logLoss: h.logLoss,
+    accuracy: h.aggregateScored > 0 ? h.aggregateAccuracy : null,
+    methodology: h.methodologyVersion,
+  }));
+  return (
+    <div className="w-full h-64">
+      <ResponsiveContainer>
+        <LineChart data={data} margin={{ top: 8, right: 16, bottom: 24, left: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 11 }}
+            label={{ value: "Run (oldest → newest)", position: "insideBottom", offset: -12, fontSize: 12 }}
+          />
+          <YAxis
+            tick={{ fontSize: 11 }}
+            domain={[0, "auto"]}
+            label={{ value: "Score (lower is better)", angle: -90, position: "insideLeft", fontSize: 12 }}
+          />
+          <Tooltip
+            formatter={(value: number | string, name: string) =>
+              typeof value === "number" ? [value.toFixed(3), name] : [value, name]
+            }
+            labelFormatter={(_l, payload) => payload?.[0]?.payload?.fullLabel ?? ""}
+          />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          <ReferenceLine y={0.667} stroke="#999" strokeDasharray="4 4" label={{ value: "Brier uniform", position: "right", fontSize: 10, fill: "#999" }} />
+          <ReferenceLine y={1.099} stroke="#999" strokeDasharray="4 4" label={{ value: "Log-loss uniform", position: "right", fontSize: 10, fill: "#999" }} />
+          <Line type="monotone" dataKey="brier" name="Brier" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+          <Line type="monotone" dataKey="logLoss" name="Log-loss" stroke="#dc2626" strokeWidth={2} dot={{ r: 3 }} connectNulls />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 function AccuracyBadge({ accuracy, scored }: { accuracy: number; scored: number }) {
   if (scored === 0) {
     return <span className="text-xs text-muted-foreground">No predictions scored</span>;
@@ -175,9 +246,21 @@ function AccuracyBadge({ accuracy, scored }: { accuracy: number; scored: number 
 export default function BacktestPage() {
   const [catalog, setCatalog] = useState<CatalogEvent[] | null>(null);
   const [summary, setSummary] = useState<BacktestSummary | null>(null);
+  const [history, setHistory] = useState<BacktestHistoryPoint[]>([]);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/admin/backtest/history?limit=20`, { credentials: "include" });
+      if (!r.ok) return;
+      const body = await r.json();
+      setHistory(body.history ?? []);
+    } catch {
+      // non-fatal — trend chart simply hides
+    }
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     try {
@@ -206,6 +289,7 @@ export default function BacktestPage() {
         setError(body.error ?? `Run failed (${r.status})`);
       } else {
         setSummary(body);
+        if (Array.isArray(body.history)) setHistory(body.history);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Run failed");
@@ -216,8 +300,9 @@ export default function BacktestPage() {
 
   useEffect(() => {
     loadCatalog();
+    loadHistory();
     runHarness();
-  }, [loadCatalog, runHarness]);
+  }, [loadCatalog, loadHistory, runHarness]);
 
   const toggle = (id: number) => {
     const next = new Set(expanded);
@@ -319,6 +404,44 @@ export default function BacktestPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Regression alert — fires when latest log-loss is meaningfully worse */}
+      {summary?.regression?.triggered && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4 flex items-start gap-3 text-sm">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-800">
+                Forecast quality regression detected
+              </p>
+              <p className="text-amber-800/90 mt-1">
+                Latest log-loss <span className="font-mono">{summary.regression.latestLogLoss.toFixed(3)}</span>{" "}
+                is <span className="font-mono">+{summary.regression.delta.toFixed(3)}</span> worse than the rolling
+                average <span className="font-mono">{summary.regression.baselineLogLoss.toFixed(3)}</span>{" "}
+                over the prior {summary.regression.windowSize} run{summary.regression.windowSize === 1 ? "" : "s"}{" "}
+                (threshold ±{summary.regression.threshold.toFixed(2)}).
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Forecast-quality trend across persisted runs */}
+      {history.length >= 2 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Forecast quality over time</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Brier and log-loss across the last {history.length} runs (oldest → newest). Both should
+              trend down as the engine improves; dashed lines mark the uniform-prior baselines (Brier 0.667,
+              log-loss 1.099) — anything above them is worse than guessing.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <TrendChart history={history} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Reliability / calibration diagram */}
       {summary?.probabilistic.reliability && summary.probabilistic.reliability.length > 0 && (
