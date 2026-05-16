@@ -85,7 +85,11 @@ router.post("/workbench/companies/_ingest", async (req, res) => {
   setImmediate(async () => {
     try {
       const r = await ingestCompaniesForIndustry(industryId, { limit });
-      for (const cid of r.companies) await computeCompanyScores(cid);
+      // Flip to "done" as soon as Perplexity ingest returns so the banner
+      // transitions within ~60-90s. Scoring is independent; we run it after
+      // status is already "done" so the user sees results immediately and
+      // scores backfill quietly. Per-company failures here don't roll back
+      // the banner state.
       ingestStatusByIndustry.set(industryId, {
         state: "done",
         industryId,
@@ -97,6 +101,11 @@ router.post("/workbench/companies/_ingest", async (req, res) => {
         errors: r.errors,
       });
       console.log(`[companies-ingest] industry ${industryId}: +${r.inserted} new, ${r.updated} updated, ${r.errors.length} errors`);
+      for (const cid of r.companies) {
+        try { await computeCompanyScores(cid); }
+        catch (e) { console.error(`[companies-ingest] score failed for ${cid}:`, e); }
+      }
+      console.log(`[companies-ingest] industry ${industryId}: scored ${r.companies.length} companies (background)`);
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
       ingestStatusByIndustry.set(industryId, {
