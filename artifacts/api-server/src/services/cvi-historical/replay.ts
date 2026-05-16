@@ -1,4 +1,4 @@
-import { db, sourceTriangulationsTable, industriesTable, capabilitiesTable, industryGdpWeightsTable, ceiSnapshotsTable, ceiCapabilityHistoryTable } from "@workspace/db";
+import { db, sourceTriangulationsTable, industriesTable, capabilitiesTable, industryGdpWeightsTable, cviSnapshotsTable, cviCapabilityHistoryTable } from "@workspace/db";
 import { eq, lte, sql, and, gte, asc } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
@@ -55,7 +55,7 @@ export interface ReplayResult {
   series?: Array<{ asOf: string; overallIndex: number; industryCount: number }>;
 }
 
-export async function replayHistoricalCEI(opts: ReplayOptions = {}): Promise<ReplayResult> {
+export async function replayHistoricalCVI(opts: ReplayOptions = {}): Promise<ReplayResult> {
   const start = Date.now();
   const toDate = opts.toDate ?? new Date();
   const fromDate = opts.fromDate ?? new Date(toDate.getTime() - 90 * 24 * 60 * 60 * 1000);
@@ -83,13 +83,13 @@ export async function replayHistoricalCEI(opts: ReplayOptions = {}): Promise<Rep
 
   // Pre-fetch existing snapshots once across the window for dedup
   const existingSnapshots = await db
-    .select({ snapshotAt: ceiSnapshotsTable.snapshotAt })
-    .from(ceiSnapshotsTable)
+    .select({ snapshotAt: cviSnapshotsTable.snapshotAt })
+    .from(cviSnapshotsTable)
     .where(and(
-      gte(ceiSnapshotsTable.snapshotAt, fromDate),
-      lte(ceiSnapshotsTable.snapshotAt, new Date(toDate.getTime() + dedupMs)),
+      gte(cviSnapshotsTable.snapshotAt, fromDate),
+      lte(cviSnapshotsTable.snapshotAt, new Date(toDate.getTime() + dedupMs)),
     ))
-    .orderBy(asc(ceiSnapshotsTable.snapshotAt));
+    .orderBy(asc(cviSnapshotsTable.snapshotAt));
   const existingTimes = existingSnapshots.map(s => s.snapshotAt.getTime());
 
   for (const asOf of dates) {
@@ -195,7 +195,7 @@ export async function replayHistoricalCEI(opts: ReplayOptions = {}): Promise<Rep
       series.push({ asOf: asOf.toISOString(), overallIndex, industryCount: industryScores.size });
 
       if (!opts.dryRun) {
-        await db.insert(ceiSnapshotsTable).values({
+        await db.insert(cviSnapshotsTable).values({
           overallIndex,
           overallCiLow: null,
           overallCiHigh: null,
@@ -224,7 +224,7 @@ export async function replayHistoricalCEI(opts: ReplayOptions = {}): Promise<Rep
         }));
         if (capRows.length > 0) {
           try {
-            await db.insert(ceiCapabilityHistoryTable).values(capRows).onConflictDoNothing();
+            await db.insert(cviCapabilityHistoryTable).values(capRows).onConflictDoNothing();
           } catch (capErr) {
             logger.warn({ capErr, asOf }, "[cei-replay] per-cap insert failed (non-fatal)");
           }

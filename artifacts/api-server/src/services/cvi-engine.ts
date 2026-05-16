@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import {
-  ceiSnapshotsTable,
-  ceiComponentsTable,
+  cviSnapshotsTable,
+  cviComponentsTable,
   capabilitiesTable,
   industriesTable,
   industryGdpWeightsTable,
@@ -54,10 +54,10 @@ interface CEIResult {
 }
 
 /**
- * Options for `computeCEI`.
+ * Options for `computeCVI`.
  *
  * - `persist` (default true): when false, the engine runs end-to-end but does
- *   not write to `cei_components` or `cei_snapshots`. Used by the backtesting
+ *   not write to `cvi_components` or `cvi_snapshots`. Used by the backtesting
  *   harness to call the real engine math (parent/child rollup, posterior
  *   variance, multipliers) without polluting live state.
  * - `additionalEvents`: extra macro events appended to the active-event set
@@ -79,7 +79,7 @@ export interface CapPosterior {
   variance: number;
 }
 
-export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, CapPosterior> }> {
+export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, CapPosterior> }> {
   const persist = opts.persist !== false;
   const additionalEvents = opts.additionalEvents ?? [];
   const captureMap = opts.capturePerCap ? new Map<number, CapPosterior>() : null;
@@ -92,7 +92,7 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   const gdpWeightRows = await db.select().from(industryGdpWeightsTable);
   const gdpWeightByIndustry = new Map(gdpWeightRows.map(r => [r.industryId, r]));
 
-  const prevComponents = await db.select().from(ceiComponentsTable);
+  const prevComponents = await db.select().from(cviComponentsTable);
   const prevMap = new Map<string, typeof prevComponents[0]>();
   for (const c of prevComponents) {
     prevMap.set(`${c.industryId}-${c.capabilityId}`, c);
@@ -260,7 +260,7 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
 
       if (persist) {
         if (prev) {
-          await db.update(ceiComponentsTable)
+          await db.update(cviComponentsTable)
             .set({
               consensusScore,
               posteriorVariance,
@@ -272,9 +272,9 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
               sourceScores,
               updatedAt: new Date(),
             })
-            .where(eq(ceiComponentsTable.id, prev.id));
+            .where(eq(cviComponentsTable.id, prev.id));
         } else {
-          await db.insert(ceiComponentsTable).values({
+          await db.insert(cviComponentsTable).values({
             capabilityId: cap.id,
             industryId: industry.id,
             consensusScore,
@@ -334,11 +334,11 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
       const prev = prevMap.get(prevKey);
       if (persist) {
         if (prev) {
-          await db.update(ceiComponentsTable)
+          await db.update(cviComponentsTable)
             .set({ consensusScore, posteriorVariance, ciLow, ciHigh, confidence, velocity, economicMultiplier, sourceScores, updatedAt: new Date() })
-            .where(eq(ceiComponentsTable.id, prev.id));
+            .where(eq(cviComponentsTable.id, prev.id));
         } else {
-          await db.insert(ceiComponentsTable).values({
+          await db.insert(cviComponentsTable).values({
             capabilityId: parent.id,
             industryId: industry.id,
             consensusScore,
@@ -435,7 +435,7 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   const volatility = Math.round((baseVolatility + macroShock.volatilityBoost) * 1000) / 1000;
 
   const snapshotAt = persist
-    ? (await db.insert(ceiSnapshotsTable).values({
+    ? (await db.insert(cviSnapshotsTable).values({
         overallIndex,
         overallCiLow,
         overallCiHigh,
@@ -449,13 +449,13 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   // Bank per-capability history rows in parallel to the industry-level
   // snapshot. Lets the capability-detail sparkline show per-cap trend
   // instead of just industry rollup. captureMap exists only when called
-  // with capturePerCap:true; otherwise we pull current ceiComponents rows.
+  // with capturePerCap:true; otherwise we pull current cviComponents rows.
   if (persist) {
     try {
-      const components = await db.select().from(ceiComponentsTable);
+      const components = await db.select().from(cviComponentsTable);
       if (components.length > 0) {
-        const { ceiCapabilityHistoryTable } = await import("@workspace/db");
-        await db.insert(ceiCapabilityHistoryTable).values(
+        const { cviCapabilityHistoryTable } = await import("@workspace/db");
+        await db.insert(cviCapabilityHistoryTable).values(
           components.map(c => ({
             capabilityId: c.capabilityId,
             industryId: c.industryId,
@@ -499,8 +499,8 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
 export async function getCEICurrent(): Promise<CEIResult | null> {
   const [latest] = await db
     .select()
-    .from(ceiSnapshotsTable)
-    .orderBy(desc(ceiSnapshotsTable.snapshotAt))
+    .from(cviSnapshotsTable)
+    .orderBy(desc(cviSnapshotsTable.snapshotAt))
     .limit(1);
 
   if (!latest) return null;
@@ -526,8 +526,8 @@ export async function getCEIHistory(limit = 30): Promise<Array<{
 }>> {
   const snapshots = await db
     .select()
-    .from(ceiSnapshotsTable)
-    .orderBy(desc(ceiSnapshotsTable.snapshotAt))
+    .from(cviSnapshotsTable)
+    .orderBy(desc(cviSnapshotsTable.snapshotAt))
     .limit(limit);
 
   return snapshots.map(s => ({

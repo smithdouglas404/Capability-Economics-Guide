@@ -24,7 +24,7 @@ router.get("/admin/backtest/history", async (req, res) => {
 });
 
 /**
- * Run the harness end-to-end. Pure read-only against ceiComponents — never
+ * Run the harness end-to-end. Pure read-only against cviComponents — never
  * touches snapshots or macro_events, so admins can replay as often as they like
  * without polluting the live index.
  */

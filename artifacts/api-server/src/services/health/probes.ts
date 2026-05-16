@@ -18,7 +18,7 @@ import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing } from "../agent/letta";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
-import { organizationsTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db";
+import { organizationsTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
 import { sql } from "drizzle-orm";
 
 export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured";
@@ -301,7 +301,7 @@ const probeClerk: Probe = async () => {
  * up but a VC walkthrough would land on empty screens. Three signals checked:
  *  - at least 1 organization in organizationsTable (scorecard data)
  *  - at least 10 capabilities in capabilitiesTable (otherwise the catalog is bare)
- *  - at least 1 cei_components row (otherwise the index is uninitialised)
+ *  - at least 1 cvi_components row (otherwise the index is uninitialised)
  *
  * Cheap query — three count() rolled into one round-trip.
  */
@@ -310,12 +310,12 @@ const probeDemoReadiness: Probe = async () => {
   try {
     const [orgs] = await db.select({ c: sql<number>`count(*)::int` }).from(organizationsTable);
     const [caps] = await db.select({ c: sql<number>`count(*)::int` }).from(capabilitiesTable);
-    const [comps] = await db.select({ c: sql<number>`count(*)::int` }).from(ceiComponentsTable);
+    const [comps] = await db.select({ c: sql<number>`count(*)::int` }).from(cviComponentsTable);
     const latencyMs = Date.now() - start;
     const issues: string[] = [];
     if ((orgs?.c ?? 0) === 0) issues.push("organizations table is empty — run `pnpm tsx scripts/src/seed-organizations.ts`");
     if ((caps?.c ?? 0) < 10) issues.push(`only ${caps?.c ?? 0} capabilities — catalog will look sparse`);
-    if ((comps?.c ?? 0) === 0) issues.push("cei_components table is empty — run enrichment");
+    if ((comps?.c ?? 0) === 0) issues.push("cvi_components table is empty — run enrichment");
     if (issues.length === 0) return { status: "ok", latencyMs, lastError: null };
     return { status: "degraded", latencyMs, lastError: issues.join("; ") };
   } catch (err) {

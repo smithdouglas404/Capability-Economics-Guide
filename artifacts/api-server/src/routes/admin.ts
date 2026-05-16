@@ -21,10 +21,10 @@ import { listPersonas } from "../services/bots/personas";
 import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budget";
 import { triggerBotTickNow } from "../services/agent/scheduler";
 import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
-import { replayHistoricalCEI } from "../services/cei-historical/replay";
+import { replayHistoricalCVI } from "../services/cvi-historical/replay";
 import { extractFilingsViaHaiku } from "../services/edgar/extractor";
-import { detectCeiSignalEvents, listRecentSignalEvents } from "../services/cei-signals/detector";
-import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cei-signals/attribution";
+import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-signals/detector";
+import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -369,10 +369,10 @@ router.post("/admin/edgar/extract", async (req, res) => {
   }
 });
 
-router.post("/admin/cei/signals/detect", async (req, res) => {
+router.post("/admin/cvi/signals/detect", async (req, res) => {
   try {
     const body = req.body ?? {};
-    const r = await detectCeiSignalEvents({
+    const r = await detectCviSignalEvents({
       lookbackDays: typeof body.lookbackDays === "number" ? body.lookbackDays : undefined,
       windowDays: typeof body.windowDays === "number" ? body.windowDays : undefined,
       moderateThreshold: typeof body.moderateThreshold === "number" ? body.moderateThreshold : undefined,
@@ -383,7 +383,7 @@ router.post("/admin/cei/signals/detect", async (req, res) => {
   }
 });
 
-router.post("/admin/cei/signals/attribute", async (req, res) => {
+router.post("/admin/cvi/signals/attribute", async (req, res) => {
   try {
     const body = req.body ?? {};
     const r = await attributeSignalOutcomes({
@@ -396,7 +396,7 @@ router.post("/admin/cei/signals/attribute", async (req, res) => {
   }
 });
 
-router.get("/admin/cei/signals/backtest", async (req, res) => {
+router.get("/admin/cvi/signals/backtest", async (req, res) => {
   try {
     const sinceDays = Number(req.query.sinceDays);
     const summaries = await getSignalBacktestSummary({
@@ -408,7 +408,7 @@ router.get("/admin/cei/signals/backtest", async (req, res) => {
   }
 });
 
-router.get("/admin/cei/signals", async (req, res) => {
+router.get("/admin/cvi/signals", async (req, res) => {
   try {
     const days = Number(req.query.days);
     const limit = Number(req.query.limit);
@@ -424,7 +424,7 @@ router.get("/admin/cei/signals", async (req, res) => {
   }
 });
 
-router.post("/admin/cei/replay-history", async (req, res) => {
+router.post("/admin/cvi/replay-history", async (req, res) => {
   try {
     const body = req.body ?? {};
     const fromDate = typeof body.fromDate === "string" ? new Date(body.fromDate) : undefined;
@@ -432,7 +432,7 @@ router.post("/admin/cei/replay-history", async (req, res) => {
     const intervalDays = typeof body.intervalDays === "number" ? body.intervalDays : undefined;
     const dedupWindowHours = typeof body.dedupWindowHours === "number" ? body.dedupWindowHours : undefined;
     const dryRun = body.dryRun === true;
-    const r = await replayHistoricalCEI({ fromDate, toDate, intervalDays, dedupWindowHours, dryRun });
+    const r = await replayHistoricalCVI({ fromDate, toDate, intervalDays, dedupWindowHours, dryRun });
     res.json(r);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "replay failed" });

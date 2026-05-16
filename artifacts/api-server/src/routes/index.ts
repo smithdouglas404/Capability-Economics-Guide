@@ -6,7 +6,7 @@ import organizationsRouter from "./organizations";
 import dashboardRouter from "./dashboard";
 import projectsRouter from "./projects";
 import insightsRouter from "./insights";
-import ceiRouter from "./cei";
+import cviRouter from "./cvi";
 import coverageRouter from "./coverage";
 import sourceQualityRouter from "./source-quality";
 import capabilityAnnotationsRouter from "./capability-annotations";
@@ -89,7 +89,7 @@ router.use(organizationsRouter);
 router.use(dashboardRouter);
 router.use(projectsRouter);
 router.use(insightsRouter);
-router.use(ceiRouter);
+router.use(cviRouter);
 router.use(coverageRouter);
 // sourceQualityRouter mounts BEFORE adminRouter so its /admin/source-quality
 // route uses its own per-route requireAdmin middleware rather than the catch-all.

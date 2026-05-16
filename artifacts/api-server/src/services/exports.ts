@@ -17,7 +17,7 @@
 import { createHash } from "node:crypto";
 import {
   db,
-  ceiSnapshotsTable,
+  cviSnapshotsTable,
   capabilityEconomicsTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
@@ -29,7 +29,7 @@ import { parquetWriteBuffer, type BasicType } from "hyparquet-writer";
 import { toCsv } from "./foundry/client";
 
 export type DatasetId =
-  | "cei_snapshots"
+  | "cvi_snapshots"
   | "capability_metrics"
   | "macro_events"
   | "value_chain_stages"
@@ -46,8 +46,8 @@ export interface DatasetSpec {
 }
 
 export const DATASETS: Record<DatasetId, DatasetSpec> = {
-  cei_snapshots: {
-    id: "cei_snapshots",
+  cvi_snapshots: {
+    id: "cvi_snapshots",
     label: "CEI snapshots",
     description: "Capability Economics Index — overall index, breakdowns, sentiment, volatility.",
     columns: ["id", "overallIndex", "overallCiLow", "overallCiHigh", "marketSentiment", "volatility", "methodologyVersion", "industryBreakdowns", "snapshotAt"],
@@ -122,8 +122,8 @@ export function listDatasets(): Array<Pick<DatasetSpec, "id" | "label" | "descri
 
 async function fetchRows(id: DatasetId): Promise<Array<Record<string, unknown>>> {
   switch (id) {
-    case "cei_snapshots":
-      return db.select().from(ceiSnapshotsTable).orderBy(desc(ceiSnapshotsTable.id));
+    case "cvi_snapshots":
+      return db.select().from(cviSnapshotsTable).orderBy(desc(cviSnapshotsTable.id));
     case "capability_metrics":
       return db.select().from(capabilityEconomicsTable).orderBy(desc(capabilityEconomicsTable.id));
     case "macro_events":

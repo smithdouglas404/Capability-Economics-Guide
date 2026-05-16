@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   sourceTriangulationsTable,
 } from "@workspace/db";
 
@@ -125,7 +125,7 @@ async function compute(): Promise<SourceQualityResult> {
   const [industries, capabilities, components, triRows] = await Promise.all([
     db.select().from(industriesTable),
     db.select().from(capabilitiesTable),
-    db.select().from(ceiComponentsTable),
+    db.select().from(cviComponentsTable),
     db.select({
       capabilityId: sourceTriangulationsTable.capabilityId,
       sourceLabel: sourceTriangulationsTable.sourceLabel,

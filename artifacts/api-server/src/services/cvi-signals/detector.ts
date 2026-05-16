@@ -1,12 +1,12 @@
-import { db, ceiCapabilityHistoryTable, ceiSignalEventsTable } from "@workspace/db";
+import { db, cviCapabilityHistoryTable, cviSignalEventsTable } from "@workspace/db";
 import { eq, sql, gte, asc, and } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
 /**
- * CEI signal detector — Task #5 phase 1. Walks cei_capability_history,
+ * CEI signal detector — Task #5 phase 1. Walks cvi_capability_history,
  * identifies moments where a capability's consensusScore moved by >= a
  * threshold within a configurable window, and records each as a row in
- * cei_signal_events.
+ * cvi_signal_events.
  *
  * Detection model:
  *   For each capability, sort history chronologically. For each pair of
@@ -43,7 +43,7 @@ export interface DetectionResult {
   durationMs: number;
 }
 
-export async function detectCeiSignalEvents(opts: DetectionOptions = {}): Promise<DetectionResult> {
+export async function detectCviSignalEvents(opts: DetectionOptions = {}): Promise<DetectionResult> {
   const start = Date.now();
   const lookbackDays = Math.max(7, opts.lookbackDays ?? 90);
   const windowDays = Math.max(1, opts.windowDays ?? 30);
@@ -54,9 +54,9 @@ export async function detectCeiSignalEvents(opts: DetectionOptions = {}): Promis
   // Pull all per-cap history rows in the window, sorted chronologically
   const rows = await db
     .select()
-    .from(ceiCapabilityHistoryTable)
-    .where(gte(ceiCapabilityHistoryTable.snapshotAt, since))
-    .orderBy(asc(ceiCapabilityHistoryTable.capabilityId), asc(ceiCapabilityHistoryTable.snapshotAt));
+    .from(cviCapabilityHistoryTable)
+    .where(gte(cviCapabilityHistoryTable.snapshotAt, since))
+    .orderBy(asc(cviCapabilityHistoryTable.capabilityId), asc(cviCapabilityHistoryTable.snapshotAt));
 
   if (rows.length === 0) {
     return { scannedCapabilities: 0, pairsCompared: 0, eventsDetected: 0, newEventsInserted: 0, durationMs: Date.now() - start };
@@ -102,7 +102,7 @@ export async function detectCeiSignalEvents(opts: DetectionOptions = {}): Promis
 
       try {
         await db
-          .insert(ceiSignalEventsTable)
+          .insert(cviSignalEventsTable)
           .values({
             capabilityId: capId,
             industryId: newer.industryId,
@@ -124,14 +124,14 @@ export async function detectCeiSignalEvents(opts: DetectionOptions = {}): Promis
         inserted++;
       } catch (err) {
         // Likely unique violation from a re-run — non-fatal
-        logger.debug({ err, capId }, "[cei-signals] insert conflict (expected on re-run)");
+        logger.debug({ err, capId }, "[cvi-signals] insert conflict (expected on re-run)");
       }
     }
   }
 
   const durationMs = Date.now() - start;
   if (inserted > 0 || detected > 0) {
-    logger.info({ scannedCapabilities: byCapId.size, pairsCompared: pairs, eventsDetected: detected, newEventsInserted: inserted, durationMs }, "[cei-signals] detection complete");
+    logger.info({ scannedCapabilities: byCapId.size, pairsCompared: pairs, eventsDetected: detected, newEventsInserted: inserted, durationMs }, "[cvi-signals] detection complete");
   }
   return {
     scannedCapabilities: byCapId.size,
@@ -151,17 +151,17 @@ export async function listRecentSignalEvents(opts: { days?: number; minSeverity?
   const limit = Math.max(1, Math.min(200, opts.limit ?? 50));
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  let conds = [gte(ceiSignalEventsTable.windowEndAt, since)];
+  let conds = [gte(cviSignalEventsTable.windowEndAt, since)];
   if (opts.minSeverity === "extreme") {
-    conds = [...conds, eq(ceiSignalEventsTable.severity, "extreme")];
+    conds = [...conds, eq(cviSignalEventsTable.severity, "extreme")];
   } else if (opts.minSeverity === "large") {
-    conds = [...conds, sql`${ceiSignalEventsTable.severity} IN ('large', 'extreme')`];
+    conds = [...conds, sql`${cviSignalEventsTable.severity} IN ('large', 'extreme')`];
   }
 
   return await db
     .select()
-    .from(ceiSignalEventsTable)
+    .from(cviSignalEventsTable)
     .where(and(...conds))
-    .orderBy(sql`ABS(${ceiSignalEventsTable.magnitudePoints}) DESC`)
+    .orderBy(sql`ABS(${cviSignalEventsTable.magnitudePoints}) DESC`)
     .limit(limit);
 }

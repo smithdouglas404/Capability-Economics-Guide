@@ -6,7 +6,7 @@ import {
   organizationCapabilitiesTable,
   capabilitiesTable,
   capabilityEconomicsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   sourceTriangulationsTable,
 } from "@workspace/db";
 import { eq, and, inArray, avg, count } from "drizzle-orm";
@@ -91,7 +91,7 @@ router.get("/war-room/compare", async (req, res) => {
       : [];
 
     const components = capIds.length
-      ? await db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
+      ? await db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds))
       : [];
 
     // Pull triangulation citations so each row can expose Perplexity source URLs.

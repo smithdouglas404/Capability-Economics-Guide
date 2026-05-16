@@ -20,7 +20,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   sourceTriangulationsTable,
   capabilityDependenciesTable,
   macroEventsTable,
@@ -73,7 +73,7 @@ function band(p: number): DisruptionRisk["band"] {
 
 interface ComputeArgs {
   capability: typeof capabilitiesTable.$inferSelect;
-  comp: typeof ceiComponentsTable.$inferSelect | undefined;
+  comp: typeof cviComponentsTable.$inferSelect | undefined;
   latestSourceQueriedAt: Date | null;
   macroEventCount: number;
   macroSeveritySum: number;
@@ -171,7 +171,7 @@ function rollUpProbability(factors: DisruptionFactor[]): number {
 export async function computeDisruptionRisk(capabilityId: number): Promise<DisruptionRisk | null> {
   const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capabilityId));
   if (!cap) return null;
-  const [comp] = await db.select().from(ceiComponentsTable).where(eq(ceiComponentsTable.capabilityId, capabilityId));
+  const [comp] = await db.select().from(cviComponentsTable).where(eq(cviComponentsTable.capabilityId, capabilityId));
 
   const triRows = await db
     .select({ queriedAt: sourceTriangulationsTable.queriedAt })
@@ -250,7 +250,7 @@ let rankingInFlight: Promise<DisruptionRanking> | null = null;
 
 async function computeRanking(): Promise<DisruptionRanking> {
   const caps = await db.select().from(capabilitiesTable);
-  const components = await db.select().from(ceiComponentsTable);
+  const components = await db.select().from(cviComponentsTable);
   const compByCap = new Map(components.map(c => [c.capabilityId, c]));
 
   // Pull all triangulations once, build latest-per-cap map.
@@ -439,7 +439,7 @@ export async function getDisruptionWatch(opts?: {
   }
   const [caps, comps] = await Promise.all([
     db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, candidateIds)),
-    db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, candidateIds)),
+    db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, candidateIds)),
   ]);
   const capById = new Map(caps.map(c => [c.id, c]));
   const compById = new Map(comps.map(c => [c.capabilityId, c]));

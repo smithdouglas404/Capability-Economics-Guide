@@ -11,7 +11,7 @@ import {
   notificationDeliveriesTable,
   capabilitiesTable,
   industriesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   type UserSubscription,
   type MacroEvent,
 } from "@workspace/db";
@@ -25,7 +25,7 @@ import { deriveLifecycleStage } from "./lifecycle";
  * Subscription evaluation + delivery.
  *
  * Hooked into:
- *   - computeCEI()       → after a snapshot is persisted, evaluates capability
+ *   - computeCVI()       → after a snapshot is persisted, evaluates capability
  *                          threshold, lifecycle change, and velocity sign-flip
  *                          subscriptions.
  *   - createMacroEvent() → fires macro_event subscriptions matching the new
@@ -95,7 +95,7 @@ export async function setSubscriptionActive(userId: string, id: number, active: 
 /**
  * Snapshot of per-capability state used for change detection. Built once
  * at the start of evaluateAfterCEI and diffed against the just-persisted
- * cei_components rows.
+ * cvi_components rows.
  */
 interface CapState {
   consensusScore: number;
@@ -104,10 +104,10 @@ interface CapState {
 }
 
 /**
- * Compare the previous and current cei_components state and fire any
+ * Compare the previous and current cvi_components state and fire any
  * matching capability_threshold / lifecycle_change subscriptions.
  *
- * `prevByCapId` should be a snapshot taken *before* the new computeCEI
+ * `prevByCapId` should be a snapshot taken *before* the new computeCVI
  * persisted its updates — the engine handles capturing this and passes
  * it in. If absent, only threshold (above/below) checks fire.
  */
@@ -174,7 +174,7 @@ export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Prom
 }
 
 /**
- * Pre-compute a per-capability CapState map for diffing. cei_components is
+ * Pre-compute a per-capability CapState map for diffing. cvi_components is
  * unique by (capabilityId, industryId), so a capability can appear in
  * multiple industries. We aggregate to a single global value per capability
  * by averaging across industries — making subscription diffs deterministic
@@ -182,7 +182,7 @@ export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Prom
  */
 export async function snapshotCapStates(): Promise<Map<number, CapState>> {
   const [components, caps] = await Promise.all([
-    db.select().from(ceiComponentsTable),
+    db.select().from(cviComponentsTable),
     db.select().from(capabilitiesTable),
   ]);
   const capById = new Map(caps.map(c => [c.id, c]));

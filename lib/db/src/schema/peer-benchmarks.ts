@@ -22,7 +22,7 @@ import { pgTable, serial, integer, real, timestamp, uniqueIndex, index } from "d
  * — that's a separate concern; this table holds current state only.
  */
 export const peerBenchmarksTable = pgTable(
-  "cei_peer_benchmarks",
+  "cvi_peer_benchmarks",
   {
     id: serial("id").primaryKey(),
     industryId: integer("industry_id").notNull(),

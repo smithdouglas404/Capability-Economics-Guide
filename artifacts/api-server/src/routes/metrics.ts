@@ -3,8 +3,8 @@ import { db } from "@workspace/db";
 import {
   capabilitiesTable,
   capabilityEconomicsTable,
-  ceiComponentsTable,
-  ceiSnapshotsTable,
+  cviComponentsTable,
+  cviSnapshotsTable,
   industriesTable,
 } from "@workspace/db";
 import { desc, sql, gt, lt, and, isNotNull } from "drizzle-orm";
@@ -56,14 +56,14 @@ router.get("/metrics/home-ticker", async (_req: Request, res: Response) => {
   try {
     const rows = await db
       .select({
-        capabilityId: ceiComponentsTable.capabilityId,
+        capabilityId: cviComponentsTable.capabilityId,
         capabilityName: capabilitiesTable.name,
-        velocity: ceiComponentsTable.velocity,
-        score: ceiComponentsTable.consensusScore,
+        velocity: cviComponentsTable.velocity,
+        score: cviComponentsTable.consensusScore,
       })
-      .from(ceiComponentsTable)
-      .innerJoin(capabilitiesTable, sql`${capabilitiesTable.id} = ${ceiComponentsTable.capabilityId}`)
-      .orderBy(desc(sql<number>`abs(${ceiComponentsTable.velocity})`))
+      .from(cviComponentsTable)
+      .innerJoin(capabilitiesTable, sql`${capabilitiesTable.id} = ${cviComponentsTable.capabilityId}`)
+      .orderBy(desc(sql<number>`abs(${cviComponentsTable.velocity})`))
       .limit(8);
 
     const items = rows.map(r => ({
@@ -155,10 +155,10 @@ router.get("/metrics/principle-stats", async (_req: Request, res: Response) => {
  *   - topROI: { capabilityName, annualMarginUsdMm, formatted } — single
  *     capability with the highest annual margin captured.
  *   - quarterlyDelta: { pts, direction } — current CEI minus CEI from
- *     ~90 days ago (from cei_snapshots history). Used as the "↑ X pts this
+ *     ~90 days ago (from cvi_snapshots history). Used as the "↑ X pts this
  *     quarter" sub-line on the Avg CEI tile.
  *
- * The Avg CEI and capability count come from existing /api/cei/current and
+ * The Avg CEI and capability count come from existing /api/cvi/current and
  * /api/capabilities — not duplicated here.
  */
 router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
@@ -201,15 +201,15 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
     // Quarterly CEI delta: current vs 90 days ago.
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const [currentCei] = await db
-      .select({ overallIndex: ceiSnapshotsTable.overallIndex, snapshotAt: ceiSnapshotsTable.snapshotAt })
-      .from(ceiSnapshotsTable)
-      .orderBy(desc(ceiSnapshotsTable.snapshotAt))
+      .select({ overallIndex: cviSnapshotsTable.overallIndex, snapshotAt: cviSnapshotsTable.snapshotAt })
+      .from(cviSnapshotsTable)
+      .orderBy(desc(cviSnapshotsTable.snapshotAt))
       .limit(1);
     const [historicalCei] = await db
-      .select({ overallIndex: ceiSnapshotsTable.overallIndex, snapshotAt: ceiSnapshotsTable.snapshotAt })
-      .from(ceiSnapshotsTable)
-      .where(lt(ceiSnapshotsTable.snapshotAt, ninetyDaysAgo))
-      .orderBy(desc(ceiSnapshotsTable.snapshotAt))
+      .select({ overallIndex: cviSnapshotsTable.overallIndex, snapshotAt: cviSnapshotsTable.snapshotAt })
+      .from(cviSnapshotsTable)
+      .where(lt(cviSnapshotsTable.snapshotAt, ninetyDaysAgo))
+      .orderBy(desc(cviSnapshotsTable.snapshotAt))
       .limit(1);
 
     let quarterlyDeltaPts: number | null = null;

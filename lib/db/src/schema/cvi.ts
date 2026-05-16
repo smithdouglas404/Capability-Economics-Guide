@@ -2,10 +2,10 @@ import { pgTable, serial, integer, real, text, timestamp, jsonb, uniqueIndex } f
 import { capabilitiesTable } from "./capabilities";
 import { industriesTable } from "./industries";
 
-export const ceiSnapshotsTable = pgTable("cei_snapshots", {
+export const cviSnapshotsTable = pgTable("cvi_snapshots", {
   id: serial("id").primaryKey(),
   overallIndex: real("overall_index").notNull(),
-  // 95% credible interval on the overall (GDP-weighted) CEI, derived from
+  // 95% credible interval on the overall (GDP-weighted) CVI, derived from
   // posterior-variance propagation across capabilities and industries.
   overallCiLow: real("overall_ci_low"),
   overallCiHigh: real("overall_ci_high"),
@@ -30,7 +30,7 @@ export const ceiSnapshotsTable = pgTable("cei_snapshots", {
   snapshotAt: timestamp("snapshot_at").defaultNow().notNull(),
 });
 
-export const ceiComponentsTable = pgTable("cei_components", {
+export const cviComponentsTable = pgTable("cvi_components", {
   id: serial("id").primaryKey(),
   capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id),
@@ -52,12 +52,12 @@ export const ceiComponentsTable = pgTable("cei_components", {
   }>>().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => [
-  uniqueIndex("cei_components_cap_industry_idx").on(table.capabilityId, table.industryId),
+  uniqueIndex("cvi_components_cap_industry_idx").on(table.capabilityId, table.industryId),
 ]);
 
 /**
- * Per-industry GDP weight used by the global CEI rollup. Replaces the prior
- * hardcoded INDUSTRY_GDP_WEIGHTS constant. Each row MUST be Perplexity-cited
+ * Per-industry GDP weight used by the global CVI rollup. Replaces the prior
+ * hardcoded INDUSTRY_GDP_WEIGHTS constant. Each row MUST be source-cited
  * (sourceUrl + sourceYear + sourceCitation jsonb), no editorial fallback.
  *
  * gdpShare is the industry's share of nominal world GDP (0-1) for the

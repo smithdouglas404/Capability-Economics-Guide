@@ -6,7 +6,7 @@ import {
   capabilityDependenciesTable,
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
@@ -14,7 +14,7 @@ import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
 import { getPeerBenchmark } from "../services/peer-benchmarks/aggregator";
 import { db as dbConn } from "@workspace/db";
-import { ceiSnapshotsTable, ceiCapabilityHistoryTable } from "@workspace/db";
+import { cviSnapshotsTable, cviCapabilityHistoryTable } from "@workspace/db";
 import { gte, desc as descOrder, asc } from "drizzle-orm";
 
 const router: IRouter = Router();
@@ -40,15 +40,15 @@ router.get("/capabilities", async (req, res) => {
   const capabilities = await query;
 
   // Enrich every cap with a derived lifecycle stage (Emerging / Adopted /
-  // Mature / Decaying / Obsolete) computed from its current ceiComponents
+  // Mature / Decaying / Obsolete) computed from its current cviComponents
   // posterior. Computed on read so it can never go stale.
   const capIds = capabilities.map((c) => c.id);
   const components = capIds.length > 0
     ? await db.select({
-        capabilityId: ceiComponentsTable.capabilityId,
-        consensusScore: ceiComponentsTable.consensusScore,
-        velocity: ceiComponentsTable.velocity,
-      }).from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
+        capabilityId: cviComponentsTable.capabilityId,
+        consensusScore: cviComponentsTable.consensusScore,
+        velocity: cviComponentsTable.velocity,
+      }).from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds))
     : [];
   const lifecycleByCap = buildLifecycleMap(capabilities, components);
 
@@ -97,9 +97,9 @@ router.get("/capabilities/:id", async (req, res) => {
 
   // Derived lifecycle stage from the cap's current CEI posterior.
   const [comp] = await db
-    .select({ consensusScore: ceiComponentsTable.consensusScore, velocity: ceiComponentsTable.velocity })
-    .from(ceiComponentsTable)
-    .where(eq(ceiComponentsTable.capabilityId, id))
+    .select({ consensusScore: cviComponentsTable.consensusScore, velocity: cviComponentsTable.velocity })
+    .from(cviComponentsTable)
+    .where(eq(cviComponentsTable.capabilityId, id))
     .limit(1);
   const lifecycleStage = deriveLifecycleStage({
     consensusScore: comp?.consensusScore ?? null,
@@ -161,7 +161,7 @@ router.get("/capabilities/:id/peer-benchmark", async (req, res) => {
 
 /**
  * Per-capability CEI history. Derives the industry index series from
- * cei_snapshots.industryBreakdowns over the requested window. Marks
+ * cvi_snapshots.industryBreakdowns over the requested window. Marks
  * each point as live or reconstructed via methodologyVersion so the
  * frontend can render reconstructed segments differently (dashed line,
  * methodology disclosure).
@@ -170,7 +170,7 @@ router.get("/capabilities/:id/peer-benchmark", async (req, res) => {
  * series is the industry index, not a per-capability index (that
  * granularity needs a separate per-cap snapshot table — future work).
  */
-router.get("/capabilities/:id/cei-history", async (req, res) => {
+router.get("/capabilities/:id/cvi-history", async (req, res) => {
   const idRaw = req.params.id;
   const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
   if (!Number.isFinite(capId)) { res.status(400).json({ error: "Invalid capability id" }); return; }
@@ -180,16 +180,16 @@ router.get("/capabilities/:id/cei-history", async (req, res) => {
     if (!cap) { res.status(404).json({ error: "Capability not found" }); return; }
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-    // Prefer per-capability history (cei_capability_history) when available
+    // Prefer per-capability history (cvi_capability_history) when available
     // — it's the high-fidelity per-cap series. Falls back to industry-level
-    // rollup from cei_snapshots when the per-cap table is empty (early
+    // rollup from cvi_snapshots when the per-cap table is empty (early
     // post-deploy state, before the engine has banked enough capability
     // history rows).
     const capHistory = await dbConn
       .select()
-      .from(ceiCapabilityHistoryTable)
-      .where(and(eq(ceiCapabilityHistoryTable.capabilityId, capId), gte(ceiCapabilityHistoryTable.snapshotAt, since)))
-      .orderBy(asc(ceiCapabilityHistoryTable.snapshotAt));
+      .from(cviCapabilityHistoryTable)
+      .where(and(eq(cviCapabilityHistoryTable.capabilityId, capId), gte(cviCapabilityHistoryTable.snapshotAt, since)))
+      .orderBy(asc(cviCapabilityHistoryTable.snapshotAt));
 
     let series: Array<{ at: string; value: number; reconstructed: boolean }>;
     let granularity: "per-capability" | "industry-rollup";
@@ -204,9 +204,9 @@ router.get("/capabilities/:id/cei-history", async (req, res) => {
       granularity = "industry-rollup";
       const snapshots = await dbConn
         .select()
-        .from(ceiSnapshotsTable)
-        .where(gte(ceiSnapshotsTable.snapshotAt, since))
-        .orderBy(descOrder(ceiSnapshotsTable.snapshotAt));
+        .from(cviSnapshotsTable)
+        .where(gte(cviSnapshotsTable.snapshotAt, since))
+        .orderBy(descOrder(cviSnapshotsTable.snapshotAt));
       const industryKey = String(cap.industryId);
       series = snapshots
         .map(snap => {

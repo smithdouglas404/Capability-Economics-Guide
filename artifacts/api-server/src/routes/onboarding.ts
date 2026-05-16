@@ -17,7 +17,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   workbenchBoardsTable,
   workbenchCardsTable,
   workbenchCardInsightsTable,
@@ -65,10 +65,10 @@ router.post("/onboarding/start", async (req, res) => {
   const candidates = await db
     .select({
       cap: capabilitiesTable,
-      comp: ceiComponentsTable,
+      comp: cviComponentsTable,
     })
     .from(capabilitiesTable)
-    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
     .where(and(
       eq(capabilitiesTable.industryId, industry.id),
       eq(capabilitiesTable.reviewStatus, "approved"),

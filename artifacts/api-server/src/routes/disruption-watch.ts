@@ -1,6 +1,6 @@
 /**
  * Public-facing disruption + net-new capability feeds. Both are read-only
- * derivations of existing data (cei_components + capabilities + macro_events).
+ * derivations of existing data (cvi_components + capabilities + macro_events).
  */
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";

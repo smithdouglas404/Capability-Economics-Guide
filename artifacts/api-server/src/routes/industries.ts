@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { industriesTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db";
+import { industriesTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
 import { eq, sql, desc, inArray } from "drizzle-orm";
 import { GetIndustryParams } from "@workspace/api-zod";
 import { buildLifecycleMap } from "../services/lifecycle";
@@ -121,10 +121,10 @@ router.get("/industries/:id", async (req, res) => {
   const capIds = capabilities.map(c => c.id);
   const components = capIds.length
     ? await db.select({
-        capabilityId: ceiComponentsTable.capabilityId,
-        consensusScore: ceiComponentsTable.consensusScore,
-        velocity: ceiComponentsTable.velocity,
-      }).from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds))
+        capabilityId: cviComponentsTable.capabilityId,
+        consensusScore: cviComponentsTable.consensusScore,
+        velocity: cviComponentsTable.velocity,
+      }).from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds))
     : [];
   const stageByCap = buildLifecycleMap(capabilities, components);
   const enriched = capabilities.map(c => ({ ...c, lifecycleStage: stageByCap.get(c.id) ?? "adopted" }));

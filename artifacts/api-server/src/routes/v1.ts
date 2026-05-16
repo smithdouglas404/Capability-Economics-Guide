@@ -13,7 +13,7 @@ import {
   db,
   industriesTable,
   capabilitiesTable,
-  ceiSnapshotsTable,
+  cviSnapshotsTable,
   macroEventsTable,
   valueChainStagesTable,
 } from "@workspace/db";
@@ -170,22 +170,22 @@ router.get("/capabilities/:id", requireApiKey("read:capabilities"), async (req, 
 });
 
 // ---------- CEI ----------
-router.get("/cei/current", requireApiKey("read:cei"), async (_req, res) => {
-  const [row] = await db.select().from(ceiSnapshotsTable).orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(1);
+router.get("/cvi/current", requireApiKey("read:cvi"), async (_req, res) => {
+  const [row] = await db.select().from(cviSnapshotsTable).orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(1);
   if (!row) { res.status(404).json({ error: "no_snapshot" }); return; }
   res.json(row);
 });
 
-router.get("/cei/history", requireApiKey("read:cei"), async (req, res) => {
+router.get("/cvi/history", requireApiKey("read:cvi"), async (req, res) => {
   const limit = parseLimit(req, 100, 1000);
   const from = asDate(req.query.from);
   const to = asDate(req.query.to);
   const conditions: SQL[] = [];
-  if (from) conditions.push(gte(ceiSnapshotsTable.snapshotAt, from));
-  if (to) conditions.push(lte(ceiSnapshotsTable.snapshotAt, to));
+  if (from) conditions.push(gte(cviSnapshotsTable.snapshotAt, from));
+  if (to) conditions.push(lte(cviSnapshotsTable.snapshotAt, to));
   const where = conditions.length ? and(...conditions) : undefined;
 
-  const rows = await db.select().from(ceiSnapshotsTable).where(where).orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(limit);
+  const rows = await db.select().from(cviSnapshotsTable).where(where).orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(limit);
   res.json({ data: rows });
 });
 

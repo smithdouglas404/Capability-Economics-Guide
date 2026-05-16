@@ -21,7 +21,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   capabilityDependenciesTable,
   organizationsTable,
   organizationCapabilitiesTable,
@@ -158,7 +158,7 @@ export async function recommendStack(input: StackOptimizerInput): Promise<StackO
 
   const [caps, components, allDeps, orgCaps, orgs, listings] = await Promise.all([
     db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, targetIds)),
-    db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, targetIds)),
+    db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, targetIds)),
     db.select().from(capabilityDependenciesTable).where(inArray(capabilityDependenciesTable.capabilityId, targetIds)),
     db.select().from(organizationCapabilitiesTable).where(inArray(organizationCapabilitiesTable.capabilityId, targetIds)),
     db.select().from(organizationsTable),

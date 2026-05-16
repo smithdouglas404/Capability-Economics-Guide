@@ -7,7 +7,7 @@ import {
   companyCapabilityFingerprintTable,
   capabilitiesTable,
   capabilityEconomicsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
   organizationsTable,
   organizationCapabilitiesTable,
@@ -104,7 +104,7 @@ router.get("/benchmarking/companies", async (req, res) => {
       composite: c.scores?.composite ?? null,
       moatScore: c.scores?.moatScore ?? null,
       aiDisruptability: c.scores?.aiDisruptability ?? null,
-      ceiWeighted: c.scores?.ceiWeighted ?? null,
+      cviWeighted: c.scores?.cviWeighted ?? null,
     }));
 
     res.json(result);
@@ -317,7 +317,7 @@ Tag 2-6 capabilities per company. Skip companies you can't tag. Return a JSON ar
         composite: c.scores?.composite ?? null,
         moatScore: c.scores?.moatScore ?? null,
         aiDisruptability: c.scores?.aiDisruptability ?? null,
-        ceiWeighted: c.scores?.ceiWeighted ?? null,
+        cviWeighted: c.scores?.cviWeighted ?? null,
       })),
     });
   } catch (err) {
@@ -382,7 +382,7 @@ router.post("/benchmarking/run", async (req, res) => {
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
 
     const components = relevantCapIds.length
-      ? await db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, relevantCapIds))
+      ? await db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, relevantCapIds))
       : [];
     const compMap = new Map(components.map((c) => [c.capabilityId, c]));
 

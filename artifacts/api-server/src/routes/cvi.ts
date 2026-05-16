@@ -1,9 +1,9 @@
 import { Router, type IRouter } from "express";
-import { computeCEI, getCEICurrent, getCEIHistory, CEI_METHODOLOGY } from "../services/cei-engine";
+import { computeCVI, getCEICurrent, getCEIHistory, CEI_METHODOLOGY } from "../services/cvi-engine";
 import { triangulateCapability, getStaleCapabilities } from "../services/triangulation";
 import { triggerRotationNow } from "../services/agent/scheduler";
 import { db } from "@workspace/db";
-import { industriesTable, capabilitiesTable, ceiComponentsTable, sourceTriangulationsTable } from "@workspace/db";
+import { industriesTable, capabilitiesTable, cviComponentsTable, sourceTriangulationsTable } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { deriveLifecycleStage } from "../services/lifecycle";
@@ -13,12 +13,12 @@ const router: IRouter = Router();
 const refreshRateLimit = new Map<string, number>();
 const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 
-router.get("/cei/current", async (_req, res) => {
+router.get("/cvi/current", async (_req, res) => {
   try {
     let result = await getCEICurrent();
 
     if (!result) {
-      result = await computeCEI();
+      result = await computeCVI();
     }
 
     res.json(result);
@@ -28,7 +28,7 @@ router.get("/cei/current", async (_req, res) => {
   }
 });
 
-router.get("/cei/history", async (req, res) => {
+router.get("/cvi/history", async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
     const history = await getCEIHistory(limit);
@@ -39,7 +39,7 @@ router.get("/cei/history", async (req, res) => {
   }
 });
 
-router.post("/cei/refresh", requireAdmin, async (req, res) => {
+router.post("/cvi/refresh", requireAdmin, async (req, res) => {
   const clientIp = req.ip || "unknown";
   const lastRefresh = refreshRateLimit.get(clientIp);
   if (lastRefresh && Date.now() - lastRefresh < REFRESH_COOLDOWN_MS) {
@@ -68,10 +68,10 @@ router.post("/cei/refresh", requireAdmin, async (req, res) => {
         triangulations.push(result);
       }
 
-      const cei = await computeCEI();
+      const cei = await computeCVI();
       res.json({ cei, triangulations });
     } else {
-      const cei = await computeCEI();
+      const cei = await computeCVI();
       res.json({ cei, triangulations: [] });
     }
   } catch (err: unknown) {
@@ -81,44 +81,44 @@ router.post("/cei/refresh", requireAdmin, async (req, res) => {
   }
 });
 
-router.get("/cei/methodology", async (_req, res) => {
+router.get("/cvi/methodology", async (_req, res) => {
   res.json({ methodology: CEI_METHODOLOGY, version: "1.1" });
 });
 
 /**
- * GET /api/cei/exemplars
+ * GET /api/cvi/exemplars
  *
  * Top + bottom scoring leaf capabilities right now. Replaces the hardcoded
  * "Agentic AI ~26, AML/KYC ~42" call-outs in the cei-dashboard "How to read
  * the CEI right now" dialog (pages/cei-dashboard.tsx:597). Both are single
  * rows — cheap query, no caching.
  */
-router.get("/cei/exemplars", async (_req, res) => {
+router.get("/cvi/exemplars", async (_req, res) => {
   try {
     const [topRow] = await db
       .select({
-        capabilityId: ceiComponentsTable.capabilityId,
+        capabilityId: cviComponentsTable.capabilityId,
         name: capabilitiesTable.name,
-        score: ceiComponentsTable.consensusScore,
+        score: cviComponentsTable.consensusScore,
         industryName: industriesTable.name,
       })
-      .from(ceiComponentsTable)
-      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
-      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
-      .orderBy(desc(ceiComponentsTable.consensusScore))
+      .from(cviComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, cviComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, cviComponentsTable.industryId))
+      .orderBy(desc(cviComponentsTable.consensusScore))
       .limit(1);
 
     const [bottomRow] = await db
       .select({
-        capabilityId: ceiComponentsTable.capabilityId,
+        capabilityId: cviComponentsTable.capabilityId,
         name: capabilitiesTable.name,
-        score: ceiComponentsTable.consensusScore,
+        score: cviComponentsTable.consensusScore,
         industryName: industriesTable.name,
       })
-      .from(ceiComponentsTable)
-      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
-      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
-      .orderBy(ceiComponentsTable.consensusScore) // asc
+      .from(cviComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, cviComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, cviComponentsTable.industryId))
+      .orderBy(cviComponentsTable.consensusScore) // asc
       .limit(1);
 
     res.json({
@@ -141,7 +141,7 @@ router.get("/cei/exemplars", async (_req, res) => {
   }
 });
 
-router.get("/cei/freshness", async (_req, res) => {
+router.get("/cvi/freshness", async (_req, res) => {
   try {
     const caps = await db.select().from(capabilitiesTable);
     const industries = await db.select().from(industriesTable);
@@ -167,7 +167,7 @@ router.get("/cei/freshness", async (_req, res) => {
       for (const u of (t.citations ?? [])) if (u) e.urls.add(u);
     }
 
-    const components = await db.select().from(ceiComponentsTable);
+    const components = await db.select().from(cviComponentsTable);
     const compByCap = new Map(components.map(c => [c.capabilityId, c]));
 
     const now = Date.now();
@@ -239,7 +239,7 @@ router.get("/cei/freshness", async (_req, res) => {
   }
 });
 
-router.post("/cei/rotate", requireAdmin, async (req, res) => {
+router.post("/cvi/rotate", requireAdmin, async (req, res) => {
   try {
     const limit = req.body?.limit ? Number(req.body.limit) : undefined;
     const industryId = req.body?.industryId ? Number(req.body.industryId) : undefined;
@@ -251,21 +251,21 @@ router.post("/cei/rotate", requireAdmin, async (req, res) => {
   }
 });
 
-router.get("/cei/stale", async (req, res) => {
+router.get("/cvi/stale", async (req, res) => {
   const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 10));
   const stale = await getStaleCapabilities(limit);
   res.json(stale);
 });
 
-router.get("/cei/capability-tree", async (req, res) => {
+router.get("/cvi/capability-tree", async (req, res) => {
   try {
     const industryId = Number(req.query.industryId);
     const capsQuery = !isNaN(industryId)
       ? db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId))
       : db.select().from(capabilitiesTable);
     const compsQuery = !isNaN(industryId)
-      ? db.select().from(ceiComponentsTable).where(eq(ceiComponentsTable.industryId, industryId))
-      : db.select().from(ceiComponentsTable);
+      ? db.select().from(cviComponentsTable).where(eq(cviComponentsTable.industryId, industryId))
+      : db.select().from(cviComponentsTable);
     const [caps, comps] = await Promise.all([capsQuery, compsQuery]);
 
     const compByCap = new Map(comps.map(c => [c.capabilityId, c]));
@@ -333,17 +333,17 @@ router.get("/cei/capability-tree", async (req, res) => {
   }
 });
 
-router.get("/cei/components", async (req, res) => {
+router.get("/cvi/components", async (req, res) => {
   try {
     const industryId = Number(req.query.industryId);
     let components;
     if (industryId && !isNaN(industryId)) {
-      components = await db.select().from(ceiComponentsTable)
-        .where(eq(ceiComponentsTable.industryId, industryId))
-        .orderBy(desc(ceiComponentsTable.consensusScore));
+      components = await db.select().from(cviComponentsTable)
+        .where(eq(cviComponentsTable.industryId, industryId))
+        .orderBy(desc(cviComponentsTable.consensusScore));
     } else {
-      components = await db.select().from(ceiComponentsTable)
-        .orderBy(desc(ceiComponentsTable.consensusScore));
+      components = await db.select().from(cviComponentsTable)
+        .orderBy(desc(cviComponentsTable.consensusScore));
     }
     // Derive lifecycle stage on read; never persisted.
     const enriched = components.map((c) => ({

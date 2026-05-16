@@ -1,4 +1,4 @@
-import { db, capabilitiesTable, industriesTable, ceiComponentsTable } from "@workspace/db";
+import { db, capabilitiesTable, industriesTable, cviComponentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { triangulateCapability } from "./triangulation";
 
@@ -118,7 +118,7 @@ export async function insertSubCapabilities(
     }).returning({ id: capabilitiesTable.id });
     insertedIds.push(row.id);
 
-    await db.insert(ceiComponentsTable).values({
+    await db.insert(cviComponentsTable).values({
       capabilityId: row.id,
       industryId: parent.industryId,
       consensusScore: seedScore,

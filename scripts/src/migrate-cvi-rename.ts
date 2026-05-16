@@ -9,7 +9,7 @@
  *   pnpm --filter @workspace/scripts run migrate:cvi-rename
  *
  * After this completes successfully, the schema files in lib/db/src/schema/
- * (cei.ts, cei-capability-history.ts, peer-benchmarks.ts, cei-signals.ts,
+ * (cei.ts, cei-capability-history.ts, peer-benchmarks.ts, cvi-signals.ts,
  * companies.ts agent.ts) can be updated to reference the new cvi_* names
  * and drizzle-kit push will be a no-op.
  */

@@ -4,7 +4,7 @@ import {
   nlQueryLogsTable,
   capabilitiesTable,
   capabilityEconomicsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
   organizationsTable,
   organizationCapabilitiesTable,
@@ -52,13 +52,13 @@ router.post("/nl-query", async (req, res) => {
       const rows = await db.select({
         name: capabilitiesTable.name,
         industry: industriesTable.name,
-        score: ceiComponentsTable.consensusScore,
-        velocity: ceiComponentsTable.velocity,
+        score: cviComponentsTable.consensusScore,
+        velocity: cviComponentsTable.velocity,
       })
-        .from(ceiComponentsTable)
-        .leftJoin(capabilitiesTable, eq(ceiComponentsTable.capabilityId, capabilitiesTable.id))
-        .leftJoin(industriesTable, eq(ceiComponentsTable.industryId, industriesTable.id))
-        .orderBy(ceiComponentsTable.consensusScore)
+        .from(cviComponentsTable)
+        .leftJoin(capabilitiesTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
+        .leftJoin(industriesTable, eq(cviComponentsTable.industryId, industriesTable.id))
+        .orderBy(cviComponentsTable.consensusScore)
         .limit(10);
 
       data = rows;

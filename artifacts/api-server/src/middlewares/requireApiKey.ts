@@ -5,7 +5,7 @@
  * stable URLs independent of the in-app `/api` namespace. Every request:
  *   1. Requires `Authorization: Bearer ce_live_...` — there is no anonymous
  *      access to the v1 surface.
- *   2. Checks the key has the requested scope (`requireApiKey("read:cei")`).
+ *   2. Checks the key has the requested scope (`requireApiKey("read:cvi")`).
  *   3. Atomically bumps the per-key monthly usage counter and rejects if the
  *      key has a `monthlyQuota` and is over it.
  *   4. Enforces a per-key sliding-minute rate limit via Redis. Falls back to

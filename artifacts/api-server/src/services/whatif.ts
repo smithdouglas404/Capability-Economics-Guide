@@ -12,7 +12,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
   industryGdpWeightsTable,
 } from "@workspace/db";
@@ -88,7 +88,7 @@ export async function runWhatIf(input: WhatIfInput): Promise<WhatIfResult> {
 
   const [allCaps, components, industries, gdpRows] = await Promise.all([
     db.select().from(capabilitiesTable),
-    db.select().from(ceiComponentsTable),
+    db.select().from(cviComponentsTable),
     db.select().from(industriesTable),
     db.select().from(industryGdpWeightsTable),
   ]);

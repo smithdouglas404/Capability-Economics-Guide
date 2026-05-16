@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import {
   simulationScenariosTable,
   capabilityEconomicsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   dependencyEdgeScoresTable,
   capabilitiesTable,
   capabilityDependenciesTable,
@@ -64,8 +64,8 @@ router.post("/simulation/run", async (req, res) => {
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
 
     // Get current CEI components
-    const components = await db.select().from(ceiComponentsTable)
-      .where(inArray(ceiComponentsTable.capabilityId, capIds));
+    const components = await db.select().from(cviComponentsTable)
+      .where(inArray(cviComponentsTable.capabilityId, capIds));
     const compMap = new Map(components.map((c) => [c.capabilityId, c]));
 
     // Get dependencies to compute cascade
@@ -139,7 +139,7 @@ router.post("/simulation/run", async (req, res) => {
     }
 
     // Get baseline CEI
-    const allComponents = await db.select().from(ceiComponentsTable);
+    const allComponents = await db.select().from(cviComponentsTable);
     const baselineCei = allComponents.length
       ? allComponents.reduce((s, c) => s + c.consensusScore * c.economicMultiplier, 0) / allComponents.length * 10
       : 500;

@@ -11,7 +11,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
 import { gte, inArray, desc } from "drizzle-orm";
@@ -70,7 +70,7 @@ export async function getNewCapabilityWatch(opts?: {
 
   const ids = pool.map(c => c.id);
   const [comps, industries] = await Promise.all([
-    ids.length > 0 ? db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, ids)) : Promise.resolve([]),
+    ids.length > 0 ? db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, ids)) : Promise.resolve([]),
     db.select().from(industriesTable),
   ]);
   const compById = new Map(comps.map(c => [c.capabilityId, c]));

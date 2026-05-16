@@ -2,7 +2,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   sourceTriangulationsTable,
   capabilityQuadrantsTable,
   industryGdpWeightsTable,
@@ -87,14 +87,14 @@ function median(nums: number[]): number | null {
 /**
  * Compute the public coverage scorecard.
  *
- * One pass over capabilities + cei_components + source_triangulations +
+ * One pass over capabilities + cvi_components + source_triangulations +
  * capability_quadrants + industry_gdp_weights, aggregated per industry.
  *
  * Per-industry metrics:
  *  - capsTracked, leafCaps                                 (count from capabilities)
  *  - pctApproved             reviewStatus = "approved"     (capabilities)
  *  - pctWithQuadrant         capability_quadrants exists   (per-capability)
- *  - pctWithFullEconomics    cei_components exists AND     (per-capability)
+ *  - pctWithFullEconomics    cvi_components exists AND     (per-capability)
  *                            sourceScores has ≥1 non-seed
  *                            entry (i.e. real triangulated
  *                            evidence, not the prior-only
@@ -127,9 +127,9 @@ async function computeCoverageScorecard(): Promise<CoverageResult> {
     db.select().from(industriesTable),
     db.select().from(capabilitiesTable),
     db.select({
-      capabilityId: ceiComponentsTable.capabilityId,
-      sourceScores: ceiComponentsTable.sourceScores,
-    }).from(ceiComponentsTable),
+      capabilityId: cviComponentsTable.capabilityId,
+      sourceScores: cviComponentsTable.sourceScores,
+    }).from(cviComponentsTable),
     db.select({ capabilityId: capabilityQuadrantsTable.capabilityId }).from(capabilityQuadrantsTable),
     db.select({ industryId: industryGdpWeightsTable.industryId }).from(industryGdpWeightsTable),
   ]);
@@ -147,7 +147,7 @@ async function computeCoverageScorecard(): Promise<CoverageResult> {
     if (!prev || r.queriedAt > prev) latestByCap.set(r.capabilityId, r.queriedAt);
   }
 
-  // Per-cap cei_components row + flag for "real" (non-seed) sourceScores.
+  // Per-cap cvi_components row + flag for "real" (non-seed) sourceScores.
   const compByCap = new Map<number, { hasRealSources: boolean }>();
   for (const c of components) {
     const ss = c.sourceScores ?? [];

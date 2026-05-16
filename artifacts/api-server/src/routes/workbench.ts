@@ -15,7 +15,7 @@ import {
   workbenchCardsTable,
   workbenchCardInsightsTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
 import { and, eq, inArray, or, sql, desc, asc } from "drizzle-orm";
@@ -193,7 +193,7 @@ router.get("/workbench/boards/:id", async (req, res) => {
 
   const [caps, components, industries] = await Promise.all([
     capIds.length > 0 ? db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, capIds)) : Promise.resolve([]),
-    capIds.length > 0 ? db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds)) : Promise.resolve([]),
+    capIds.length > 0 ? db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds)) : Promise.resolve([]),
     db.select().from(industriesTable),
   ]);
   const capById = new Map(caps.map(c => [c.id, c]));
@@ -384,7 +384,7 @@ router.post("/workbench/cards/:id/insights", async (req, res) => {
 
   const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, card.capabilityId));
   if (!cap) { res.status(404).json({ error: "Capability not found" }); return; }
-  const [comp] = await db.select().from(ceiComponentsTable).where(eq(ceiComponentsTable.capabilityId, cap.id));
+  const [comp] = await db.select().from(cviComponentsTable).where(eq(cviComponentsTable.capabilityId, cap.id));
   const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, cap.industryId));
 
   const ctx = {
@@ -605,21 +605,21 @@ router.get("/workbench/example", async (_req, res) => {
     const { capabilityEconomicsTable } = await import("@workspace/db");
     const rows = await db
       .select({
-        capabilityId: ceiComponentsTable.capabilityId,
+        capabilityId: cviComponentsTable.capabilityId,
         capabilityName: capabilitiesTable.name,
         capabilitySlug: capabilitiesTable.slug,
         industryName: industriesTable.name,
-        score: ceiComponentsTable.consensusScore,
-        velocity: ceiComponentsTable.velocity,
+        score: cviComponentsTable.consensusScore,
+        velocity: cviComponentsTable.velocity,
         summaryNarrative: capabilityEconomicsTable.summaryNarrative,
         revenueExposureMm: capabilityEconomicsTable.revenueExposureMm,
         marginStructurePct: capabilityEconomicsTable.marginStructurePct,
       })
-      .from(ceiComponentsTable)
-      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, ceiComponentsTable.capabilityId))
-      .innerJoin(industriesTable, eq(industriesTable.id, ceiComponentsTable.industryId))
-      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, ceiComponentsTable.capabilityId))
-      .orderBy(desc(sql<number>`abs(${ceiComponentsTable.velocity})`))
+      .from(cviComponentsTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, cviComponentsTable.capabilityId))
+      .innerJoin(industriesTable, eq(industriesTable.id, cviComponentsTable.industryId))
+      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, cviComponentsTable.capabilityId))
+      .orderBy(desc(sql<number>`abs(${cviComponentsTable.velocity})`))
       .limit(8);
 
     const cards = rows.map(r => ({

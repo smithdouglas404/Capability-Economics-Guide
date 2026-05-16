@@ -1,4 +1,4 @@
-import { db, ceiSignalEventsTable, ceiSignalOutcomesTable, capabilityFilingsTable } from "@workspace/db";
+import { db, cviSignalEventsTable, cviSignalOutcomesTable, capabilityFilingsTable } from "@workspace/db";
 import { eq, sql, and, isNotNull, gte } from "drizzle-orm";
 import { fetchPriceSeries, priceOnOrBefore, cumulativeReturnPct } from "./price-feed";
 import { logger } from "../../lib/logger";
@@ -10,7 +10,7 @@ const PRICE_SOURCE = "yfinance-public";
  * Outcome attribution job — for each signal event without outcomes yet,
  * resolve exposed tickers via capability_filings (companies whose SEC
  * filings mention the capability), fetch +30/+60/+90/+180-day forward
- * returns from the price feed, upsert one cei_signal_outcomes row per
+ * returns from the price feed, upsert one cvi_signal_outcomes row per
  * (event, ticker, window).
  *
  * Marks event.outcome_attributed=1 once attribution completes (or fails
@@ -40,9 +40,9 @@ export async function attributeSignalOutcomes(opts: { limit?: number; eventId?: 
   // Pull events that need attribution. If a specific event_id is supplied,
   // process just that one (admin re-trigger path).
   const where = opts.eventId != null
-    ? eq(ceiSignalEventsTable.id, opts.eventId)
-    : eq(ceiSignalEventsTable.outcomeAttributed, 0);
-  const events = await db.select().from(ceiSignalEventsTable).where(where).limit(limit);
+    ? eq(cviSignalEventsTable.id, opts.eventId)
+    : eq(cviSignalEventsTable.outcomeAttributed, 0);
+  const events = await db.select().from(cviSignalEventsTable).where(where).limit(limit);
 
   for (const event of events) {
     // Only attempt attribution for events whose newest window data exists
@@ -55,9 +55,9 @@ export async function attributeSignalOutcomes(opts: { limit?: number; eventId?: 
       // No exposed tickers known yet — mark as attribute-attempted so we
       // don't keep scanning. A future re-run can be admin-triggered after
       // more capability_filings rows have accumulated.
-      await db.update(ceiSignalEventsTable)
+      await db.update(cviSignalEventsTable)
         .set({ outcomeAttributed: 1 })
-        .where(eq(ceiSignalEventsTable.id, event.id));
+        .where(eq(cviSignalEventsTable.id, event.id));
       continue;
     }
 
@@ -84,7 +84,7 @@ export async function attributeSignalOutcomes(opts: { limit?: number; eventId?: 
         const ret = cumulativeReturnPct(startPrice, endPrice);
         if (ret == null) continue;
         try {
-          await db.insert(ceiSignalOutcomesTable).values({
+          await db.insert(cviSignalOutcomesTable).values({
             signalEventId: event.id,
             ticker,
             cik: null,
@@ -102,9 +102,9 @@ export async function attributeSignalOutcomes(opts: { limit?: number; eventId?: 
       }
     }
 
-    await db.update(ceiSignalEventsTable)
+    await db.update(cviSignalEventsTable)
       .set({ outcomeAttributed: 1 })
-      .where(eq(ceiSignalEventsTable.id, event.id));
+      .where(eq(cviSignalEventsTable.id, event.id));
   }
 
   const durationMs = Date.now() - start;
@@ -165,14 +165,14 @@ export async function getSignalBacktestSummary(opts: { sinceDays?: number } = {}
 
   const rows = await db
     .select({
-      severity: ceiSignalEventsTable.severity,
-      direction: ceiSignalEventsTable.direction,
-      windowDays: ceiSignalOutcomesTable.windowDays,
-      returnPct: ceiSignalOutcomesTable.cumulativeReturnPct,
+      severity: cviSignalEventsTable.severity,
+      direction: cviSignalEventsTable.direction,
+      windowDays: cviSignalOutcomesTable.windowDays,
+      returnPct: cviSignalOutcomesTable.cumulativeReturnPct,
     })
-    .from(ceiSignalOutcomesTable)
-    .innerJoin(ceiSignalEventsTable, eq(ceiSignalOutcomesTable.signalEventId, ceiSignalEventsTable.id))
-    .where(and(gte(ceiSignalEventsTable.windowEndAt, since), isNotNull(ceiSignalOutcomesTable.cumulativeReturnPct)));
+    .from(cviSignalOutcomesTable)
+    .innerJoin(cviSignalEventsTable, eq(cviSignalOutcomesTable.signalEventId, cviSignalEventsTable.id))
+    .where(and(gte(cviSignalEventsTable.windowEndAt, since), isNotNull(cviSignalOutcomesTable.cumulativeReturnPct)));
 
   const groups = new Map<string, number[]>();
   const directions = new Map<string, string>();

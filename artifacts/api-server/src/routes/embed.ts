@@ -3,11 +3,11 @@ import { db } from "@workspace/db";
 import {
   capabilitiesTable,
   capabilityMetricsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { getCEICurrent } from "../services/cei-engine";
+import { getCEICurrent } from "../services/cvi-engine";
 import { buildFrameAncestorsCsp } from "../lib/embed-csp";
 import { resolveBranding } from "../lib/embed-token";
 
@@ -135,15 +135,15 @@ router.get("/embed/capability/:id", async (req, res) => {
 
   const [comp] = await db
     .select({
-      consensusScore: ceiComponentsTable.consensusScore,
-      ciLow: ceiComponentsTable.ciLow,
-      ciHigh: ceiComponentsTable.ciHigh,
-      velocity: ceiComponentsTable.velocity,
-      sourceScores: ceiComponentsTable.sourceScores,
-      updatedAt: ceiComponentsTable.updatedAt,
+      consensusScore: cviComponentsTable.consensusScore,
+      ciLow: cviComponentsTable.ciLow,
+      ciHigh: cviComponentsTable.ciHigh,
+      velocity: cviComponentsTable.velocity,
+      sourceScores: cviComponentsTable.sourceScores,
+      updatedAt: cviComponentsTable.updatedAt,
     })
-    .from(ceiComponentsTable)
-    .where(eq(ceiComponentsTable.capabilityId, id))
+    .from(cviComponentsTable)
+    .where(eq(cviComponentsTable.capabilityId, id))
     .limit(1);
 
   res.json({
@@ -207,15 +207,15 @@ router.get("/explore/capabilities", async (_req, res) => {
 
     const components = await db
       .select({
-        capabilityId: ceiComponentsTable.capabilityId,
-        consensusScore: ceiComponentsTable.consensusScore,
-        ciLow: ceiComponentsTable.ciLow,
-        ciHigh: ceiComponentsTable.ciHigh,
-        velocity: ceiComponentsTable.velocity,
-        sourceScores: ceiComponentsTable.sourceScores,
-        updatedAt: ceiComponentsTable.updatedAt,
+        capabilityId: cviComponentsTable.capabilityId,
+        consensusScore: cviComponentsTable.consensusScore,
+        ciLow: cviComponentsTable.ciLow,
+        ciHigh: cviComponentsTable.ciHigh,
+        velocity: cviComponentsTable.velocity,
+        sourceScores: cviComponentsTable.sourceScores,
+        updatedAt: cviComponentsTable.updatedAt,
       })
-      .from(ceiComponentsTable);
+      .from(cviComponentsTable);
     const byCap = new Map(components.map(c => [c.capabilityId, c]));
 
     // Pull a couple of representative metrics per capability so the

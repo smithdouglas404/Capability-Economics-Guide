@@ -6,7 +6,7 @@
  *
  * Implementation: reuse the BM25 semantic search index (services/semantic-search.ts)
  * to find the closest semantic match within a target industry. Compose with
- * cei_components for posterior scores + capability.vcCapitalUsd/startupCount
+ * cvi_components for posterior scores + capability.vcCapitalUsd/startupCount
  * for signal weighting.
  *
  * Returns the top N analogues with maturity gap and contextual signals so the
@@ -15,7 +15,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -76,7 +76,7 @@ export async function findAnalogues(args: {
 }): Promise<AnalogueResult | null> {
   const [source] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, args.capabilityId));
   if (!source) return null;
-  const [sourceComp] = await db.select().from(ceiComponentsTable).where(eq(ceiComponentsTable.capabilityId, source.id));
+  const [sourceComp] = await db.select().from(cviComponentsTable).where(eq(cviComponentsTable.capabilityId, source.id));
   const [sourceInd] = await db.select().from(industriesTable).where(eq(industriesTable.id, source.industryId));
   const [targetInd] = await db.select().from(industriesTable).where(eq(industriesTable.id, args.targetIndustryId));
   if (!targetInd) return null;
@@ -137,7 +137,7 @@ export async function findAnalogues(args: {
   const matchIds = search.results.map(r => r.capabilityId);
   const [caps, comps] = await Promise.all([
     db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, matchIds)),
-    db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, matchIds)),
+    db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, matchIds)),
   ]);
   const capById = new Map(caps.map(c => [c.id, c]));
   const compById = new Map(comps.map(c => [c.capabilityId, c]));

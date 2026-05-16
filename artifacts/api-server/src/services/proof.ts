@@ -3,7 +3,7 @@
  *
  * Wraps the existing admin backtest harness (services/backtest.ts) with a
  * cache so unauthenticated visitors can see the results without each visit
- * triggering an expensive re-run of computeCEI() twice per event.
+ * triggering an expensive re-run of computeCVI() twice per event.
  *
  * Cache: in-memory, 1h TTL. First visitor after expiry pays the compute cost
  * (~2-10s); subsequent visitors get instant reads. A manual admin trigger

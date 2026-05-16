@@ -3,8 +3,8 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
-  ceiSnapshotsTable,
+  cviComponentsTable,
+  cviSnapshotsTable,
   agentRunsTable,
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
@@ -20,7 +20,7 @@ import { lettaUpdateBlock, lettaArchivalInsert } from "./letta";
 import { reflectOnFindings, type ResearchFinding } from "./reflect";
 import {
   perplexityResearchTool,
-  computeCEITool,
+  computeCVITool,
   generateCsuitePerspectivesTool,
   generateCaseStudyContentTool,
   generateInsightsTool,
@@ -62,8 +62,8 @@ const AgentState = Annotation.Root({
   memoriesRecalled: Annotation<number>,
   memoriesStored: Annotation<number>,
   perplexityCalls: Annotation<number>,
-  ceiBeforeIndex: Annotation<number | null>,
-  ceiAfterIndex: Annotation<number | null>,
+  cviBeforeIndex: Annotation<number | null>,
+  cviAfterIndex: Annotation<number | null>,
   error: Annotation<string | null>,
 });
 
@@ -81,9 +81,9 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
 
   const industries = await db.select().from(industriesTable);
   const allCaps = await db.select().from(capabilitiesTable);
-  const components = await db.select().from(ceiComponentsTable);
-  const [latestSnapshot] = await db.select().from(ceiSnapshotsTable)
-    .orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(1);
+  const components = await db.select().from(cviComponentsTable);
+  const [latestSnapshot] = await db.select().from(cviSnapshotsTable)
+    .orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(1);
 
   const compMap = new Map<string, typeof components[0]>();
   for (const c of components) compMap.set(`${c.industryId}-${c.capabilityId}`, c);
@@ -126,7 +126,7 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
     industriesCount: industries.length,
   });
 
-  return { targets, ceiBeforeIndex: latestSnapshot?.overallIndex || null };
+  return { targets, cviBeforeIndex: latestSnapshot?.overallIndex || null };
 }
 
 async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
@@ -307,22 +307,22 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
 async function computeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   if (state.researchResults.length === 0) {
     emitAgentEvent({ type: "phase", phase: "skipped_compute", message: "No new research — skipping CEI recomputation" });
-    return { ceiAfterIndex: state.ceiBeforeIndex };
+    return { cviAfterIndex: state.cviBeforeIndex };
   }
 
-  emitAgentEvent({ type: "tool_call", tool: "compute_cei", message: "Recomputing CEI index..." });
+  emitAgentEvent({ type: "tool_call", tool: "compute_cvi", message: "Recomputing CEI index..." });
   try {
-    const resultStr = await computeCEITool.invoke({});
+    const resultStr = await computeCVITool.invoke({});
     const result = JSON.parse(resultStr);
     if (result.success) {
       emitAgentEvent({
         type: "tool_result",
-        tool: "compute_cei",
+        tool: "compute_cvi",
         overallIndex: result.overallIndex,
-        previousIndex: state.ceiBeforeIndex,
-        delta: state.ceiBeforeIndex ? result.overallIndex - state.ceiBeforeIndex : null,
+        previousIndex: state.cviBeforeIndex,
+        delta: state.cviBeforeIndex ? result.overallIndex - state.cviBeforeIndex : null,
       });
-      return { ceiAfterIndex: result.overallIndex };
+      return { cviAfterIndex: result.overallIndex };
     }
     return { error: result.error };
   } catch (err) {
@@ -356,7 +356,7 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     const cycleSummary =
       `CEI Cycle #${state.runId} (${state.trigger}): researched ${researchCount}, skipped ${skipCount}, ` +
       `used memory for ${memoryCount}. Industries touched: ${industries.join(", ") || "none"}. ` +
-      `CEI ${state.ceiBeforeIndex?.toFixed(1) ?? "n/a"} → ${state.ceiAfterIndex?.toFixed(1) ?? "n/a"}. ` +
+      `CEI ${state.cviBeforeIndex?.toFixed(1) ?? "n/a"} → ${state.cviAfterIndex?.toFixed(1) ?? "n/a"}. ` +
       `Reflection: +${state.reflection?.added ?? 0} added, ${state.reflection?.updated ?? 0} refined, ${state.reflection?.contradictions ?? 0} contradictions.`;
 
     try {
@@ -369,7 +369,7 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
           skipCount,
           memoryCount,
           industries,
-          ceiDelta: (state.ceiAfterIndex || 0) - (state.ceiBeforeIndex || 0),
+          ceiDelta: (state.cviAfterIndex || 0) - (state.cviBeforeIndex || 0),
         },
         {
           category: "decision",
@@ -464,8 +464,8 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
         reason: d.reason,
         timestamp: d.timestamp,
       })),
-      ceiBeforeIndex: state.ceiBeforeIndex,
-      ceiAfterIndex: state.ceiAfterIndex,
+      cviBeforeIndex: state.cviBeforeIndex,
+      cviAfterIndex: state.cviAfterIndex,
       errorMessage: state.error,
       completedAt: new Date(),
     })
@@ -480,7 +480,7 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     memoriesRecalled: state.memoriesRecalled,
     memoriesStored: state.memoriesStored,
     reflection: state.reflection,
-    ceiIndex: state.ceiAfterIndex,
+    ceiIndex: state.cviAfterIndex,
     mem0Connected: !!process.env.MEM0_API_KEY,
   });
 
@@ -522,8 +522,8 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
   researched: number;
   skipped: number;
   perplexityCalls: number;
-  ceiBeforeIndex: number | null;
-  ceiAfterIndex: number | null;
+  cviBeforeIndex: number | null;
+  cviAfterIndex: number | null;
   memoriesRecalled: number;
   memoriesStored: number;
   reflection: { added: number; updated: number; contradictions: number; priorsUpdated: boolean } | null;
@@ -548,8 +548,8 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
       memoriesRecalled: 0,
       memoriesStored: 0,
       perplexityCalls: 0,
-      ceiBeforeIndex: null,
-      ceiAfterIndex: null,
+      cviBeforeIndex: null,
+      cviAfterIndex: null,
       error: null,
     });
 
@@ -558,8 +558,8 @@ export async function runAgent(trigger: string = "scheduled"): Promise<{
       researched: result.decisions.filter((d: AgentDecision) => d.action === "research").length,
       skipped: result.decisions.filter((d: AgentDecision) => d.action === "skip").length,
       perplexityCalls: result.perplexityCalls,
-      ceiBeforeIndex: result.ceiBeforeIndex,
-      ceiAfterIndex: result.ceiAfterIndex,
+      cviBeforeIndex: result.cviBeforeIndex,
+      cviAfterIndex: result.cviAfterIndex,
       memoriesRecalled: result.memoriesRecalled,
       memoriesStored: result.memoriesStored,
       reflection: result.reflection,

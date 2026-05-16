@@ -17,8 +17,8 @@ export const agentRunsTable = pgTable("agent_runs", {
     reason: string;
     timestamp: string;
   }>>().default([]),
-  ceiBeforeIndex: real("cei_before_index"),
-  ceiAfterIndex: real("cei_after_index"),
+  cviBeforeIndex: real("cvi_before_index"),
+  cviAfterIndex: real("cvi_after_index"),
   errorMessage: text("error_message"),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),

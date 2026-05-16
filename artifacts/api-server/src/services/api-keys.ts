@@ -9,7 +9,7 @@ const RAW_LENGTH_BYTES = 32; // 32 bytes → 43 chars base64url
 export const ALL_V1_SCOPES = [
   "read:industries",
   "read:capabilities",
-  "read:cei",
+  "read:cvi",
   "read:macro-events",
   "read:value-chain",
 ] as const;

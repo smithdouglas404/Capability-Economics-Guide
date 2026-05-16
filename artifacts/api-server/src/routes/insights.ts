@@ -8,7 +8,7 @@ import {
   ontologyRelationshipsTable,
   ontologyIndustryAdaptersTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
   dataSourcesTable,
 } from "@workspace/db";
@@ -64,7 +64,7 @@ router.get("/thresholds", async (req, res) => {
       capabilitySlug: capabilitiesTable.slug,
       industryId: capabilitiesTable.industryId,
       benchmarkScore: capabilitiesTable.benchmarkScore,
-      consensusScore: ceiComponentsTable.consensusScore,
+      consensusScore: cviComponentsTable.consensusScore,
       greenMin: capabilityThresholdsTable.greenMin,
       yellowMin: capabilityThresholdsTable.yellowMin,
       redMax: capabilityThresholdsTable.redMax,
@@ -73,7 +73,7 @@ router.get("/thresholds", async (req, res) => {
     })
     .from(capabilityThresholdsTable)
     .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, capabilityThresholdsTable.capabilityId))
-    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilityThresholdsTable.capabilityId));
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilityThresholdsTable.capabilityId));
 
   const thresholds = industryId !== undefined
     ? await query.where(eq(capabilitiesTable.industryId, industryId))

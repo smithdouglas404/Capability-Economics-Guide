@@ -4,8 +4,8 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  ceiComponentsTable,
-  ceiSnapshotsTable,
+  cviComponentsTable,
+  cviSnapshotsTable,
   sourceTriangulationsTable,
   cSuiteRolesTable,
   csuitePerspectivesTable,
@@ -19,7 +19,7 @@ import {
 } from "@workspace/db";
 import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
-import { computeCEI } from "../cei-engine";
+import { computeCVI } from "../cvi-engine";
 import { recallMemories, storeMemory } from "./memory";
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 
@@ -126,13 +126,13 @@ export const queryDatabaseTool = tool(
         })));
       }
 
-      if (queryType === "cei_components") {
+      if (queryType === "cvi_components") {
         const conditions = industryId
-          ? eq(ceiComponentsTable.industryId, industryId)
+          ? eq(cviComponentsTable.industryId, industryId)
           : undefined;
         const components = conditions
-          ? await db.select().from(ceiComponentsTable).where(conditions)
-          : await db.select().from(ceiComponentsTable);
+          ? await db.select().from(cviComponentsTable).where(conditions)
+          : await db.select().from(cviComponentsTable);
         return JSON.stringify(components.map(c => ({
           id: c.id,
           capabilityId: c.capabilityId,
@@ -146,8 +146,8 @@ export const queryDatabaseTool = tool(
       }
 
       if (queryType === "latest_snapshot") {
-        const [snap] = await db.select().from(ceiSnapshotsTable)
-          .orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(1);
+        const [snap] = await db.select().from(cviSnapshotsTable)
+          .orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(1);
         if (!snap) return JSON.stringify({ exists: false });
         return JSON.stringify({
           exists: true,
@@ -178,18 +178,18 @@ export const queryDatabaseTool = tool(
   },
   {
     name: "query_database",
-    description: "Query the capability economics database for current state. Supports: industries, capabilities, cei_components, latest_snapshot, recent_triangulations.",
+    description: "Query the capability economics database for current state. Supports: industries, capabilities, cvi_components, latest_snapshot, recent_triangulations.",
     schema: z.object({
-      queryType: z.enum(["industries", "capabilities", "cei_components", "latest_snapshot", "recent_triangulations"]),
+      queryType: z.enum(["industries", "capabilities", "cvi_components", "latest_snapshot", "recent_triangulations"]),
       industryId: z.number().optional().describe("Industry ID for filtered queries"),
     }),
   },
 );
 
-export const computeCEITool = tool(
+export const computeCVITool = tool(
   async () => {
     try {
-      const result = await computeCEI();
+      const result = await computeCVI();
       return JSON.stringify({
         success: true,
         overallIndex: result.overallIndex,
@@ -206,7 +206,7 @@ export const computeCEITool = tool(
     }
   },
   {
-    name: "compute_cei",
+    name: "compute_cvi",
     description: "Recompute the CEI index from current database state and save a new snapshot. Call this after research updates to refresh the index.",
     schema: z.object({}),
   },
@@ -585,10 +585,10 @@ export const generateInsightsTool = tool(
     }).from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industry.id));
 
     const components = await db.select({
-      capabilityId: ceiComponentsTable.capabilityId,
-      consensusScore: ceiComponentsTable.consensusScore,
-      velocity: ceiComponentsTable.velocity,
-    }).from(ceiComponentsTable).where(eq(ceiComponentsTable.industryId, industry.id));
+      capabilityId: cviComponentsTable.capabilityId,
+      consensusScore: cviComponentsTable.consensusScore,
+      velocity: cviComponentsTable.velocity,
+    }).from(cviComponentsTable).where(eq(cviComponentsTable.industryId, industry.id));
 
     const compMap = new Map(components.map(c => [c.capabilityId, c]));
     const capSummary = caps.map(c => {
@@ -989,7 +989,7 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
 export const allTools = [
   perplexityResearchTool,
   queryDatabaseTool,
-  computeCEITool,
+  computeCVITool,
   recallMemoriesTool,
   storeMemoryTool,
   generateCsuitePerspectivesTool,

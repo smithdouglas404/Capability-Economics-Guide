@@ -2,7 +2,7 @@ import { pgTable, serial, text, integer, timestamp, index, type AnyPgColumn } fr
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { capabilitiesTable } from "./capabilities";
-import { sourceTriangulationsTable } from "./cei";
+import { sourceTriangulationsTable } from "./cvi";
 
 /**
  * Analyst annotations on a capability. Three kinds:

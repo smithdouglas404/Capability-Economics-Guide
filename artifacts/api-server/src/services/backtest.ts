@@ -9,7 +9,7 @@ import {
   type BacktestRun,
 } from "@workspace/db";
 import { asc, desc } from "drizzle-orm";
-import { computeCEI, type CapPosterior } from "./cei-engine";
+import { computeCVI, type CapPosterior } from "./cvi-engine";
 
 /**
  * Methodology tag stamped onto every persisted backtest run. Bump when the
@@ -48,12 +48,12 @@ const REGRESSION_WINDOW = 5;
  *    naive engine that infers cap direction from event sentiment alone
  *    will MISS these — the harness is designed to surface that gap.
  *
- * 3. Dry-run mode is achieved by passing `persist: false` to `computeCEI`,
- *    which skips all writes to ceiSnapshots / ceiComponents. Replay never
+ * 3. Dry-run mode is achieved by passing `persist: false` to `computeCVI`,
+ *    which skips all writes to ceiSnapshots / cviComponents. Replay never
  *    pollutes live state, so admins can re-run as often as they like.
  *
  * Time anchoring caveat: per-capability score history is not retained
- * (cei_components stores only current state), so the T-1 baseline is
+ * (cvi_components stores only current state), so the T-1 baseline is
  * "the engine's current state without the event," and T+1 is "the engine's
  * current state with the event applied at peak shock." The harness measures
  * MODEL PROPAGATION quality, not historical reconstruction accuracy. This
@@ -397,7 +397,7 @@ async function buildInjection(event: HistoricalEvent): Promise<{
 /**
  * Replay a single event against a pre-computed baseline engine snapshot.
  *
- * `baselineCapScores` MUST come from a `computeCEI({ persist: false,
+ * `baselineCapScores` MUST come from a `computeCVI({ persist: false,
  * capturePerCap: true })` run with no `additionalEvents` so the diff truly
  * isolates the event's impact through the engine pipeline.
  */
@@ -465,7 +465,7 @@ export async function replayEvent(
   }
 
   // ── Engine call with the event injected (T+1, peak shock). ───────────────
-  const predicted = await computeCEI({
+  const predicted = await computeCVI({
     persist: false,
     capturePerCap: true,
     additionalEvents: [injection],
@@ -572,7 +572,7 @@ export async function runBacktest(): Promise<BacktestSummary> {
     .orderBy(asc(historicalEventsTable.eventDate));
 
   // Single baseline engine pass — all event diffs are taken against this.
-  const baseline = await computeCEI({ persist: false, capturePerCap: true });
+  const baseline = await computeCVI({ persist: false, capturePerCap: true });
   const baselineCapScores = baseline.capScores ?? new Map<number, CapPosterior>();
 
   const results: EventResult[] = [];

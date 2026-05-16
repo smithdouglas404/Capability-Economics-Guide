@@ -2,7 +2,7 @@ import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { rotateTriangulations } from "../triangulation";
-import { computeCEI } from "../cei-engine";
+import { computeCVI } from "../cvi-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { runDigestSweep } from "../digest";
@@ -12,10 +12,10 @@ import { runAllBotsTick } from "../bots/loop";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
-import { detectCeiSignalEvents } from "../cei-signals/detector";
-import { attributeSignalOutcomes } from "../cei-signals/attribution";
+import { detectCviSignalEvents } from "../cvi-signals/detector";
+import { attributeSignalOutcomes } from "../cvi-signals/attribution";
 import { db } from "@workspace/db";
-import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
+import { cviComponentsTable, cviSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
 // Routine cadence is read from agent_tuning each tick — the only fixed
@@ -86,7 +86,7 @@ let lastRunResult: Awaited<ReturnType<typeof runAgent>> | null = null;
 
 async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: string }> {
   try {
-    const components = await db.select().from(ceiComponentsTable);
+    const components = await db.select().from(cviComponentsTable);
     const now = Date.now();
 
     const veryLowConfidence = components.filter(c => c.confidence < URGENCY_CONFIDENCE_THRESHOLD);
@@ -102,8 +102,8 @@ async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: stri
       return { urgent: true, reason: `${veryStale.length} capabilities stale beyond ${URGENCY_STALE_DAYS} days` };
     }
 
-    const snapshots = await db.select().from(ceiSnapshotsTable)
-      .orderBy(desc(ceiSnapshotsTable.snapshotAt)).limit(2);
+    const snapshots = await db.select().from(cviSnapshotsTable)
+      .orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(2);
     if (snapshots.length === 2) {
       const drop = snapshots[1].overallIndex - snapshots[0].overallIndex;
       if (drop > 5) {
@@ -134,7 +134,7 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     // a snapshot per cycle is the cheapest, most defensible way to convert
     // system age into competitive history (Task #3 tactic 1).
     try {
-      const cei = await computeCEI();
+      const cei = await computeCVI();
       console.log(`[Agent] CEI snapshot persisted (${trigger}): overallIndex=${cei.overallIndex}`);
     } catch (ceiErr) {
       console.warn("[Agent] CEI snapshot failed (non-fatal):", ceiErr);
@@ -185,7 +185,7 @@ async function watchdogCheck(): Promise<void> {
     if (!isRotating) {
       isRotating = true;
       try {
-        const stale = await db.select().from(ceiComponentsTable);
+        const stale = await db.select().from(cviComponentsTable);
         const staleByIndustry = new Map<number, number>();
         for (const c of stale) {
           if (c.confidence < URGENCY_CONFIDENCE_THRESHOLD) {
@@ -239,7 +239,7 @@ async function executeWorldScan(trigger: string): Promise<void> {
     }
 
     if (result.totalInserted > 0) {
-      const cei = await computeCEI();
+      const cei = await computeCVI();
       emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CEI recomputed after world scan: ${cei.overallIndex}` });
     }
   } catch (err) {
@@ -256,7 +256,7 @@ export async function triggerWorldScanNow(): Promise<{ totalInserted: number; in
     const result = await runWorldScanAllIndustries();
     lastWorldScanAt = new Date();
     lastWorldScanResult = { totalInserted: result.totalInserted, industryCount: result.perIndustry.length };
-    if (result.totalInserted > 0) await computeCEI();
+    if (result.totalInserted > 0) await computeCVI();
     return lastWorldScanResult;
   } finally {
     isScanning = false;
@@ -280,7 +280,7 @@ async function executeRotation(trigger: string): Promise<void> {
       message: `Rotation complete: ${result.succeeded}/${result.attempted} succeeded`,
     });
     if (result.succeeded > 0) {
-      const cei = await computeCEI();
+      const cei = await computeCVI();
       emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CEI recomputed after rotation: ${cei.overallIndex}` });
     }
   } catch (err) {
@@ -342,14 +342,14 @@ async function edgarRssTick(): Promise<void> {
 
 /**
  * Daily CEI signal detector — finds capability moves >= 5pt within 30d
- * window and inserts them as cei_signal_events for the predictive backtest
+ * window and inserts them as cvi_signal_events for the predictive backtest
  * framework (Task #5).
  */
 async function ceiSignalsTick(): Promise<void> {
   if (isDetectingSignals) return;
   isDetectingSignals = true;
   try {
-    await detectCeiSignalEvents();
+    await detectCviSignalEvents();
     // After detection, immediately try to attribute outcomes for any events
     // ready for measurement (windowEndAt at least 30d in the past). The
     // attribution job has its own outcome_attributed flag so this is
@@ -389,7 +389,7 @@ async function botLoopTick(): Promise<void> {
     const assessmentRan = results.some(r => r.actionsRun > 0);
     if (assessmentRan) {
       try {
-        await computeCEI();
+        await computeCVI();
       } catch (err) {
         console.warn("[Bots] post-tick CEI snapshot failed:", err);
       }
@@ -532,7 +532,7 @@ export async function triggerRotationNow(limit?: number, industryId?: number): P
     const result = await rotateTriangulations(limit ?? ROTATION_BATCH_SIZE, industryId);
     lastRotationAt = new Date();
     lastRotationResult = { attempted: result.attempted, succeeded: result.succeeded, failed: result.failed };
-    if (result.succeeded > 0) await computeCEI();
+    if (result.succeeded > 0) await computeCVI();
     return result;
   } finally {
     isRotating = false;

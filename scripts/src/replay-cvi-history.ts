@@ -12,7 +12,7 @@
  *   CEI_REPLAY_INTERVAL_DAYS — interval between snapshots (default 1)
  *   CEI_REPLAY_DRY_RUN=1    — compute but don't persist
  */
-import { replayHistoricalCEI } from "../../artifacts/api-server/src/services/cei-historical/replay";
+import { replayHistoricalCVI } from "../../artifacts/api-server/src/services/cvi-historical/replay";
 
 async function main() {
   const days = Number(process.env.CEI_REPLAY_DAYS ?? "90");
@@ -24,7 +24,7 @@ async function main() {
 
   console.log(`Replaying CEI history from ${fromDate.toISOString().slice(0, 10)} to ${toDate.toISOString().slice(0, 10)} (interval=${intervalDays}d, dryRun=${dryRun})…`);
 
-  const result = await replayHistoricalCEI({ fromDate, toDate, intervalDays, dryRun });
+  const result = await replayHistoricalCVI({ fromDate, toDate, intervalDays, dryRun });
 
   console.log("Done.");
   console.log(`  Scanned ${result.scanned} dates`);

@@ -6,7 +6,7 @@ import {
   capabilitiesTable,
   industriesTable,
   macroEventsTable,
-  ceiComponentsTable,
+  cviComponentsTable,
 } from "@workspace/db/schema";
 import { and, eq, gt, sql, desc } from "drizzle-orm";
 import { logLlmCall } from "./llm-usage";
@@ -15,11 +15,11 @@ async function getIndustryCapMetrics(industryId: number) {
   return db.select({
     id: capabilitiesTable.id,
     name: capabilitiesTable.name,
-    score: ceiComponentsTable.consensusScore,
-    confidence: ceiComponentsTable.confidence,
-    velocity: ceiComponentsTable.velocity,
+    score: cviComponentsTable.consensusScore,
+    confidence: cviComponentsTable.confidence,
+    velocity: cviComponentsTable.velocity,
   }).from(capabilitiesTable)
-    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.industryId, industryId));
 }
 
@@ -352,7 +352,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
     velocityNumerator += r.fp.weight * (m.velocity ?? 0);
     if ((m.score ?? 0) >= 60) coveredHighCei++;
   }
-  const ceiWeighted = weightSum ? ceiNumerator / weightSum : 0;
+  const cviWeighted = weightSum ? ceiNumerator / weightSum : 0;
   const avgConf = fpRows.length ? confidenceSum / fpRows.length : 0;
   const avgVelocity = weightSum ? velocityNumerator / weightSum : 0;
   const capabilityCoverage = totalHighCei ? Math.min(100, (coveredHighCei / totalHighCei) * 100 * 2) : 0;
@@ -413,10 +413,10 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   const acquisitionProbability = Math.max(0, Math.min(100, 50 - sizePenalty + fundingBoost + privateBoost));
 
   // Quality of Asset: composite of CEI-weighted + confidence + moat.
-  const qualityOfAsset = Math.max(0, Math.min(100, ceiWeighted * 0.5 + avgConf * 100 * 0.3 + moatScore * 0.2));
+  const qualityOfAsset = Math.max(0, Math.min(100, cviWeighted * 0.5 + avgConf * 100 * 0.3 + moatScore * 0.2));
 
-  // Forecasted Value: ceiWeighted + 12 × velocity (one-year extrapolation).
-  const forecastedValue = Math.max(0, Math.min(100, ceiWeighted + avgVelocity * 12));
+  // Forecasted Value: cviWeighted + 12 × velocity (one-year extrapolation).
+  const forecastedValue = Math.max(0, Math.min(100, cviWeighted + avgVelocity * 12));
 
   // Risk Profile: inverse of confidence + AI disruptability.
   const riskProfile = Math.max(0, Math.min(100, (1 - avgConf) * 60 + aiDisruptability * 0.4));
@@ -438,7 +438,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   await db.insert(companyScoresTable).values({
     companyId,
     capabilityCoverage,
-    ceiWeighted,
+    cviWeighted,
     agedIndex,
     awarenessScore,
     moatScore,
@@ -455,7 +455,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   }).onConflictDoUpdate({
     target: companyScoresTable.companyId,
     set: {
-      capabilityCoverage, ceiWeighted, agedIndex, awarenessScore, moatScore,
+      capabilityCoverage, cviWeighted, agedIndex, awarenessScore, moatScore,
       aiDisruptability, actionability, acquisitionProbability, forecastedValue,
       qualityOfAsset, riskProfile, sensitivityProfile, composite,
       details: { capCount: fpRows.length, avgConf, avgVelocity, weightSum },

@@ -43,7 +43,7 @@ export const companyCapabilityFingerprintTable = pgTable("company_capability_fin
 export const companyScoresTable = pgTable("company_scores", {
   companyId: integer("company_id").primaryKey().references(() => companiesTable.id, { onDelete: "cascade" }),
   capabilityCoverage: real("capability_coverage").notNull().default(0),
-  ceiWeighted: real("cei_weighted").notNull().default(0),
+  cviWeighted: real("cvi_weighted").notNull().default(0),
   agedIndex: real("aged_index").notNull().default(0),
   awarenessScore: real("awareness_score").notNull().default(0),
   moatScore: real("moat_score").notNull().default(0),

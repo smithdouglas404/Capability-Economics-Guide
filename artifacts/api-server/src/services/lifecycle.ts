@@ -61,7 +61,7 @@ export function deriveLifecycleStage(input: LifecycleInput): LifecycleStage {
 /**
  * Helper for batched enrichment in API list endpoints. Accepts a per-cap
  * map of {consensusScore, velocity} (typically built from a single
- * `select() from cei_components`) and returns a Map<capId, stage>.
+ * `select() from cvi_components`) and returns a Map<capId, stage>.
  */
 export function buildLifecycleMap(
   capabilities: Array<{ id: number; benchmarkScore: number | null }>,

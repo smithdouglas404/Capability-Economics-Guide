@@ -14,7 +14,7 @@ import {
   workbenchCardsTable,
   workbenchCardInsightsTable,
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, inArray, asc } from "drizzle-orm";
@@ -55,7 +55,7 @@ export async function renderBoardPdf(args: ExportArgs): Promise<{ buffer: Buffer
   const capIds = Array.from(new Set(cards.map(c => c.capabilityId)));
   const [caps, comps, industries] = await Promise.all([
     capIds.length > 0 ? db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, capIds)) : Promise.resolve([]),
-    capIds.length > 0 ? db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, capIds)) : Promise.resolve([]),
+    capIds.length > 0 ? db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds)) : Promise.resolve([]),
     db.select().from(industriesTable),
   ]);
   const capById = new Map(caps.map(c => [c.id, c]));

@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
-import { companiesTable, capabilitiesTable, ceiComponentsTable } from "@workspace/db/schema";
+import { companiesTable, capabilitiesTable, cviComponentsTable } from "@workspace/db/schema";
 import { and, eq, sql, desc } from "drizzle-orm";
 import {
   ingestCompaniesForIndustry,
@@ -167,11 +167,11 @@ router.get("/workbench/value-chain/:industryId", async (req, res) => {
   const caps = await db.select({
     id: capabilitiesTable.id,
     stage: capabilitiesTable.valueChainStage,
-    score: ceiComponentsTable.consensusScore,
-    confidence: ceiComponentsTable.confidence,
-    velocity: ceiComponentsTable.velocity,
+    score: cviComponentsTable.consensusScore,
+    confidence: cviComponentsTable.confidence,
+    velocity: cviComponentsTable.velocity,
   }).from(capabilitiesTable)
-    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.industryId, industryId));
 
   const stageMetrics = new Map<string, { ceiSum: number; confSum: number; velSum: number; n: number }>();
@@ -244,11 +244,11 @@ router.get("/workbench/quadrant/:industryId", async (req, res) => {
     parentId: capabilitiesTable.parentCapabilityId,
     isLeaf: capabilitiesTable.isLeaf,
     stage: capabilitiesTable.valueChainStage,
-    score: ceiComponentsTable.consensusScore,
-    confidence: ceiComponentsTable.confidence,
-    velocity: ceiComponentsTable.velocity,
+    score: cviComponentsTable.consensusScore,
+    confidence: cviComponentsTable.confidence,
+    velocity: cviComponentsTable.velocity,
   }).from(capabilitiesTable)
-    .leftJoin(ceiComponentsTable, eq(ceiComponentsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.industryId, industryId));
 
   const points = rows.map(r => {

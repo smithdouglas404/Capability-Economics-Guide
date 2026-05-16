@@ -13,7 +13,7 @@ import { z } from "zod/v4";
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   industriesTable,
   capabilityMetricsTable,
   sourceTriangulationsTable,
@@ -42,7 +42,7 @@ router.get("/compare/capabilities", async (req, res) => {
 
   const [caps, components, metrics, industries, sourceCountsRaw] = await Promise.all([
     db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, uniqIds)),
-    db.select().from(ceiComponentsTable).where(inArray(ceiComponentsTable.capabilityId, uniqIds)),
+    db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, uniqIds)),
     db.select().from(capabilityMetricsTable).where(inArray(capabilityMetricsTable.capabilityId, uniqIds)),
     db.select().from(industriesTable),
     db

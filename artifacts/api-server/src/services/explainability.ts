@@ -19,12 +19,12 @@
  * intentionally a simplification: it ignores the prior and the variance
  * propagation. The point is to make the *story* legible to a human, not to
  * be the canonical scoring engine. For the canonical number, point users at
- * the cei_components row.
+ * the cvi_components row.
  */
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  ceiComponentsTable,
+  cviComponentsTable,
   sourceTriangulationsTable,
   capabilityDependenciesTable,
   macroEventsTable,
@@ -135,13 +135,13 @@ export async function explainCapabilityChange(
   const currentScore = weightedMean(currentSet.length > 0 ? currentSet : allTri);
   const priorScore = weightedMean(priorSet);
 
-  // Fallback: if there's no prior set (cold start), use the cei_components
+  // Fallback: if there's no prior set (cold start), use the cvi_components
   // table's current consensusScore as the "current" anchor. We still won't
   // have a delta — that's honest.
   const [comp] = await db
-    .select({ consensusScore: ceiComponentsTable.consensusScore })
-    .from(ceiComponentsTable)
-    .where(eq(ceiComponentsTable.capabilityId, capabilityId))
+    .select({ consensusScore: cviComponentsTable.consensusScore })
+    .from(cviComponentsTable)
+    .where(eq(cviComponentsTable.capabilityId, capabilityId))
     .limit(1);
   const canonicalCurrent = comp?.consensusScore ?? currentScore;
 
@@ -260,7 +260,7 @@ function composeNarrative(args: {
 }): string {
   const { capName, delta, windowDays, sourceDriven, macroEvents } = args;
   if (delta === null) {
-    return `Not enough triangulation history to compute a ${windowDays}-day delta for "${capName}". The current score is based on whatever evidence is in cei_components.`;
+    return `Not enough triangulation history to compute a ${windowDays}-day delta for "${capName}". The current score is based on whatever evidence is in cvi_components.`;
   }
   const dirWord = delta > 0.5 ? "up" : delta < -0.5 ? "down" : "roughly flat";
   const magnitude = Math.abs(delta).toFixed(1);
