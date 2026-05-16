@@ -11,6 +11,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
 import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
+import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
 
 const router: IRouter = Router();
 
@@ -119,6 +120,29 @@ router.get("/capabilities/:id", async (req, res) => {
 router.get("/roles", async (_req, res) => {
   const roles = await db.select().from(cSuiteRolesTable);
   res.json(roles);
+});
+
+/**
+ * SEC EDGAR filings mentioning this capability. Lazy + usage-driven:
+ * serves cache if fresh (< 24h), otherwise hits EDGAR full-text search,
+ * upserts hits to capability_filings, and returns the freshened list.
+ *
+ * Each view increments capability_filing_status.view_count which will
+ * later drive a "viewed 10+ times → queue 3-year historical backfill"
+ * trigger (Task #2 phase 2).
+ */
+router.get("/capabilities/:id/filings", async (req, res) => {
+  const idRaw = req.params.id;
+  const id = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
+  if (!Number.isFinite(id)) { res.status(400).json({ error: "Invalid capability id" }); return; }
+  try {
+    const limit = Math.max(1, Math.min(50, Number(req.query.limit) || 20));
+    const forceFresh = req.query.fresh === "1";
+    const result = await getOrFetchCapabilityFilings(id, { limit, forceFresh });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch SEC filings" });
+  }
 });
 
 export default router;
