@@ -14,6 +14,7 @@ import { isClerkAdmin } from "./requireAdmin";
 
 const TIER_RANK: Record<string, number> = {
   discovery: 0,
+  payg: 0, // payg sits at the same gate level as discovery — credits-driven access, not tier-driven (see requireTierOrCredits middleware, future commit)
   briefing: 1,
   console: 2,
   ledger: 2, // legacy alias

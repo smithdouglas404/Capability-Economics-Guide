@@ -96,6 +96,12 @@ export const creditPurchasesTable = pgTable("credit_purchases", {
   amountCents: integer("amount_cents").notNull(),
   paymentRef: text("payment_ref"),
   status: text("status").notNull().default("pending"), // "pending" | "completed" | "failed"
+  /** Reference to credit_packs.slug for pack-based purchases (Starter/Growth/Pro/Power). Null for legacy block-based purchases. */
+  packSlug: text("pack_slug"),
+  /** Wall-clock timestamp this purchase batch expires. Null = no expiry (legacy purchases or admin-granted credits). Default for new payg purchases = NOW + 365 days. Enforced by services/credit-expiry.ts nightly cron. */
+  expiresAt: timestamp("expires_at"),
+  /** True once the nightly expiry cron has already debited the unused portion of this batch. Prevents double-debit. */
+  expiredProcessed: integer("expired_processed").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -119,6 +125,7 @@ export const CREDIT_COSTS = {
 
 export const TIER_ALLOCATIONS: Record<string, number> = {
   discovery: 50,
+  payg: 0, // payg users start with 0 and buy packs on demand — no monthly allocation
   briefing: 500,
   console: 5000,
   ledger: 5000, // legacy alias

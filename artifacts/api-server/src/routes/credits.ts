@@ -4,6 +4,7 @@ import {
   creditAccountsTable,
   creditTransactionsTable,
   creditPurchasesTable,
+  creditPacksTable,
   userMembershipsTable,
   membershipTiersTable,
   TIER_ALLOCATIONS,
@@ -11,9 +12,12 @@ import {
   CEI_CREDIT_BLOCK_PRICE_CENTS,
   CREDIT_COSTS,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { createCheckoutSession, isStripeConfigured } from "../services/stripe";
+
+/** Default credit expiry (days) for payg purchases — 1 year, locked by product decision in Task #8. */
+const PAYG_EXPIRY_DAYS = 365;
 
 const router = Router();
 
@@ -73,7 +77,11 @@ router.get("/credits/balance", async (req, res) => {
       creditCosts: CREDIT_COSTS,
       blockSize: CEI_CREDIT_BLOCK_SIZE,
       blockPriceCents: CEI_CREDIT_BLOCK_PRICE_CENTS,
-      canPurchase: account.tierSlug !== "discovery",
+      // Every authenticated tier can purchase — including discovery and payg.
+      // The previous discovery-block was a credits-tied gate, not a security
+      // gate, and prevented the whole payg use case. Anonymous/unauth users
+      // are blocked earlier at the auth layer.
+      canPurchase: true,
       lowBalance: account.balance <= 10,
     });
   } catch (err) {
@@ -103,25 +111,79 @@ router.get("/credits/transactions", async (req, res) => {
   }
 });
 
-// Purchase credit blocks via Stripe checkout
+// List active credit packs (Starter / Growth / Pro / Power) sorted by display order.
+// Public — no auth required so the /pricing page can render packs server-side.
+router.get("/credits/packs", async (_req, res) => {
+  try {
+    const packs = await db.select().from(creditPacksTable)
+      .where(eq(creditPacksTable.active, true))
+      .orderBy(asc(creditPacksTable.displayOrder));
+    res.json(packs);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Purchase credits via Stripe checkout. Two input modes:
+//   { packSlug: "starter" }  — preferred, references credit_packs row
+//   { blocks: N }             — legacy block-based (N × 1,000 credits at $2.50/k)
+// Any authenticated tier may purchase, including discovery and payg —
+// the previous "paid-tier only" restriction was a credits-tied gate, not a
+// security gate, and blocked the entire payg use case.
 router.post("/credits/purchase", async (req, res) => {
   try {
     const auth = getAuth(req);
     const userId = auth?.userId;
     if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
 
-    const blocks = Math.max(1, Math.min(100, Number(req.body.blocks) || 1));
-    const credits = blocks * CEI_CREDIT_BLOCK_SIZE;
-    const amountCents = blocks * CEI_CREDIT_BLOCK_PRICE_CENTS;
+    let credits: number;
+    let amountCents: number;
+    let packSlug: string | null = null;
+    let packDisplayName = "CEI Credits";
+    let expiresAt: Date | null = null;
 
-    // Discovery tier cannot purchase
-    const [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
-    if (account?.tierSlug === "discovery") {
-      res.status(403).json({
-        error: "Credit purchases require a paid membership.",
-        message: "Free Discovery users receive 50 credits/month. Upgrade to Briefing or higher to purchase additional credits.",
-      });
-      return;
+    if (typeof req.body.packSlug === "string") {
+      const [pack] = await db.select().from(creditPacksTable)
+        .where(and(eq(creditPacksTable.slug, req.body.packSlug), eq(creditPacksTable.active, true)))
+        .limit(1);
+      if (!pack) {
+        res.status(404).json({ error: `Credit pack '${req.body.packSlug}' not found or inactive` });
+        return;
+      }
+      credits = pack.creditAmount;
+      amountCents = pack.priceCents;
+      packSlug = pack.slug;
+      packDisplayName = pack.displayName;
+      const expiryDays = pack.expiresAfterDays ?? PAYG_EXPIRY_DAYS;
+      expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
+    } else {
+      const blocks = Math.max(1, Math.min(100, Number(req.body.blocks) || 1));
+      credits = blocks * CEI_CREDIT_BLOCK_SIZE;
+      amountCents = blocks * CEI_CREDIT_BLOCK_PRICE_CENTS;
+      // Legacy block-based purchases also get the 1-year expiry now —
+      // applying the same policy across both paths simplifies enforcement.
+      expiresAt = new Date(Date.now() + PAYG_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+    }
+
+    // Initialize a credit_accounts row for first-time purchasers so the
+    // post-checkout balance update finds something to write to. Defaults
+    // to tierSlug from active membership, or "discovery" (free), or "payg"
+    // if no other tier applies. Self-corrects on next /credits/balance call.
+    let [account] = await db.select().from(creditAccountsTable).where(eq(creditAccountsTable.userId, userId));
+    if (!account) {
+      const [membership] = await db.select({ tierSlug: membershipTiersTable.slug })
+        .from(userMembershipsTable)
+        .innerJoin(membershipTiersTable, eq(userMembershipsTable.tierId, membershipTiersTable.id))
+        .where(and(eq(userMembershipsTable.userId, userId), eq(userMembershipsTable.status, "active")))
+        .limit(1);
+      const tierSlug = membership?.tierSlug ?? "payg";
+      const allocation = TIER_ALLOCATIONS[tierSlug] ?? 0;
+      [account] = await db.insert(creditAccountsTable).values({
+        userId,
+        balance: allocation,
+        monthlyAllocation: allocation,
+        tierSlug,
+      }).returning();
     }
 
     // Create purchase record as pending
@@ -130,6 +192,8 @@ router.post("/credits/purchase", async (req, res) => {
       creditsBought: credits,
       amountCents,
       status: "pending",
+      packSlug,
+      expiresAt,
     }).returning();
 
     // If Stripe is configured, create a checkout session
@@ -146,7 +210,7 @@ router.post("/credits/purchase", async (req, res) => {
 
       const session = await createCheckoutSession({
         membershipId: purchase.id, // reusing the field for purchase ID
-        tierName: `${credits.toLocaleString()} CEI Credits`,
+        tierName: packSlug ? `${packDisplayName} (${credits.toLocaleString()} credits)` : `${credits.toLocaleString()} CEI Credits`,
         tierSlug: "credits",
         amountCents,
         billingPeriod: "monthly",
@@ -163,13 +227,9 @@ router.post("/credits/purchase", async (req, res) => {
         sessionId: session.id,
       });
     } else {
-      // Dev mode: auto-complete without Stripe
+      // Dev mode: auto-complete without Stripe. Account is guaranteed to
+      // exist because we initialize it earlier in this handler.
       await db.update(creditPurchasesTable).set({ status: "completed" }).where(eq(creditPurchasesTable.id, purchase.id));
-
-      if (!account) {
-        res.status(400).json({ error: "No credit account found. Access any feature first to initialize your account." });
-        return;
-      }
 
       const newBalance = account.balance + credits;
       await db.update(creditAccountsTable).set({ balance: newBalance }).where(eq(creditAccountsTable.userId, userId));
@@ -178,11 +238,11 @@ router.post("/credits/purchase", async (req, res) => {
         userId,
         amount: credits,
         type: "purchase",
-        description: `Purchased ${credits.toLocaleString()} credits (dev mode)`,
+        description: `Purchased ${credits.toLocaleString()} credits — ${packDisplayName}${expiresAt ? ` (expires ${expiresAt.toISOString().slice(0, 10)})` : ""} [dev mode]`,
         balanceAfter: newBalance,
       });
 
-      res.json({ purchaseId: purchase.id, creditsBought: credits, amountCents, newBalance });
+      res.json({ purchaseId: purchase.id, creditsBought: credits, amountCents, newBalance, expiresAt });
     }
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

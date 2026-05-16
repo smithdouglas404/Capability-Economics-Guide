@@ -3,6 +3,7 @@ import { pgTable, text, serial, integer, real, timestamp, jsonb } from "drizzle-
 /**
  * KYC levels by tier:
  *   discovery  → "email"       (email OTP only)
+ *   payg       → "email"       (email OTP only — frictionless prepay flow)
  *   briefing   → "identity"    (email OTP + ID document)
  *   console    → "biometric"   (email OTP + ID document + passive liveness)
  *   platform   → "full"        (email OTP + ID document + passive liveness + AML screening)
@@ -13,6 +14,7 @@ import { pgTable, text, serial, integer, real, timestamp, jsonb } from "drizzle-
  */
 export const KYC_LEVELS_BY_TIER: Record<string, string> = {
   discovery: "email",
+  payg: "email",
   briefing: "identity",
   console: "biometric",
   ledger: "biometric", // legacy alias
