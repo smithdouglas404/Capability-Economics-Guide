@@ -118,6 +118,11 @@ export const CREDIT_COSTS = {
   VCE_CYCLE: 50,
   INVESTMENT_THESIS: 4,
   NL_QUERY: 0,
+  // RAG-powered NL query (Haiku class + Sonnet synthesis) costs ~$0.05
+  // per call. 4 credits aligns with the existing per-credit cents
+  // pricing in the payg packs. The old regex NL_QUERY path stays free
+  // — gating is opt-in via requireTierOrCredits on the RAG endpoint.
+  NL_QUERY_RAG: 4,
   ENRICHMENT_FULL: 10,
   CSUITE_PERSPECTIVES: 25,
   TRADE_SIGNAL: 0,
