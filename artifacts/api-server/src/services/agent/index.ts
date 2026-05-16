@@ -13,6 +13,8 @@ export {
   filterMemoriesForTarget,
 } from "./memory";
 export { allTools } from "./tools";
-export { getLettaStatus, lettaUpdateBlock, lettaReadBlock, lettaArchivalInsert, lettaArchivalSearch } from "./letta";
+export { getLettaStatus, lettaUpdateBlock, lettaReadBlock, lettaReadAllBlocks, lettaArchivalInsert, lettaArchivalSearch } from "./letta";
+export { syncEconomicRulesToLetta, renderEconomicRulesBlock } from "./economic-rules-sync";
+export { inferTopic, type Topic } from "./topics";
 export { startConsolidator, stopConsolidator, runConsolidation, getLastConsolidation } from "./consolidator";
 export { getGraphStats, findCorrelations, findRelated } from "./graphMemory";

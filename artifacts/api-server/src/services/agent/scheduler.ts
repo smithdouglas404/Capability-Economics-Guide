@@ -461,6 +461,16 @@ export function startScheduler(): void {
   startConsolidator();
   startMarketplaceAutoArchive();
 
+  // Push the latest economic_rules table content into the Letta block.
+  // Slight delay so Letta init (in letta.ts module load) has time to
+  // settle. Non-fatal on failure — rules remain authoritative in
+  // Postgres regardless.
+  setTimeout(() => {
+    syncEconomicRulesToLetta()
+      .then(ok => console.log(`[Agent] Economic rules → Letta block sync: ${ok ? "ok" : "skipped/failed"}`))
+      .catch(err => console.warn("[Agent] economic-rules sync error:", err instanceof Error ? err.message : err));
+  }, 15_000);
+
   executeRun("startup");
 
   setTimeout(() => executeRotation("startup"), 30_000);
