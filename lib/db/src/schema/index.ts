@@ -18,6 +18,7 @@ export * from "./vce";
 export * from "./alpha";
 export * from "./alpha-config";
 export * from "./agent-tuning";
+export * from "./bots";
 export * from "./system-secrets";
 export * from "./audit-chain";
 export * from "./membership";

@@ -16,6 +16,9 @@ import { desc, count, gte, sql, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { backfillAiNarratives } from "../services/alpha/enrich";
 import { getTuning, saveTuning, TUNING_DEFAULTS } from "../services/agent-tuning";
+import { provisionBot, disableBot, setBotStatus, listBots, listAvailablePersonas } from "../services/bots/provisioning";
+import { listPersonas } from "../services/bots/personas";
+import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budget";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -261,6 +264,88 @@ router.patch("/admin/agent-tuning", async (req, res) => {
     res.json({ tuning, defaults: TUNING_DEFAULTS });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : "failed to save tuning" });
+  }
+});
+
+// ── Synthetic agent (bot) admin routes ──
+
+router.get("/admin/bots", async (_req, res) => {
+  try {
+    const [bots, available, system] = await Promise.all([
+      listBots(),
+      listAvailablePersonas(),
+      getSystemBudgetStatus(),
+    ]);
+    const personas = listPersonas();
+    res.json({
+      bots,
+      availablePersonas: available,
+      allPersonas: personas,
+      systemBudget: system,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to list bots" });
+  }
+});
+
+router.post("/admin/bots/provision", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    if (typeof body.personaKey !== "string") {
+      res.status(400).json({ error: "personaKey is required" });
+      return;
+    }
+    const monthlyBudgetUsdCap = typeof body.monthlyBudgetUsdCap === "number" ? body.monthlyBudgetUsdCap : undefined;
+    const actorHeader = (req.headers["x-admin-actor"] as string | undefined) ?? "admin";
+    const result = await provisionBot({
+      personaKey: body.personaKey,
+      monthlyBudgetUsdCap,
+      provisionedByUserId: actorHeader,
+      provisionedByEmail: typeof body.actorEmail === "string" ? body.actorEmail : null,
+    });
+    res.status(201).json(result);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "provisioning failed";
+    const status = msg.includes("already has an active bot") ? 409 : 400;
+    res.status(status).json({ error: msg });
+  }
+});
+
+router.patch("/admin/bots/:id", async (req, res) => {
+  try {
+    const botId = Number(req.params.id);
+    if (!Number.isFinite(botId)) {
+      res.status(400).json({ error: "invalid bot id" });
+      return;
+    }
+    const body = req.body ?? {};
+    const actorHeader = (req.headers["x-admin-actor"] as string | undefined) ?? "admin";
+    const actorEmail = typeof body.actorEmail === "string" ? body.actorEmail : null;
+    if (body.status === "disabled") {
+      await disableBot(botId, { actorUserId: actorHeader, actorEmail });
+    } else if (body.status === "active" || body.status === "paused") {
+      await setBotStatus(botId, body.status, { actorUserId: actorHeader, actorEmail });
+    } else {
+      res.status(400).json({ error: "status must be 'active', 'paused', or 'disabled'" });
+      return;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "update failed" });
+  }
+});
+
+router.get("/admin/bots/:id/budget", async (req, res) => {
+  try {
+    const botId = Number(req.params.id);
+    if (!Number.isFinite(botId)) {
+      res.status(400).json({ error: "invalid bot id" });
+      return;
+    }
+    const status = await getBotBudgetStatus(botId);
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to read budget" });
   }
 });
 
