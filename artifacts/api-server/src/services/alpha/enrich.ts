@@ -323,16 +323,25 @@ export interface AlphaEnrichResult {
   durationMs: number;
 }
 
-export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number; revisionGuidance?: string } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
+export async function runDetailEnrichment(opts: { limit?: number; force?: boolean; capabilityId?: number; industryIds?: number[]; revisionGuidance?: string } = {}): Promise<{ enriched: number; errors: string[]; durationMs: number }> {
   const start = Date.now();
   const errors: string[] = [];
   let enriched = 0;
   {
     const limit = opts.limit ?? 6;
     const econRows = await db.select().from(capabilityEconomicsTable);
+    // industryIds filter: scope the null-detail sweep to the target industries
+    // so a bulk-path call after enriching Industry X doesn't also burn LLM
+    // budget catching up backlog in unrelated industries.
+    let industryCapIds: Set<number> | null = null;
+    if (opts.industryIds && opts.industryIds.length > 0) {
+      const indCaps = await db.select({ id: capabilitiesTable.id }).from(capabilitiesTable).where(inArray(capabilitiesTable.industryId, opts.industryIds));
+      industryCapIds = new Set(indCaps.map(c => c.id));
+    }
     const targets = opts.capabilityId != null
       ? econRows.filter(r => r.capabilityId === opts.capabilityId)
       : econRows
+          .filter(r => industryCapIds == null || industryCapIds.has(r.capabilityId))
           .filter(r => opts.force || r.summaryNarrative == null || r.traditionalNarrative == null || r.aiExposureScore == null)
           .slice(0, limit);
     if (targets.length === 0) return { enriched: 0, errors: [], durationMs: Date.now() - start };

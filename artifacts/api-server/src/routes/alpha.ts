@@ -56,6 +56,27 @@ router.post("/enrich", requireAdmin, async (req: Request, res: Response) => {
       trigger: "manual",
       targetIndustryIds: industryId != null ? [industryId] : undefined,
     });
+
+    // Deterministic detail-enrichment safety net for the bulk path. Same
+    // rationale as the per-cap rerun (see /rerun/:id): Sonnet has been
+    // observed skipping run_economic_detail, leaving capability detail pages
+    // stuck on "awaiting economic enrichment" / "AI exposure scoring queued".
+    // After the agent returns, fill any caps in the target industries whose
+    // detail fields are still null. industryIds-scoped so an Insurance run
+    // doesn't accidentally burn LLM budget filling Retail's backlog. Limit
+    // 100 covers ~8 industries × 12 caps worth of catch-up in one pass.
+    try {
+      const detailRes = await runDetailEnrichment({
+        industryIds: industryId != null ? [industryId] : undefined,
+        limit: 100,
+      });
+      logger.info({ industryId, enriched: detailRes.enriched, errors: detailRes.errors.length, durationMs: detailRes.durationMs }, "[alpha/enrich] detail safety-net result");
+    } catch (detailErr) {
+      // Don't fail the whole request if the detail pass errors — the agent
+      // result is already valuable on its own.
+      logger.warn({ detailErr, industryId }, "[alpha/enrich] detail safety-net failed (non-fatal)");
+    }
+
     res.json({ ...result, durationMs: Date.now() - start });
   } catch (err) {
     logger.error({ err }, "[alpha/enrich] failed");

@@ -6,6 +6,7 @@ import { computeCEI } from "../cei-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { runDigestSweep } from "../digest";
+import { runDetailEnrichment } from "../alpha/enrich";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -86,6 +87,25 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     const result = await runAgent(trigger);
     lastRunAt = new Date();
     lastRunResult = result;
+
+    // Deterministic null-detail backfill. The agent (Sonnet) freely skips
+    // run_economic_detail when alpha succeeded and sibling caps already have
+    // detail rows — same skip pattern documented in commit b261198 for the
+    // per-cap rerun path. Without this sweep, capability_economics rows can
+    // sit with null summaryNarrative / aiExposureScore indefinitely (the
+    // generatedAt timestamp bumps on alpha-only writes, so the row looks
+    // "fresh" but the detail page renders "awaiting economic enrichment").
+    // Cap at 15 per cycle: keeps a routine cycle under ~5min and bounds
+    // LLM cost (~$0.06/cap * 15 * 3-4 cycles/day ≈ $3/day).
+    try {
+      const detailRes = await runDetailEnrichment({ limit: 15 });
+      if (detailRes.enriched > 0 || detailRes.errors.length > 0) {
+        console.log(`[Agent] Detail backfill (${trigger}): enriched=${detailRes.enriched} errors=${detailRes.errors.length} durationMs=${detailRes.durationMs}`);
+      }
+    } catch (detailErr) {
+      console.warn("[Agent] Detail backfill failed (non-fatal):", detailErr);
+    }
+
     return result;
   } catch (err) {
     console.error("[Agent] Run failed:", err);
