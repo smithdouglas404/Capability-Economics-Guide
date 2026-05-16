@@ -188,7 +188,7 @@ function QuadrantXRay({ data }: { data: GraphData }) {
         </svg>
       </div>
       <div className="text-xs text-muted-foreground mt-2">
-        Hover bubbles for capability details. Bubble size = Disruption Intensity (CDI). Source: Perplexity research synthesized by GLM 5.1.
+        Hover bubbles for capability details. Bubble size = Disruption Intensity (CDI). Source: Capability Economics research pipeline — triangulated across multiple research sources and confidence-weighted.
       </div>
     </div>
   );
@@ -802,7 +802,7 @@ export default function Console() {
           </div>
           <h1 className="text-4xl font-serif tracking-tight text-foreground">The Capability Lens</h1>
           <p className="text-muted-foreground text-sm mt-2 max-w-3xl">
-            Live agentic intelligence synthesized by our LangGraph agent (Perplexity research → GLM 5.1 synthesis → DB).
+            Live agentic intelligence from the Capability Economics research pipeline — autonomous agents triangulating across multiple research sources, confidence-scored, refreshed on a rotation schedule.
             All data sourced from autonomous research runs — no seed data, no mock fallbacks.
           </p>
         </div>

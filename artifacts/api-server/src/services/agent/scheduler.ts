@@ -106,6 +106,18 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     lastRunAt = new Date();
     lastRunResult = result;
 
+    // Deterministic CEI snapshot at the end of every routine cycle. The
+    // agent may or may not have invoked the compute_cei tool — we don't
+    // trust Sonnet's tool-selection to bank the time-series moat. Banking
+    // a snapshot per cycle is the cheapest, most defensible way to convert
+    // system age into competitive history (Task #3 tactic 1).
+    try {
+      const cei = await computeCEI();
+      console.log(`[Agent] CEI snapshot persisted (${trigger}): overallIndex=${cei.overallIndex}`);
+    } catch (ceiErr) {
+      console.warn("[Agent] CEI snapshot failed (non-fatal):", ceiErr);
+    }
+
     // Deterministic null-detail backfill. The agent (Sonnet) freely skips
     // run_economic_detail when alpha succeeded and sibling caps already have
     // detail rows — same skip pattern documented in commit b261198 for the
@@ -291,6 +303,19 @@ async function botLoopTick(): Promise<void> {
     const totalCostCents = results.reduce((a, r) => a + r.totalCostCents, 0);
     if (totalActions > 0 || totalSkipped > 0) {
       console.log(`[Bots] Hourly tick: ${results.length} active bot(s), ${totalActions} actions, ${totalSkipped} budget-skips, $${(totalCostCents / 100).toFixed(2)} this tick`);
+    }
+
+    // If any bot action mutated assessment state (assessments specifically —
+    // browses don't change capability-economics), bank a CEI snapshot so
+    // the time-series records the moment. Cheap when bots are idle (no
+    // assessments → no snapshot triggered).
+    const assessmentRan = results.some(r => r.actionsRun > 0);
+    if (assessmentRan) {
+      try {
+        await computeCEI();
+      } catch (err) {
+        console.warn("[Bots] post-tick CEI snapshot failed:", err);
+      }
     }
   } catch (err) {
     console.warn("[Bots] tick failed:", err);

@@ -209,12 +209,12 @@ function TraceabilityDialog() {
         <DialogHeader>
           <DialogTitle>Methodology & Source Traceability</DialogTitle>
           <DialogDescription>
-            Every number on this page comes from one of two sources: (1) Perplexity research grounded in cited URLs, then synthesized by GLM-5.1, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
+            Every number on this page comes from one of two sources: (1) the Capability Economics research pipeline — triangulated across multiple research sources with cited URLs, then synthesized into structured economic figures, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <Section title="Per-row sourcing">
-            Click the <Info className="inline h-3 w-3" /> icon next to any enriched row in Moat, Fragility, or Arbitrage to see the GLM rationale and the underlying Perplexity citation URLs for that specific capability.
+            Click the <Info className="inline h-3 w-3" /> icon next to any enriched row in Moat, Fragility, or Arbitrage to see the synthesized rationale and the underlying citation URLs for that specific capability.
           </Section>
           <Section title="EVaR — Expected Value at Risk">
             <code className="block bg-muted/50 p-2 rounded text-xs">
