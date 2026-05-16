@@ -37,15 +37,20 @@ EXPOSE 8080
 #   4. seed:organizations   — 12 reference orgs — fixes "Scorecard 0 scored"
 #   5. seed:patterns        — Uber/Stripe/OpenAI design-thinking exemplars
 #   6. seed:reports         — 8 substantive marketplace research listings (+ placeholder PDFs)
-#   7. seed:alpha-config        — quadrant→EV multiples for /alpha (was hardcoded; PLAN.md item 7)
-#   8. seed:case-study-economics — Perplexity-backed economics_breakdown for 6 reference cos
-#                                  (Progressive, JPMorgan, Microsoft, Walmart, UHG, Caterpillar);
-#                                  idempotent, skips already-populated rows
-#   9. start                    — runs deploy:migrate (push-force) then api-server,
-#                                 which also serves SPA + starts digest cron
+#   7. seed:alpha-config    — quadrant→EV multiples for /alpha (was hardcoded; PLAN.md item 7)
+#   8. start                — runs deploy:migrate (push-force) then api-server,
+#                             which also serves SPA + starts digest cron
 #
-# Every seed is idempotent (upsert on slug/title/userId); safe-on-every-restart.
-# Any seed can be skipped by setting SKIP_ORG_SEED / SKIP_PATTERNS_SEED /
-# SKIP_MARKETPLACE_SEED / SKIP_ALPHA_CONFIG_SEED / SKIP_CASE_STUDY_ECONOMICS_SEED /
-# SKIP_MIGRATE = 1 in env.
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed:marketplace && pnpm --filter @workspace/scripts run seed:organizations && pnpm --filter @workspace/scripts run seed:patterns && pnpm --filter @workspace/scripts run seed:reports && pnpm --filter @workspace/scripts run seed:alpha-config && pnpm --filter @workspace/scripts run seed:case-study-economics && pnpm run start"]
+# seed:case-study-economics is INTENTIONALLY NOT in this chain. It makes a
+# live Perplexity call per company (sequential, ~60s each, sometimes failing
+# validation), which can push total boot time past Railway's health-check
+# window and cause "application failed to load" on every redeploy. Run it
+# manually when you need to refresh case-study economics — it's idempotent
+# and skips already-populated rows:
+#   pnpm --filter @workspace/scripts run seed:case-study-economics
+#
+# Every seed in the boot chain is fast (no external calls) and idempotent
+# (upsert on slug/title/userId); safe-on-every-restart. Any seed can be
+# skipped by setting SKIP_ORG_SEED / SKIP_PATTERNS_SEED / SKIP_MARKETPLACE_SEED /
+# SKIP_ALPHA_CONFIG_SEED / SKIP_MIGRATE = 1 in env.
+CMD ["sh", "-c", "pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed:marketplace && pnpm --filter @workspace/scripts run seed:organizations && pnpm --filter @workspace/scripts run seed:patterns && pnpm --filter @workspace/scripts run seed:reports && pnpm --filter @workspace/scripts run seed:alpha-config && pnpm run start"]
