@@ -24,7 +24,7 @@ import AdminAgentProposalsPage from "@/pages/admin-agent-proposals";
 import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
 import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
-import VCE from "@/pages/vce";
+import VCR from "@/pages/vcr";
 import Alpha from "@/pages/alpha";
 import Membership from "@/pages/membership";
 import Account from "@/pages/account";
@@ -167,7 +167,7 @@ function Router() {
       <Route path="/admin/economic-rules">{() => <AdminOnly component={AdminEconomicRulesPage} />}</Route>
       <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
-      <Route path="/vce" component={VCE} />
+      <Route path="/vcr" component={VCR} />
       <Route path="/membership" component={Membership} />
       <Route path="/account" component={Account} />
       <Route path="/exports" component={ExportsPage} />

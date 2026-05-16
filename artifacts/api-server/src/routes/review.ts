@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
@@ -100,8 +100,8 @@ router.get("/review/queue", async (_req, res) => {
       revisionCount: capabilitiesTable.revisionCount,
       createdAt: capabilitiesTable.createdAt,
       reviewNotes: capabilitiesTable.reviewNotes,
-      summaryNarrative: capabilityEconomicsTable.summaryNarrative,
-      hasEconomics: capabilityEconomicsTable.id,
+      summaryNarrative: capabilityAlphaTable.summaryNarrative,
+      hasEconomics: capabilityAlphaTable.id,
       enrichmentStatus: capabilitiesTable.enrichmentStatus,
       enrichmentStage: capabilitiesTable.enrichmentStage,
       enrichmentError: capabilitiesTable.enrichmentError,
@@ -109,7 +109,7 @@ router.get("/review/queue", async (_req, res) => {
     })
     .from(capabilitiesTable)
     .innerJoin(industriesTable, eq(industriesTable.id, capabilitiesTable.industryId))
-    .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.reviewStatus, "pending_review"));
 
   // Without the BullMQ queue, "queue position" no longer exists. Status comes

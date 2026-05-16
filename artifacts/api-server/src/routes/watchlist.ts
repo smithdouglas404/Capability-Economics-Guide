@@ -5,7 +5,7 @@ import {
   watchlistItemsTable,
   watchlistAlertsTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
 } from "@workspace/db";
 import { eq, and, inArray, desc } from "drizzle-orm";
@@ -116,7 +116,7 @@ router.post("/watchlist/check-my", async (req, res) => {
 
     const capIds = [...new Set(myItems.map((i) => i.capabilityId))];
     const [economics, components] = await Promise.all([
-      db.select().from(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, capIds)),
+      db.select().from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, capIds)),
       db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds)),
     ]);
 
@@ -207,7 +207,7 @@ router.post("/watchlist/check", requireAdmin, async (req, res) => {
     if (!allItems.length) { res.json({ checked: 0, triggered: 0 }); return; }
 
     const capIds = [...new Set(allItems.map((i) => i.capabilityId))];
-    const economics = await db.select().from(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, capIds));
+    const economics = await db.select().from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, capIds));
     const components = await db.select().from(cviComponentsTable).where(inArray(cviComponentsTable.capabilityId, capIds));
 
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));

@@ -99,7 +99,7 @@ const CYCLE_STATUS_COLOR: Record<string, string> = {
   failed: "bg-rose-100 text-rose-700",
 };
 
-export default function VCEPage() {
+export default function VCRPage() {
   const [tab, setTab] = useState<"new" | "active" | "inbox">("active");
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -110,8 +110,8 @@ export default function VCEPage() {
   async function loadAll() {
     setLoading(true);
     const [a, i, ind] = await Promise.all([
-      fetch(`${apiBase}/api/vce/assessments`).then(r => r.json()).catch(() => []),
-      fetch(`${apiBase}/api/vce/inbox`).then(r => r.json()).catch(() => ({ findings: [], questions: [], counts: { findings: 0, questions: 0 } })),
+      fetch(`${apiBase}/api/vcr/assessments`).then(r => r.json()).catch(() => []),
+      fetch(`${apiBase}/api/vcr/inbox`).then(r => r.json()).catch(() => ({ findings: [], questions: [], counts: { findings: 0, questions: 0 } })),
       fetch(`${apiBase}/api/industries`).then(r => r.json()).catch(() => []),
     ]);
     const list = Array.isArray(a) ? a : [];
@@ -230,7 +230,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 // SAMPLE_BRIEF used to be a hardcoded "Atlas Copper Holdings" mining case
-// hardwired into the bundle. Now loaded from /api/vce/sample-brief at click
+// hardwired into the bundle. Now loaded from /api/vcr/sample-brief at click
 // time, which returns an anonymized real completed assessment. See
 // docs/Must Fix/PLAN.md item #8.
 type SampleBrief = { clientName: string; valueCase: string };
@@ -250,7 +250,7 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
     setSampleLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBase}/api/vce/sample-brief`);
+      const res = await fetch(`${apiBase}/api/vcr/sample-brief`);
       if (!res.ok) {
         if (res.status === 404) {
           setError("No sample brief available yet — once any real assessment completes, this button will load it for testing.");
@@ -281,7 +281,7 @@ function NewCampaignForm({ industries, onCreated }: { industries: Industry[]; on
   async function submit() {
     setBusy(true); setError(null);
     try {
-      const resp = await fetch(`${apiBase}/api/vce/assessments`, {
+      const resp = await fetch(`${apiBase}/api/vcr/assessments`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: clientName.trim(),
@@ -384,7 +384,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
-    const r = await fetch(`${apiBase}/api/vce/assessments/${id}`);
+    const r = await fetch(`${apiBase}/api/vcr/assessments/${id}`);
     setData(await r.json());
   }
   useEffect(() => { load(); }, [id]);
@@ -400,7 +400,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
     if (!nextCycle) return;
     setBusy("cycle"); setError(null);
     try {
-      const r = await fetch(`${apiBase}/api/vce/assessments/${id}/cycles/run-next`, { method: "POST" });
+      const r = await fetch(`${apiBase}/api/vcr/assessments/${id}/cycles/run-next`, { method: "POST" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Cycle failed");
       await load(); await onChanged();
@@ -411,7 +411,7 @@ function CampaignDetail({ id, onChanged }: { id: number; onChanged: () => Promis
   async function finalize() {
     setBusy("finalize"); setError(null);
     try {
-      const r = await fetch(`${apiBase}/api/vce/assessments/${id}/finalize`, { method: "POST" });
+      const r = await fetch(`${apiBase}/api/vcr/assessments/${id}/finalize`, { method: "POST" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Finalize failed");
       await load();
@@ -534,7 +534,7 @@ function IntakeQA({ questions, assessmentId, onSaved }: { questions: Question[];
     setBusy(true);
     const payload = questions.filter(q => (answers[q.id] ?? "").trim().length > 0).map(q => ({ questionId: q.id, answer: answers[q.id].trim() }));
     if (payload.length > 0) {
-      await fetch(`${apiBase}/api/vce/assessments/${assessmentId}/answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers: payload }) });
+      await fetch(`${apiBase}/api/vcr/assessments/${assessmentId}/answer`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answers: payload }) });
     }
     await onSaved();
     setBusy(false);
@@ -568,7 +568,7 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
 
   async function patch(payload: Record<string, unknown>) {
     setBusy(true);
-    await fetch(`${apiBase}/api/vce/research/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    await fetch(`${apiBase}/api/vcr/research/${item.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     await onChanged(); setBusy(false); setEditing(false);
   }
 
@@ -656,19 +656,19 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
 
   async function patchFinding(id: number, status: "approved" | "rejected") {
     setBusyId(id);
-    await fetch(`${apiBase}/api/vce/research/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+    await fetch(`${apiBase}/api/vcr/research/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
     await onChanged(); setBusyId(null);
   }
   async function answerQuestion(id: number) {
     const a = answer[id]?.trim(); if (!a) return;
     setBusyId(id);
-    await fetch(`${apiBase}/api/vce/questions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answer: a }) });
+    await fetch(`${apiBase}/api/vcr/questions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ answer: a }) });
     await onChanged(); setBusyId(null);
     setAnswer({ ...answer, [id]: "" });
   }
   async function dismissQuestion(id: number) {
     setBusyId(id);
-    await fetch(`${apiBase}/api/vce/questions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }) });
+    await fetch(`${apiBase}/api/vcr/questions/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "dismissed" }) });
     await onChanged(); setBusyId(null);
   }
 

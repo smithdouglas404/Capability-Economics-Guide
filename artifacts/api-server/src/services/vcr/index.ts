@@ -1,9 +1,9 @@
 import { db } from "@workspace/db";
 import {
-  vceAssessmentsTable,
-  vceCyclesTable,
-  vceQuestionsTable,
-  vceResearchItemsTable,
+  vcrAssessmentsTable,
+  vcrCyclesTable,
+  vcrQuestionsTable,
+  vcrResearchItemsTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, and, asc, inArray } from "drizzle-orm";
@@ -25,7 +25,7 @@ export async function createCampaign(input: {
   const start = new Date();
   const end = new Date(start.getTime() + durationDays * 24 * 60 * 60 * 1000);
 
-  const [created] = await db.insert(vceAssessmentsTable).values({
+  const [created] = await db.insert(vcrAssessmentsTable).values({
     clientName: input.clientName,
     industryId: input.industryId ?? null,
     valueCase: input.valueCase,
@@ -45,13 +45,13 @@ export async function createCampaign(input: {
     status: "scheduled" as const,
     scheduledFor: new Date(start.getTime() + i * 24 * 60 * 60 * 1000),
   }));
-  await db.insert(vceCyclesTable).values(cycleRows);
+  await db.insert(vcrCyclesTable).values(cycleRows);
 
   return created;
 }
 
 export async function generateIntakeQuestions(assessmentId: number): Promise<number> {
-  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  const [a] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, assessmentId));
   if (!a) throw new Error("Assessment not found");
 
   let industryName = "general";
@@ -76,7 +76,7 @@ Return ONLY JSON:
     schemaHint: `{ "objective": string, "questions": [ { "question": string, "rationale": string, "priority": number } ] }`,
   });
   if (!parsed?.questions || parsed.questions.length === 0) {
-    console.error("[VCE intake] parse failed even after repair retry. Raw:", raw.slice(0, 1500));
+    console.error("[VCR intake] parse failed even after repair retry. Raw:", raw.slice(0, 1500));
     throw new Error("Intake question generation failed: the language model returned output we couldn't parse, and the repair retry also failed. Try launching the campaign again — if it persists, the value case may need to be shorter or more focused.");
   }
 
@@ -89,13 +89,13 @@ Return ONLY JSON:
     status: "pending" as const,
     displayOrder: i,
   }));
-  await db.insert(vceQuestionsTable).values(rows);
+  await db.insert(vcrQuestionsTable).values(rows);
 
-  await db.update(vceAssessmentsTable).set({
+  await db.update(vcrAssessmentsTable).set({
     objective: parsed.objective ?? null,
     status: "active",
     updatedAt: new Date(),
-  }).where(eq(vceAssessmentsTable.id, assessmentId));
+  }).where(eq(vcrAssessmentsTable.id, assessmentId));
 
   return rows.length;
 }
@@ -103,11 +103,11 @@ Return ONLY JSON:
 // ----- Cycle execution -----
 
 export async function runNextCycle(assessmentId: number) {
-  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  const [a] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, assessmentId));
   if (!a) throw new Error("Assessment not found");
   if (a.status === "finalized" || a.status === "cancelled") throw new Error(`Campaign is ${a.status}`);
 
-  const cycles = await db.select().from(vceCyclesTable).where(eq(vceCyclesTable.assessmentId, assessmentId)).orderBy(asc(vceCyclesTable.cycleNumber));
+  const cycles = await db.select().from(vcrCyclesTable).where(eq(vcrCyclesTable.assessmentId, assessmentId)).orderBy(asc(vcrCyclesTable.cycleNumber));
   const next = cycles.find(c => c.status === "scheduled");
   if (!next) throw new Error("No scheduled cycle remaining. Finalize the campaign or extend it.");
 
@@ -121,13 +121,13 @@ export async function runCycleById(assessmentId: number, cycleId: number) {
 // ----- Final report -----
 
 export async function finalizeAssessment(assessmentId: number) {
-  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  const [a] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, assessmentId));
   if (!a) throw new Error("Assessment not found");
 
-  const approved = await db.select().from(vceResearchItemsTable).where(and(
-    eq(vceResearchItemsTable.assessmentId, assessmentId),
-    eq(vceResearchItemsTable.status, "approved"),
-    eq(vceResearchItemsTable.includeInReport, true),
+  const approved = await db.select().from(vcrResearchItemsTable).where(and(
+    eq(vcrResearchItemsTable.assessmentId, assessmentId),
+    eq(vcrResearchItemsTable.status, "approved"),
+    eq(vcrResearchItemsTable.includeInReport, true),
   ));
   if (approved.length === 0) throw new Error("Approve at least one finding before finalizing.");
 
@@ -137,15 +137,15 @@ export async function finalizeAssessment(assessmentId: number) {
     if (ind) industryName = ind.name;
   }
 
-  const cycles = await db.select().from(vceCyclesTable).where(and(
-    eq(vceCyclesTable.assessmentId, assessmentId),
-    inArray(vceCyclesTable.status, ["completed"]),
-  )).orderBy(asc(vceCyclesTable.cycleNumber));
+  const cycles = await db.select().from(vcrCyclesTable).where(and(
+    eq(vcrCyclesTable.assessmentId, assessmentId),
+    inArray(vcrCyclesTable.status, ["completed"]),
+  )).orderBy(asc(vcrCyclesTable.cycleNumber));
   const cycleNarrative = cycles.map(c => `Cycle ${c.cycleNumber}: ${c.summary || ""}`).filter(Boolean).join("\n\n");
 
   const findingsBlock = approved.map(a => `[${a.kind.toUpperCase()}] ${a.title}\nSummary: ${a.summary}\nDetail: ${a.body}\nEvidence: ${a.evidenceCount} sources, cross-validated=${a.crossValidated}`).join("\n---\n");
 
-  const prompt = `You are the VCE assembling the final Inflexcvi assessment report after a ${a.durationDays}-day research campaign for ${a.clientName} (${industryName}). Use ONLY the approved findings below — do not invent new data.
+  const prompt = `You are the VCR assembling the final Inflexcvi assessment report after a ${a.durationDays}-day research campaign for ${a.clientName} (${industryName}). Use ONLY the approved findings below — do not invent new data.
 
 Campaign objective: ${a.objective || "(none)"}
 Value case: ${a.valueCase}
@@ -188,12 +188,12 @@ Return ONLY valid JSON:
     nextSteps: report.nextSteps,
   };
 
-  await db.update(vceAssessmentsTable).set({
+  await db.update(vcrAssessmentsTable).set({
     status: "finalized",
     executiveSummary: report.executiveSummary,
     finalReport,
     updatedAt: new Date(),
-  }).where(eq(vceAssessmentsTable.id, assessmentId));
+  }).where(eq(vcrAssessmentsTable.id, assessmentId));
 
   return report;
 }

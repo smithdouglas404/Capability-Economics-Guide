@@ -4,7 +4,7 @@ import {
   capabilitiesTable,
   capabilityDependenciesTable,
   capabilityQuadrantsTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   dependencyEdgeScoresTable,
   industriesTable,
   valueChainStagesTable,
@@ -27,7 +27,7 @@ const router = Router();
 router.get("/status", async (_req: Request, res: Response) => {
   try {
     const [caps] = await db.select({ count: sql<number>`count(*)::int` }).from(capabilitiesTable);
-    const [econ] = await db.select({ count: sql<number>`count(*)::int` }).from(capabilityEconomicsTable);
+    const [econ] = await db.select({ count: sql<number>`count(*)::int` }).from(capabilityAlphaTable);
     const [deps] = await db.select({ count: sql<number>`count(*)::int` }).from(capabilityDependenciesTable);
     const [edgeScores] = await db.select({ count: sql<number>`count(*)::int` }).from(dependencyEdgeScoresTable);
     res.json({
@@ -103,7 +103,7 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
     // Delete any existing economics row for this capability so alpha re-inserts
     // fresh. Safe because detail enrichment writes to the same row that alpha
     // creates, and both are being re-run here.
-    await db.delete(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
+    await db.delete(capabilityAlphaTable).where(eq(capabilityAlphaTable.capabilityId, capId));
 
     // Also delete the existing capability_quadrants row so classify_quadrants
     // writes a fresh CE-side quadrant. Without this, the cap detail page picks
@@ -180,7 +180,7 @@ router.get("/capability/:id", async (req: Request, res: Response) => {
     const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId));
     if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
 
-    const [econ] = await db.select().from(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capId));
+    const [econ] = await db.select().from(capabilityAlphaTable).where(eq(capabilityAlphaTable.capabilityId, capId));
     const [quad] = await db.select().from(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capId)).orderBy(desc(capabilityQuadrantsTable.generatedAt)).limit(1);
 
     // EVaR projection — only when all required inputs exist (no synthetic defaults)
@@ -272,10 +272,10 @@ router.get("/capability/:id", async (req: Request, res: Response) => {
 router.get("/economics", async (req: Request, res: Response) => {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const where = industryId ? eq(capabilityEconomicsTable.industryId, industryId) : undefined;
+    const where = industryId ? eq(capabilityAlphaTable.industryId, industryId) : undefined;
     const rows = where
-      ? await db.select().from(capabilityEconomicsTable).where(where)
-      : await db.select().from(capabilityEconomicsTable);
+      ? await db.select().from(capabilityAlphaTable).where(where)
+      : await db.select().from(capabilityAlphaTable);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: String(err) });
@@ -286,10 +286,10 @@ router.get("/economics", async (req: Request, res: Response) => {
 router.get("/evar", async (req: Request, res: Response) => {
   try {
     const industryId = req.query.industryId ? parseInt(req.query.industryId as string) : undefined;
-    const where = industryId ? eq(capabilityEconomicsTable.industryId, industryId) : undefined;
+    const where = industryId ? eq(capabilityAlphaTable.industryId, industryId) : undefined;
     const econRows = where
-      ? await db.select().from(capabilityEconomicsTable).where(where)
-      : await db.select().from(capabilityEconomicsTable);
+      ? await db.select().from(capabilityAlphaTable).where(where)
+      : await db.select().from(capabilityAlphaTable);
     const capIds = econRows.map(r => r.capabilityId);
     const caps = capIds.length > 0
       ? await db.select().from(capabilitiesTable).where(sql`${capabilitiesTable.id} IN (${sql.join(capIds.map(id => sql`${id}`), sql`, `)})`)
@@ -474,7 +474,7 @@ router.get("/cascade", async (req: Request, res: Response) => {
 // Narrative Delta: capabilities where CE quadrant ≠ consensus quadrant
 router.get("/narrative-delta", async (_req: Request, res: Response) => {
   try {
-    const econ = await db.select().from(capabilityEconomicsTable);
+    const econ = await db.select().from(capabilityAlphaTable);
     const capIds = econ.map(e => e.capabilityId);
     if (capIds.length === 0) { res.json({ items: [] }); return; }
     const quadRows = await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${sql.join(capIds.map(id => sql`${id}`), sql`, `)})`);
@@ -539,7 +539,7 @@ router.get("/moat", async (req: Request, res: Response) => {
     if (capIds.length === 0) { res.json({ items: [] }); return; }
 
     const inIds = sql.join(capIds.map(id => sql`${id}`), sql`, `);
-    const econ = await db.select().from(capabilityEconomicsTable).where(sql`${capabilityEconomicsTable.capabilityId} IN (${inIds})`);
+    const econ = await db.select().from(capabilityAlphaTable).where(sql`${capabilityAlphaTable.capabilityId} IN (${inIds})`);
     const econByCapId = new Map(econ.map(e => [e.capabilityId, e]));
     const quads = await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${inIds})`);
     const quadByCapId = new Map(quads.map(q => [q.capabilityId, q]));
@@ -628,7 +628,7 @@ router.get("/fragility", async (_req: Request, res: Response) => {
     if (capIds.length === 0) { res.json({ items: [] }); return; }
     const inIds = sql.join(capIds.map(id => sql`${id}`), sql`, `);
 
-    const econ = await db.select().from(capabilityEconomicsTable);
+    const econ = await db.select().from(capabilityAlphaTable);
     const econByCapId = new Map(econ.map(e => [e.capabilityId, e]));
     const quads = await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${inIds})`);
     const quadByCapId = new Map(quads.map(q => [q.capabilityId, q]));
@@ -735,7 +735,7 @@ router.get("/fragility", async (_req: Request, res: Response) => {
  */
 router.get("/arbitrage", async (_req: Request, res: Response) => {
   try {
-    const econ = await db.select().from(capabilityEconomicsTable);
+    const econ = await db.select().from(capabilityAlphaTable);
     if (econ.length === 0) { res.json({ items: [], totals: { longExposureMm: 0, shortExposureMm: 0, pairs: 0 } }); return; }
     const capIds = econ.map(e => e.capabilityId);
     const inIds = sql.join(capIds.map(id => sql`${id}`), sql`, `);
@@ -984,7 +984,7 @@ router.get("/twin", async (req: Request, res: Response) => {
 
     const allCapIds = [...capsA.map(c => c.id), ...capsB.map(c => c.id)];
     const inIds = allCapIds.length > 0 ? sql.join(allCapIds.map(id => sql`${id}`), sql`, `) : sql`NULL`;
-    const econ = allCapIds.length > 0 ? await db.select().from(capabilityEconomicsTable).where(sql`${capabilityEconomicsTable.capabilityId} IN (${inIds})`) : [];
+    const econ = allCapIds.length > 0 ? await db.select().from(capabilityAlphaTable).where(sql`${capabilityAlphaTable.capabilityId} IN (${inIds})`) : [];
     const econByCapId = new Map(econ.map(e => [e.capabilityId, e]));
     const quads = allCapIds.length > 0 ? await db.select().from(capabilityQuadrantsTable).where(sql`${capabilityQuadrantsTable.capabilityId} IN (${inIds})`) : [];
     const quadByCapId = new Map(quads.map(q => [q.capabilityId, q]));

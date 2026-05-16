@@ -3,7 +3,7 @@ import { db } from "@workspace/db";
 import {
   nlQueryLogsTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
   industriesTable,
   organizationsTable,
@@ -67,14 +67,14 @@ router.post("/nl-query", async (req, res) => {
       const rows = await db.select({
         name: capabilitiesTable.name,
         industry: industriesTable.name,
-        aiExposure: capabilityEconomicsTable.aiExposureScore,
-        aiMonths: capabilityEconomicsTable.aiTimeToDisplacementMonths,
-        quadrant: capabilityEconomicsTable.consensusQuadrant,
+        aiExposure: capabilityAlphaTable.aiExposureScore,
+        aiMonths: capabilityAlphaTable.aiTimeToDisplacementMonths,
+        quadrant: capabilityAlphaTable.consensusQuadrant,
       })
-        .from(capabilityEconomicsTable)
-        .leftJoin(capabilitiesTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
-        .leftJoin(industriesTable, eq(capabilityEconomicsTable.industryId, industriesTable.id))
-        .orderBy(sql`${capabilityEconomicsTable.aiExposureScore} desc nulls last`)
+        .from(capabilityAlphaTable)
+        .leftJoin(capabilitiesTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+        .leftJoin(industriesTable, eq(capabilityAlphaTable.industryId, industriesTable.id))
+        .orderBy(sql`${capabilityAlphaTable.aiExposureScore} desc nulls last`)
         .limit(10);
 
       data = rows;
@@ -105,14 +105,14 @@ router.post("/nl-query", async (req, res) => {
       const rows = await db.select({
         name: capabilitiesTable.name,
         industry: industriesTable.name,
-        halfLife: capabilityEconomicsTable.halfLifeMonths,
-        revenue: capabilityEconomicsTable.revenueExposureMm,
-        quadrant: capabilityEconomicsTable.consensusQuadrant,
+        halfLife: capabilityAlphaTable.halfLifeMonths,
+        revenue: capabilityAlphaTable.revenueExposureMm,
+        quadrant: capabilityAlphaTable.consensusQuadrant,
       })
-        .from(capabilityEconomicsTable)
-        .leftJoin(capabilitiesTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
-        .leftJoin(industriesTable, eq(capabilityEconomicsTable.industryId, industriesTable.id))
-        .orderBy(sql`${capabilityEconomicsTable.halfLifeMonths} desc nulls last`)
+        .from(capabilityAlphaTable)
+        .leftJoin(capabilitiesTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+        .leftJoin(industriesTable, eq(capabilityAlphaTable.industryId, industriesTable.id))
+        .orderBy(sql`${capabilityAlphaTable.halfLifeMonths} desc nulls last`)
         .limit(10);
 
       data = rows;
@@ -124,14 +124,14 @@ router.post("/nl-query", async (req, res) => {
       const rows = await db.select({
         name: capabilitiesTable.name,
         industry: industriesTable.name,
-        revenue: capabilityEconomicsTable.revenueExposureMm,
-        halfLife: capabilityEconomicsTable.halfLifeMonths,
-        margin: capabilityEconomicsTable.marginStructurePct,
+        revenue: capabilityAlphaTable.revenueExposureMm,
+        halfLife: capabilityAlphaTable.halfLifeMonths,
+        margin: capabilityAlphaTable.marginStructurePct,
       })
-        .from(capabilityEconomicsTable)
-        .leftJoin(capabilitiesTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
-        .leftJoin(industriesTable, eq(capabilityEconomicsTable.industryId, industriesTable.id))
-        .orderBy(sql`${capabilityEconomicsTable.revenueExposureMm} desc nulls last`)
+        .from(capabilityAlphaTable)
+        .leftJoin(capabilitiesTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+        .leftJoin(industriesTable, eq(capabilityAlphaTable.industryId, industriesTable.id))
+        .orderBy(sql`${capabilityAlphaTable.revenueExposureMm} desc nulls last`)
         .limit(10);
 
       data = rows

@@ -13,7 +13,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
   companyCapabilityProfilesTable,
@@ -241,8 +241,8 @@ export const toolExecutors: Record<string, ToolExecutor> = {
         if (capIds.length === 0) return JSON.stringify({ ok: true, status: { totalCapabilities: 0 } });
 
         const econ = await db
-          .select({ capabilityId: capabilityEconomicsTable.capabilityId, generatedAt: capabilityEconomicsTable.generatedAt })
-          .from(capabilityEconomicsTable);
+          .select({ capabilityId: capabilityAlphaTable.capabilityId, generatedAt: capabilityAlphaTable.generatedAt })
+          .from(capabilityAlphaTable);
         const econByCapId = new Map(econ.map(e => [e.capabilityId, e]));
 
         const quad = await db

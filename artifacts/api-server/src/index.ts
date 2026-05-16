@@ -1,7 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
-import { db, capabilitiesTable, capabilityEconomicsTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
+import { db, capabilitiesTable, capabilityAlphaTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
@@ -48,7 +48,7 @@ app.listen(port, (err) => {
         .where(eq(capabilitiesTable.enrichmentStatus, "running"));
       if (stuck.length === 0) return;
       const stuckIds = stuck.map(c => c.id);
-      const delEcon = await db.delete(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, stuckIds)).returning({ id: capabilityEconomicsTable.id });
+      const delEcon = await db.delete(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, stuckIds)).returning({ id: capabilityAlphaTable.id });
       const stuckDeps = await db.select({ id: capabilityDependenciesTable.id }).from(capabilityDependenciesTable).where(inArray(capabilityDependenciesTable.capabilityId, stuckIds));
       const delEdges = stuckDeps.length > 0
         ? await db.delete(dependencyEdgeScoresTable).where(inArray(dependencyEdgeScoresTable.dependencyId, stuckDeps.map(d => d.id))).returning({ id: dependencyEdgeScoresTable.id })

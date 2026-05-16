@@ -149,7 +149,7 @@ export default function KnowledgeGraph() {
       aiSubstitutes: string[] | null;
       aiNarrative: string | null;
       traditionalNarrative: string | null;
-      economicNarrative: string | null;
+      alphaNarrative: string | null;
       metricInterpretations: Array<{ name: string; interpretation: string }> | null;
       dependencyRationales: Array<{ dependsOnName: string; rationale: string }> | null;
       roleConsequences: Array<{ roleTitle: string; consequence: string }> | null;
@@ -391,8 +391,8 @@ export default function KnowledgeGraph() {
               <CardHeader className="pb-2"><CardTitle className="text-sm uppercase tracking-wider text-primary font-sans">Economic View</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-foreground font-medium mb-2">{capabilityDetail.economicView}</p>
-                {econ?.economicNarrative && (
-                  <p className="text-sm text-muted-foreground leading-relaxed">{econ.economicNarrative}</p>
+                {econ?.alphaNarrative && (
+                  <p className="text-sm text-muted-foreground leading-relaxed">{econ.alphaNarrative}</p>
                 )}
               </CardContent>
             </Card>

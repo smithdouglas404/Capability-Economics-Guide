@@ -1,4 +1,4 @@
-import { db, capabilitiesTable, capabilityEconomicsTable, botActionsTable, botsTable, organizationsTable, type Bot } from "@workspace/db";
+import { db, capabilitiesTable, capabilityAlphaTable, botActionsTable, botsTable, organizationsTable, type Bot } from "@workspace/db";
 import { eq, sql, and } from "drizzle-orm";
 import { botLlmCall, extractJson } from "../llm";
 import { buildPersonaSystemPrompt } from "../prompts";
@@ -58,7 +58,7 @@ export async function runBrowseAction(bot: Bot): Promise<{ ok: boolean; costCent
     // Pull economic context for the shortlist (quadrant, EVaR, AI exposure)
     // so the LLM's choice can actually reflect persona biases.
     const econRows = shortlist.length > 0
-      ? await db.select().from(capabilityEconomicsTable).where(sql`capability_id IN (${sql.join(shortlist.map(c => sql`${c.id}`), sql`, `)})`)
+      ? await db.select().from(capabilityAlphaTable).where(sql`capability_id IN (${sql.join(shortlist.map(c => sql`${c.id}`), sql`, `)})`)
       : [];
     const econByCap = new Map(econRows.map(e => [e.capabilityId, e]));
 

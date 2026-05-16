@@ -18,7 +18,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
   companyCapabilityProfilesTable,
@@ -164,7 +164,7 @@ YOUR JOB IS A FIXED 3-STEP SEQUENCE. DO NOT SKIP, DO NOT REORDER, DO NOT ASK. EX
 
 STEP 1 — call run_economic_alpha({"industryId": ${indFragment}, "limitCapabilities": 1}). Repopulates the Street-side economics row (TAM, EVaR inputs, half-life, margin, consensusQuadrant, consensusSummary). limitCapabilities:1 keeps the call to just this cap.
 
-STEP 2 — call run_economic_detail({"capabilityId": ${capId}, "force": true}). Generates the narrative fields (summaryNarrative, traditionalNarrative, economicNarrative, aiNarrative, metricInterpretations, dependencyRationales, roleConsequences, playbook, benchmarkInterpretation, aiSubstitutes).
+STEP 2 — call run_economic_detail({"capabilityId": ${capId}, "force": true}). Generates the narrative fields (summaryNarrative, traditionalNarrative, alphaNarrative, aiNarrative, metricInterpretations, dependencyRationales, roleConsequences, playbook, benchmarkInterpretation, aiSubstitutes).
 
 STEP 3 — call finish({"summary": "<one sentence summarising what was written>"}).
 
@@ -328,7 +328,7 @@ async function finalizeNode(state: State): Promise<Partial<State>> {
     .where(eq(companyCapabilityProfilesTable.runId, state.runId));
   const [econCountRow] = await db
     .select({ c: sql<number>`count(*)::int` })
-    .from(capabilityEconomicsTable);
+    .from(capabilityAlphaTable);
   const econCount = Number(econCountRow?.c ?? 0);
 
   const status = state.toolErrors.length === 0 ? "completed" : "completed_with_errors";

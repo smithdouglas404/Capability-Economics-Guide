@@ -1,10 +1,10 @@
 import { Router, Request, Response } from "express";
 import { db } from "@workspace/db";
 import {
-  vceAssessmentsTable,
-  vceCyclesTable,
-  vceQuestionsTable,
-  vceResearchItemsTable,
+  vcrAssessmentsTable,
+  vcrCyclesTable,
+  vcrQuestionsTable,
+  vcrResearchItemsTable,
   CREDIT_COSTS,
 } from "@workspace/db";
 import { eq, desc, asc, and, inArray, ne } from "drizzle-orm";
@@ -16,7 +16,7 @@ import {
   runNextCycle,
   runCycleById,
   finalizeAssessment,
-} from "../services/vce/index";
+} from "../services/vcr/index";
 
 const router = Router();
 
@@ -34,7 +34,7 @@ const createSchema = z.object({
   totalCycles: z.number().int().min(1).max(30).optional(),
 });
 
-router.post("/vce/assessments", async (req: Request, res: Response) => {
+router.post("/vcr/assessments", async (req: Request, res: Response) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", issues: parsed.error.issues }); return; }
   try {
@@ -49,23 +49,23 @@ router.post("/vce/assessments", async (req: Request, res: Response) => {
   }
 });
 
-router.get("/vce/assessments", async (_req: Request, res: Response) => {
+router.get("/vcr/assessments", async (_req: Request, res: Response) => {
   try {
-    const rows = await db.select().from(vceAssessmentsTable).orderBy(desc(vceAssessmentsTable.updatedAt));
+    const rows = await db.select().from(vcrAssessmentsTable).orderBy(desc(vcrAssessmentsTable.updatedAt));
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Query failed" }); }
 });
 
-router.get("/vce/assessments/:id", async (req: Request, res: Response) => {
+router.get("/vcr/assessments/:id", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    const [assessment] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, id));
+    const [assessment] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, id));
     if (!assessment) { res.status(404).json({ error: "Not found" }); return; }
     const [cycles, questions, items] = await Promise.all([
-      db.select().from(vceCyclesTable).where(eq(vceCyclesTable.assessmentId, id)).orderBy(asc(vceCyclesTable.cycleNumber)),
-      db.select().from(vceQuestionsTable).where(eq(vceQuestionsTable.assessmentId, id)).orderBy(asc(vceQuestionsTable.displayOrder)),
-      db.select().from(vceResearchItemsTable).where(eq(vceResearchItemsTable.assessmentId, id)).orderBy(desc(vceResearchItemsTable.createdAt)),
+      db.select().from(vcrCyclesTable).where(eq(vcrCyclesTable.assessmentId, id)).orderBy(asc(vcrCyclesTable.cycleNumber)),
+      db.select().from(vcrQuestionsTable).where(eq(vcrQuestionsTable.assessmentId, id)).orderBy(asc(vcrQuestionsTable.displayOrder)),
+      db.select().from(vcrResearchItemsTable).where(eq(vcrResearchItemsTable.assessmentId, id)).orderBy(desc(vcrResearchItemsTable.createdAt)),
     ]);
     res.json({ assessment, cycles, questions, researchItems: items });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Query failed" }); }
@@ -78,25 +78,25 @@ const answerSchema = z.object({
   })).min(1),
 });
 
-router.post("/vce/assessments/:id/answer", async (req: Request, res: Response) => {
+router.post("/vcr/assessments/:id/answer", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = answerSchema.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Validation failed", issues: parsed.error.issues }); return; }
   try {
     const ids = parsed.data.answers.map(a => a.questionId);
-    const existing = await db.select({ id: vceQuestionsTable.id, assessmentId: vceQuestionsTable.assessmentId }).from(vceQuestionsTable).where(inArray(vceQuestionsTable.id, ids));
+    const existing = await db.select({ id: vcrQuestionsTable.id, assessmentId: vcrQuestionsTable.assessmentId }).from(vcrQuestionsTable).where(inArray(vcrQuestionsTable.id, ids));
     if (!existing.every(q => q.assessmentId === id)) { res.status(400).json({ error: "Question id mismatch with assessment" }); return; }
     for (const a of parsed.data.answers) {
-      await db.update(vceQuestionsTable).set({ answer: a.answer, status: "answered", answeredAt: new Date() }).where(eq(vceQuestionsTable.id, a.questionId));
+      await db.update(vcrQuestionsTable).set({ answer: a.answer, status: "answered", answeredAt: new Date() }).where(eq(vcrQuestionsTable.id, a.questionId));
     }
-    await db.update(vceAssessmentsTable).set({ updatedAt: new Date() }).where(eq(vceAssessmentsTable.id, id));
+    await db.update(vcrAssessmentsTable).set({ updatedAt: new Date() }).where(eq(vcrAssessmentsTable.id, id));
     res.json({ updated: parsed.data.answers.length });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Update failed" }); }
 });
 
 // Run the NEXT scheduled cycle for this campaign
-router.post("/vce/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
+router.post("/vcr/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.VCR_CYCLE), async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
@@ -106,7 +106,7 @@ router.post("/vce/assessments/:id/cycles/run-next", deductCredits(CREDIT_COSTS.V
 });
 
 // Run a SPECIFIC cycle (e.g. retry a failed one)
-router.post("/vce/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COSTS.VCE_CYCLE), async (req: Request, res: Response) => {
+router.post("/vcr/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COSTS.VCR_CYCLE), async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   const cycleId = paramInt(req.params.cycleId);
   if (!Number.isInteger(id) || !Number.isInteger(cycleId)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -116,7 +116,7 @@ router.post("/vce/assessments/:id/cycles/:cycleId/run", deductCredits(CREDIT_COS
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Cycle failed" }); }
 });
 
-router.post("/vce/assessments/:id/finalize", async (req: Request, res: Response) => {
+router.post("/vcr/assessments/:id/finalize", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
@@ -126,41 +126,41 @@ router.post("/vce/assessments/:id/finalize", async (req: Request, res: Response)
 });
 
 // ----- Single pane of glass: unified inbox (questions awaiting answer + findings awaiting review) -----
-router.get("/vce/inbox", async (_req: Request, res: Response) => {
+router.get("/vcr/inbox", async (_req: Request, res: Response) => {
   try {
     const findings = await db.select({
-      id: vceResearchItemsTable.id,
-      assessmentId: vceResearchItemsTable.assessmentId,
-      cycleId: vceResearchItemsTable.cycleId,
-      kind: vceResearchItemsTable.kind,
-      title: vceResearchItemsTable.title,
-      summary: vceResearchItemsTable.summary,
-      confidenceScore: vceResearchItemsTable.confidenceScore,
-      evidenceCount: vceResearchItemsTable.evidenceCount,
-      crossValidated: vceResearchItemsTable.crossValidated,
-      contradictions: vceResearchItemsTable.contradictions,
-      createdAt: vceResearchItemsTable.createdAt,
-      clientName: vceAssessmentsTable.clientName,
+      id: vcrResearchItemsTable.id,
+      assessmentId: vcrResearchItemsTable.assessmentId,
+      cycleId: vcrResearchItemsTable.cycleId,
+      kind: vcrResearchItemsTable.kind,
+      title: vcrResearchItemsTable.title,
+      summary: vcrResearchItemsTable.summary,
+      confidenceScore: vcrResearchItemsTable.confidenceScore,
+      evidenceCount: vcrResearchItemsTable.evidenceCount,
+      crossValidated: vcrResearchItemsTable.crossValidated,
+      contradictions: vcrResearchItemsTable.contradictions,
+      createdAt: vcrResearchItemsTable.createdAt,
+      clientName: vcrAssessmentsTable.clientName,
     })
-      .from(vceResearchItemsTable)
-      .innerJoin(vceAssessmentsTable, eq(vceAssessmentsTable.id, vceResearchItemsTable.assessmentId))
-      .where(eq(vceResearchItemsTable.status, "pending"))
-      .orderBy(desc(vceResearchItemsTable.createdAt));
+      .from(vcrResearchItemsTable)
+      .innerJoin(vcrAssessmentsTable, eq(vcrAssessmentsTable.id, vcrResearchItemsTable.assessmentId))
+      .where(eq(vcrResearchItemsTable.status, "pending"))
+      .orderBy(desc(vcrResearchItemsTable.createdAt));
 
     const questions = await db.select({
-      id: vceQuestionsTable.id,
-      assessmentId: vceQuestionsTable.assessmentId,
-      cycleId: vceQuestionsTable.cycleId,
-      question: vceQuestionsTable.question,
-      rationale: vceQuestionsTable.rationale,
-      priority: vceQuestionsTable.priority,
-      askedAt: vceQuestionsTable.askedAt,
-      clientName: vceAssessmentsTable.clientName,
+      id: vcrQuestionsTable.id,
+      assessmentId: vcrQuestionsTable.assessmentId,
+      cycleId: vcrQuestionsTable.cycleId,
+      question: vcrQuestionsTable.question,
+      rationale: vcrQuestionsTable.rationale,
+      priority: vcrQuestionsTable.priority,
+      askedAt: vcrQuestionsTable.askedAt,
+      clientName: vcrAssessmentsTable.clientName,
     })
-      .from(vceQuestionsTable)
-      .innerJoin(vceAssessmentsTable, eq(vceAssessmentsTable.id, vceQuestionsTable.assessmentId))
-      .where(and(eq(vceQuestionsTable.status, "pending"), ne(vceAssessmentsTable.status, "finalized")))
-      .orderBy(desc(vceQuestionsTable.priority), desc(vceQuestionsTable.askedAt));
+      .from(vcrQuestionsTable)
+      .innerJoin(vcrAssessmentsTable, eq(vcrAssessmentsTable.id, vcrQuestionsTable.assessmentId))
+      .where(and(eq(vcrQuestionsTable.status, "pending"), ne(vcrAssessmentsTable.status, "finalized")))
+      .orderBy(desc(vcrQuestionsTable.priority), desc(vcrQuestionsTable.askedAt));
 
     res.json({
       findings: findings.map(f => ({ ...f, type: "finding" as const })),
@@ -179,7 +179,7 @@ const reviewSchema = z.object({
   includeInReport: z.boolean().optional(),
 });
 
-router.patch("/vce/research/:id", async (req: Request, res: Response) => {
+router.patch("/vcr/research/:id", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = reviewSchema.safeParse(req.body);
@@ -192,7 +192,7 @@ router.patch("/vce/research/:id", async (req: Request, res: Response) => {
     if (parsed.data.summary !== undefined) update.summary = parsed.data.summary;
     if (parsed.data.body !== undefined) update.body = parsed.data.body;
     if (parsed.data.includeInReport !== undefined) update.includeInReport = parsed.data.includeInReport;
-    const [row] = await db.update(vceResearchItemsTable).set(update).where(eq(vceResearchItemsTable.id, id)).returning();
+    const [row] = await db.update(vcrResearchItemsTable).set(update).where(eq(vcrResearchItemsTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Update failed" }); }
@@ -203,7 +203,7 @@ const questionPatchSchema = z.object({
   answer: z.string().max(4000).optional(),
 });
 
-router.patch("/vce/questions/:id", async (req: Request, res: Response) => {
+router.patch("/vcr/questions/:id", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   const parsed = questionPatchSchema.safeParse(req.body);
@@ -212,28 +212,28 @@ router.patch("/vce/questions/:id", async (req: Request, res: Response) => {
     const update: Record<string, unknown> = {};
     if (parsed.data.answer !== undefined) { update.answer = parsed.data.answer; update.answeredAt = new Date(); update.status = "answered"; }
     if (parsed.data.status) update.status = parsed.data.status;
-    const [row] = await db.update(vceQuestionsTable).set(update).where(eq(vceQuestionsTable.id, id)).returning();
+    const [row] = await db.update(vcrQuestionsTable).set(update).where(eq(vcrQuestionsTable.id, id)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Update failed" }); }
 });
 
-router.delete("/vce/assessments/:id", async (req: Request, res: Response) => {
+router.delete("/vcr/assessments/:id", async (req: Request, res: Response) => {
   const id = paramInt(req.params.id);
   if (!Number.isInteger(id)) { res.status(400).json({ error: "Invalid id" }); return; }
   try {
-    await db.delete(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, id));
+    await db.delete(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, id));
     res.json({ deleted: id });
   } catch (e) { res.status(500).json({ error: e instanceof Error ? e.message : "Delete failed" }); }
 });
 
 /**
- * GET /api/vce/sample-brief
+ * GET /api/vcr/sample-brief
  *
- * Returns an anonymized real brief from a previously-completed VCE
- * assessment for the "Try with sample brief" button on /vce. Replaces
+ * Returns an anonymized real brief from a previously-completed VCR
+ * assessment for the "Try with sample brief" button on /vcr. Replaces
  * the hardcoded SAMPLE_BRIEF "Atlas Copper Holdings" constant in
- * pages/vce.tsx:236-251.
+ * pages/vcr.tsx:236-251.
  *
  * Anonymization: clientName is replaced with a generic descriptor
  * derived from the industry. The value_case prose is returned as-is
@@ -242,16 +242,16 @@ router.delete("/vce/assessments/:id", async (req: Request, res: Response) => {
  * When no completed assessments exist yet, returns 404 — the frontend
  * should hide the "Try with sample brief" button gracefully.
  */
-router.get("/vce/sample-brief", async (_req: Request, res: Response) => {
+router.get("/vcr/sample-brief", async (_req: Request, res: Response) => {
   const [row] = await db
     .select({
-      clientName: vceAssessmentsTable.clientName,
-      industryId: vceAssessmentsTable.industryId,
-      valueCase: vceAssessmentsTable.valueCase,
+      clientName: vcrAssessmentsTable.clientName,
+      industryId: vcrAssessmentsTable.industryId,
+      valueCase: vcrAssessmentsTable.valueCase,
     })
-    .from(vceAssessmentsTable)
-    .where(ne(vceAssessmentsTable.status, "draft"))
-    .orderBy(desc(vceAssessmentsTable.createdAt))
+    .from(vcrAssessmentsTable)
+    .where(ne(vcrAssessmentsTable.status, "draft"))
+    .orderBy(desc(vcrAssessmentsTable.createdAt))
     .limit(1);
 
   if (!row) {

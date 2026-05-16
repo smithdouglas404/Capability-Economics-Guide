@@ -18,7 +18,7 @@ const SERVICE_DESCRIPTIONS: Record<string, string> = {
   mem0: "Long-term agent memory (durable observations, validated patterns).",
   letta: "Stateful agent memory blocks and archival recall.",
   openrouter: "LLM routing for the autonomous agent and enrichment runners.",
-  anthropic: "Direct Claude access for reasoning-heavy assessment + VCE.",
+  anthropic: "Direct Claude access for reasoning-heavy assessment + VCR.",
   perplexity: "Cited web search for triangulation and signal enrichment.",
   foundry: "Palantir Foundry sync — capability dataset reads + writes.",
   stripe: "Subscription billing, invoices, marketplace payouts.",

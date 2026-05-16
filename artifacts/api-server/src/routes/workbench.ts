@@ -602,7 +602,7 @@ router.get("/workbench/example", async (_req, res) => {
     return;
   }
   try {
-    const { capabilityEconomicsTable } = await import("@workspace/db");
+    const { capabilityAlphaTable } = await import("@workspace/db");
     const rows = await db
       .select({
         capabilityId: cviComponentsTable.capabilityId,
@@ -611,14 +611,14 @@ router.get("/workbench/example", async (_req, res) => {
         industryName: industriesTable.name,
         score: cviComponentsTable.consensusScore,
         velocity: cviComponentsTable.velocity,
-        summaryNarrative: capabilityEconomicsTable.summaryNarrative,
-        revenueExposureMm: capabilityEconomicsTable.revenueExposureMm,
-        marginStructurePct: capabilityEconomicsTable.marginStructurePct,
+        summaryNarrative: capabilityAlphaTable.summaryNarrative,
+        revenueExposureMm: capabilityAlphaTable.revenueExposureMm,
+        marginStructurePct: capabilityAlphaTable.marginStructurePct,
       })
       .from(cviComponentsTable)
       .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, cviComponentsTable.capabilityId))
       .innerJoin(industriesTable, eq(industriesTable.id, cviComponentsTable.industryId))
-      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, cviComponentsTable.capabilityId))
+      .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, cviComponentsTable.capabilityId))
       .orderBy(desc(sql<number>`abs(${cviComponentsTable.velocity})`))
       .limit(8);
 

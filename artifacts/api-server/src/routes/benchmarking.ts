@@ -6,7 +6,7 @@ import {
   companyScoresTable,
   companyCapabilityFingerprintTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
   industriesTable,
   organizationsTable,
@@ -377,7 +377,7 @@ router.post("/benchmarking/run", async (req, res) => {
     const relevantCapIds = capabilityIds?.length ? allCapIds.filter((id) => capabilityIds.includes(id)) : allCapIds;
 
     const economics = relevantCapIds.length
-      ? await db.select().from(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, relevantCapIds))
+      ? await db.select().from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, relevantCapIds))
       : [];
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
 

@@ -18,7 +18,7 @@ import { createHash } from "node:crypto";
 import {
   db,
   cviSnapshotsTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
   capabilityDependenciesTable,
@@ -125,7 +125,7 @@ async function fetchRows(id: DatasetId): Promise<Array<Record<string, unknown>>>
     case "cvi_snapshots":
       return db.select().from(cviSnapshotsTable).orderBy(desc(cviSnapshotsTable.id));
     case "capability_metrics":
-      return db.select().from(capabilityEconomicsTable).orderBy(desc(capabilityEconomicsTable.id));
+      return db.select().from(capabilityAlphaTable).orderBy(desc(capabilityAlphaTable.id));
     case "macro_events":
       return db.select().from(macroEventsTable).orderBy(desc(macroEventsTable.id));
     case "value_chain_stages":

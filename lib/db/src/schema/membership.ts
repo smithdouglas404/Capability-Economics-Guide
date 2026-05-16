@@ -115,7 +115,7 @@ export const CREDIT_COSTS = {
   RESEARCH_QUERY: 2,
   TRIANGULATION: 6,
   BENCHMARK_DISCOVERY: 4,
-  VCE_CYCLE: 50,
+  VCR_CYCLE: 50,
   INVESTMENT_THESIS: 4,
   NL_QUERY: 0,
   // RAG-powered NL query (Haiku class + Sonnet synthesis) costs ~$0.05

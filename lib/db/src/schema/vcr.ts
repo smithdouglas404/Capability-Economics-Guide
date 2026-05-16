@@ -1,8 +1,12 @@
 import { pgTable, serial, integer, text, varchar, real, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
 import { industriesTable } from "./industries";
 
-// A VCE assessment IS the campaign. Default duration is 7 days, decomposed into N cycles.
-export const vceAssessmentsTable = pgTable("vce_assessments", {
+// VCR = Value Chain Research. A VCR assessment IS the campaign. Default
+// duration is 7 days, decomposed into N cycles.
+//
+// Renamed from VCR (Value Chain Research) during the Inflexcvi cutover.
+// Backing SQL tables renamed via lib/db/migrations/0002_vcr_and_alpha_rename.sql.
+export const vcrAssessmentsTable = pgTable("vcr_assessments", {
   id: serial("id").primaryKey(),
   clientName: text("client_name").notNull(),
   industryId: integer("industry_id").references(() => industriesTable.id, { onDelete: "set null" }),
@@ -30,9 +34,9 @@ export const vceAssessmentsTable = pgTable("vce_assessments", {
 });
 
 // One row per LangGraph invocation (one per "day" by default).
-export const vceCyclesTable = pgTable("vce_cycles", {
+export const vcrCyclesTable = pgTable("vcr_cycles", {
   id: serial("id").primaryKey(),
-  assessmentId: integer("assessment_id").notNull().references(() => vceAssessmentsTable.id, { onDelete: "cascade" }),
+  assessmentId: integer("assessment_id").notNull().references(() => vcrAssessmentsTable.id, { onDelete: "cascade" }),
   cycleNumber: integer("cycle_number").notNull(),
   // status: scheduled | planning | researching | critiquing | synthesizing | review | completed | failed
   status: varchar("status", { length: 20 }).notNull().default("scheduled"),
@@ -49,10 +53,10 @@ export const vceCyclesTable = pgTable("vce_cycles", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const vceQuestionsTable = pgTable("vce_questions", {
+export const vcrQuestionsTable = pgTable("vcr_questions", {
   id: serial("id").primaryKey(),
-  assessmentId: integer("assessment_id").notNull().references(() => vceAssessmentsTable.id, { onDelete: "cascade" }),
-  cycleId: integer("cycle_id").references(() => vceCyclesTable.id, { onDelete: "set null" }),
+  assessmentId: integer("assessment_id").notNull().references(() => vcrAssessmentsTable.id, { onDelete: "cascade" }),
+  cycleId: integer("cycle_id").references(() => vcrCyclesTable.id, { onDelete: "set null" }),
   question: text("question").notNull(),
   rationale: text("rationale"),
   answer: text("answer"),
@@ -65,10 +69,10 @@ export const vceQuestionsTable = pgTable("vce_questions", {
   answeredAt: timestamp("answered_at"),
 });
 
-export const vceResearchItemsTable = pgTable("vce_research_items", {
+export const vcrResearchItemsTable = pgTable("vcr_research_items", {
   id: serial("id").primaryKey(),
-  assessmentId: integer("assessment_id").notNull().references(() => vceAssessmentsTable.id, { onDelete: "cascade" }),
-  cycleId: integer("cycle_id").references(() => vceCyclesTable.id, { onDelete: "set null" }),
+  assessmentId: integer("assessment_id").notNull().references(() => vcrAssessmentsTable.id, { onDelete: "cascade" }),
+  cycleId: integer("cycle_id").references(() => vcrCyclesTable.id, { onDelete: "set null" }),
   // kind: capability_gap | opportunity | recommendation | risk | insight | benchmark | evidence_gap | contradiction
   kind: varchar("kind", { length: 30 }).notNull(),
   title: text("title").notNull(),

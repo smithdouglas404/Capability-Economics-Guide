@@ -5,7 +5,7 @@ import {
   organizationsTable,
   organizationCapabilitiesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
   sourceTriangulationsTable,
 } from "@workspace/db";
@@ -87,7 +87,7 @@ router.get("/war-room/compare", async (req, res) => {
 
     // Get economics for moat/evar/ai-exposure comparisons
     const economics = capIds.length
-      ? await db.select().from(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, capIds))
+      ? await db.select().from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, capIds))
       : [];
 
     const components = capIds.length

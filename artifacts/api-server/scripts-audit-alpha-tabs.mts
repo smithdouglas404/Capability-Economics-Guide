@@ -29,7 +29,7 @@ import { db } from "@workspace/db";
 import {
   industriesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
 } from "@workspace/db";
 import { eq, sql, and, inArray } from "drizzle-orm";
@@ -156,7 +156,7 @@ async function checkThesisPrecondition(t: Industry) {
   const caps = await db.select({ id: capabilitiesTable.id }).from(capabilitiesTable).where(eq(capabilitiesTable.industryId, t.id));
   const capIds = caps.map((c) => c.id);
   if (capIds.length === 0) { record("thesis", t.name, false, "no capabilities"); return; }
-  const econ = await db.select({ id: capabilityEconomicsTable.capabilityId }).from(capabilityEconomicsTable).where(inArray(capabilityEconomicsTable.capabilityId, capIds));
+  const econ = await db.select({ id: capabilityAlphaTable.capabilityId }).from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, capIds));
   const quad = await db.select({ id: capabilityQuadrantsTable.capabilityId }).from(capabilityQuadrantsTable).where(inArray(capabilityQuadrantsTable.capabilityId, capIds));
   const econSet = new Set(econ.map((e) => e.id));
   const both = quad.filter((q) => econSet.has(q.id)).length;

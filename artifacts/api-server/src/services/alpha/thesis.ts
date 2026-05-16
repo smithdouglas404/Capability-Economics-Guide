@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
   capabilityDependenciesTable,
   dependencyEdgeScoresTable,
@@ -66,7 +66,7 @@ export async function generateThesisMemo(capabilityId: number): Promise<ThesisMe
   const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capabilityId));
   if (!cap) throw new Error("capability not found");
   const [ind] = await db.select().from(industriesTable).where(eq(industriesTable.id, cap.industryId));
-  const [econ] = await db.select().from(capabilityEconomicsTable).where(eq(capabilityEconomicsTable.capabilityId, capabilityId));
+  const [econ] = await db.select().from(capabilityAlphaTable).where(eq(capabilityAlphaTable.capabilityId, capabilityId));
   const [quad] = await db.select().from(capabilityQuadrantsTable).where(eq(capabilityQuadrantsTable.capabilityId, capabilityId));
 
   const upstreamDeps = await db.select().from(capabilityDependenciesTable).where(eq(capabilityDependenciesTable.capabilityId, capabilityId));

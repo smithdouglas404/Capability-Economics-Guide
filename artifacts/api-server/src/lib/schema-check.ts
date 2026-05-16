@@ -12,7 +12,7 @@ import { logger } from "./logger";
 const REQUIRED_TABLES = [
   "industries",
   "capabilities",
-  "capability_economics",
+  "capability_alpha",
   "capability_dependencies",
   "enrichment_runs",
   "enrichment_config",

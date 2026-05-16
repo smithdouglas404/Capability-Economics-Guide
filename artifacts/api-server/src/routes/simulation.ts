@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   simulationScenariosTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
   dependencyEdgeScoresTable,
   capabilitiesTable,
@@ -59,8 +59,8 @@ router.post("/simulation/run", async (req, res) => {
     const capMap = new Map(caps.map((c) => [c.id, c]));
 
     // Get current economics for affected capabilities
-    const economics = await db.select().from(capabilityEconomicsTable)
-      .where(inArray(capabilityEconomicsTable.capabilityId, capIds));
+    const economics = await db.select().from(capabilityAlphaTable)
+      .where(inArray(capabilityAlphaTable.capabilityId, capIds));
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
 
     // Get current CVI components

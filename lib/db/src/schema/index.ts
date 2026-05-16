@@ -14,7 +14,7 @@ export * from "./assessments";
 export * from "./enrichment";
 export * from "./educational-content";
 export * from "./case-studies";
-export * from "./vce";
+export * from "./vcr";
 export * from "./alpha";
 export * from "./alpha-config";
 export * from "./agent-tuning";

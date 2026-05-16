@@ -100,7 +100,7 @@ const DEFAULT_TIERS = [
       "Innovation Pipeline: track projects from ideation through scale with capability uplift",
       "ROI Tracker: quarterly spend, revenue impact, and efficiency gains per capability",
       "All 10 CE Alpha tabs: EVaR, Dependency Impact, Narrative Gap, Moat, Fragility, Arbitrage, Capital & Talent Flows, Talent, M&A Targets, Thesis",
-      "VCE: multi-day autonomous research campaigns",
+      "VCR: multi-day autonomous research campaigns",
       "Run custom assessments with SEC EDGAR, voice, document, and competitor analysis",
       "Organization profile and project workspace",
       "Submit up to 10 custom capabilities per month",

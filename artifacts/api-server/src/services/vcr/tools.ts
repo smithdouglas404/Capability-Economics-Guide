@@ -35,7 +35,7 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
 }
 
 async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, jsonMode = false): Promise<string> {
-  // VCE synthesis runs on Claude Sonnet 4.6 — comparable JSON reliability,
+  // VCR synthesis runs on Claude Sonnet 4.6 — comparable JSON reliability,
   // ~2.5x faster than GLM 5.1, and noticeably richer narrative content (named
   // vendors, specific $ figures, multi-thread synthesis). Function name kept
   // as `glmCall` to avoid sweeping renames; body is model-agnostic.

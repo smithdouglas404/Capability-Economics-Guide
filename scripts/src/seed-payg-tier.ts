@@ -74,7 +74,7 @@ const PACKS = [
   {
     slug: "power",
     displayName: "Power",
-    description: "55,000 credits with a 37% bonus. Heavy users; suitable for VCE cycles + C-suite perspectives.",
+    description: "55,000 credits with a 37% bonus. Heavy users; suitable for VCR cycles + C-suite perspectives.",
     priceCents: 10000,
     creditAmount: 55000,
     displayOrder: 40,

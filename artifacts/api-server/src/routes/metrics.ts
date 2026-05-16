@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from "express";
 import { db } from "@workspace/db";
 import {
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   cviComponentsTable,
   cviSnapshotsTable,
   industriesTable,
@@ -102,13 +102,13 @@ router.get("/metrics/principle-stats", async (_req: Request, res: Response) => {
   try {
     const rows = await db
       .select({
-        revenue: capabilityEconomicsTable.revenueExposureMm,
-        margin: capabilityEconomicsTable.marginStructurePct,
+        revenue: capabilityAlphaTable.revenueExposureMm,
+        margin: capabilityAlphaTable.marginStructurePct,
       })
-      .from(capabilityEconomicsTable)
+      .from(capabilityAlphaTable)
       .where(and(
-        isNotNull(capabilityEconomicsTable.revenueExposureMm),
-        isNotNull(capabilityEconomicsTable.marginStructurePct),
+        isNotNull(capabilityAlphaTable.revenueExposureMm),
+        isNotNull(capabilityAlphaTable.marginStructurePct),
       ));
 
     const yields: number[] = [];
@@ -168,12 +168,12 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
     // Value unlocked: sum of all (revenue × margin/100) where both are non-null.
     const [valueRow] = await db
       .select({
-        total: sql<number>`coalesce(sum(${capabilityEconomicsTable.revenueExposureMm} * ${capabilityEconomicsTable.marginStructurePct} / 100.0), 0)`,
+        total: sql<number>`coalesce(sum(${capabilityAlphaTable.revenueExposureMm} * ${capabilityAlphaTable.marginStructurePct} / 100.0), 0)`,
       })
-      .from(capabilityEconomicsTable)
+      .from(capabilityAlphaTable)
       .where(and(
-        isNotNull(capabilityEconomicsTable.revenueExposureMm),
-        isNotNull(capabilityEconomicsTable.marginStructurePct),
+        isNotNull(capabilityAlphaTable.revenueExposureMm),
+        isNotNull(capabilityAlphaTable.marginStructurePct),
       ));
 
     const valueUnlockedMm = Number(valueRow?.total ?? 0);
@@ -182,17 +182,17 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
     const topRows = await db
       .select({
         capabilityName: capabilitiesTable.name,
-        annualMargin: sql<number>`${capabilityEconomicsTable.revenueExposureMm} * ${capabilityEconomicsTable.marginStructurePct} / 100.0`,
+        annualMargin: sql<number>`${capabilityAlphaTable.revenueExposureMm} * ${capabilityAlphaTable.marginStructurePct} / 100.0`,
       })
-      .from(capabilityEconomicsTable)
-      .innerJoin(capabilitiesTable, sql`${capabilitiesTable.id} = ${capabilityEconomicsTable.capabilityId}`)
+      .from(capabilityAlphaTable)
+      .innerJoin(capabilitiesTable, sql`${capabilitiesTable.id} = ${capabilityAlphaTable.capabilityId}`)
       .where(and(
-        isNotNull(capabilityEconomicsTable.revenueExposureMm),
-        isNotNull(capabilityEconomicsTable.marginStructurePct),
-        gt(capabilityEconomicsTable.revenueExposureMm, 0),
-        gt(capabilityEconomicsTable.marginStructurePct, 0),
+        isNotNull(capabilityAlphaTable.revenueExposureMm),
+        isNotNull(capabilityAlphaTable.marginStructurePct),
+        gt(capabilityAlphaTable.revenueExposureMm, 0),
+        gt(capabilityAlphaTable.marginStructurePct, 0),
       ))
-      .orderBy(desc(sql<number>`${capabilityEconomicsTable.revenueExposureMm} * ${capabilityEconomicsTable.marginStructurePct}`))
+      .orderBy(desc(sql<number>`${capabilityAlphaTable.revenueExposureMm} * ${capabilityAlphaTable.marginStructurePct}`))
       .limit(1);
 
     const topROIRow = topRows[0];

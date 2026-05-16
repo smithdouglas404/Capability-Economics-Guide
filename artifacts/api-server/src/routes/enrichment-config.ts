@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
-import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityEconomicsTable, enrichmentRunsTable } from "@workspace/db";
+import { db, enrichmentConfigTable, enrichmentIndustryOverridesTable, industriesTable, capabilitiesTable, capabilityAlphaTable, enrichmentRunsTable } from "@workspace/db";
 import { sql, desc, eq, gt, asc, and } from "drizzle-orm";
 import { z } from "zod/v4";
 import { requireReviewer } from "../middlewares/requireReviewer";
@@ -67,10 +67,10 @@ router.get("/admin/enrichment/industries", async (_req: Request, res: Response) 
     .select({
       industryId: capabilitiesTable.industryId,
       total: sql<number>`count(*)::int`,
-      withEconomics: sql<number>`count(${capabilityEconomicsTable.id})::int`,
+      withEconomics: sql<number>`count(${capabilityAlphaTable.id})::int`,
     })
     .from(capabilitiesTable)
-    .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
+    .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
     .groupBy(capabilitiesTable.industryId);
   const countByIndustry = new Map(counts.map(c => [c.industryId, c]));
 
@@ -155,10 +155,10 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     const counts = await db
       .select({
         total: sql<number>`count(*)::int`,
-        withEconomics: sql<number>`count(${capabilityEconomicsTable.id})::int`,
+        withEconomics: sql<number>`count(${capabilityAlphaTable.id})::int`,
       })
       .from(capabilitiesTable)
-      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id));
+      .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id));
     if (counts.length > 0) {
       const c = counts[0]!;
       capStats = {
@@ -288,9 +288,9 @@ router.get("/admin/enrichment/health", async (_req: Request, res: Response) => {
     if (minutesSince > 15) {
       try {
         const newRows = await db
-          .select({ id: capabilityEconomicsTable.id })
-          .from(capabilityEconomicsTable)
-          .where(gt(capabilityEconomicsTable.generatedAt, lastRunAt))
+          .select({ id: capabilityAlphaTable.id })
+          .from(capabilityAlphaTable)
+          .where(gt(capabilityAlphaTable.generatedAt, lastRunAt))
           .limit(1);
         if (newRows.length === 0) {
           silentFailure = {

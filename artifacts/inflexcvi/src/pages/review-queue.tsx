@@ -39,7 +39,7 @@ type DetailPreview = {
   economics?: {
     summaryNarrative?: string | null;
     traditionalNarrative?: string | null;
-    economicNarrative?: string | null;
+    alphaNarrative?: string | null;
     aiNarrative?: string | null;
     aiExposureScore?: number | null;
     aiTimeToDisplacementMonths?: number | null;
@@ -178,7 +178,7 @@ function PreviewPane({ id }: { id: number }) {
         </div>
         <div className="border rounded-none p-3">
           <div className="text-xs font-medium text-emerald-700 mb-1">Economic value</div>
-          <p className="text-sm">{e?.economicNarrative ?? <span className="italic text-muted-foreground">—</span>}</p>
+          <p className="text-sm">{e?.alphaNarrative ?? <span className="italic text-muted-foreground">—</span>}</p>
         </div>
       </div>
       <div className="border rounded-none p-3">

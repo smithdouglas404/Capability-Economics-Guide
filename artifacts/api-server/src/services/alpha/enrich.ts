@@ -3,7 +3,7 @@ import {
   capabilitiesTable,
   capabilityDependenciesTable,
   capabilityQuadrantsTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityMetricsTable,
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
@@ -130,14 +130,14 @@ async function enrichOneCapabilityEconomics(
 
     // Snapshot previous consensus quadrant so we can fire quadrant_transition
     // subscriptions if it changes after this insert.
-    const [prevRow] = await db.select({ q: capabilityEconomicsTable.consensusQuadrant })
-      .from(capabilityEconomicsTable)
-      .where(eq(capabilityEconomicsTable.capabilityId, cap.id))
-      .orderBy(desc(capabilityEconomicsTable.generatedAt))
+    const [prevRow] = await db.select({ q: capabilityAlphaTable.consensusQuadrant })
+      .from(capabilityAlphaTable)
+      .where(eq(capabilityAlphaTable.capabilityId, cap.id))
+      .orderBy(desc(capabilityAlphaTable.generatedAt))
       .limit(1);
     const prevQuadrant = prevRow?.q ?? null;
 
-    await db.insert(capabilityEconomicsTable).values({
+    await db.insert(capabilityAlphaTable).values({
       capabilityId: cap.id,
       industryId: cap.industryId,
       tamUsdMm: parsed.tam_usd_mm ?? null,
@@ -263,7 +263,7 @@ async function enrichOneCapabilityDetail(
       `Return ONLY a JSON object with these keys:\n\n` +
       `"summary_narrative" (string, 2-3 sentences in plain English explaining what THIS capability actually does inside a ${industryName} company — name a concrete activity, a tool category, and a typical outcome a non-expert executive would recognize. Definitional, no jargon, no $ figures), ` +
       `"traditional_narrative" (string, 2-3 sentences "consequence-style" explaining WHY the conventional view is wrong with a concrete number or example — must include a $ figure, regulator, or competitor name), ` +
-      `"economic_narrative" (string, 2-3 sentences quantifying the dollar value of treating this as a real capability, include a specific multiplier or $ figure), ` +
+      `"alpha_narrative" (string, 2-3 sentences quantifying the dollar value of treating this as a real capability, include a specific multiplier or $ figure), ` +
       `"metric_interpretations" (array of {name: string, interpretation: string} — interpretation is 1-2 sentences explaining what crossing the benchmark means in money or risk; one entry per metric in input order), ` +
       `"dependency_rationales" (array of {dependsOnName: string, rationale: string} — rationale is 1-2 sentences naming the real-world risk if the upstream cap is disrupted, mention a vendor or regulation; one per dependency), ` +
       `"role_consequences" (array of {roleTitle: string, consequence: string} — 1-2 sentences naming what this exec must do or explain this quarter; one per role), ` +
@@ -281,7 +281,8 @@ async function enrichOneCapabilityDetail(
     const parsed = extractJson(glmText) as {
       summary_narrative?: string;
       traditional_narrative?: string;
-      economic_narrative?: string;
+      alpha_narrative?: string;
+      economic_narrative?: string; // back-compat: older LLM outputs still use the old key
       metric_interpretations?: Array<{ name: string; interpretation: string }>;
       dependency_rationales?: Array<{ dependsOnName: string; rationale: string }>;
       role_consequences?: Array<{ roleTitle: string; consequence: string }>;
@@ -294,10 +295,10 @@ async function enrichOneCapabilityDetail(
     };
     if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad detail JSON" };
 
-    await db.update(capabilityEconomicsTable).set({
+    await db.update(capabilityAlphaTable).set({
       summaryNarrative: parsed.summary_narrative ?? null,
       traditionalNarrative: parsed.traditional_narrative ?? null,
-      economicNarrative: parsed.economic_narrative ?? null,
+      alphaNarrative: parsed.alpha_narrative ?? parsed.economic_narrative ?? null,
       metricInterpretations: Array.isArray(parsed.metric_interpretations) ? parsed.metric_interpretations.slice(0, 12) : null,
       dependencyRationales: Array.isArray(parsed.dependency_rationales) ? parsed.dependency_rationales.slice(0, 20) : null,
       roleConsequences: Array.isArray(parsed.role_consequences) ? parsed.role_consequences.slice(0, 12) : null,
@@ -307,7 +308,7 @@ async function enrichOneCapabilityDetail(
       aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
       aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
       aiNarrative: parsed.ai_narrative ?? null,
-    }).where(eq(capabilityEconomicsTable.id, econRowId));
+    }).where(eq(capabilityAlphaTable.id, econRowId));
 
     return { ok: true };
   } catch (e) {
@@ -329,7 +330,7 @@ export async function runDetailEnrichment(opts: { limit?: number; force?: boolea
   let enriched = 0;
   {
     const limit = opts.limit ?? 6;
-    const econRows = await db.select().from(capabilityEconomicsTable);
+    const econRows = await db.select().from(capabilityAlphaTable);
     // industryIds filter: scope the null-detail sweep to the target industries
     // so a bulk-path call after enriching Industry X doesn't also burn LLM
     // budget catching up backlog in unrelated industries.
@@ -438,12 +439,12 @@ async function regenerateOneAiSection(
     if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad JSON" };
     if (!parsed.ai_narrative || parsed.ai_narrative.length < 50) return { ok: false, error: "narrative too short" };
 
-    await db.update(capabilityEconomicsTable).set({
+    await db.update(capabilityAlphaTable).set({
       aiExposureScore: parsed.ai_exposure_score != null ? Math.min(100, Math.max(0, parsed.ai_exposure_score)) : null,
       aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
       aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
       aiNarrative: parsed.ai_narrative,
-    }).where(eq(capabilityEconomicsTable.id, econRowId));
+    }).where(eq(capabilityAlphaTable.id, econRowId));
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e).substring(0, 200) };
@@ -456,7 +457,7 @@ export async function backfillAiNarratives(opts: { limit?: number; capabilityIds
   let updated = 0;
   let failed = 0;
 
-  const econRows = await db.select().from(capabilityEconomicsTable);
+  const econRows = await db.select().from(capabilityAlphaTable);
   let targets = opts.capabilityIds && opts.capabilityIds.length > 0
     ? econRows.filter(r => opts.capabilityIds!.includes(r.capabilityId))
     : econRows;
@@ -512,7 +513,7 @@ export async function runAlphaEnrichment(opts: { limitCapabilities?: number; lim
     const industries = await db.select().from(industriesTable);
     const indById = new Map(industries.map(i => [i.id, i.name]));
 
-    const alreadyEnriched = await db.select({ capabilityId: capabilityEconomicsTable.capabilityId }).from(capabilityEconomicsTable);
+    const alreadyEnriched = await db.select({ capabilityId: capabilityAlphaTable.capabilityId }).from(capabilityAlphaTable);
     const enrichedIds = new Set(alreadyEnriched.map(r => r.capabilityId));
 
     const quadrants = await db.select({ capabilityId: capabilityQuadrantsTable.capabilityId, economicImpactScore: capabilityQuadrantsTable.economicImpactScore }).from(capabilityQuadrantsTable);

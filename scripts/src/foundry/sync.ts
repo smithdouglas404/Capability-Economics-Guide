@@ -11,7 +11,7 @@ import {
   db,
   industriesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
   companyCapabilityProfilesTable,
@@ -63,13 +63,13 @@ async function main() {
     "rationale", "perplexitySources", "generatedAt",
   ]);
 
-  const economics = await db.select().from(capabilityEconomicsTable);
+  const economics = await db.select().from(capabilityAlphaTable);
   await syncOne("ce_economics", DATASETS.economics, economics, [
     "id", "capabilityId", "industryId", "tamUsdMm", "samUsdMm",
     "marginStructurePct", "halfLifeMonths", "commoditizationVelocity",
     "revenueExposureMm", "consensusQuadrant", "consensusConfidence",
     "consensusSummary", "consensusSources", "rationale",
-    "summaryNarrative", "traditionalNarrative", "economicNarrative",
+    "summaryNarrative", "traditionalNarrative", "alphaNarrative",
     "aiNarrative", "aiExposureScore", "aiTimeToDisplacementMonths",
     "aiSubstitutes", "metricInterpretations", "dependencyRationales",
     "roleConsequences", "playbook", "benchmarkInterpretation", "generatedAt",

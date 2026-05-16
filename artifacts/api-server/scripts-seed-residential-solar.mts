@@ -14,7 +14,7 @@ import {
   db,
   industriesTable,
   capabilitiesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilityQuadrantsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -306,9 +306,9 @@ log(`Capabilities: ${capRows.length} present, ${capabilitiesAdded} newly inserte
 
 // 3. Per-capability Perplexity enrichment
 const existingEcon = await db
-  .select({ capabilityId: capabilityEconomicsTable.capabilityId })
-  .from(capabilityEconomicsTable)
-  .where(eq(capabilityEconomicsTable.industryId, industryId));
+  .select({ capabilityId: capabilityAlphaTable.capabilityId })
+  .from(capabilityAlphaTable)
+  .where(eq(capabilityAlphaTable.industryId, industryId));
 const econDoneSet = new Set(existingEcon.map((r) => r.capabilityId));
 
 const existingQuad = await db
@@ -342,7 +342,7 @@ for (let i = 0; i < capRows.length; i++) {
       if (!parsed.consensus_quadrant) {
         errors.push(`[cap${cap.id}] econ skipped: Perplexity returned no consensus_quadrant`);
       } else {
-        await db.insert(capabilityEconomicsTable).values({
+        await db.insert(capabilityAlphaTable).values({
           capabilityId: cap.id,
           industryId,
           tamUsdMm: parsed.tam_usd_mm ?? null,

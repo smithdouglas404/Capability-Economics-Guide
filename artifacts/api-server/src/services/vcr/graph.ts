@@ -1,10 +1,10 @@
 import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
 import { db } from "@workspace/db";
 import {
-  vceAssessmentsTable,
-  vceCyclesTable,
-  vceQuestionsTable,
-  vceResearchItemsTable,
+  vcrAssessmentsTable,
+  vcrCyclesTable,
+  vcrQuestionsTable,
+  vcrResearchItemsTable,
   industriesTable,
 } from "@workspace/db";
 import { eq, asc, desc, and, inArray } from "drizzle-orm";
@@ -57,7 +57,7 @@ interface NewQuestion {
   priority: number;
 }
 
-const VCEState = Annotation.Root({
+const VCRState = Annotation.Root({
   assessmentId: Annotation<number>,
   cycleId: Annotation<number>,
   cycleNumber: Annotation<number>,
@@ -78,12 +78,12 @@ const VCEState = Annotation.Root({
   toolCalls: Annotation<number>,
   errors: Annotation<string[]>,
 });
-type S = typeof VCEState.State;
+type S = typeof VCRState.State;
 
 const MAX_QUERIES_PER_CYCLE = 4;
 
 async function planCycleObjective(state: S): Promise<Partial<S>> {
-  await db.update(vceCyclesTable).set({ status: "planning", startedAt: new Date() }).where(eq(vceCyclesTable.id, state.cycleId));
+  await db.update(vcrCyclesTable).set({ status: "planning", startedAt: new Date() }).where(eq(vcrCyclesTable.id, state.cycleId));
   const prompt = `You are the Virtual Capability Engineer running cycle ${state.cycleNumber} of ${state.totalCycles} for client ${state.clientName} (${state.industryName}).
 
 Campaign objective: ${state.campaignObjective || "(none set)"}
@@ -101,7 +101,7 @@ Define a SHARP objective for this cycle. It should advance the campaign by tackl
 }
 
 async function decomposeNode(state: S): Promise<Partial<S>> {
-  const prompt = `You are the VCE planning research for cycle ${state.cycleNumber}.
+  const prompt = `You are the VCR planning research for cycle ${state.cycleNumber}.
 Cycle objective: ${state.cycleObjective}
 Client: ${state.clientName} (${state.industryName})
 Value case: ${state.valueCase}
@@ -116,7 +116,7 @@ Return ONLY JSON: { "queries": [ { "kind": "...", "title": "...", "query": "spec
   });
   const plan = (parsed?.queries ?? []).slice(0, MAX_QUERIES_PER_CYCLE);
   if (plan.length === 0) return { researchPlan: [], errors: [...state.errors, "decompose: no queries produced (LLM output unparseable even after repair retry)"], toolCalls: state.toolCalls + 1 };
-  await db.update(vceCyclesTable).set({ status: "researching" }).where(eq(vceCyclesTable.id, state.cycleId));
+  await db.update(vcrCyclesTable).set({ status: "researching" }).where(eq(vcrCyclesTable.id, state.cycleId));
   return { researchPlan: plan, toolCalls: state.toolCalls + 1 };
 }
 
@@ -152,7 +152,7 @@ async function researchNode(state: S): Promise<Partial<S>> {
 }
 
 async function critiqueAndSynthesizeNode(state: S): Promise<Partial<S>> {
-  await db.update(vceCyclesTable).set({ status: "critiquing" }).where(eq(vceCyclesTable.id, state.cycleId));
+  await db.update(vcrCyclesTable).set({ status: "critiquing" }).where(eq(vcrCyclesTable.id, state.cycleId));
   const validated: ValidatedFinding[] = [];
   const errors: string[] = [];
   let calls = 0;
@@ -184,14 +184,14 @@ async function critiqueAndSynthesizeNode(state: S): Promise<Partial<S>> {
       errors.push(`critique [${f.title}]: ${e instanceof Error ? e.message : "fail"}`);
     }
   }
-  await db.update(vceCyclesTable).set({ status: "synthesizing" }).where(eq(vceCyclesTable.id, state.cycleId));
+  await db.update(vcrCyclesTable).set({ status: "synthesizing" }).where(eq(vcrCyclesTable.id, state.cycleId));
   return { validated, toolCalls: state.toolCalls + calls, errors: [...state.errors, ...errors] };
 }
 
 async function persistFindingsNode(state: S): Promise<Partial<S>> {
   let count = 0;
   for (const v of state.validated) {
-    await db.insert(vceResearchItemsTable).values({
+    await db.insert(vcrResearchItemsTable).values({
       assessmentId: state.assessmentId,
       cycleId: state.cycleId,
       kind: v.kind,
@@ -230,7 +230,7 @@ async function askFollowupsNode(state: S): Promise<Partial<S>> {
       : [];
   const filtered = qs.filter(q => q && typeof q.question === "string" && q.question.length > 8).slice(0, 5);
   if (filtered.length > 0) {
-    await db.insert(vceQuestionsTable).values(filtered.map((q, i) => ({
+    await db.insert(vcrQuestionsTable).values(filtered.map((q, i) => ({
       assessmentId: state.assessmentId,
       cycleId: state.cycleId,
       question: q.question,
@@ -252,7 +252,7 @@ New client questions: ${state.newQuestions.map(q => `- ${q.question}`).join("\n"
 Errors: ${state.errors.length ? state.errors.join("; ") : "none"}`;
   const summary = (await glmReasonTool.invoke({ prompt: summaryPrompt, maxTokens: 700 })).trim();
 
-  await db.update(vceCyclesTable).set({
+  await db.update(vcrCyclesTable).set({
     status: "completed",
     completedAt: new Date(),
     summary,
@@ -261,18 +261,18 @@ Errors: ${state.errors.length ? state.errors.join("; ") : "none"}`;
     toolCalls: state.toolCalls + 1,
     errors: state.errors,
     objective: state.cycleObjective,
-  }).where(eq(vceCyclesTable.id, state.cycleId));
+  }).where(eq(vcrCyclesTable.id, state.cycleId));
 
-  await db.update(vceAssessmentsTable).set({
+  await db.update(vcrAssessmentsTable).set({
     currentCycle: state.cycleNumber,
     status: state.cycleNumber >= state.totalCycles ? "review" : "active",
     updatedAt: new Date(),
-  }).where(eq(vceAssessmentsTable.id, state.assessmentId));
+  }).where(eq(vcrAssessmentsTable.id, state.assessmentId));
 
   return { cycleSummary: summary, toolCalls: state.toolCalls + 1 };
 }
 
-const workflow = new StateGraph(VCEState)
+const workflow = new StateGraph(VCRState)
   .addNode("plan", planCycleObjective)
   .addNode("decompose", decomposeNode)
   .addNode("research", researchNode)
@@ -292,9 +292,9 @@ const workflow = new StateGraph(VCEState)
 export const vceCycleGraph = workflow.compile();
 
 export async function runCycle(assessmentId: number, cycleId: number): Promise<{ itemsCreated: number; questionsCreated: number; summary: string; errors: string[]; toolCalls: number }> {
-  const [a] = await db.select().from(vceAssessmentsTable).where(eq(vceAssessmentsTable.id, assessmentId));
+  const [a] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, assessmentId));
   if (!a) throw new Error("Assessment not found");
-  const [cyc] = await db.select().from(vceCyclesTable).where(eq(vceCyclesTable.id, cycleId));
+  const [cyc] = await db.select().from(vcrCyclesTable).where(eq(vcrCyclesTable.id, cycleId));
   if (!cyc) throw new Error("Cycle not found");
 
   let industryName = "general";
@@ -303,12 +303,12 @@ export async function runCycle(assessmentId: number, cycleId: number): Promise<{
     if (ind) industryName = ind.name;
   }
 
-  const priorCycles = await db.select().from(vceCyclesTable)
-    .where(and(eq(vceCyclesTable.assessmentId, assessmentId), inArray(vceCyclesTable.status, ["completed"])))
-    .orderBy(asc(vceCyclesTable.cycleNumber));
+  const priorCycles = await db.select().from(vcrCyclesTable)
+    .where(and(eq(vcrCyclesTable.assessmentId, assessmentId), inArray(vcrCyclesTable.status, ["completed"])))
+    .orderBy(asc(vcrCyclesTable.cycleNumber));
   const priorSummaries = priorCycles.map(c => c.summary || "").filter(Boolean);
 
-  const allQs = await db.select().from(vceQuestionsTable).where(eq(vceQuestionsTable.assessmentId, assessmentId)).orderBy(desc(vceQuestionsTable.askedAt));
+  const allQs = await db.select().from(vcrQuestionsTable).where(eq(vcrQuestionsTable.assessmentId, assessmentId)).orderBy(desc(vcrQuestionsTable.askedAt));
   const answered = allQs.filter(q => q.answer && q.answer.trim().length > 0).map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n");
   const allText = allQs.map(q => `- ${q.question}`).join("\n");
 

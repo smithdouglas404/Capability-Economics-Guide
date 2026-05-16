@@ -2,7 +2,11 @@ import { pgTable, serial, integer, text, real, timestamp, jsonb, varchar } from 
 import { capabilitiesTable } from "./capabilities";
 import { industriesTable } from "./industries";
 
-export const capabilityEconomicsTable = pgTable("capability_economics", {
+// Renamed from capability_economics in lib/db/migrations/0002_vcr_and_alpha_rename.sql
+// as part of the Inflexcvi cutover. The legacy capabilityEconomicsTable
+// export is gone — callers must update to capabilityAlphaTable. The column
+// previously named economic_narrative has been renamed to alpha_narrative.
+export const capabilityAlphaTable = pgTable("capability_alpha", {
   id: serial("id").primaryKey(),
   capabilityId: integer("capability_id").notNull().references(() => capabilitiesTable.id, { onDelete: "cascade" }),
   industryId: integer("industry_id").notNull().references(() => industriesTable.id, { onDelete: "cascade" }),
@@ -25,7 +29,7 @@ export const capabilityEconomicsTable = pgTable("capability_economics", {
   aiSubstitutes: jsonb("ai_substitutes").$type<string[]>(),
   aiNarrative: text("ai_narrative"),
   traditionalNarrative: text("traditional_narrative"),
-  economicNarrative: text("economic_narrative"),
+  alphaNarrative: text("alpha_narrative"),
   metricInterpretations: jsonb("metric_interpretations").$type<Array<{ name: string; interpretation: string }>>(),
   dependencyRationales: jsonb("dependency_rationales").$type<Array<{ dependsOnName: string; rationale: string }>>(),
   roleConsequences: jsonb("role_consequences").$type<Array<{ roleTitle: string; consequence: string }>>(),

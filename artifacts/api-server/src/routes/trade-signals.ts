@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import {
   tradeSignalsTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   capabilitiesTable,
   industriesTable,
   capabilityQuadrantsTable,
@@ -66,11 +66,11 @@ router.post("/trade-signals/generate", async (req, res) => {
     // Use capability_quadrants (CE's own classification) vs capability_economics.consensusQuadrant (street/consensus)
     // This matches the alpha/arbitrage route logic
     const economics = await db.select({
-      econ: capabilityEconomicsTable,
+      econ: capabilityAlphaTable,
       capName: capabilitiesTable.name,
     })
-      .from(capabilityEconomicsTable)
-      .leftJoin(capabilitiesTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id));
+      .from(capabilityAlphaTable)
+      .leftJoin(capabilitiesTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id));
 
     const capIds = economics.map((e) => e.econ.capabilityId);
     const ceQuadrants = capIds.length

@@ -29,7 +29,7 @@ import {
   db,
   capabilitiesTable,
   capabilityDependenciesTable,
-  capabilityEconomicsTable,
+  capabilityAlphaTable,
   dependencyEdgeScoresTable,
   industriesTable,
 } from "@workspace/db";
@@ -159,8 +159,8 @@ for (const c of allCaps) {
 }
 
 const enrichedRows = await db
-  .select({ capabilityId: capabilityEconomicsTable.capabilityId })
-  .from(capabilityEconomicsTable);
+  .select({ capabilityId: capabilityAlphaTable.capabilityId })
+  .from(capabilityAlphaTable);
 const enrichedIds = Array.from(new Set(enrichedRows.map(r => r.capabilityId)));
 
 const allDeps = await db.select().from(capabilityDependenciesTable);

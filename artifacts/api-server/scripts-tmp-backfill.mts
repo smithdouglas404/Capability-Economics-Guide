@@ -7,7 +7,7 @@
  * Phase 2: runAlphaEnrichment per industry — 12 caps per batch
  * Phase 3: runDetailEnrichment per cap — concurrency 3
  */
-import { db, capabilitiesTable, capabilityEconomicsTable, capabilityQuadrantsTable, industriesTable } from "@workspace/db";
+import { db, capabilitiesTable, capabilityAlphaTable, capabilityQuadrantsTable, industriesTable } from "@workspace/db";
 import { eq, and, isNull } from "drizzle-orm";
 import { enrichCapabilityQuadrants } from "./src/services/enrichment/runners";
 import { runAlphaEnrichment, runDetailEnrichment } from "./src/services/alpha/enrich";
@@ -47,8 +47,8 @@ for (const ind of industries) {
     pass++;
     const remaining = await db.select({ id: capabilitiesTable.id })
       .from(capabilitiesTable)
-      .leftJoin(capabilityEconomicsTable, eq(capabilityEconomicsTable.capabilityId, capabilitiesTable.id))
-      .where(and(eq(capabilitiesTable.industryId, ind.id), isNull(capabilityEconomicsTable.id)));
+      .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+      .where(and(eq(capabilitiesTable.industryId, ind.id), isNull(capabilityAlphaTable.id)));
     if (remaining.length === 0) { if (pass === 1) log(`  ${ind.name}: all caps already enriched — SKIP`); else log(`  ${ind.name}: all caps now enriched after ${pass-1} passes`); break; }
     log(`  ${ind.name} pass ${pass}: ${remaining.length} caps remaining, calling runAlphaEnrichment...`);
     const t = Date.now();
@@ -64,9 +64,9 @@ log(`PHASE 2 done in ${Math.round((Date.now()-phase2Start)/1000)}s`);
 // ── Phase 3: detail narratives, concurrency 3 ──────────────────────────────
 log(`\n=== PHASE 3: runDetailEnrichment per cap, concurrency 3 ===`);
 const phase3Start = Date.now();
-const needDetail = await db.select({ capabilityId: capabilityEconomicsTable.capabilityId })
-  .from(capabilityEconomicsTable)
-  .where(isNull(capabilityEconomicsTable.summaryNarrative));
+const needDetail = await db.select({ capabilityId: capabilityAlphaTable.capabilityId })
+  .from(capabilityAlphaTable)
+  .where(isNull(capabilityAlphaTable.summaryNarrative));
 const ids = needDetail.map(r => r.capabilityId);
 log(`  ${ids.length} caps need detail enrichment`);
 let completed = 0; let failed = 0;
