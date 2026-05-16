@@ -3,6 +3,7 @@ import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
+import { computeDVX } from "../dvx-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { runDigestSweep } from "../digest";
@@ -134,10 +135,21 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     // a snapshot per cycle is the cheapest, most defensible way to convert
     // system age into competitive history (Task #3 tactic 1).
     try {
-      const cei = await computeCVI();
-      console.log(`[Agent] CVI snapshot persisted (${trigger}): overallIndex=${cei.overallIndex}`);
-    } catch (ceiErr) {
-      console.warn("[Agent] CVI snapshot failed (non-fatal):", ceiErr);
+      const cvi = await computeCVI();
+      console.log(`[Agent] CVI snapshot persisted (${trigger}): overallIndex=${cvi.overallIndex}`);
+    } catch (cviErr) {
+      console.warn("[Agent] CVI snapshot failed (non-fatal):", cviErr);
+    }
+
+    // DVX parallel snapshot — computes disruption scores for every cap
+    // with a CVI row. Pattern-match LLM calls are cached (only re-issued
+    // when factor 1/2 score drifts > 5 pts or 7+ days stale), so the
+    // marginal cost per cycle is modest after the first warm-up.
+    try {
+      const dvx = await computeDVX();
+      console.log(`[Agent] DVX snapshot persisted (${trigger}): overallIndex=${dvx.overallIndex.toFixed(1)}, capsScored=${dvx.capabilitiesScored}, llmCalls=${dvx.llmCallsIssued}`);
+    } catch (dvxErr) {
+      console.warn("[Agent] DVX snapshot failed (non-fatal):", dvxErr);
     }
 
     // Deterministic null-detail backfill. The agent (Sonnet) freely skips

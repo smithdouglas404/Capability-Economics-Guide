@@ -16,6 +16,7 @@ import {
   industryWhitePapersTable,
   ontologyRelationshipsTable,
   ontologyIndustryAdaptersTable,
+  disruptionPatternsTable,
 } from "@workspace/db";
 import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
@@ -986,6 +987,106 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
   },
 );
 
+/**
+ * DVX disruption generator. Given a capability + industry context, asks
+ * Claude (via the fallback chain) to (a) identify 2-5 emerging innovations
+ * that could disrupt it within 36 months and (b) classify against the
+ * disruption_patterns library (Uber/Airbnb/Stripe/SpaceX/...) returning a
+ * Bayesian match confidence 0-1.
+ *
+ * Output is consumed by services/dvx-engine.ts to compute the Pattern
+ * Match Confidence factor (30% of the DVX score) and to populate
+ * dvx_components.top_disruptors for the capability detail UI.
+ */
+export const generateDisruptorsTool = tool(
+  async ({ capabilityId, capabilityName, industryName, cviScore, velocity }) => {
+    try {
+      const patterns = await db.select({
+        slug: disruptionPatternsTable.slug,
+        title: disruptionPatternsTable.title,
+        headline: disruptionPatternsTable.headline,
+      }).from(disruptionPatternsTable);
+      const patternMenu = patterns.map(p => `  - ${p.slug}: ${p.title} — ${p.headline}`).join("\n");
+
+      const prompt = [
+        `You are a capability strategy analyst with deep pattern recognition for disruption events.`,
+        ``,
+        `Capability under analysis: "${capabilityName}" in the ${industryName} industry.`,
+        `Current CVI score: ${cviScore?.toFixed?.(1) ?? "unknown"} (0-1000 scale).`,
+        `Velocity: ${velocity?.toFixed?.(2) ?? "unknown"} (change per cycle).`,
+        ``,
+        `Identify 2 to 5 emerging innovations or technologies that could DISRUPT, BYPASS, or ELIMINATE this capability within the next 36 months.`,
+        `Do not suggest incremental improvements. We are looking for "Uber moments" / "Stripe moments" / "SpaceX moments" — innovations that make the incumbent capability economically non-competitive, not just slightly worse.`,
+        ``,
+        `Disruption pattern library to classify against:`,
+        patternMenu,
+        ``,
+        `Pick the ONE pattern (slug) whose structure best matches what's happening to this capability today. Return Bayesian confidence (0-1) that the pattern actually applies — be honest, low confidence is fine if no pattern fits cleanly.`,
+        ``,
+        `Return JSON only, no prose:`,
+        `{`,
+        `  "disruptors": ["<innovation 1>", "<innovation 2>", ...],  // 2-5 items, no incremental ones`,
+        `  "patternMatchSlug": "<one of the slugs above>",`,
+        `  "patternMatchConfidence": <0-1>,`,
+        `  "rationale": "<2-3 sentences explaining the disruption thesis>",`,
+        `  "recommendedAction": "<one of: 'Investigate and build production-ready pilots', 'Watch this space', 'Defensive M&A target', 'Already disrupted'>"`,
+        `}`,
+      ].join("\n");
+
+      const result = await chatWithFallback({
+        messages: [{ role: "user", content: prompt }],
+        models: EDITORIAL_FALLBACK_CHAIN,
+        responseFormat: { type: "json_object" },
+        maxTokens: 1024,
+        endpoint: "generate_disruptors",
+      });
+
+      const raw = result.text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("LLM returned non-JSON");
+      const parsed = JSON.parse(match[0]) as {
+        disruptors: string[];
+        patternMatchSlug: string;
+        patternMatchConfidence: number;
+        rationale: string;
+        recommendedAction: string;
+      };
+
+      // Validate pattern slug exists; null it if hallucinated
+      const validSlugs = new Set(patterns.map(p => p.slug));
+      const slug = validSlugs.has(parsed.patternMatchSlug) ? parsed.patternMatchSlug : null;
+
+      return JSON.stringify({
+        success: true,
+        capabilityId,
+        disruptors: Array.isArray(parsed.disruptors) ? parsed.disruptors.slice(0, 5) : [],
+        patternMatchSlug: slug,
+        patternMatchConfidence: typeof parsed.patternMatchConfidence === "number"
+          ? Math.max(0, Math.min(1, parsed.patternMatchConfidence))
+          : 0,
+        rationale: parsed.rationale ?? "",
+        recommendedAction: parsed.recommendedAction ?? "Watch this space",
+      });
+    } catch (err) {
+      return JSON.stringify({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  },
+  {
+    name: "generate_disruptors",
+    description: "For a target capability, generate 2-5 emerging innovations that could disrupt it within 36 months and classify against the disruption pattern library (Uber/Airbnb/Stripe/SpaceX/...). Returns disruptor names + matched pattern slug + Bayesian confidence + recommended action. Used by the DVX engine to compute Pattern Match Confidence (30% of disruption score).",
+    schema: z.object({
+      capabilityId: z.number().describe("ID of the capability to analyze"),
+      capabilityName: z.string().describe("Name of the capability"),
+      industryName: z.string().describe("Industry context"),
+      cviScore: z.number().optional().describe("Current CVI score (0-1000)"),
+      velocity: z.number().optional().describe("Current CVI velocity"),
+    }),
+  },
+);
+
 export const allTools = [
   perplexityResearchTool,
   queryDatabaseTool,
@@ -998,4 +1099,5 @@ export const allTools = [
   generateLeaderboardTool,
   generateWhitePapersTool,
   generateOntologyTool,
+  generateDisruptorsTool,
 ];
