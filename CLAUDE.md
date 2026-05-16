@@ -86,6 +86,32 @@ All three integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env v
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
+### LangMem / Shared Agent Store
+
+**LangMem is Python-only and is NOT installed in this TypeScript project.** Do not attempt to `import { create_prompt_optimizer } from "langmem"` — it will not resolve. The TypeScript equivalents are built on `@langchain/langgraph-checkpoint-postgres` + `@langchain/anthropic`.
+
+Implementation files:
+- `artifacts/api-server/src/services/agent/store.ts` — `PostgresStore` singleton with namespace helpers (`NS.*`). This is the shared blackboard all agents read from and write to. Backed by the existing `DATABASE_URL` Postgres — no new service. Tables auto-created via `ensureSharedStoreReady()` on boot. **Import path is `@langchain/langgraph-checkpoint-postgres/store` (the subpath), NOT the package root** (root only exports `PostgresSaver` for run checkpointing).
+- `artifacts/api-server/src/services/agent/optimizer.ts` — `optimizeAgentInstructions(agentName, lookbackRuns?)`: the TypeScript equivalent of LangMem's `create_prompt_optimizer`. Reads recent `agent_runs`, scores them (errored=0, otherwise memoriesStored/5), asks Haiku 4.5 to rewrite the standing instructions, persists back to `NS.agentPriors(agentName)`. Runs weekly via `OPTIMIZER_INTERVAL_MS` cron in `scheduler.ts`.
+
+**Shared store namespaces** (always go through `NS.*`, never inline string arrays):
+- `NS.industryPatterns(industryName)` — validated industry patterns published by the CVI Agent
+- `NS.macroEvents()` — macro events discovered by the CVI Agent, read by future Disruption Agent
+- `NS.disruptionRisks()` — disruption scores published by the (future) Disruption Agent
+- `NS.peerBenchmarks()` — cohort benchmarks published by the (future) Peer Co-op Agent
+- `NS.agentPriors(agentName)` — per-agent standing instructions (forward-path replacement for Letta core blocks)
+- `NS.clientKnowledge(clientId)` — per-client private memory (VCR Agent)
+
+**Multi-agent architecture rule — NO LangGraph supervisor.** Each agent is autonomous:
+1. Agents run on their own `setInterval` schedules in `scheduler.ts`
+2. Agents publish discoveries to the shared `PostgresStore` via `NS.*` namespaces
+3. Agents read from the shared store at the start of each run to benefit from other agents' work
+4. `optimizeAgentInstructions()` runs weekly per agent to improve their standing instructions
+
+If you need agents to coordinate, **use the shared store as the communication channel** — do NOT add a LangGraph supervisor node.
+
+**Letta is still running** for backward compatibility (the persona, industry_priors, current_focus, etc. core blocks). The `NS.agentPriors` store is the forward path — new agents should use `store.ts`, not `letta.ts`. Do not remove `letta.ts` until all blocks are migrated.
+
 ### Frontend (`artifacts/inflexcvi`)
 
 Vite + React 19 + wouter (not React Router) + TanStack Query + shadcn/ui (Radix primitives + Tailwind). Tailwind v4 via `@tailwindcss/vite`.
@@ -103,7 +129,8 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 ### Required environment variables
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
-- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `LETTA_BASE_URL`, `LETTA_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai`)
+- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `LETTA_BASE_URL`, `LETTA_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer — cron silently skips if missing)
+- **Multi-agent + tool callback secrets**: `INFLEXCVI_AGENT_TOOL_KEY` (shared between api-server + Letta service so Letta's autonomous-tool callbacks can authenticate), `INFLEXCVI_API_BASE` (set on Letta service: the api-server's internal Railway URL the tool callbacks hit, e.g. `http://intelligent-alignment.railway.internal:8080`)
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
 

@@ -4,6 +4,8 @@ import { startConsolidator, stopConsolidator } from "./consolidator";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
+import { ensureSharedStoreReady } from "./store";
+import { optimizeAgentInstructions } from "./optimizer";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -51,6 +53,11 @@ const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // passed. Without this, pgvector grows unbounded and stale observations
 // pollute semantic search. Runs daily.
 const MEM0_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Per-agent prompt optimizer (LangMem-equivalent): reads recent
+// agent_runs, scores them, rewrites the agent's NS.agentPriors block.
+// Weekly cadence is plenty — instructions are stable directives, not
+// per-cycle state. Cheap (~1 Haiku call per agent per week).
+const OPTIMIZER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -75,6 +82,7 @@ let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
+let optimizerTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -471,6 +479,13 @@ export function startScheduler(): void {
   mem0PruneTimer = setInterval(() => {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
+  optimizerTimer = setInterval(() => {
+    optimizeAgentInstructions("cvi-autonomous-agent")
+      .then(r => r.optimized
+        ? console.log(`[Agent] Optimizer rewrote cvi-autonomous-agent priors from ${r.basedOnRuns} runs`)
+        : console.log(`[Agent] Optimizer skipped: ${r.reason ?? "no change"}`))
+      .catch(err => console.warn("[Agent] Optimizer failed:", err instanceof Error ? err.message : err));
+  }, OPTIMIZER_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -488,6 +503,12 @@ export function startScheduler(): void {
     syncMarketContextToLetta()
       .then(ok => console.log(`[Agent] Market context → Letta block sync: ${ok ? "ok" : "skipped/failed"}`))
       .catch(err => console.warn("[Agent] market-context sync error:", err instanceof Error ? err.message : err));
+    // Create the underlying LangMem-equivalent store tables if missing.
+    // Idempotent — no-op when already set up. Non-fatal on failure: the
+    // optimizer cron will simply throw on next fire if the store is down.
+    ensureSharedStoreReady()
+      .then(() => console.log("[Agent] Shared agent store (PostgresStore) ready"))
+      .catch(err => console.warn("[Agent] Shared store setup failed (optimizer will be disabled):", err instanceof Error ? err.message : err));
   }, 15_000);
 
   executeRun("startup");
@@ -535,6 +556,7 @@ export function stopScheduler(): void {
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
+  if (optimizerTimer) { clearInterval(optimizerTimer); optimizerTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
