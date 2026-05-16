@@ -1,4 +1,5 @@
 import { recallMemories, storeMemory } from "./memory";
+import { inferTopic } from "./topics";
 import { extractEntitiesFromText, upsertEntity, recordRelation } from "./graphMemory";
 import { lettaReadBlock, lettaUpdateBlock } from "./letta";
 import { emitAgentEvent } from "./events";
@@ -55,10 +56,12 @@ export async function reflectOnFindings(
         const delta = Math.abs(f.newScore - priorScore);
         if (delta >= CONTRADICTION_THRESHOLD && prior.relevanceScore > 0.6 && f.confidence >= HIGH_CONFIDENCE) {
           isContradiction = true;
+          const contradictionContent =
+            `CONTRADICTION: ${f.capabilityName} in ${f.industryName} now scores ${f.newScore.toFixed(1)} (conf ${f.confidence.toFixed(2)}), ` +
+            `prior recall said ~${priorScore.toFixed(1)}. Δ=${delta.toFixed(1)}pts. Prior memory: "${prior.content.slice(0, 200)}".`;
           await storeMemory(
             "observation",
-            `CONTRADICTION: ${f.capabilityName} in ${f.industryName} now scores ${f.newScore.toFixed(1)} (conf ${f.confidence.toFixed(2)}), ` +
-            `prior recall said ~${priorScore.toFixed(1)}. Δ=${delta.toFixed(1)}pts. Prior memory: "${prior.content.slice(0, 200)}".`,
+            contradictionContent,
             {
               capabilityId: f.capabilityId,
               capabilityName: f.capabilityName,
@@ -68,6 +71,7 @@ export async function reflectOnFindings(
               priorScore,
               newScore: f.newScore,
               delta,
+              topic: inferTopic(contradictionContent),
             },
             { category: "contradiction", runId },
           );
@@ -96,6 +100,7 @@ export async function reflectOnFindings(
           score: f.newScore,
           confidence: f.confidence,
           isRefinement,
+          topic: inferTopic(memoryContent),
         },
         { category: tier, runId },
       );

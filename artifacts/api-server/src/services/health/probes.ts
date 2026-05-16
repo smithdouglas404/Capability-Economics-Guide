@@ -84,6 +84,15 @@ function describeError(err: unknown): string {
 
 type Probe = () => Promise<Omit<ServiceHealth, "service" | "checkedAt">>;
 
+// ── Latency thresholds ───────────────────────────────────────────────────
+// A service that responds in 5+ seconds is technically reachable but is
+// degrading the agent's 30-min cycle (and pushing user-facing requests
+// past the perceptible-latency budget). Flag these as `degraded` so
+// operators see "ok but slow" before "down". Tighter on Mem0 since it's
+// hit per-recall; looser on Letta since it only sees end-of-cycle traffic.
+const MEM0_LATENCY_WARN_MS = 2000;
+const LETTA_LATENCY_WARN_MS = 5000;
+
 // ── Per-service probes ────────────────────────────────────────────────────
 
 const probeMem0: Probe = async () => {
@@ -92,6 +101,13 @@ const probeMem0: Probe = async () => {
   }
   try {
     const { latencyMs } = await timed(() => withTimeout(mem0Ping(), PROBE_TIMEOUT_MS, "mem0"));
+    if (latencyMs > MEM0_LATENCY_WARN_MS) {
+      return {
+        status: "degraded",
+        latencyMs,
+        lastError: `High latency: ${latencyMs}ms (threshold ${MEM0_LATENCY_WARN_MS}ms)`,
+      };
+    }
     return { status: "ok", latencyMs, lastError: null };
   } catch (err) {
     const msg = describeError(err);
@@ -108,7 +124,16 @@ const probeLetta: Probe = async () => {
   if (!value.configured) {
     return { status: "not_configured", latencyMs: null, lastError: "LETTA_API_KEY and LETTA_BASE_URL not set" };
   }
-  if (value.ok) return { status: "ok", latencyMs, lastError: null };
+  if (value.ok) {
+    if (latencyMs > LETTA_LATENCY_WARN_MS) {
+      return {
+        status: "degraded",
+        latencyMs,
+        lastError: `High latency: ${latencyMs}ms (threshold ${LETTA_LATENCY_WARN_MS}ms)`,
+      };
+    }
+    return { status: "ok", latencyMs, lastError: null };
+  }
   const err = value.error ?? "unknown";
   // Auth failures (401/403) → down; transient 5xx / network → degraded.
   if (/\b401\b|\b403\b|unauthor/i.test(err)) {

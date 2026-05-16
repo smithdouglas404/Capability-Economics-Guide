@@ -17,7 +17,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Pin mem0 to a known-good release so rebuilds are reproducible. Override
 # with `--build-arg MEM0_VERSION=vX.Y.Z` when you want a newer mem0.
-ARG MEM0_VERSION=v2.0.2
+#
+# Bumped from v2.0.2 → v2.1.0 to unlock the May 2026 multi-signal
+# retrieval algorithm (semantic + keyword + entity matching fused in
+# parallel). Per Mem0's published benchmarks, that change delivers
+# +29.6 pts on temporal reasoning and +23.1 pts on multi-hop queries.
+# Also re-exposes server-side enhanced metadata filtering (AND/OR/
+# comparison operators) which our recallMemories now relies on at
+# services/agent/memory.ts.
+#
+# Operator pre-flight: run a staging deploy first and
+#   pnpm --filter @workspace/scripts run migrate:mem0-agent-id -- --dry-run
+# against the upgraded image to verify response-shape compatibility
+# before pushing to prod.
+ARG MEM0_VERSION=v2.1.0
 RUN git clone --depth 1 --branch ${MEM0_VERSION} https://github.com/mem0ai/mem0.git /app
 
 WORKDIR /app/server

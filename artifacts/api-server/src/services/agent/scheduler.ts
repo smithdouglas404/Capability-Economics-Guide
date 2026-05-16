@@ -2,6 +2,7 @@ import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
+import { mem0Prune } from "./memory";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -45,6 +46,10 @@ const EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000;
 // moves >= threshold within the configured window. Cheap (in-memory pair
 // comparison after one DB pull).
 const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Mem0 staleness sweep: deletes memories whose metadata.expiresAt has
+// passed. Without this, pgvector grows unbounded and stale observations
+// pollute semantic search. Runs daily.
+const MEM0_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -68,6 +73,7 @@ let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
+let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -455,6 +461,9 @@ export function startScheduler(): void {
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
   ceiSignalsTimer = setInterval(() => ceiSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
+  mem0PruneTimer = setInterval(() => {
+    mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
+  }, MEM0_PRUNE_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -515,6 +524,7 @@ export function stopScheduler(): void {
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
+  if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");

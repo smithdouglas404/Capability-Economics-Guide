@@ -11,6 +11,7 @@ export {
   getAllMemories,
   recallMemoriesBatch,
   filterMemoriesForTarget,
+  mem0Prune,
 } from "./memory";
 export { allTools } from "./tools";
 export { getLettaStatus, lettaUpdateBlock, lettaReadBlock, lettaReadAllBlocks, lettaArchivalInsert, lettaArchivalSearch } from "./letta";

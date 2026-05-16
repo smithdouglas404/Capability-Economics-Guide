@@ -180,6 +180,10 @@ export async function storeMemory(
           category: category ?? type,
           runId: runId ?? null,
           ttlDays,
+          // Stamp the ISO expiry so mem0Prune can filter on metadata.expiresAt
+          // server-side. Without this, ttlDays is opaque to Mem0 and pgvector
+          // grows unbounded.
+          expiresAt: expiresAt.toISOString(),
         },
       }) as { results?: Array<{ id?: string; event_id?: string; event?: string }> };
 
@@ -273,29 +277,45 @@ export async function recallMemories(
   query: string,
   type?: MemoryType,
   limit: number = 10,
-  options: { runId?: number; category?: MemoryCategory } = {},
+  options: {
+    runId?: number;
+    category?: MemoryCategory;
+    minConfidence?: number;
+    createdAfter?: Date;
+    topic?: string;
+  } = {},
 ): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
 
   if (isMem0Available()) {
     try {
-      // Push type + category filters to the server (Mem0 supports a
-      // `filters` object that runs against the metadata jsonb we already
-      // write). Previously we fetched 100 and filtered in JS, which both
-      // wasted bandwidth and silently dropped matches past the page.
-      // `threshold` keeps low-confidence vector hits out of the agent's
-      // working memory — 0.35 is conservative; tighten if recall is noisy.
-      const metadataFilter: Record<string, unknown> = {};
-      if (type) metadataFilter.memoryType = type;
-      if (options.category) metadataFilter.category = options.category;
+      // Mem0 v1.0.0+ supports enhanced filters with logical (AND/OR/NOT)
+      // and comparison (gt/gte/lt/lte/eq/ne/in/nin/contains/icontains)
+      // operators evaluated at the vector store level. Push every
+      // available predicate server-side so we don't burn the retrieval
+      // budget on memories the caller would discard.
+      //
+      // Falls back to the basic single-level filter shape on older
+      // servers via defensive re-check in the result loop below.
+      const andClauses: Record<string, unknown>[] = [
+        { agent_id: MEM0_AGENT_ID },
+      ];
+      if (options.runId) andClauses.push({ run_id: `cycle-${options.runId}` });
+      if (type) andClauses.push({ metadata: { memoryType: type } });
+      if (options.category) andClauses.push({ metadata: { category: options.category } });
+      if (options.topic) andClauses.push({ metadata: { topic: options.topic } });
+      if (typeof options.minConfidence === "number") {
+        andClauses.push({ metadata: { confidence: { gte: options.minConfidence } } });
+      }
+      if (options.createdAfter) {
+        andClauses.push({ created_at: { gte: options.createdAfter.toISOString() } });
+      }
 
       const res = await mem0Fetch("/search", "POST", {
         query,
-        agent_id: MEM0_AGENT_ID,
-        ...(options.runId ? { run_id: `cycle-${options.runId}` } : {}),
+        filters: { AND: andClauses },
         limit,
         threshold: 0.35,
-        ...(Object.keys(metadataFilter).length > 0 ? { filters: { metadata: metadataFilter } } : {}),
       }) as { results?: Array<{ id?: string; memory?: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> };
 
       for (const m of res?.results ?? []) {
@@ -562,4 +582,67 @@ export async function getMemoryStats(): Promise<{
     avgRelevance: all.length > 0 ? totalRelevance / all.length : 0,
     mem0Connected: isMem0Available(),
   };
+}
+
+/**
+ * Delete every Mem0 memory whose metadata.expiresAt is in the past.
+ *
+ * Mem0 itself never honors TTLs — the value lives only in metadata.
+ * Without this sweep, pgvector accumulates stale observations from
+ * old cycles that still surface in semantic search and bias the
+ * agent's decisions toward outdated facts. Designed to be called
+ * from a daily cron (services/agent/scheduler.ts).
+ *
+ * Returns the count of memories deleted. Non-fatal on individual
+ * deletion failures — logs and continues.
+ *
+ * Per plan Phase 1.6.5.
+ */
+export async function mem0Prune(opts: { batchLimit?: number; dryRun?: boolean } = {}): Promise<{ scanned: number; deleted: number; failed: number; dryRun: boolean }> {
+  if (!isMem0Available()) return { scanned: 0, deleted: 0, failed: 0, dryRun: !!opts.dryRun };
+  const batchLimit = opts.batchLimit ?? 100;
+  const nowIso = new Date().toISOString();
+  let scanned = 0;
+  let deleted = 0;
+  let failed = 0;
+  try {
+    // Use a wildcard search to surface memories matching only the metadata
+    // filter; older Mem0 versions that require a non-empty query may need
+    // a string here, so we pass a single space which the server treats as
+    // a no-op match against the AND filters.
+    const res = await mem0Fetch("/search", "POST", {
+      query: " ",
+      filters: {
+        AND: [
+          { agent_id: MEM0_AGENT_ID },
+          { metadata: { expiresAt: { lt: nowIso } } },
+        ],
+      },
+      limit: batchLimit,
+    }) as { results?: Array<{ id?: string }> };
+
+    const candidates = res?.results ?? [];
+    scanned = candidates.length;
+    for (const m of candidates) {
+      if (!m.id) continue;
+      if (opts.dryRun) {
+        deleted++;
+        continue;
+      }
+      try {
+        await mem0Fetch(`/memories/${m.id}`, "DELETE");
+        // Best-effort: also clear the foreign-key on the local mirror
+        // so getAllMemories doesn't surface zombie pointers.
+        await db.update(agentMemoriesTable).set({ mem0Id: null, mem0Status: "expired" }).where(eq(agentMemoriesTable.mem0Id, m.id));
+        deleted++;
+      } catch (err) {
+        failed++;
+        console.warn(`[mem0Prune] delete ${m.id.slice(0, 8)} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+    console.log(`[mem0Prune] scanned=${scanned} deleted=${deleted} failed=${failed} dryRun=${!!opts.dryRun}`);
+  } catch (err) {
+    console.error("[mem0Prune] sweep failed:", err instanceof Error ? err.message : err);
+  }
+  return { scanned, deleted, failed, dryRun: !!opts.dryRun };
 }
