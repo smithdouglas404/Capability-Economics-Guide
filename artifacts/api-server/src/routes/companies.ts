@@ -19,41 +19,6 @@ import {
 
 const router: IRouter = Router();
 
-router.get("/workbench/companies", async (req, res) => {
-  const industryId = parseInt(String(req.query.industryId ?? ""), 10);
-  if (!industryId) {
-    res.status(400).json({ error: "industryId required" });
-    return;
-  }
-  const limit = Math.min(200, parseInt(String(req.query.limit ?? "100"), 10) || 100);
-  const rows = await listCompaniesForIndustry(industryId, { limit });
-  res.json({ companies: rows });
-});
-
-router.get("/workbench/companies/:id", async (req, res) => {
-  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
-  const detail = await getCompanyDetail(id);
-  if (!detail) {
-    res.status(404).json({ error: "not found" });
-    return;
-  }
-  res.json(detail);
-});
-
-router.get("/workbench/companies/:id/similar", async (req, res) => {
-  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
-  const limit = Math.min(20, parseInt(String(req.query.limit ?? "10"), 10) || 10);
-  const sims = await findSimilarCompanies(id, { limit });
-  res.json({ similar: sims });
-});
-
-router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
-  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
-  await computeCompanyScores(id);
-  const detail = await getCompanyDetail(id);
-  res.json({ ok: true, scores: detail?.scores ?? null });
-});
-
 /**
  * Latest ingestion result per industry. In-memory by design — survives the
  * lifetime of the api-server process, which is the same lifetime the user's
@@ -68,6 +33,19 @@ type IngestStatus =
 
 const ingestStatusByIndustry = new Map<number, IngestStatus>();
 
+router.get("/workbench/companies", async (req, res) => {
+  const industryId = parseInt(String(req.query.industryId ?? ""), 10);
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
+  const limit = Math.min(200, parseInt(String(req.query.limit ?? "100"), 10) || 100);
+  const rows = await listCompaniesForIndustry(industryId, { limit });
+  res.json({ companies: rows });
+});
+
+// Underscore-prefixed control routes MUST come before /:id so Express doesn't
+// match them as a company id (which would parseInt to NaN and crash the SQL).
 router.post("/workbench/companies/_ingest", async (req, res) => {
   const industryId = parseInt(String(req.body?.industryId ?? ""), 10);
   if (!industryId) {
@@ -121,13 +99,6 @@ router.post("/workbench/companies/_ingest", async (req, res) => {
   res.json({ ok: true, message: "ingestion started", industryId, startedAt });
 });
 
-/**
- * Poll-able status for the most recent ingestion of an industry. Returns
- * `{state: "idle"}` if no ingestion has been kicked off for this industry in
- * this process's lifetime, otherwise the latest run's state + counts +
- * errors. Lets the UI replace the previous blind `alert("Started — refresh in
- * 60-90 seconds")` with real progress.
- */
 router.get("/workbench/companies/_ingest-status", async (req, res) => {
   const industryId = parseInt(String(req.query.industryId ?? ""), 10);
   if (!industryId) {
@@ -150,6 +121,43 @@ router.post("/workbench/companies/_recompute", async (req, res) => {
   }
   const r = await recomputeAllScoresForIndustry(industryId);
   res.json({ ok: true, ...r });
+});
+
+router.get("/workbench/companies/:id", async (req, res) => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = parseInt(String(raw), 10);
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  const detail = await getCompanyDetail(id);
+  if (!detail) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  res.json(detail);
+});
+
+router.get("/workbench/companies/:id/similar", async (req, res) => {
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  const limit = Math.min(20, parseInt(String(req.query.limit ?? "10"), 10) || 10);
+  const sims = await findSimilarCompanies(id, { limit });
+  res.json({ similar: sims });
+});
+
+router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  await computeCompanyScores(id);
+  const detail = await getCompanyDetail(id);
+  res.json({ ok: true, scores: detail?.scores ?? null });
 });
 
 router.get("/workbench/value-chain/:industryId", async (req, res) => {
