@@ -107,23 +107,28 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
 
-### Session auth state (Replit CLI)
+### Session auth state — DO NOT trust Replit-injected values
 
-Each new Claude Code session on Replit starts a fresh shell — only env vars set as **Replit Secrets** survive across sessions. CLI auth state stored under `~/` (`~/.config/gh/`, `~/.config/railway/`) does **not** persist on this Replit. Re-establish on every session start. The `.claude/preflight.sh` SessionStart hook surfaces which CLIs need re-auth — read its output before chasing symptoms.
+**The app runs on Railway, not Replit.** Replit is only used for editing the codebase. Values that appear in this shell's `env` (sourced from `/run/replit/env/latest`) were pasted into Replit Secrets manually by the user at some point and are **stale / often expired** — they must not be treated as the live truth for anything. Railway service Variables are the source of truth.
 
-| Tool | What's persistent | What breaks each session | Fix |
-|---|---|---|---|
-| `git push/pull` | `GITHUB_TOKEN` (Replit Secret) → used by git credential helper. **Works out of the box.** | — | — |
-| `gh` CLI | Nothing | `gh auth status` → not logged in. Affects PR creation, issue queries, `gh api`. | Set `GH_TOKEN` as a Replit Secret (same value as `GITHUB_TOKEN` works for most ops) **or** `gh auth login` in a Shell tab. |
-| `railway` CLI | Nothing | `railway whoami` → Unauthorized. Affects env var changes, log fetching, redeploys. | Set `RAILWAY_TOKEN` (project-scoped) or `RAILWAY_API_TOKEN` (account-scoped) as a Replit Secret. Browserless login (`railway login --browserless`) works for one session but doesn't persist. |
+**Source-of-truth rules** (load-bearing):
+- "Is API key X currently valid?" → check **Railway** (CLI or dashboard), never the local shell `env`.
+- "Where should I add/rotate credential Y?" → **Railway service Variables**, never Replit Secrets. Adding to Replit Secrets creates a second stale copy.
+- Tokens to manage Railway/GitHub themselves (`RAILWAY_API_TOKEN`, `GH_TOKEN`) — also do not depend on Replit Secrets for these. Use desktop Claude Code where `~/.config/{railway,gh}/` persists across sessions.
 
-**Working around missing CLI auth.** Most diagnostics don't need the CLIs:
-- Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services`
-- Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` are in env
-- Direct Mem0 queries: `MEM0_BASE_URL` + `MEM0_API_KEY` are in env (header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below)
-- Prod env var truth: Railway service variables in the Railway dashboard (the user can paste); the health endpoint above reports which keys are missing as `not_configured`.
+**Why the Replit CLI auth keeps breaking** — both `gh` and `railway` write auth state under `~/.config/`, which does **not** persist between Claude Code sessions on this Replit. Each session starts unauth'd. Worse, `railway login --browserless` **fails from a Claude Code shell** with `Cannot login in non-interactive mode` (no TTY); it only works from a real interactive Replit Shell tab — and even then, the auth is gone next session.
 
-Only reach for the railway/gh CLIs when you actually need to mutate state (push a var, trigger a redeploy, create a PR) — for reads, the routes above are faster and don't require auth.
+**Practical implications:**
+- `git push/pull` works fine (uses `GITHUB_TOKEN` via git credential helper — this is the one Replit-injected token that's reliable because git uses it transactionally).
+- `gh` and `railway` CLI **cannot be authenticated from within a Claude Code session** without user-supplied tokens. If a task requires either, ask the user to either (a) paste a fresh token as `export RAILWAY_API_TOKEN=…` / `export GH_TOKEN=…` in the same shell, or (b) move the work to desktop Claude Code.
+
+**Working around missing CLI auth — diagnostics that don't need it:**
+- Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
+- Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` in `env` *may* still work (they target the live Railway Letta service) — but treat a 401 as "the local key is stale," not "Letta is broken."
+- Direct Mem0 queries: same caveat. Header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below.
+- Source-of-truth env var list: ask the user to paste from Railway dashboard → service → Variables tab.
+
+When the user says "you have access to Railway," verify before agreeing — `railway whoami` is the only honest signal.
 
 ### Deploying to Railway
 
