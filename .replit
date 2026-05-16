@@ -70,5 +70,6 @@ packages = ["postgresql"]
 [userenv]
 
 [userenv.shared]
-LETTA_BASE_URL = "https://letta.innume.com"
+LETTA_BASE_URL = "https://letta-2eot-production.up.railway.app"
 ADMIN_AUTH_BYPASS = "1"
+MEM0_BASE_URL = "https://mem0-production-93f0.up.railway.app"

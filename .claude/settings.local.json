@@ -137,7 +137,13 @@
       "Bash(railway down *)",
       "Bash(curl -s -m 10 \"https://mem0-production-93f0.up.railway.app/docs\" -o /dev/null -w \"HTTP %{http_code} | time=%{time_total}s | size=%{size_download}\\\\n\")",
       "Bash(curl -s -m 10 \"https://mem0-production-93f0.up.railway.app/\" -w \"\\\\nHTTP %{http_code}\\\\n\")",
-      "Bash(curl -s -m 20 -w \"\\\\nHTTP_STATUS=%{http_code}\\\\n\" \"https://capabilityeconomics-staging.up.railway.app/api/health/services\")"
+      "Bash(curl -s -m 20 -w \"\\\\nHTTP_STATUS=%{http_code}\\\\n\" \"https://capabilityeconomics-staging.up.railway.app/api/health/services\")",
+      "Bash(curl -fsS -m 20 https://capabilityeconomics-staging.up.railway.app/api/health/services)",
+      "Bash(curl -fsS -m 10 -o /dev/null -w \"letta.innume.com / → %{http_code}\\\\n\" https://letta.innume.com/)",
+      "Bash(curl -fsS -m 10 -o /dev/null -w \"letta.innume.com /v1/health/ → %{http_code}\\\\n\" https://letta.innume.com/v1/health/)",
+      "Bash(curl -sS -m 10 -o /tmp/letta-health.json -w \"letta.innume.com /v1/health → %{http_code} \\(%{size_download}B\\)\\\\n\" https://letta.innume.com/v1/health)",
+      "Bash(git log *)",
+      "Read(//home/runner/**)"
     ]
   }
 }
