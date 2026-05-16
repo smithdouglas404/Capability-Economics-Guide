@@ -5,6 +5,7 @@ import { runAssessmentAction, isAssessmentDue } from "./actions/assessment";
 import { runReflectionAction, isReflectionDue } from "./actions/reflection";
 import { runCommentAction, isCommentDue } from "./actions/comment";
 import { runMarketplaceListAction, isListingDue } from "./actions/marketplace";
+import { runDeepDiveAction, isDeepDiveDue } from "./actions/deep-dive";
 import { getBotBudgetStatus } from "./budget";
 import { getPersona } from "./personas";
 import { logger } from "../../lib/logger";
@@ -102,6 +103,25 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
         result.totalCostCents += r.costCents;
       } else if (r.error) {
         result.errors.push(`comment: ${r.error}`);
+      }
+    }
+  }
+
+  // 3.5. Run a weekly deep-dive — Perplexity research + long-form Sonnet
+  //      analysis posted as a capability annotation. ~$0.50 per dive,
+  //      highest-cost recurring action by design.
+  if (await isDeepDiveDue(bot)) {
+    const budget = await getBotBudgetStatus(bot.id);
+    if (budget.overBudget) {
+      result.actionsSkippedBudget++;
+      await logBudgetSkip(bot.id, "deep_dive", budget.mtdCents, budget.capCents);
+    } else {
+      const r = await runDeepDiveAction(bot);
+      if (r.ok) {
+        result.actionsRun++;
+        result.totalCostCents += r.costCents;
+      } else if (r.error) {
+        result.errors.push(`deep_dive: ${r.error}`);
       }
     }
   }
