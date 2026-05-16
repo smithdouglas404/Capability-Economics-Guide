@@ -54,7 +54,7 @@ async function glmJson(prompt: string, maxTokens = 2000): Promise<string> {
         "X-Title": "Capability Economics Alpha",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.5",
+        model: "anthropic/claude-sonnet-4.6",
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],

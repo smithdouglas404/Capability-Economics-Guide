@@ -11,7 +11,7 @@ import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
-const ROUTINE_INTERVAL_MS = 8 * 60 * 60 * 1000;
+const ROUTINE_INTERVAL_MS = 96 * 60 * 60 * 1000;
 const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
@@ -96,7 +96,9 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     // generatedAt timestamp bumps on alpha-only writes, so the row looks
     // "fresh" but the detail page renders "awaiting economic enrichment").
     // Cap at 15 per cycle: keeps a routine cycle under ~5min and bounds
-    // LLM cost (~$0.06/cap * 15 * 3-4 cycles/day ≈ $3/day).
+    // LLM cost ($0.06/cap × 15 × ~7.5 routine cycles/month ≈ $7/month at
+    // the current 96h cadence; if the backlog is empty the call returns
+    // immediately so cost falls to $0).
     try {
       const detailRes = await runDetailEnrichment({ limit: 15 });
       if (detailRes.enriched > 0 || detailRes.errors.length > 0) {
