@@ -49,12 +49,15 @@ END $$;
 
 -- ── Columns on companies + agent_runs ───────────────────────────────────
 
+-- NOTE: cei_weighted lives on the company_scores table, NOT companies.
+-- Earlier migration revision had this on the wrong table; corrected here.
+-- Idempotency still holds because the column may already be renamed.
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'companies' AND column_name = 'cei_weighted'
+    WHERE table_name = 'company_scores' AND column_name = 'cei_weighted'
   ) THEN
-    ALTER TABLE companies RENAME COLUMN cei_weighted TO cvi_weighted;
+    ALTER TABLE company_scores RENAME COLUMN cei_weighted TO cvi_weighted;
   END IF;
 END $$;
 
@@ -130,6 +133,88 @@ END $$;
 DO $$ BEGIN
   IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_signal_outcomes_ticker_idx') THEN
     ALTER INDEX cei_signal_outcomes_ticker_idx RENAME TO cvi_signal_outcomes_ticker_idx;
+  END IF;
+END $$;
+
+-- ── Auto-named primary key indices ─────────────────────────────────────
+-- Postgres preserves index names when a table is renamed via ALTER TABLE
+-- RENAME, so cei_*_pkey constraints stay named with the old prefix even
+-- after the table itself is renamed. Rename them explicitly so the
+-- introspection in scripts/src/migrate-cvi-rename.ts reports clean.
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_snapshots_pkey') THEN
+    ALTER INDEX cei_snapshots_pkey RENAME TO cvi_snapshots_pkey;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_components_pkey') THEN
+    ALTER INDEX cei_components_pkey RENAME TO cvi_components_pkey;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_capability_history_pkey') THEN
+    ALTER INDEX cei_capability_history_pkey RENAME TO cvi_capability_history_pkey;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_peer_benchmarks_pkey') THEN
+    ALTER INDEX cei_peer_benchmarks_pkey RENAME TO cvi_peer_benchmarks_pkey;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_signal_events_pkey') THEN
+    ALTER INDEX cei_signal_events_pkey RENAME TO cvi_signal_events_pkey;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'cei_signal_outcomes_pkey') THEN
+    ALTER INDEX cei_signal_outcomes_pkey RENAME TO cvi_signal_outcomes_pkey;
+  END IF;
+END $$;
+
+-- ── Auto-named SERIAL sequences ────────────────────────────────────────
+-- Same story: ALTER TABLE RENAME doesn't rename the cei_*_id_seq sequences
+-- that back SERIAL columns. Catch-all RENAME on each that may exist.
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_snapshots_id_seq') THEN
+    ALTER SEQUENCE cei_snapshots_id_seq RENAME TO cvi_snapshots_id_seq;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_components_id_seq') THEN
+    ALTER SEQUENCE cei_components_id_seq RENAME TO cvi_components_id_seq;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_capability_history_id_seq') THEN
+    ALTER SEQUENCE cei_capability_history_id_seq RENAME TO cvi_capability_history_id_seq;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_peer_benchmarks_id_seq') THEN
+    ALTER SEQUENCE cei_peer_benchmarks_id_seq RENAME TO cvi_peer_benchmarks_id_seq;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_signal_events_id_seq') THEN
+    ALTER SEQUENCE cei_signal_events_id_seq RENAME TO cvi_signal_events_id_seq;
+  END IF;
+END $$;
+
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'cei_signal_outcomes_id_seq') THEN
+    ALTER SEQUENCE cei_signal_outcomes_id_seq RENAME TO cvi_signal_outcomes_id_seq;
   END IF;
 END $$;
 

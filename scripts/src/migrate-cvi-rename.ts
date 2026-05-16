@@ -65,6 +65,16 @@ async function main() {
     console.log("✓ No indices starting with cei_");
   }
 
+  const stillSequences = await db.execute(sql.raw(`
+    SELECT sequencename FROM pg_sequences WHERE sequencename LIKE 'cei_%' ORDER BY sequencename
+  `));
+  const seqRows = (stillSequences.rows ?? stillSequences) as Array<{ sequencename: string }>;
+  if (seqRows.length > 0) {
+    console.warn("⚠️  Sequences still starting with cei_:", seqRows.map(r => r.sequencename).join(", "));
+  } else {
+    console.log("✓ No sequences starting with cei_");
+  }
+
   const cviTables = await db.execute(sql.raw(`
     SELECT table_name FROM information_schema.tables WHERE table_name LIKE 'cvi_%' ORDER BY table_name
   `));
