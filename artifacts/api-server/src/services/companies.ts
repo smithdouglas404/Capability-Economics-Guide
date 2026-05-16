@@ -57,7 +57,15 @@ function normalizeCapName(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
-type CapResolver = (providedName: string) => { cap: typeof capabilitiesTable.$inferSelect; matchKind: "exact" | "normalized" | "substring" } | null;
+type CapResolver = (providedName: string) => { cap: typeof capabilitiesTable.$inferSelect; matchKind: "exact" | "normalized" | "substring" | "tokens" } | null;
+
+/** Tokenize on whitespace/punctuation. Drops stop words ("and", "the", "of") that
+ *  the LLM and the menu may render inconsistently. */
+function tokenizeCapName(s: string): Set<string> {
+  const stop = new Set(["and", "the", "of", "for", "in", "to", "a", "an", "&"]);
+  const tokens = s.toLowerCase().split(/[^a-z0-9]+/).filter(t => t.length > 1 && !stop.has(t));
+  return new Set(tokens);
+}
 
 /**
  * Build a resolver that maps a Perplexity-supplied capability name to one of
@@ -70,7 +78,11 @@ type CapResolver = (providedName: string) => { cap: typeof capabilitiesTable.$in
 function buildCapResolver(industryCaps: ReadonlyArray<typeof capabilitiesTable.$inferSelect>): CapResolver {
   const byLower = new Map(industryCaps.map(c => [c.name.toLowerCase(), c]));
   const byNorm = new Map(industryCaps.map(c => [normalizeCapName(c.name), c]));
-  const normEntries = industryCaps.map(c => ({ cap: c, norm: normalizeCapName(c.name) }));
+  const indexed = industryCaps.map(c => ({
+    cap: c,
+    norm: normalizeCapName(c.name),
+    tokens: tokenizeCapName(c.name),
+  }));
 
   return (providedName: string) => {
     if (!providedName) return null;
@@ -83,17 +95,37 @@ function buildCapResolver(industryCaps: ReadonlyArray<typeof capabilitiesTable.$
     const normHit = byNorm.get(norm);
     if (normHit) return { cap: normHit, matchKind: "normalized" };
 
-    // Substring containment in either direction — handles "Risk Analytics" ↔
-    // "Risk Management & Analytics". Pick the longest matching menu name to
-    // prefer the most specific capability when several substrings could
-    // apply.
-    let best: { cap: typeof capabilitiesTable.$inferSelect; len: number } | null = null;
-    for (const { cap, norm: menuNorm } of normEntries) {
+    // Substring containment in either direction — catches the "Payments" →
+    // "Payments Infrastructure" case cheaply. Pick the longest matching menu
+    // name (most specific) when several would qualify.
+    let subBest: { cap: typeof capabilitiesTable.$inferSelect; len: number } | null = null;
+    for (const { cap, norm: menuNorm } of indexed) {
       if (menuNorm.includes(norm) || norm.includes(menuNorm)) {
-        if (!best || menuNorm.length > best.len) best = { cap, len: menuNorm.length };
+        if (!subBest || menuNorm.length > subBest.len) subBest = { cap, len: menuNorm.length };
       }
     }
-    if (best) return { cap: best.cap, matchKind: "substring" };
+    if (subBest) return { cap: subBest.cap, matchKind: "substring" };
+
+    // Token-set match — handles "Risk Analytics" ↔ "Risk Management &
+    // Analytics" where neither normalized string contains the other but they
+    // share meaningful tokens. Require ≥2 shared tokens (or all tokens of
+    // the shorter side when the shorter side has fewer than 2 meaningful
+    // tokens), then rank by Jaccard so the closest menu entry wins. Skips
+    // single-token provided names entirely — too ambiguous to match safely.
+    const provTokens = tokenizeCapName(providedName);
+    if (provTokens.size < 2) return null;
+    let tokBest: { cap: typeof capabilitiesTable.$inferSelect; jaccard: number } | null = null;
+    for (const { cap, tokens: menuTokens } of indexed) {
+      let shared = 0;
+      for (const t of provTokens) if (menuTokens.has(t)) shared++;
+      if (shared < 2) continue;
+      const union = new Set([...provTokens, ...menuTokens]).size;
+      const jaccard = shared / union;
+      if (!tokBest || jaccard > tokBest.jaccard) tokBest = { cap, jaccard };
+    }
+    // 0.4 threshold — empirically tight enough to avoid "Tax" matching every
+    // tax-adjacent capability, loose enough to bridge LLM paraphrasing.
+    if (tokBest && tokBest.jaccard >= 0.4) return { cap: tokBest.cap, matchKind: "tokens" };
 
     return null;
   };
