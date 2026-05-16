@@ -19,6 +19,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { requireReviewer } from "../middlewares/requireReviewer";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { enrichCapabilityQuadrants } from "../services/enrichment/runners";
+import { runDetailEnrichment } from "../services/alpha/enrich";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -110,6 +111,20 @@ router.post("/rerun/:id", requireReviewer(), async (req: Request, res: Response)
       targetCapabilityIds: [capId],
       targetIndustryIds: [cap.industryId],
     });
+
+    // Deterministically run detail enrichment for THIS cap. Same defence as the
+    // classify_quadrants pre-call above: Sonnet has been observed skipping
+    // run_economic_detail when the alpha tool succeeded and other capabilities'
+    // detail rows already exist in the industry. Skipping it leaves
+    // summaryNarrative / aiExposureScore / metricInterpretations etc. null and
+    // the capability detail page renders "awaiting economic enrichment". This
+    // call is idempotent: if the agent did run detail, runDetailEnrichment will
+    // re-fill the same fields with fresh content; if it didn't, this fills the
+    // gap. Capability-scoped so it ignores the null/force filter that the
+    // industry-wide path uses.
+    logger.info({ capabilityId: capId, name: cap.name }, "[alpha/rerun] running deterministic detail enrichment");
+    const detailRes = await runDetailEnrichment({ capabilityId: capId });
+    logger.info({ enriched: detailRes.enriched, errors: detailRes.errors.length, durationMs: detailRes.durationMs }, "[alpha/rerun] detail enrichment result");
 
     // Sync the status column. Path A (this synchronous rerun) historically
     // wrote capability_economics but never updated enrichment_status, so the
