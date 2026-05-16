@@ -62,7 +62,7 @@ interface ChatResponse {
 async function chatWithTools(messages: ChatMessage[], opts: { model?: string; maxTokens?: number } = {}): Promise<ChatResponse["choices"][0]["message"]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY required for enrichment agent");
-  const model = opts.model ?? "anthropic/claude-sonnet-4.5";
+  const model = opts.model ?? "anthropic/claude-sonnet-4.6";
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180_000);
   try {

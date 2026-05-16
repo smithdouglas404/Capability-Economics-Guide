@@ -212,7 +212,7 @@ Be specific, strategic, and grounded in real ${industry.name} industry dynamics.
     };
 
     const [sonnet, deepseek] = await Promise.all([
-      runViaOpenRouter("anthropic/claude-sonnet-4.5"),
+      runViaOpenRouter("anthropic/claude-sonnet-4.6"),
       runViaOpenRouter("deepseek/deepseek-chat"),
     ]);
 

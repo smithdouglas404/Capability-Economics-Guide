@@ -356,7 +356,7 @@ Return ONLY valid JSON:
 }`;
 
         const message = await anthropic.messages.create({
-          model: rm("claude-sonnet-4-5"),
+          model: rm("claude-sonnet-4-6"),
           max_tokens: 1024,
           messages: [{ role: "user", content: sonnetPrompt }],
         });
@@ -505,7 +505,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
             "X-Title": "Capability Economics",
           },
           body: JSON.stringify({
-            model: "anthropic/claude-sonnet-4.5",
+            model: "anthropic/claude-sonnet-4.6",
             max_tokens: 4096,
             messages: [{ role: "user", content: prompt }],
           }),

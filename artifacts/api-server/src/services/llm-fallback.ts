@@ -144,7 +144,7 @@ export async function chatWithFallback(args: FallbackChatArgs): Promise<Fallback
  * cheapest model still produces usable structured output for our schemas.
  */
 export const EDITORIAL_FALLBACK_CHAIN = [
-  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-sonnet-4.6",
   "anthropic/claude-haiku-4.5",
   "z-ai/glm-5.1",
 ];

@@ -68,7 +68,7 @@ async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> 
         "X-Title": "Capability Economics",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.5",
+        model: "anthropic/claude-sonnet-4.6",
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),

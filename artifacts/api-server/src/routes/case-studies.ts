@@ -372,7 +372,7 @@ Constraints:
           "X-Title": "Capability Economics",
         },
         body: JSON.stringify({
-          model: "anthropic/claude-sonnet-4.5",
+          model: "anthropic/claude-sonnet-4.6",
           max_tokens: 8192,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -426,7 +426,7 @@ Constraints:
       fiveYearOutlook: studyJson.fiveYearOutlook,
       kpis: studyJson.kpis,
       sources,
-      model: "anthropic/claude-sonnet-4.5+sonar-pro",
+      model: "anthropic/claude-sonnet-4.6+sonar-pro",
     })
     .returning();
 

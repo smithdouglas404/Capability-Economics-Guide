@@ -8,6 +8,7 @@ const PRICING: Record<string, { input: number; output: number }> = {
   "sonar-reasoning-pro": { input: 2, output: 8 },
   "anthropic/claude-haiku-4.5": { input: 1, output: 5 },
   "anthropic/claude-sonnet-4.5": { input: 3, output: 15 },
+  "anthropic/claude-sonnet-4.6": { input: 3, output: 15 },
   "z-ai/glm-5.1": { input: 0.5, output: 1.5 },
   "openai/gpt-4o": { input: 2.5, output: 10 },
   "openai/gpt-4o-mini": { input: 0.15, output: 0.6 },

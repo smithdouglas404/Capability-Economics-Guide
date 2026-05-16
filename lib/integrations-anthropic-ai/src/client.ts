@@ -5,7 +5,7 @@ if (!process.env.OPENROUTER_API_KEY) {
 const OPENROUTER_MODEL_MAP: Record<string, string> = {
   "claude-haiku-4-5":  "anthropic/claude-haiku-4.5",
   "claude-sonnet-4-5": "anthropic/claude-sonnet-4.5",
-  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.5",
+  "claude-sonnet-4-6": "anthropic/claude-sonnet-4.6",
   "claude-opus-4-5":   "anthropic/claude-opus-4.5",
   "claude-opus-4-7":   "anthropic/claude-opus-4.5",
   "claude-haiku-3-5":  "anthropic/claude-3.5-haiku",

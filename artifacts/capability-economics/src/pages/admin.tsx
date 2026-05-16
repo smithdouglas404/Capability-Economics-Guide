@@ -139,6 +139,7 @@ type ModelEntry = { task: string; model: string; reason: string };
 const MODEL_COLORS: Record<string, string> = {
   "z-ai/glm-5.1": "bg-purple-500/10 text-purple-600 border border-purple-500/20",
   "anthropic/claude-sonnet-4.5": "bg-blue-500/10 text-blue-600 border border-blue-500/20",
+  "anthropic/claude-sonnet-4.6": "bg-blue-500/10 text-blue-600 border border-blue-500/20",
   "deepseek/deepseek-chat": "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20",
   "anthropic/claude-haiku-4.5": "bg-orange-500/10 text-orange-600 border border-orange-500/20",
 };
