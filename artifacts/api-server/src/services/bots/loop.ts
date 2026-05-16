@@ -2,6 +2,7 @@ import { db, botsTable, botActionsTable, type Bot } from "@workspace/db";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { runBrowseAction } from "./actions/browse";
 import { runAssessmentAction, isAssessmentDue } from "./actions/assessment";
+import { runReflectionAction, isReflectionDue } from "./actions/reflection";
 import { getBotBudgetStatus } from "./budget";
 import { getPersona } from "./personas";
 import { logger } from "../../lib/logger";
@@ -51,7 +52,7 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
     return result;
   }
 
-  // 1. Run an assessment if due (one per tick max — it's the heaviest)
+  // 1. Run an assessment if due (one per tick max — it's heavy)
   if (await isAssessmentDue(bot)) {
     const budget = await getBotBudgetStatus(bot.id);
     if (budget.overBudget) {
@@ -68,7 +69,25 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
     }
   }
 
-  // 2. Decide how many browses are due today based on cadence
+  // 2. Run weekly reflection if due. Pulls last 7 days of bot activity
+  //    and writes a narrative reflection in the persona's voice.
+  if (await isReflectionDue(bot)) {
+    const budget = await getBotBudgetStatus(bot.id);
+    if (budget.overBudget) {
+      result.actionsSkippedBudget++;
+      await logBudgetSkip(bot.id, "reflection", budget.mtdCents, budget.capCents);
+    } else {
+      const r = await runReflectionAction(bot);
+      if (r.ok) {
+        result.actionsRun++;
+        result.totalCostCents += r.costCents;
+      } else if (r.error) {
+        result.errors.push(`reflection: ${r.error}`);
+      }
+    }
+  }
+
+  // 3. Decide how many browses are due today based on cadence
   const browsesToday = await countTodayActions(bot.id, "browse");
   const browsesDesired = persona.biases.capabilityBrowsesPerDay;
   const browsesNeeded = Math.max(0, browsesDesired - browsesToday);

@@ -51,13 +51,15 @@ export async function runAssessmentAction(bot: Bot): Promise<{ ok: boolean; cost
       ? await db.select().from(capabilitiesTable).where(inArray(capabilitiesTable.id, recentIds))
       : [];
 
-    // Union, dedupe, cap at 5 capabilities to keep prompt size + cost bounded
+    // Union, dedupe, cap at 12 capabilities — wider coverage gives the
+    // assessment more analytical surface area, and at Sonnet pricing this
+    // is still well under $0.15 per pass.
     const seen = new Set<number>();
     const capabilities = [...fromRecent, ...fromIndustry].filter(c => {
       if (seen.has(c.id)) return false;
       seen.add(c.id);
       return true;
-    }).slice(0, 5);
+    }).slice(0, 12);
 
     if (capabilities.length === 0) {
       return { ok: false, costCents: 0, error: "no candidate capabilities for assessment" };
@@ -85,7 +87,8 @@ export async function runAssessmentAction(bot: Bot): Promise<{ ok: boolean; cost
       model: "anthropic/claude-sonnet-4.6",
       systemPrompt,
       userPrompt,
-      maxTokens: 2048,
+      // 12 capabilities × ~250 output tokens each + headroom for richer notes
+      maxTokens: 4096,
       jsonMode: true,
       personaKey: bot.personaKey,
       actionType: "assessment",

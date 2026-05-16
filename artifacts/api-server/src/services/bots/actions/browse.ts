@@ -6,6 +6,7 @@ import { buildPersonaSystemPrompt } from "../prompts";
 interface BrowseChoice {
   capabilityId: number;
   reasonShort: string;
+  keyQuestions?: string[];
 }
 
 /**
@@ -50,8 +51,9 @@ export async function runBrowseAction(bot: Bot): Promise<{ ok: boolean; costCent
       return { ok: false, costCents: 0, error: "no capabilities to browse" };
     }
 
-    // Shuffle + cap to 8 candidates for the LLM prompt
-    const shortlist = candidates.sort(() => Math.random() - 0.5).slice(0, 8);
+    // Shuffle + cap to 15 candidates for the LLM prompt (wider pool gives
+    // the persona biases more selection signal to act on)
+    const shortlist = candidates.sort(() => Math.random() - 0.5).slice(0, 15);
 
     // Pull economic context for the shortlist (quadrant, EVaR, AI exposure)
     // so the LLM's choice can actually reflect persona biases.
@@ -74,19 +76,28 @@ export async function runBrowseAction(bot: Bot): Promise<{ ok: boolean; costCent
     }).join("\n");
 
     const userPrompt = [
-      "Pick one capability to study next based on your biases and the brief signals below.",
+      "Pick one capability to study next based on your biases and the signals below.",
+      "Consider quadrant, AI exposure, half-life, and margin structure when they're provided.",
       "",
       "Candidate capabilities:",
       candidateLines,
       "",
-      "Return JSON: {\"capabilityId\": <id>, \"reasonShort\": \"<one sentence explaining your pick in your voice>\"}",
+      "Return JSON: {",
+      "  \"capabilityId\": <id>,",
+      "  \"reasonShort\": \"<one-sentence explanation of your pick in your voice>\",",
+      "  \"keyQuestions\": [\"<question you would investigate first>\", \"<second>\", \"<third>\"]",
+      "}",
     ].join("\n");
 
     const llm = await botLlmCall({
-      model: "anthropic/claude-haiku-4.5",
+      // Sonnet 4.6 (not Haiku): browsing is the persona's primary cognitive
+      // act and the quality difference materially affects the realism of
+      // selections + reasoning that downstream features (comments, marketplace
+      // listings, assessments) will reference.
+      model: "anthropic/claude-sonnet-4.6",
       systemPrompt,
       userPrompt,
-      maxTokens: 256,
+      maxTokens: 768,
       jsonMode: true,
       personaKey: bot.personaKey,
       actionType: "browse",
@@ -117,7 +128,7 @@ export async function runBrowseAction(bot: Bot): Promise<{ ok: boolean; costCent
       targetType: "capability",
       targetId: String(choice.id),
       summary: `Viewed ${choice.name}: ${parsed.reasonShort.slice(0, 200)}`,
-      payload: { reason: parsed.reasonShort },
+      payload: { reason: parsed.reasonShort, keyQuestions: parsed.keyQuestions ?? [] },
       costCents: llm.costCents,
       succeeded: true,
     });
