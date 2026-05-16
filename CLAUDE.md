@@ -126,9 +126,36 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 - Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
 - Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` in `env` *may* still work (they target the live Railway Letta service) — but treat a 401 as "the local key is stale," not "Letta is broken."
 - Direct Mem0 queries: same caveat. Header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below.
-- Source-of-truth env var list: ask the user to paste from Railway dashboard → service → Variables tab.
 
 When the user says "you have access to Railway," verify before agreeing — `railway whoami` is the only honest signal.
+
+**Railway access from a Claude shell — use GraphQL, not the CLI.** Ask the user for a project-scoped token (Railway dashboard → project Settings → Tokens, UUID format). Send as header `Project-Access-Token: <uuid>` (NOT `Authorization: Bearer`; the account-scoped `RAILWAY_API_TOKEN` does not work on this endpoint). Endpoint: `https://backboard.railway.com/graphql/v2`.
+
+Discovery query (returns projectId, environmentId, and all services with IDs):
+```bash
+curl -s -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Project-Access-Token: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"query { projectToken { projectId environmentId project { name services { edges { node { id name } } } } } }"}'
+```
+
+List a service's variables (returns `{KEY: VALUE}` — strip values before logging):
+```bash
+curl -s -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Project-Access-Token: $TOKEN" -H "Content-Type: application/json" \
+  -d '{"query":"query Vars($p:String!,$e:String!,$s:String!){variables(projectId:$p,environmentId:$e,serviceId:$s)}","variables":{"p":"<projectId>","e":"<envId>","s":"<serviceId>"}}'
+```
+
+Capability Economics project IDs (verify via discovery query before relying on them — services get renamed):
+- projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
+- production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
+- service `capabilityeconomics` (api-server): `f4585a12-c207-4faa-9171-5362997768ec`
+- service `letta-2EOT`: `b6b84d74-984e-4792-8218-3e97bcc2831c`
+- service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
+- service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
+- service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c`
+- service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199`
+
+Never reuse a token from memory or a prior session — always ask for a fresh one. The CLI's `railway login --browserless` fails from a non-TTY Claude shell ("Cannot login in non-interactive mode") — GraphQL is the only path that works.
 
 ### Deploying to Railway
 

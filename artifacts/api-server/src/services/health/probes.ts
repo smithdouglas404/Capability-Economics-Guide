@@ -160,18 +160,12 @@ const probeOpenRouter: Probe = async () => {
 };
 
 const probeAnthropic: Probe = async () => {
-  // The Anthropic integration runs through the Replit AI proxy. The proxy
-  // injects credentials via env vars set by `setupReplitAIIntegrations` —
-  // we treat the presence of those vars + a successful client import as
-  // "configured + reachable". A real generation would burn credits on every
-  // 60s poll, which we explicitly do not want.
-  const baseUrl = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  const apiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  if (!baseUrl || !apiKey) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
     return {
       status: "not_configured",
       latencyMs: null,
-      lastError: "AI_INTEGRATIONS_ANTHROPIC_{BASE_URL,API_KEY} not set",
+      lastError: "ANTHROPIC_API_KEY not set",
     };
   }
   try {
