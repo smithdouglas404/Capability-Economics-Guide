@@ -1,7 +1,7 @@
 import { pgTable, serial, real, text, timestamp, jsonb, index } from "drizzle-orm/pg-core";
 
 /**
- * Curated historical events for the CEI backtesting harness.
+ * Curated historical events for the CVI backtesting harness.
  *
  * Each row encodes a real-world disruption (COVID, ChatGPT launch, SVB, …)
  * with the analyst's *ground-truth* directional verdict **per affected

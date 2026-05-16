@@ -37,8 +37,8 @@ async function glmJson(prompt: string, maxTokens = 3000): Promise<string> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics Thesis",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi Thesis",
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4.6",
@@ -138,7 +138,7 @@ Return a JSON object with one key "memoMarkdown" whose value is a markdown-forma
 ## Verdict
 One sentence: long, short, or neutral, with conviction level (high/medium/low) and the single most important driver.
 
-## Capability Economics
+## Inflexcvi
 Numeric facts: TAM, margin, half-life, $ at risk over 36 months. State the implied annual EVaR.
 
 ## Where We Disagree With Consensus

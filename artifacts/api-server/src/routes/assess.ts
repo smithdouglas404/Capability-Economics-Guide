@@ -43,7 +43,7 @@ async function lookupSecEdgar(sessionId: string, companyName: string, knownCik?:
       const query = encodeURIComponent(`"${companyName}"`);
       const searchUrl = `https://efts.sec.gov/LATEST/search-index?q=${query}&forms=10-K&dateRange=custom&startdt=2023-01-01`;
       const resp = await fetch(searchUrl, {
-        headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
+        headers: { "User-Agent": "CapabilityEconomics research@inflexcvi.ai" },
         signal: AbortSignal.timeout(10000),
       });
       if (!resp.ok) return { status: "not_found" };
@@ -66,7 +66,7 @@ async function lookupSecEdgar(sessionId: string, companyName: string, knownCik?:
         const padded = cik.replace(/^0+/, "").padStart(10, "0");
         const subUrl = `https://data.sec.gov/submissions/CIK${padded}.json`;
         const subResp = await fetch(subUrl, {
-          headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
+          headers: { "User-Agent": "CapabilityEconomics research@inflexcvi.ai" },
           signal: AbortSignal.timeout(8000),
         });
         if (subResp.ok) {
@@ -85,7 +85,7 @@ async function lookupSecEdgar(sessionId: string, companyName: string, knownCik?:
               const docUrl = `https://www.sec.gov/Archives/edgar/data/${cleanCik}/${accession}/`;
               try {
                 const idxResp = await fetch(`${docUrl}${accessions[idx]}-index.htm`, {
-                  headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
+                  headers: { "User-Agent": "CapabilityEconomics research@inflexcvi.ai" },
                   signal: AbortSignal.timeout(8000),
                 });
                 if (idxResp.ok) {
@@ -94,7 +94,7 @@ async function lookupSecEdgar(sessionId: string, companyName: string, knownCik?:
                   if (docMatch) {
                     const fullDocUrl = `https://www.sec.gov/Archives/edgar/data/${cleanCik}/${accession}/${docMatch[1]}`;
                     const docResp = await fetch(fullDocUrl, {
-                      headers: { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" },
+                      headers: { "User-Agent": "CapabilityEconomics research@inflexcvi.ai" },
                       signal: AbortSignal.timeout(12000),
                     });
                     if (docResp.ok) {
@@ -209,7 +209,7 @@ router.post("/assess/start", async (req: Request, res: Response) => {
   if (jobPostingText) contextParts.push(`Job posting provided:\n${jobPostingText.slice(0, 1000)}`);
   if (validCompetitors.length > 0) contextParts.push(`Competitors to benchmark against: ${validCompetitors.map(c => c.name).join(", ")}`);
 
-  const prompt = `You are a senior Capability Economics advisor. A client has shared the following context:
+  const prompt = `You are a senior Inflexcvi advisor. A client has shared the following context:
 
 ${contextParts.join("\n\n")}
 
@@ -237,8 +237,8 @@ Return ONLY valid JSON in this format, no commentary:
     headers: {
       "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://capabilityeconomics.com",
-      "X-Title": "Capability Economics",
+      "HTTP-Referer": "https://inflexcvi.ai",
+      "X-Title": "Inflexcvi",
     },
     body: JSON.stringify({ model: "anthropic/claude-sonnet-4.6", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
   });
@@ -319,7 +319,7 @@ ${secData.riskFactors ? `Risk Factors:\n${(secData.riskFactors as string).slice(
     ? `\nJOB POSTING (parse for capability signal):\n${session.jobPostingText.slice(0, 1200)}`
     : "";
 
-  const prompt = `You are a world-class Capability Economics advisor and strategic analyst, deeply versed in:
+  const prompt = `You are a world-class Inflexcvi advisor and strategic analyst, deeply versed in:
 - World Economic Forum Global Competitiveness Index 4.0 (12 pillars across 4 domains: Enabling Environment, Human Capital, Markets, Innovation Ecosystem)
 - WEF Future of Jobs Report capability clusters
 - WEF Human Capital Index categories
@@ -339,7 +339,7 @@ ${secBlock}
 ${competitorBlock}
 ${jobPostingBlock}
 
-Produce a comprehensive, OPINIONATED Capability Economics assessment. Be directional — avoid middle-of-the-road scores. If a capability is strong, say so. If it's a gap, say so clearly. Base your assessment on real industry benchmarks, WEF data, and what you know about this industry and business model.
+Produce a comprehensive, OPINIONATED Inflexcvi assessment. Be directional — avoid middle-of-the-road scores. If a capability is strong, say so. If it's a gap, say so clearly. Base your assessment on real industry benchmarks, WEF data, and what you know about this industry and business model.
 
 Return ONLY valid JSON with this exact structure:
 {
@@ -469,8 +469,8 @@ Rules:
     headers: {
       "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://capabilityeconomics.com",
-      "X-Title": "Capability Economics",
+      "HTTP-Referer": "https://inflexcvi.ai",
+      "X-Title": "Inflexcvi",
     },
     body: JSON.stringify({ model: "anthropic/claude-sonnet-4.6", max_tokens: 8192, messages: [{ role: "user", content: prompt }] }),
   });

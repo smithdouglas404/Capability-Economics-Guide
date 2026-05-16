@@ -9,7 +9,7 @@ import { pgTable, integer, real, timestamp, text } from "drizzle-orm/pg-core";
  * upserts row 1 on first save and returns code defaults on first read.
  *
  * Knobs:
- * - routineIntervalHours: how often the autonomous CEI agent runs a routine
+ * - routineIntervalHours: how often the autonomous CVI agent runs a routine
  *   cycle. Previously a const in scheduler.ts (8h then 96h).
  * - detailBackfillLimit: how many null-detail capability_economics rows the
  *   post-run safety-net sweep fills per cycle. Previously hardcoded 15.

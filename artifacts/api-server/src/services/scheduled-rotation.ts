@@ -97,9 +97,9 @@ async function checkAndRotate(): Promise<void> {
     try {
       await sendEmail({
         to: row.notifyEmail,
-        subject: "[Capability Economics] Admin API key auto-rotated",
+        subject: "[Inflexcvi] Admin API key auto-rotated",
         text: [
-          "Your Capability Economics admin API key was rotated automatically as scheduled.",
+          "Your Inflexcvi admin API key was rotated automatically as scheduled.",
           "",
           "The previous key has stopped working immediately. Save the new value below into your password manager and paste it into the admin UI's Admin Key field.",
           "",

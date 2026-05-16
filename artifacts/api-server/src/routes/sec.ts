@@ -81,7 +81,7 @@ router.get("/sec/search", async (req, res) => {
       }
     };
 
-    const headers = { "User-Agent": "CapabilityEconomics research@capabilityeconomics.ai" };
+    const headers = { "User-Agent": "CapabilityEconomics research@inflexcvi.ai" };
     const signal = () => AbortSignal.timeout(8000);
 
     // 1. Quoted 10-K search

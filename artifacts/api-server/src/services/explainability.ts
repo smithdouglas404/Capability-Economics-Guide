@@ -1,9 +1,9 @@
 /**
  * Score-change explainability service.
  *
- * "Why did this capability's CEI move?"
+ * "Why did this capability's CVI move?"
  *
- * The CEI components table only stores the latest posterior, so we can't read
+ * The CVI components table only stores the latest posterior, so we can't read
  * a per-capability time series directly. Instead we reconstruct two snapshots
  * — one at T=now, one at T=now-windowDays — from source_triangulations
  * (which IS append-only and timestamped), then attribute the delta to:

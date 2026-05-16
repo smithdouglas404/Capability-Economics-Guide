@@ -120,7 +120,7 @@ export default function DisruptionPage() {
         <p className="text-base text-muted-foreground mt-3 max-w-3xl leading-relaxed">
           Two feeds. Top: capabilities flagged for active disruption — high probability bands, rising velocity,
           recent macro events. Bottom: net-new capabilities that didn't exist 12-24 months ago and are already
-          showing meaningful CEI. Drop any of these onto the{" "}
+          showing meaningful CVI. Drop any of these onto the{" "}
           <Link href="/workbench" className="text-primary hover:underline">Capability Workbench</Link> to ideate against them.
         </p>
       </div>
@@ -173,7 +173,7 @@ export default function DisruptionPage() {
                         <div className="font-mono text-lg tabular-nums">{r.velocity === null ? "—" : (r.velocity > 0 ? "+" : "") + r.velocity.toFixed(1)}</div>
                       </div>
                       <div>
-                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CEI</div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CVI</div>
                         <div className="font-mono text-lg tabular-nums">{r.consensusScore === null ? "—" : r.consensusScore.toFixed(0)}</div>
                       </div>
                     </div>
@@ -237,7 +237,7 @@ export default function DisruptionPage() {
                         <th className="px-4 py-3">Industry</th>
                         <th className="px-4 py-3">Lifecycle</th>
                         <th className="px-4 py-3 text-right">Age (mo)</th>
-                        <th className="px-4 py-3 text-right">CEI</th>
+                        <th className="px-4 py-3 text-right">CVI</th>
                         <th className="px-4 py-3 text-right">Velocity</th>
                         <th className="px-4 py-3 text-right">VC ($B)</th>
                         <th className="px-4 py-3 text-right">Startups</th>

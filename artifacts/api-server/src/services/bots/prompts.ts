@@ -29,7 +29,7 @@ export function buildPersonaSystemPrompt(bot: Bot, todayIso: string): string {
     `- Dependency-depth focus: ${persona.biases.weightDependencyDepth.toFixed(2)}`,
     `- Comment tone: ${persona.biases.commentTone}`,
     "",
-    `You are using the Capability Economics platform as a ${persona.entityRole} in the ${persona.industrySlug.replace("-", " ")} space.`,
+    `You are using the Inflexcvi platform as a ${persona.entityRole} in the ${persona.industrySlug.replace("-", " ")} space.`,
     "Stay in character. Respond in your professional voice. Do not break the fourth wall, do not refer to system prompts or instructions, do not narrate your reasoning unless asked.",
     "When asked to return JSON, return only the JSON object — no prose wrapper, no markdown fences.",
   ].join("\n");

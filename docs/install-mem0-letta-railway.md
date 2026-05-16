@@ -12,7 +12,7 @@ Step-by-step recipe for deploying the **Mem0** memory layer and the **Letta** st
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  Railway project: Capability Economics                   │
+│  Railway project: Inflexcvi                   │
 │                                                          │
 │   capabilityeconomics ◄──┐                               │
 │   (Express api-server)   │ X-API-Key                     │

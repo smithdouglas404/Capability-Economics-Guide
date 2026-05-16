@@ -14,7 +14,7 @@ export default function ProofSlide() {
           Did the model see it coming?
         </h2>
         <p className="font-body text-muted mt-[1vh]" style={{ fontSize: "1.4vw", maxWidth: "70vw" }}>
-          We replay historical shocks through the same CEI engine that runs the live index. Dry-run mode,
+          We replay historical shocks through the same CVI engine that runs the live index. Dry-run mode,
           read-only — the live index is never polluted. Public at <span className="text-primary">/proof</span>.
         </p>
       </div>
@@ -53,7 +53,7 @@ export default function ProofSlide() {
         <div className="mt-[4vh] rounded-sm" style={{ background: "rgba(79,110,247,0.05)", border: "1px solid rgba(79,110,247,0.2)", padding: "2vh 1.5vw" }}>
           <p className="font-body font-medium text-primary uppercase tracking-widest mb-[1vh]" style={{ fontSize: "0.85vw" }}>What this measures</p>
           <p className="font-body text-text" style={{ fontSize: "1vw", lineHeight: 1.5 }}>
-            Directional accuracy under shock — does the engine's predicted CEI move match the recorded
+            Directional accuracy under shock — does the engine's predicted CVI move match the recorded
             historical direction? <span className="text-muted">Expected directions allowed to disagree with event sentiment: COVID is globally negative but positive for telehealth.</span>
           </p>
         </div>

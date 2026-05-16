@@ -1,4 +1,4 @@
-# Railway Setup — Capability Economics
+# Railway Setup — Inflexcvi
 
 How this app is hosted on Railway, what every service does, the pitfalls we tripped over getting here, and a clean recipe for spinning up a fresh environment.
 

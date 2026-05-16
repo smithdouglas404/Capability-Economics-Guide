@@ -1,8 +1,8 @@
-# Capability Economics — Foundry Ontology Spec
+# Inflexcvi — Foundry Ontology Spec
 
 **Stack:** `https://ssg.usw-17.palantirfoundry.com`
 **Ontology:** `dsmith@smithfamilyusa.com Ontology` (`ri.ontology.main.ontology.84e2e319-c566-4304-a12a-8dbb05224f4f`)
-**Project:** `Capability Economics` (`ri.compass.main.folder.0b7baf38-d7f4-4413-aa27-962236f947d2`)
+**Project:** `Inflexcvi` (`ri.compass.main.folder.0b7baf38-d7f4-4413-aa27-962236f947d2`)
 
 This is the field-by-field reference for creating Object Types in the Foundry UI. Each Object Type is backed by one Dataset that's snapshot-synced from Postgres every hour (and on every successful enrichment-agent run).
 
@@ -42,7 +42,7 @@ For each Object Type below, in Foundry Compass:
 | slug | String | yes |  |
 | description | String | no |  |
 | traditionalView | String | no | "How conventional thinking treats this" |
-| economicView | String | no | "Capability Economics reframe" |
+| economicView | String | no | "Inflexcvi reframe" |
 | benchmarkScore | Integer | no | 0–100 |
 | reviewStatus | String | yes | `pending_review` / `approved` / `rejected` |
 | submittedBy | String | no | Reviewer display name |

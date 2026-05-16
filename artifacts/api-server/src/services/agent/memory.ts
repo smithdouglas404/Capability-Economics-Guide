@@ -109,7 +109,7 @@ function buildConversationalMessages(
 ): Array<{ role: "user" | "assistant"; content: string }> {
   const userPrompt = context
     ? context
-    : `Logging a ${type}${category ? ` (${category})` : ""} from the latest CEI research cycle. Capture the durable facts so future cycles can recall and reason over them.`;
+    : `Logging a ${type}${category ? ` (${category})` : ""} from the latest CVI research cycle. Capture the durable facts so future cycles can recall and reason over them.`;
 
   const metaSummary = Object.entries(metadata)
     .filter(([k]) => !["mem0Id", "source", "category"].includes(k))

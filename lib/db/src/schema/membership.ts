@@ -68,7 +68,7 @@ export type UserMembership = typeof userMembershipsTable.$inferSelect;
 // These are populated by the stripe webhook when a subscription is created.
 // For one-time payments (legacy memberships) they remain null.
 
-// ── CEI Credits System ──
+// ── CVI Credits System ──
 
 export const creditAccountsTable = pgTable("credit_accounts", {
   userId: text("user_id").primaryKey(),
@@ -133,5 +133,5 @@ export const TIER_ALLOCATIONS: Record<string, number> = {
   platform: 50000,
 };
 
-export const CEI_CREDIT_BLOCK_SIZE = 1000;
-export const CEI_CREDIT_BLOCK_PRICE_CENTS = 250; // $2.50 per 1,000 credits
+export const CVI_CREDIT_BLOCK_SIZE = 1000;
+export const CVI_CREDIT_BLOCK_PRICE_CENTS = 250; // $2.50 per 1,000 credits

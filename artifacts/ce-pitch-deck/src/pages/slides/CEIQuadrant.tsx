@@ -2,7 +2,7 @@ export default function CEIQuadrant() {
   return (
     <div className="w-screen h-screen overflow-hidden relative" style={{ background: "linear-gradient(180deg, #0a0a0f 0%, #0f1018 100%)" }}>
       <div className="absolute top-[5vh] left-[6vw]">
-        <p className="font-body font-medium text-primary uppercase tracking-widest" style={{ fontSize: "1.3vw" }}>CEI Index</p>
+        <p className="font-body font-medium text-primary uppercase tracking-widest" style={{ fontSize: "1.3vw" }}>CVI Index</p>
         <h2 className="font-display font-bold text-text tracking-tight" style={{ fontSize: "3.2vw", marginTop: "1vh" }}>Quadrant xRay</h2>
       </div>
       <div className="absolute top-[4vh] right-[6vw] flex gap-[1.5vw]">

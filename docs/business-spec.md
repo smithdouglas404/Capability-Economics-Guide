@@ -1,4 +1,4 @@
-# Capability Economics Platform — Business Specification
+# Inflexcvi Platform — Business Specification
 
 **Version:** 2.1  
 **Date:** April 2026  
@@ -10,7 +10,7 @@
 
 ## 1. Theoretical Foundation
 
-### 1.1 The Capability Economics Thesis
+### 1.1 The Inflexcvi Thesis
 
 The platform is grounded in three decades of strategic management theory that has never been operationalized at scale:
 
@@ -26,14 +26,14 @@ The platform is grounded in three decades of strategic management theory that ha
 
 ### 1.2 The Information Asymmetry Problem
 
-The fundamental market failure Capability Economics addresses is **information asymmetry** in capability assessment:
+The fundamental market failure Inflexcvi addresses is **information asymmetry** in capability assessment:
 
 - **Within firms:** Executives know their capabilities intuitively but cannot quantify them for capital allocation decisions. The CFO asks "why should we invest $50M in claims automation?" The COO cannot answer with precision.
 - **Across firms:** Industry benchmarks exist for financial metrics (ROE, EBITDA margins) but not for capabilities. No executive knows whether their fraud detection capability is in the top quartile of their industry.
 - **For investors:** PE due diligence teams spend months assessing operational capabilities qualitatively. They systematically miss capability gaps that surface 18 months post-acquisition.
 - **Over time:** Point-in-time assessments by consultants provide a snapshot but no trend. Whether a capability is improving or declining is invisible.
 
-Capability Economics dissolves each of these information asymmetries through continuous, quantified, benchmarked, time-series capability intelligence.
+Inflexcvi dissolves each of these information asymmetries through continuous, quantified, benchmarked, time-series capability intelligence.
 
 ---
 
@@ -58,7 +58,7 @@ Capability health changes continuously, but measurement is episodic. Consider th
 - **AI/ML in Underwriting:** This capability advanced from "emerging" to "competitive table stakes" between 2020 and 2024 — a 4-year window. Firms that failed to detect this trajectory and accelerate investment lost underwriting margin relative to peers who detected it early.
 - **Claims Automation:** The COVID-19 pandemic forced a 3-year acceleration of claims automation adoption into 18 months. Insurers without continuous capability monitoring failed to respond until analyst reports confirmed the shift — often 12-18 months too late.
 
-The velocity component of the CEI formula explicitly models this temporal dynamic. A capability with score=65 but velocity=+8 (strongly improving) is strategically different from a capability with score=65 and velocity=-3 (declining). The former may be approaching competitive parity; the latter may be approaching a threshold breach.
+The velocity component of the CVI formula explicitly models this temporal dynamic. A capability with score=65 but velocity=+8 (strongly improving) is strategically different from a capability with score=65 and velocity=-3 (declining). The former may be approaching competitive parity; the latter may be approaching a threshold breach.
 
 ### 2.3 The C-Suite Misalignment Problem
 
@@ -76,11 +76,11 @@ In practice, these perspectives are never synthesized. Investment decisions are 
 
 ## 3. The Solution Architecture (Business View)
 
-### 3.1 The Capability Economics Index (CEI)
+### 3.1 The Capability Value Index (CVI)
 
-The CEI is the platform's primary output: a composite score (0–1000) representing the overall capability health of an industry, updated continuously by the autonomous agent.
+The CVI is the platform's primary output: a composite score (0–1000) representing the overall capability health of an industry, updated continuously by the autonomous agent.
 
-The index draws on the theoretical construct of a **Composite Human Development Index** (UNDP HDI) — a multi-dimensional construct where component scores are GDP-weighted and aggregated into a single comparable scalar. The analogy is deliberate: just as the HDI makes human development comparable across nations with different demographic profiles, the CEI makes capability health comparable across industries with different economic structures.
+The index draws on the theoretical construct of a **Composite Human Development Index** (UNDP HDI) — a multi-dimensional construct where component scores are GDP-weighted and aggregated into a single comparable scalar. The analogy is deliberate: just as the HDI makes human development comparable across nations with different demographic profiles, the CVI makes capability health comparable across industries with different economic structures.
 
 **Economic weighting rationale:** Capabilities are not equally valuable across industries. Claims Processing capability in Insurance (which processes ~$6T in global premiums annually) has higher economic stakes than the same capability in Retail. GDP-weighting adjusts for this structural difference, ensuring the index reflects actual economic significance rather than treating all capabilities symmetrically.
 
@@ -96,7 +96,7 @@ The index draws on the theoretical construct of a **Composite Human Development 
 
 ### 3.2 Product Module Architecture
 
-**CEI Dashboard:** Live index with industry breakdowns, velocity trends, and autonomous agent activity. Designed for Chief Strategy Officers and Chief Transformation Officers as a continuous monitoring surface. Key innovation: the agent's research activity is visible in real time (SSE stream), making the intelligence production process transparent and auditable.
+**CVI Dashboard:** Live index with industry breakdowns, velocity trends, and autonomous agent activity. Designed for Chief Strategy Officers and Chief Transformation Officers as a continuous monitoring surface. Key innovation: the agent's research activity is visible in real time (SSE stream), making the intelligence production process transparent and auditable.
 
 **Capability Assessment Tool (/assess):** The primary conversion mechanism. An organization enters its opportunity or challenge, uploads relevant documents (10-K, strategy decks), and receives a WEF-anchored radar chart, confidence-scored capability map, and 12-month investment roadmap generated by Claude. Includes voice dictation on all fields (Web Speech API), SEC EDGAR integration for public company lookup, and competitive landscape mapping.
 
@@ -127,7 +127,7 @@ We use a bottom-up sizing methodology anchored in observable market signals, not
 **Alternative anchor — Strategy Intelligence Software:**
 - Gartner Strategy Management Software market: $8.2B in 2025, growing at 14% CAGR
 - Adjacent markets: Business Intelligence ($33B), GRC software ($16B)
-- Capability Economics carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus)
+- Inflexcvi carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus)
 
 **Primary segment sizing:**
 
@@ -147,7 +147,7 @@ We use a bottom-up sizing methodology anchored in observable market signals, not
 **Porter's Five Forces Assessment:**
 
 *Threat of new entrants: Medium-High*  
-The core technology (LLMs + web research APIs) is commoditizing rapidly. However, the CEI formula, the ontology graph (built from 100+ cited sources), the institutional memory corpus (growing with each agent cycle), and the C-Suite translation framework represent 12-18 months of defensible head start. The real barrier is dataset accumulation — the agent's memory improves with every cycle, creating a compounding data moat that late entrants cannot replicate without equivalent research cycles.
+The core technology (LLMs + web research APIs) is commoditizing rapidly. However, the CVI formula, the ontology graph (built from 100+ cited sources), the institutional memory corpus (growing with each agent cycle), and the C-Suite translation framework represent 12-18 months of defensible head start. The real barrier is dataset accumulation — the agent's memory improves with every cycle, creating a compounding data moat that late entrants cannot replicate without equivalent research cycles.
 
 *Bargaining power of buyers: Medium*  
 Enterprise buyers have strong negotiating leverage individually but no single buyer represents >5% of revenue at scale. The switching cost is moderate — an organization's benchmark scores and historical assessments create lock-in analogous to a financial data terminal.
@@ -156,7 +156,7 @@ Enterprise buyers have strong negotiating leverage individually but no single bu
 Key suppliers are Perplexity, Anthropic, and Mem0. Switching costs for each are moderate (30-60 days to re-engineer), but all three have viable alternatives (Tavily/Exa, OpenAI/Gemini, Pinecone/Weaviate). Supplier concentration risk is mitigated by the abstraction layer in the codebase.
 
 *Threat of substitutes: Medium*  
-The primary substitutes are (1) management consulting engagements ($2M, 6 months) and (2) doing nothing (accepting information asymmetry). The consulting substitute is 40-400× more expensive per insight. The "do nothing" substitute is eliminated when a competitor adopts Capability Economics — creating a first-mover incentive.
+The primary substitutes are (1) management consulting engagements ($2M, 6 months) and (2) doing nothing (accepting information asymmetry). The consulting substitute is 40-400× more expensive per insight. The "do nothing" substitute is eliminated when a competitor adopts Inflexcvi — creating a first-mover incentive.
 
 *Competitive rivalry: Low (currently)*  
 No direct competitor offers continuous, quantified, AI-driven capability intelligence with economic weighting. Adjacent players (Gartner, IDC, McKinsey research arms) sell static research reports, not live intelligence platforms.
@@ -170,7 +170,7 @@ No direct competitor offers continuous, quantified, AI-driven capability intelli
 | BCG Henderson Institute | No (research) | No | No | No | No | No |
 | Palantir Foundry | Yes (operational) | Yes | No | No | No | Partial |
 | Workday Peakon | Yes (HR) | Yes | Partial | No | No | No |
-| **Capability Economics** | **Yes (Bayesian)** | **Yes (8h)** | **Yes** | **Yes (GDP-weighted)** | **Yes (6 roles)** | **Yes (autonomous)** |
+| **Inflexcvi** | **Yes (Bayesian)** | **Yes (8h)** | **Yes** | **Yes (GDP-weighted)** | **Yes (6 roles)** | **Yes (autonomous)** |
 
 ### 4.3 The Institutional Memory Moat
 
@@ -178,7 +178,7 @@ The most defensible competitive asset is not the software — it is the accumula
 
 - **~3,000 agent memories** stored in Mem0 Cloud (observations, patterns, insights, decision contexts)
 - **~4,000 source triangulations** in the database (Perplexity evidence records per capability)
-- **~500 CEI snapshots** (time-series history across 6 industries)
+- **~500 CVI snapshots** (time-series history across 6 industries)
 - **Calibrated priors** — the agent's Bayesian prior for each capability shifts from the non-informative prior (μ=50, σ=25) to an informative prior derived from 12 months of observed data
 
 A competitor launching today with the same technology stack cannot replicate this corpus. They can build the software; they cannot buy the data. This creates an asymmetric compounding advantage: every research cycle widens the gap.
@@ -192,7 +192,7 @@ A competitor launching today with the same technology stack cannot replicate thi
 **Design philosophy:** The pricing model is designed around three buyer personas with distinct value perceptions, budget owners, and ROI expectations.
 
 **Explorer (Free — PLG Motion)**
-- Single industry, public CEI index access, basic benchmarks
+- Single industry, public CVI index access, basic benchmarks
 - One organization self-assessment per month
 - Purpose: demonstrate value proposition; convert to paid within 30-90 days
 - No credit card required; reduces friction to market entry
@@ -218,7 +218,7 @@ A competitor launching today with the same technology stack cannot replicate thi
 - **ROI justification:** Replaces 30% of annual consulting spend on capability diagnostics ($500K-$2M replaced for $180K-$600K)
 
 **Data License ($100K–$500K/year)**
-- Bulk historical CEI data via REST API
+- Bulk historical CVI data via REST API
 - Real-time snapshots via webhook or streaming
 - Custom scoring models (client-provided industry weights)
 - **Buyer:** Bloomberg Terminal, FactSet, S&P Global, index providers
@@ -275,9 +275,9 @@ This is the structural advantage of AI-generated content at scale: marginal cost
 
 ### 6.1 Strategic Positioning: The "Bloomberg for Capabilities" Frame
 
-The most effective positioning analogy for enterprise buyers is: **Capability Economics is to organizational capabilities what Bloomberg Terminal is to financial assets.**
+The most effective positioning analogy for enterprise buyers is: **Inflexcvi is to organizational capabilities what Bloomberg Terminal is to financial assets.**
 
-Bloomberg made financial data continuous, quantified, benchmarked, and real-time — transforming qualitative market assessment into a data product. Capability Economics does the same for organizational capabilities. This framing resonates immediately with CFOs and investors because they understand the value creation event of Bloomberg's product category.
+Bloomberg made financial data continuous, quantified, benchmarked, and real-time — transforming qualitative market assessment into a data product. Inflexcvi does the same for organizational capabilities. This framing resonates immediately with CFOs and investors because they understand the value creation event of Bloomberg's product category.
 
 ### 6.2 Go-to-Market Phases
 
@@ -285,10 +285,10 @@ Bloomberg made financial data continuous, quantified, benchmarked, and real-time
 
 *Objective:* Establish epistemic credibility with target buyers before selling.
 
-- Publish CEI Industry Reports as ungated content (Insurance, Healthcare, Banking). Each report: 20-page PDF with Bayesian-scored capability maps, industry velocity analysis, and CEO/CFO executive summaries. These are genuinely differentiated from consulting white papers because they cite live data and carry credible intervals.
-- LinkedIn thought leadership: Weekly CEI updates targeting Chief Strategy Officers and Chief Transformation Officers. Content angle: "The capability your competitors are improving fastest right now" — data-driven, time-sensitive, exclusive.
-- Academic positioning: Submit CEI methodology paper to Strategic Management Journal or Journal of Strategic Information Systems. Ph.D. co-authorship opportunity for universities researching capability measurement.
-- Explorer tier as content upgrade: readers of CEI reports offered free org assessment.
+- Publish CVI Industry Reports as ungated content (Insurance, Healthcare, Banking). Each report: 20-page PDF with Bayesian-scored capability maps, industry velocity analysis, and CEO/CFO executive summaries. These are genuinely differentiated from consulting white papers because they cite live data and carry credible intervals.
+- LinkedIn thought leadership: Weekly CVI updates targeting Chief Strategy Officers and Chief Transformation Officers. Content angle: "The capability your competitors are improving fastest right now" — data-driven, time-sensitive, exclusive.
+- Academic positioning: Submit CVI methodology paper to Strategic Management Journal or Journal of Strategic Information Systems. Ph.D. co-authorship opportunity for universities researching capability measurement.
+- Explorer tier as content upgrade: readers of CVI reports offered free org assessment.
 
 **Phase 2: PLG → Sales Assist (Months 4–12)**
 
@@ -296,21 +296,21 @@ Bloomberg made financial data continuous, quantified, benchmarked, and real-time
 
 - In-product AHA moment: The moment an organization sees its gap vs. industry benchmark on the radar chart — that is the conversion event. Every product decision accelerates time-to-AHA.
 - Sales-assist trigger: When an Explorer organization runs 3+ assessments, triggers an outbound sequence from an AE with industry-specific insights about their assessed capability gaps.
-- Champion-led expansion: Professional users present CEI data in board meetings → board members ask how to get enterprise access → upmarket expansion via internal champion.
+- Champion-led expansion: Professional users present CVI data in board meetings → board members ask how to get enterprise access → upmarket expansion via internal champion.
 
 **Phase 3: Enterprise & Data Licensing (Months 12–36)**
 
 *Objective:* Land large contracts and high-margin data licensing deals.
 
 - PE Operating Partner channel: One PE firm covering 20 portfolio companies = $400K–$2M contract. Offer portfolio-level capability benchmarking as the initial wedge.
-- Big 4 partnership: White-label CEI data for consulting deliverables. McKinsey/BCG/Deloitte cannot build this platform fast enough; they will license it. Position as "the data layer beneath their capability practice."
-- Financial data terminal: Bloomberg and FactSet both have "alternative data" acquisition programs. CEI as an alternative data factor in equity research is a novel and defensible product category.
+- Big 4 partnership: White-label CVI data for consulting deliverables. McKinsey/BCG/Deloitte cannot build this platform fast enough; they will license it. Position as "the data layer beneath their capability practice."
+- Financial data terminal: Bloomberg and FactSet both have "alternative data" acquisition programs. CVI as an alternative data factor in equity research is a novel and defensible product category.
 
 ### 6.3 Demand Generation Channels
 
 | Channel | CAC | Volume | Quality | Priority |
 |---------|-----|--------|---------|---------|
-| Content / SEO (CEI reports) | ~$500 | Medium | Medium | High |
+| Content / SEO (CVI reports) | ~$500 | Medium | Medium | High |
 | LinkedIn outbound | ~$8,000 | Low | High | Medium |
 | PLG (Explorer → paid) | ~$2,000 | Medium | High | Highest |
 | Conference speaking (Gartner, MIT Sloan) | ~$15,000 | Low | Very High | Medium |
@@ -386,17 +386,17 @@ The platform's greatest non-obvious risk is the **epistemological legitimacy ris
 
 **Mitigation architecture:**
 1. **Credible intervals are mandatory:** Every score is reported with a 95% CI. Scores that pretend to certainty invite challenge; scores that quantify uncertainty invite collaboration.
-2. **Source citation is mandatory:** Every CEI component cites the Perplexity research queries and returned sources. This makes the evidence chain auditable.
-3. **Calibration studies:** Annually, compare CEI scores to realized financial performance (revenue growth, margin improvement) for companies whose assessed capabilities are known. Calibration data builds statistical evidence for the formula's predictive validity.
-4. **Academic partnership:** Co-publishing the CEI methodology with a business school provides third-party validation that sophisticated buyers cannot dismiss.
-5. **Transparency report:** Quarterly publication of CEI score accuracy, recall patterns, and methodology updates builds institutional trust over time.
+2. **Source citation is mandatory:** Every CVI component cites the Perplexity research queries and returned sources. This makes the evidence chain auditable.
+3. **Calibration studies:** Annually, compare CVI scores to realized financial performance (revenue growth, margin improvement) for companies whose assessed capabilities are known. Calibration data builds statistical evidence for the formula's predictive validity.
+4. **Academic partnership:** Co-publishing the CVI methodology with a business school provides third-party validation that sophisticated buyers cannot dismiss.
+5. **Transparency report:** Quarterly publication of CVI score accuracy, recall patterns, and methodology updates builds institutional trust over time.
 
 ---
 
 ## 9. Product Roadmap
 
 ### Q2 2026 (Current State)
-- ✅ Live CEI with autonomous agent (8h research cycles + urgency watchdog)
+- ✅ Live CVI with autonomous agent (8h research cycles + urgency watchdog)
 - ✅ 6 industries × 60+ capabilities with full Bayesian scoring
 - ✅ C-Suite perspectives hub (AI-generated, 6 roles × 6 industries)
 - ✅ Insurance case study with 5-year ROI timeline (AI-generated)
@@ -408,8 +408,8 @@ The platform's greatest non-obvious risk is the **epistemological legitimacy ris
 - Multi-org dashboard (PE portfolio companies on one canvas)
 - Healthcare and Banking deep-dive case studies (agent-generated)
 - PDF report export (white-labeled, enterprise feature)
-- Embeddable CEI widget (for investor decks and board materials)
-- Calibration study: correlate CEI scores to financial performance for public companies
+- Embeddable CVI widget (for investor decks and board materials)
+- Calibration study: correlate CVI scores to financial performance for public companies
 
 ### Q4 2026
 - API access tier (JSON endpoints for BI tool integration)
@@ -423,7 +423,7 @@ The platform's greatest non-obvious risk is the **epistemological legitimacy ris
 - International calibration: UK, EU, APAC (adjust GDP weights; add regional sources)
 - Agent fine-tuning: customers provide their own assessment data to personalize scoring priors
 - Acquisition due diligence module: rapid capability assessment workflow for PE deal teams
-- Academic paper submission: CEI methodology and predictive validity evidence
+- Academic paper submission: CVI methodology and predictive validity evidence
 
 ### Q2 2027
 - Capability prediction model: forecast capability scores 12-24 months ahead (time-series ML)

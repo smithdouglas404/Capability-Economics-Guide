@@ -11,9 +11,9 @@ import {
 } from "@workspace/db";
 import { eq, desc } from "drizzle-orm";
 import { computeGlobalMacroShock, listActiveEvents, expandAffectedCapabilityIds } from "./macro-events";
-import { evaluateAfterCEI, snapshotCapStates } from "./subscriptions";
+import { evaluateAfterCVI, snapshotCapStates } from "./subscriptions";
 
-const CEI_SCALE_FACTOR = 10;
+const CVI_SCALE_FACTOR = 10;
 const VELOCITY_DECAY = 0.7;
 const MULTIPLIER_BASE = 1.0;
 const MULTIPLIER_PER_DEPENDENCY = 0.08;
@@ -42,7 +42,7 @@ interface IndustryBreakdown {
   topMoverDelta: number;
 }
 
-interface CEIResult {
+interface CVIResult {
   overallIndex: number;
   overallCiLow: number | null;
   overallCiHigh: number | null;
@@ -68,7 +68,7 @@ interface CEIResult {
  *   posterior consensusScore map keyed by capabilityId. Required for the
  *   backtest harness to diff baseline vs predicted at the leaf level.
  */
-export interface ComputeCEIOptions {
+export interface ComputeCVIOptions {
   persist?: boolean;
   additionalEvents?: MacroEvent[];
   capturePerCap?: boolean;
@@ -79,7 +79,7 @@ export interface CapPosterior {
   variance: number;
 }
 
-export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResult & { capScores?: Map<number, CapPosterior> }> {
+export async function computeCVI(opts: ComputeCVIOptions = {}): Promise<CVIResult & { capScores?: Map<number, CapPosterior> }> {
   const persist = opts.persist !== false;
   const additionalEvents = opts.additionalEvents ?? [];
   const captureMap = opts.capturePerCap ? new Map<number, CapPosterior>() : null;
@@ -151,7 +151,7 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   }
 
   // Firm rule: NO hardcoded editorial values. Industries without a
-  // Perplexity-cited GDP-weight row are EXCLUDED from the overall CEI
+  // Perplexity-cited GDP-weight row are EXCLUDED from the overall CVI
   // rollup (their weight is treated as 0). They still receive an industry
   // index — they simply don't contribute to the global aggregate. We
   // collect their names below so the snapshot can surface a warning.
@@ -357,10 +357,10 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
 
     // Industry index uses leaf caps only.
     const denom = leafCaps.length || caps.length;
-    const industryIndex = (industryWeightedSum / denom) * CEI_SCALE_FACTOR;
+    const industryIndex = (industryWeightedSum / denom) * CVI_SCALE_FACTOR;
     // Var(industryIndex) = (SCALE/denom)² × Σ Var(contributionᵢ).
     const indexVariance = denom > 0
-      ? Math.pow(CEI_SCALE_FACTOR / denom, 2) * industryContribVarSum
+      ? Math.pow(CVI_SCALE_FACTOR / denom, 2) * industryContribVarSum
       : 0;
     const indexStd = Math.sqrt(indexVariance);
     const industryCiLow = leafCaps.length > 0 ? Math.max(0, industryIndex - Z_95 * indexStd) : null;
@@ -395,7 +395,7 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
 
   if (missingWeightIndustries.length > 0) {
     console.warn(
-      `[CEI] No Perplexity-cited GDP weight for: ${missingWeightIndustries.join(", ")} ` +
+      `[CVI] No Perplexity-cited GDP weight for: ${missingWeightIndustries.join(", ")} ` +
       `— excluded from overall index (run scripts-seed-gdp-weights.mts to add them).`,
     );
   }
@@ -429,7 +429,7 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
   try {
     macroShock = await computeGlobalMacroShock();
   } catch (err) {
-    console.warn("[CEI] macro shock unavailable:", err);
+    console.warn("[CVI] macro shock unavailable:", err);
   }
   const marketSentiment = Math.max(0, Math.min(100, Math.round((baseSentiment + macroShock.sentimentShock) * 10) / 10));
   const volatility = Math.round((baseVolatility + macroShock.volatilityBoost) * 1000) / 1000;
@@ -469,17 +469,17 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
         ).onConflictDoNothing();
       }
     } catch (err) {
-      console.warn("[CEI] per-capability history insert failed (non-fatal):", err);
+      console.warn("[CVI] per-capability history insert failed (non-fatal):", err);
     }
   }
 
   // Fire subscription evaluation hooks against the just-persisted state.
-  // Wrapped in try/catch — alerts must never break the CEI run.
+  // Wrapped in try/catch — alerts must never break the CVI run.
   if (persist && prevCapStates) {
     try {
-      await evaluateAfterCEI(prevCapStates);
+      await evaluateAfterCVI(prevCapStates);
     } catch (err) {
-      console.warn("[CEI] subscription evaluation failed:", err);
+      console.warn("[CVI] subscription evaluation failed:", err);
     }
   }
 
@@ -490,13 +490,13 @@ export async function computeCVI(opts: ComputeCEIOptions = {}): Promise<CEIResul
     industryBreakdowns,
     marketSentiment,
     volatility,
-    methodology: CEI_METHODOLOGY,
+    methodology: CVI_METHODOLOGY,
     timestamp: snapshotAt.toISOString(),
     capScores: captureMap ?? undefined,
   };
 }
 
-export async function getCEICurrent(): Promise<CEIResult | null> {
+export async function getCVICurrent(): Promise<CVIResult | null> {
   const [latest] = await db
     .select()
     .from(cviSnapshotsTable)
@@ -512,12 +512,12 @@ export async function getCEICurrent(): Promise<CEIResult | null> {
     industryBreakdowns: latest.industryBreakdowns as Record<string, IndustryBreakdown>,
     marketSentiment: latest.marketSentiment || 50,
     volatility: latest.volatility || 0,
-    methodology: CEI_METHODOLOGY,
+    methodology: CVI_METHODOLOGY,
     timestamp: latest.snapshotAt.toISOString(),
   };
 }
 
-export async function getCEIHistory(limit = 30): Promise<Array<{
+export async function getCVIHistory(limit = 30): Promise<Array<{
   overallIndex: number;
   overallCiLow: number | null;
   overallCiHigh: number | null;
@@ -539,17 +539,17 @@ export async function getCEIHistory(limit = 30): Promise<Array<{
   }));
 }
 
-export const CEI_METHODOLOGY = `## Capability Economics Index (CEI) — Methodology v1.1
+export const CVI_METHODOLOGY = `## Capability Value Index (CVI) — Methodology v1.1
 
 ### Overview
-The CEI is a composite index measuring global capability maturity across industries, inspired by financial market indices but applied to organizational capability economics. Every reported value carries a 95% credible interval (CI) derived from the Bayesian posterior on each capability score.
+The CVI is a composite index measuring global capability maturity across industries, inspired by financial market indices but applied to organizational capability economics. Every reported value carries a 95% credible interval (CI) derived from the Bayesian posterior on each capability score.
 
 ### Formula
 \`\`\`
-CEIᵢ      = Σ(Cⱼ × (1 + Vⱼ) × Eⱼ × αⱼ) / nᵢ × Scale          (industry index)
-CEI       = Σ(Wᵢ × CEIᵢ) / ΣWᵢ                                (overall index)
-Var(CEIᵢ) = (Scale/nᵢ)² × Σ ((1+Vⱼ)·Eⱼ·αⱼ)² × Var(Cⱼ)         (industry variance)
-Var(CEI)  = Σ(Wᵢ/ΣW)² × Var(CEIᵢ)                             (overall variance)
+CVIᵢ      = Σ(Cⱼ × (1 + Vⱼ) × Eⱼ × αⱼ) / nᵢ × Scale          (industry index)
+CVI       = Σ(Wᵢ × CVIᵢ) / ΣWᵢ                                (overall index)
+Var(CVIᵢ) = (Scale/nᵢ)² × Σ ((1+Vⱼ)·Eⱼ·αⱼ)² × Var(Cⱼ)         (industry variance)
+Var(CVI)  = Σ(Wᵢ/ΣW)² × Var(CVIᵢ)                             (overall variance)
 CI₉₅      = mean ± 1.96 × √Var
 \`\`\`
 

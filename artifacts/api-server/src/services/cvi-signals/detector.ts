@@ -3,7 +3,7 @@ import { eq, sql, gte, asc, and } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
 /**
- * CEI signal detector — Task #5 phase 1. Walks cvi_capability_history,
+ * CVI signal detector — Task #5 phase 1. Walks cvi_capability_history,
  * identifies moments where a capability's consensusScore moved by >= a
  * threshold within a configurable window, and records each as a row in
  * cvi_signal_events.

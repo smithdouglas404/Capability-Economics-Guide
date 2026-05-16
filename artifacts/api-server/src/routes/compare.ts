@@ -1,7 +1,7 @@
 /**
  * Side-by-side comparison endpoint. Accepts 2–5 capability ids (comma-separated)
  * and returns the normalized fields each compare-UI cell needs: identity,
- * current CEI posterior, velocity, source count, lifecycle stage, and a small
+ * current CVI posterior, velocity, source count, lifecycle stage, and a small
  * set of metrics. Designed to be fetched once per page load; per-cap data
  * fetches happen server-side in parallel.
  *

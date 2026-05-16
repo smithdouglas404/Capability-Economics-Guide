@@ -17,7 +17,7 @@ import { logger } from "../../lib/logger";
  */
 
 const EDGAR_BASE = "https://efts.sec.gov/LATEST/search-index";
-const EDGAR_USER_AGENT = process.env.EDGAR_USER_AGENT ?? "CapabilityEconomics research-bot ops@capabilityeconomics.com";
+const EDGAR_USER_AGENT = process.env.EDGAR_USER_AGENT ?? "CapabilityEconomics research-bot ops@inflexcvi.ai";
 const MIN_REQUEST_INTERVAL_MS = 130; // ~7.7 req/sec, comfortably under 10/sec ceiling
 
 let lastRequestAt = 0;

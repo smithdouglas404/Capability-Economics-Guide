@@ -11,7 +11,7 @@ import {
 import { eq, and, inArray, desc } from "drizzle-orm";
 import { forSession, forSessionRow, resolveSessionToken } from "../lib/tenant-scope";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { evaluateAfterCEI, snapshotCapStates } from "../services/subscriptions";
+import { evaluateAfterCVI, snapshotCapStates } from "../services/subscriptions";
 
 const router = Router();
 
@@ -123,7 +123,7 @@ router.post("/watchlist/check-my", async (req, res) => {
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
     const compMap = new Map(components.map((c) => [c.capabilityId, c]));
 
-    // Snapshot current CEI state before any mutations so subscriptions can diff.
+    // Snapshot current CVI state before any mutations so subscriptions can diff.
     const prevSnapshot = await snapshotCapStates();
 
     let triggered = 0;
@@ -186,7 +186,7 @@ router.post("/watchlist/check-my", async (req, res) => {
     // so users with email/Slack/webhook subscriptions also receive delivery.
     // This runs fire-and-forget — a failure here must not fail the check response.
     if (newlyTriggeredCapIds.size > 0) {
-      evaluateAfterCEI(prevSnapshot).catch((err) => {
+      evaluateAfterCVI(prevSnapshot).catch((err) => {
         console.warn("[watchlist/check-my] subscription fan-out failed:", err);
       });
     }

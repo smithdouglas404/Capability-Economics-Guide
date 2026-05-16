@@ -64,8 +64,8 @@ async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> 
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi",
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4.6",
@@ -130,7 +130,7 @@ export async function enrichCapabilityQuadrants(
 
   if (!researchResult.content) return { classified: 0, errors: [`No Perplexity response for ${industryName} quadrants`] };
 
-  const glmPrompt = `You are a Capability Economics analyst. Based on this research about ${industryName} capabilities:
+  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} capabilities:
 
 ${researchResult.content}
 
@@ -218,7 +218,7 @@ export async function enrichValueChainStages(
 
   if (!researchResult.content) return { created: 0, errors: [`No Perplexity response for ${industryName} value chain`] };
 
-  const glmPrompt = `You are a Capability Economics analyst. Based on this research about the ${industryName} value chain:
+  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about the ${industryName} value chain:
 
 ${researchResult.content}
 
@@ -337,7 +337,7 @@ export async function enrichCompanyProfiles(
 
   if (!researchResult.content) return { profiled: 0, mapped: 0, errors: [`No Perplexity response for ${industryName} companies`] };
 
-  const glmPrompt = `You are a Capability Economics analyst. Based on this research about ${industryName} companies:
+  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} companies:
 
 ${researchResult.content}
 

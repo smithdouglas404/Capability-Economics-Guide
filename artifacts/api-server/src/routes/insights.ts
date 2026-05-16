@@ -282,8 +282,8 @@ Only output the JSON array, no other text.`;
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://capabilityeconomics.com",
-          "X-Title": "Capability Economics",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi",
         },
         body: JSON.stringify({
           model: "anthropic/claude-haiku-4.5",

@@ -29,7 +29,7 @@ interface CeiPayload {
 }
 
 /**
- * Iframe-embeddable CEI widget. Bare layout. `?theme=dark|light` is
+ * Iframe-embeddable CVI widget. Bare layout. `?theme=dark|light` is
  * cosmetic and trusted from the URL; `?token=...` is forwarded to the
  * API which is the SOLE source of truth for branding rights — the URL
  * does NOT carry a `hideBranding` flag the client trusts. This stops
@@ -45,8 +45,8 @@ export default function EmbedCei() {
 
   useEffect(() => {
     const url = token
-      ? `${API_BASE}/embed/cei?token=${encodeURIComponent(token)}`
-      : `${API_BASE}/embed/cei`;
+      ? `${API_BASE}/embed/cvi?token=${encodeURIComponent(token)}`
+      : `${API_BASE}/embed/cvi`;
     fetch(url)
       .then(r => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then(setData)
@@ -66,7 +66,7 @@ export default function EmbedCei() {
           <div className="flex items-center gap-2">
             <Activity className={`w-3.5 h-3.5 ${dark ? "text-emerald-400" : "text-emerald-600"}`} />
             <div className="text-[10px] uppercase tracking-[0.16em] opacity-70">
-              Capability Economics Index
+              Capability Value Index
             </div>
           </div>
           {data && <div className="text-[10px] opacity-60 font-mono">LIVE</div>}
@@ -112,12 +112,12 @@ export default function EmbedCei() {
           <div className={`mt-3 pt-3 border-t ${dark ? "border-zinc-800" : "border-zinc-200"} flex items-center justify-between text-[10px]`}>
             <span className="opacity-50 uppercase tracking-wider">Powered by</span>
             <a
-              href="https://capabilityeconomics.com"
+              href="https://inflexcvi.ai"
               target="_blank"
               rel="noopener noreferrer"
               className={`inline-flex items-center gap-1 ${dark ? "text-emerald-400" : "text-emerald-700"} hover:underline font-mono`}
             >
-              Capability Economics <ExternalLink className="w-2.5 h-2.5" />
+              Inflexcvi <ExternalLink className="w-2.5 h-2.5" />
             </a>
           </div>
         )}

@@ -122,8 +122,8 @@ async function callHaiku(apiKey: string, capabilityName: string, formType: strin
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics EDGAR Extractor",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi EDGAR Extractor",
       },
       body: JSON.stringify({
         model: HAIKU_MODEL,

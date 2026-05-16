@@ -23,7 +23,7 @@ const router = Router();
 
 // Trivial in-memory cache to absorb spiky homepage hits. 15 minutes is well
 // short of how often the underlying data actually changes (enrichment runs
-// every 30 min, CEI snapshots once a day).
+// every 30 min, CVI snapshots once a day).
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const cache = new Map<string, { value: unknown; expiresAt: number }>();
 
@@ -46,7 +46,7 @@ function formatUsdMm(amountMm: number): string {
 /**
  * GET /api/metrics/home-ticker
  *
- * Top 8 capabilities by absolute recent CEI velocity (top movers, positive
+ * Top 8 capabilities by absolute recent CVI velocity (top movers, positive
  * or negative). Drives the home page ticker bar (was hardcoded `TICKER_ITEMS`
  * in pages/home.tsx).
  */
@@ -154,11 +154,11 @@ router.get("/metrics/principle-stats", async (_req: Request, res: Response) => {
  *     captured.
  *   - topROI: { capabilityName, annualMarginUsdMm, formatted } — single
  *     capability with the highest annual margin captured.
- *   - quarterlyDelta: { pts, direction } — current CEI minus CEI from
+ *   - quarterlyDelta: { pts, direction } — current CVI minus CVI from
  *     ~90 days ago (from cvi_snapshots history). Used as the "↑ X pts this
- *     quarter" sub-line on the Avg CEI tile.
+ *     quarter" sub-line on the Avg CVI tile.
  *
- * The Avg CEI and capability count come from existing /api/cvi/current and
+ * The Avg CVI and capability count come from existing /api/cvi/current and
  * /api/capabilities — not duplicated here.
  */
 router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
@@ -198,7 +198,7 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
     const topROIRow = topRows[0];
     const topROIAmount = Number(topROIRow?.annualMargin ?? 0);
 
-    // Quarterly CEI delta: current vs 90 days ago.
+    // Quarterly CVI delta: current vs 90 days ago.
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
     const [currentCei] = await db
       .select({ overallIndex: cviSnapshotsTable.overallIndex, snapshotAt: cviSnapshotsTable.snapshotAt })

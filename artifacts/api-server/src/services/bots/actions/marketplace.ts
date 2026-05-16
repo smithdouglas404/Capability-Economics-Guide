@@ -74,7 +74,7 @@ export async function runMarketplaceListAction(bot: Bot): Promise<{ ok: boolean;
     const todayIso = new Date().toISOString().slice(0, 10);
     const systemPrompt = buildPersonaSystemPrompt(bot, todayIso);
     const userPrompt = [
-      "You're about to publish a research report on the Capability Economics marketplace, drawn from your recent platform activity.",
+      "You're about to publish a research report on the Inflexcvi marketplace, drawn from your recent platform activity.",
       "Pick ONE of the capabilities below as the report's focus and propose a title, 2-paragraph description, suggested price (cents, between $4900 and $19900), and 3-5 thematic tags.",
       "Voice: professional, sourced, no hype. The report would deliver your firm's POV on the capability for buyers like other PE/VC/F500/consultancy peers.",
       "",

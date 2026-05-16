@@ -145,7 +145,7 @@ export async function finalizeAssessment(assessmentId: number) {
 
   const findingsBlock = approved.map(a => `[${a.kind.toUpperCase()}] ${a.title}\nSummary: ${a.summary}\nDetail: ${a.body}\nEvidence: ${a.evidenceCount} sources, cross-validated=${a.crossValidated}`).join("\n---\n");
 
-  const prompt = `You are the VCE assembling the final Capability Economics assessment report after a ${a.durationDays}-day research campaign for ${a.clientName} (${industryName}). Use ONLY the approved findings below — do not invent new data.
+  const prompt = `You are the VCE assembling the final Inflexcvi assessment report after a ${a.durationDays}-day research campaign for ${a.clientName} (${industryName}). Use ONLY the approved findings below — do not invent new data.
 
 Campaign objective: ${a.objective || "(none)"}
 Value case: ${a.valueCase}

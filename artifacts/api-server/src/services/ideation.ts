@@ -79,7 +79,7 @@ function fmtContext(ctx: IdeationContext): string {
   ];
   if (ctx.lifecycleStage) lines.push(`Lifecycle stage: ${ctx.lifecycleStage}`);
   if (ctx.consensusScore !== undefined && ctx.consensusScore !== null) {
-    lines.push(`Current CEI score (0-100): ${ctx.consensusScore.toFixed(1)}`);
+    lines.push(`Current CVI score (0-100): ${ctx.consensusScore.toFixed(1)}`);
   }
   if (ctx.velocity !== undefined && ctx.velocity !== null) {
     lines.push(`Velocity (pts/window, +ve = rising): ${ctx.velocity.toFixed(2)}`);

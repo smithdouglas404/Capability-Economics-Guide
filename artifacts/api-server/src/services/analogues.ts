@@ -1,8 +1,8 @@
 /**
  * Cross-industry capability analogue finder.
  *
- * "Fraud detection is mature in payments (CEI 82). The analogous capability
- *  in healthcare claims is emerging (CEI 51). 31-pt white-space gap."
+ * "Fraud detection is mature in payments (CVI 82). The analogous capability
+ *  in healthcare claims is emerging (CVI 51). 31-pt white-space gap."
  *
  * Implementation: reuse the BM25 semantic search index (services/semantic-search.ts)
  * to find the closest semantic match within a target industry. Compose with

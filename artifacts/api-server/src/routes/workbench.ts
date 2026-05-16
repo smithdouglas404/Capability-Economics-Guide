@@ -516,7 +516,7 @@ router.post("/workbench/boards/:id/export-to-marketplace", async (req, res) => {
   try {
     const { renderBoardPdf } = await import("../services/workbench-export");
     const { saveUpload } = await import("../services/marketplace-storage");
-    const userDisplay = seller.displayName ?? "Capability Economics Workbench analyst";
+    const userDisplay = seller.displayName ?? "Inflexcvi Workbench analyst";
     const { buffer, pageCount: pc, cardCount: cc } = await renderBoardPdf({
       boardId: id,
       title: parsed.data.title,
@@ -585,7 +585,7 @@ router.delete("/workbench/insights/:id", async (req, res) => {
 /**
  * GET /api/workbench/example
  *
- * Auto-generated example board: top 8 capabilities by absolute recent CEI
+ * Auto-generated example board: top 8 capabilities by absolute recent CVI
  * velocity, paired with their real economics (revenue × margin, lifecycle
  * stage, narrative). Replaces the hardcoded `FIXTURE` array in
  * pages/workbench-example.tsx — same shape, real data.

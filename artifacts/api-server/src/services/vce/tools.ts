@@ -199,7 +199,7 @@ Cited research: """${sources.slice(0, 8000)}"""`;
 
 export const synthesizeFindingTool = tool(
   async ({ kind, title, clientContext, research, prior }: { kind: string; title: string; clientContext: string; research: string; prior?: string }) => {
-    const prompt = `You are a senior partner at a Capability Economics advisory firm. Synthesize the research below into a single executive-grade finding for the client. Specifics required: real numbers, named companies/benchmarks, explicit time horizons, and explicit implications for THIS client.
+    const prompt = `You are a senior partner at a Inflexcvi advisory firm. Synthesize the research below into a single executive-grade finding for the client. Specifics required: real numbers, named companies/benchmarks, explicit time horizons, and explicit implications for THIS client.
 
 Client context: ${clientContext}
 Finding kind: ${kind}

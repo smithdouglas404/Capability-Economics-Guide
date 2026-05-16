@@ -34,16 +34,16 @@ const DEFAULT_TIERS = [
     name: "Discovery",
     tagline: "Explore the framework. Free forever.",
     description:
-      "Browse the Capability Economics index, ask questions in natural language, and see how the framework maps your industry — at zero cost.",
+      "Browse the Inflexcvi index, ask questions in natural language, and see how the framework maps your industry — at zero cost.",
     monthlyPriceCents: 0,
     annualPriceCents: 0,
     isContactSales: false,
     priceLocked: false,
     displayOrder: 0,
     features: [
-      "50 CEI credits/month",
+      "50 CVI credits/month",
       "Knowledge Graph: browse all 6 industries and capability relationships",
-      "CEI Index: view the live composite index and industry breakdowns",
+      "CVI Index: view the live composite index and industry breakdowns",
       "Natural-language query: ask questions about capabilities, AI risk, moat scores (5/day)",
       "Regulations: view compliance frameworks and capability mappings",
       "Collaboration: view strategy discussions (read-only)",
@@ -58,17 +58,17 @@ const DEFAULT_TIERS = [
     name: "Briefing",
     tagline: "Read the framework. See the data.",
     description:
-      "For analysts, board members, and consultants who need the full Capability Economics framework with watchlists, alerts, and the ability to contribute to strategy discussions.",
+      "For analysts, board members, and consultants who need the full Inflexcvi framework with watchlists, alerts, and the ability to contribute to strategy discussions.",
     monthlyPriceCents: 29900,
     annualPriceCents: 299000,
     isContactSales: false,
     priceLocked: false,
     displayOrder: 1,
     features: [
-      "500 CEI credits/month",
+      "500 CVI credits/month",
       "Everything in Discovery",
       "Full Knowledge Graph with capability rerun and economic detail",
-      "Full CEI dashboard with macro events, agent activity, and data freshness",
+      "Full CVI dashboard with macro events, agent activity, and data freshness",
       "Watchlist: monitor up to 10 capabilities with decay/moat/fragility alerts",
       "Collaboration: post comments, participate in strategy discussions",
       "Regulations: create compliance frameworks and map capability requirements",
@@ -91,9 +91,9 @@ const DEFAULT_TIERS = [
     priceLocked: false,
     displayOrder: 2,
     features: [
-      "5,000 CEI credits/month",
+      "5,000 CVI credits/month",
       "Everything in Briefing",
-      "What-If Simulation Engine: model investments, see CEI/moat/fragility/EVaR projections",
+      "What-If Simulation Engine: model investments, see CVI/moat/fragility/EVaR projections",
       "Capability Scorecard: your scores vs. industry benchmarks with gap alerts",
       "Trade Signals: long/short signals from CE vs. street quadrant divergence",
       "Competitive Benchmarking: filter by industry/region/capabilities, AI-powered company discovery",
@@ -112,7 +112,7 @@ const DEFAULT_TIERS = [
   {
     slug: "platform",
     name: "Platform",
-    tagline: "The full Capability Economics engine, on your industries.",
+    tagline: "The full Inflexcvi engine, on your industries.",
     description:
       "For PE firms, large enterprise strategy teams, and consulting firms who need bespoke industry coverage, unlimited analysis, and full platform control.",
     monthlyPriceCents: null,
@@ -121,7 +121,7 @@ const DEFAULT_TIERS = [
     priceLocked: true,
     displayOrder: 3,
     features: [
-      "50,000 CEI credits/month",
+      "50,000 CVI credits/month",
       "Everything in The Console, with no caps on submissions",
       "Autonomous discovery agent: continuous capability research with Perplexity + GLM-5.1",
       "Full review-queue admin: approve, reject-with-comment, or terminate submissions",
@@ -529,7 +529,7 @@ router.post("/me/membership/crypto/start", async (req, res) => {
       orderId: String(membership!.id),
       priceAmount: amountCents / 100,
       priceCurrency: "usd",
-      orderDescription: `Capability Economics — ${tier.name} (${parsed.data.billing})`,
+      orderDescription: `Inflexcvi — ${tier.name} (${parsed.data.billing})`,
       ipnCallbackUrl,
       successUrl: buildUrl(parsed.data.successPath),
       cancelUrl: buildUrl(parsed.data.cancelPath),
@@ -772,7 +772,7 @@ const ChangeTierBody = z.object({
  * Change the tier on an existing membership. If syncCredits is true (default)
  * the user's credit account monthlyAllocation + tierSlug are updated to match
  * the new tier. The first feature string on the tier is parsed for a
- * "N CEI credits/month" pattern to derive the allocation.
+ * "N CVI credits/month" pattern to derive the allocation.
  */
 router.post("/admin/memberships/:id/change-tier", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
@@ -794,7 +794,7 @@ router.post("/admin/memberships/:id/change-tier", requireAdmin, async (req, res)
   }).where(eq(userMembershipsTable.id, id));
 
   if (parsed.data.syncCredits) {
-    // Parse monthly allocation out of the tier's features. Format: "N CEI credits/month"
+    // Parse monthly allocation out of the tier's features. Format: "N CVI credits/month"
     const allocationFeature = (newTier.features as string[] | null)?.find(f => /credits?\/month/i.test(f));
     const allocationMatch = allocationFeature?.match(/([\d,]+)/);
     const allocation = allocationMatch ? Number(allocationMatch[1].replace(/,/g, "")) : 50;

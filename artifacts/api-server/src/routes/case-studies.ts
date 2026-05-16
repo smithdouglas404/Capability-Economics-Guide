@@ -320,7 +320,7 @@ router.post("/case-studies/generate", requireAdmin, async (req, res) => {
 
   const capList = capabilities.map(c => `- ${c.name} (benchmark ${c.benchmarkScore}): ${c.description}`).join("\n");
 
-  const prompt = `You are a Capability Economics advisor authoring a strategic case study for the ${industry.name} industry.
+  const prompt = `You are a Inflexcvi advisor authoring a strategic case study for the ${industry.name} industry.
 
 CURRENT MAPPED CAPABILITIES:
 ${capList || "(no capabilities mapped yet — synthesize from research)"}
@@ -368,8 +368,8 @@ Constraints:
         headers: {
           Authorization: `Bearer ${openrouterKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://capabilityeconomics.com",
-          "X-Title": "Capability Economics",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi",
         },
         body: JSON.stringify({
           model: "anthropic/claude-sonnet-4.6",

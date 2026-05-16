@@ -68,7 +68,7 @@ export default function Methodology() {
             <Badge variant="secondary" className="text-[10px]">Public</Badge>
           </div>
           <h1 className="font-serif text-4xl sm:text-5xl tracking-tight text-foreground">
-            How the Capability Economics Index is calculated
+            How the Capability Value Index is calculated
           </h1>
           <p className="mt-4 text-lg text-muted-foreground max-w-3xl leading-relaxed">
             Every numeric score in this product is a posterior estimate from a transparent Bayesian
@@ -108,7 +108,7 @@ export default function Methodology() {
           <div className="space-y-12">
             <Section id="overview" icon={BookOpen} title="Overview">
               <p>
-                The <strong>Capability Economics Index (CEI)</strong> measures how well an industry —
+                The <strong>Capability Value Index (CVI)</strong> measures how well an industry —
                 and each capability inside it — is performing. Per-capability <em>consensus scores</em>{" "}
                 live on a <strong>0–100 scale</strong>; per-industry indices and the global rollup are
                 multiplied by a fixed <strong>×10 scale factor</strong> for display, so industry indices
@@ -261,7 +261,7 @@ export default function Methodology() {
               </Formula>
               <p>
                 The <strong>×10 scale factor</strong> turns the underlying 0–100 capability scale into
-                the 0–1000 industry index range you see in the dashboard. The global CEI is then the
+                the 0–1000 industry index range you see in the dashboard. The global CVI is then the
                 GDP-share-weighted mean of industry indices:
               </p>
               <Formula>
@@ -362,7 +362,7 @@ export default function Methodology() {
                 If the Insurance industry index rolls up to ~58 on the 0–100 scale, after the ×10 scale
                 factor it surfaces as <strong>580</strong> in the dashboard. With an Insurance GDP
                 share of, say, 7.4% (cited from an IMF release with sourceYear 2024), the industry
-                contributes <code>580 · 0.074 ≈ 42.9</code> to the global CEI numerator — one of dozens
+                contributes <code>580 · 0.074 ≈ 42.9</code> to the global CVI numerator — one of dozens
                 of contributions summed across all industries with cited weights.
               </p>
             </Section>

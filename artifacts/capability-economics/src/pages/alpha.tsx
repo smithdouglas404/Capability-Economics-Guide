@@ -209,7 +209,7 @@ function TraceabilityDialog() {
         <DialogHeader>
           <DialogTitle>Methodology & Source Traceability</DialogTitle>
           <DialogDescription>
-            Every number on this page comes from one of two sources: (1) the Capability Economics research pipeline — triangulated across multiple research sources with cited URLs, then synthesized into structured economic figures, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
+            Every number on this page comes from one of two sources: (1) the Inflexcvi research pipeline — triangulated across multiple research sources with cited URLs, then synthesized into structured economic figures, OR (2) deterministic math over the values in (1). Capabilities without enrichment are excluded — no defaults are filled in.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 text-sm">

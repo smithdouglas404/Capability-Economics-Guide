@@ -746,7 +746,7 @@ function FinalReportView({ report, clientName }: { report: FinalReport; clientNa
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-none bg-emerald-600 text-white flex items-center justify-center"><FileText className="w-5 h-5" /></div>
           <div>
-            <CardTitle className="font-serif text-2xl">Final Capability Economics Assessment</CardTitle>
+            <CardTitle className="font-serif text-2xl">Final Inflexcvi Assessment</CardTitle>
             <p className="text-sm text-muted-foreground">{clientName} · Assembled from approved findings across all cycles</p>
           </div>
         </div>

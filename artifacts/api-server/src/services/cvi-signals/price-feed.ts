@@ -3,7 +3,7 @@ import { logger } from "../../lib/logger";
 /**
  * Public stock-price fetcher backed by Yahoo Finance's free v8 chart API.
  * No API key required. Used by the outcome-attribution job to measure
- * forward returns post-CEI-signal-event.
+ * forward returns post-CVI-signal-event.
  *
  * Trade-offs for the demo path:
  *   - Yahoo's endpoint is undocumented but stable (it's what their own
@@ -36,7 +36,7 @@ export async function fetchPriceSeries(ticker: string, from: Date, to: Date): Pr
     const resp = await fetch(url, {
       headers: {
         // Yahoo blocks the default node fetch UA; mimic a browser
-        "User-Agent": "Mozilla/5.0 (compatible; CapabilityEconomics/1.0; +https://capabilityeconomics.com)",
+        "User-Agent": "Mozilla/5.0 (compatible; CapabilityEconomics/1.0; +https://inflexcvi.ai)",
         "Accept": "application/json",
       },
     });

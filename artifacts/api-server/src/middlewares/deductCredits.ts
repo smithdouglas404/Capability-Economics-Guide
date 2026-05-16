@@ -5,7 +5,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 
 /**
- * Middleware factory that deducts CEI credits before allowing an LLM-consuming operation.
+ * Middleware factory that deducts CVI credits before allowing an LLM-consuming operation.
  *
  * Usage: `router.post("/analyze", deductCredits(8), handler)`
  *

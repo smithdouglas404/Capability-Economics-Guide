@@ -39,7 +39,7 @@ export default function NextSteps() {
           <div className="w-[2.8vw] h-[2.8vw] rounded-sm flex items-center justify-center" style={{ background: "linear-gradient(135deg, #4f6ef7, #6366f1)" }}>
             <span className="font-display font-bold text-white" style={{ fontSize: "1.4vw" }}>CE</span>
           </div>
-          <span className="font-body font-medium text-text" style={{ fontSize: "1.5vw" }}>Capability Economics</span>
+          <span className="font-body font-medium text-text" style={{ fontSize: "1.5vw" }}>Inflexcvi</span>
         </div>
         <p className="font-body text-muted" style={{ fontSize: "1.3vw" }}>The Capability Lens: What Others Can't See</p>
       </div>

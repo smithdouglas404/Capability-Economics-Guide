@@ -1,11 +1,11 @@
-# Capability Economics Platform — Master Specification
+# Inflexcvi Platform — Master Specification
 
 **Version:** 3.0
 **Date:** 2026-05-16
 **Classification:** Internal — Strategy, Engineering, Sales, Investor
 **Owners:** Founder/CEO (business spec), Head of Engineering (technical architecture), Product (functional spec)
 
-> This document is the consolidated master reference for the Capability Economics platform. It supersedes the standalone `docs/business-spec.md`, `docs/architecture-spec.md`, and `docs/pitchbook.md` as the single source of truth where they conflict. Companion docs remain authoritative for niche subjects (Foundry ontology, Mem0/Letta install, Railway setup, multi-tenant isolation).
+> This document is the consolidated master reference for the Inflexcvi platform. It supersedes the standalone `docs/business-spec.md`, `docs/architecture-spec.md`, and `docs/pitchbook.md` as the single source of truth where they conflict. Companion docs remain authoritative for niche subjects (Foundry ontology, Mem0/Letta install, Railway setup, multi-tenant isolation).
 
 ---
 
@@ -46,7 +46,7 @@
   - [28. Monorepo & Build System](#28-monorepo--build-system)
   - [29. Backend Architecture](#29-backend-architecture)
   - [30. Autonomous Agent Subsystem](#30-autonomous-agent-subsystem)
-  - [31. CEI Computation Pipeline](#31-cei-computation-pipeline)
+  - [31. CVI Computation Pipeline](#31-cei-computation-pipeline)
   - [32. Enrichment Pipeline](#32-enrichment-pipeline)
   - [33. Marketplace Subsystem](#33-marketplace-subsystem)
   - [34. Hedera Audit Chain](#34-hedera-audit-chain)
@@ -81,7 +81,7 @@
 
 ### Executive Summary
 
-The Capability Economics platform converts qualitative strategic-management theory (Resource-Based View; Dynamic Capabilities; Core Competencies) into a quantitative, continuously-updated, AI-driven intelligence product. It produces the **Capability Economics Index (CEI)** — a 0–1000 composite score representing industry-level capability health — alongside a portfolio of products (capability assessments, C-Suite perspectives, knowledge graph, technology project impact analysis, marketplace) targeted at Chief Strategy Officers, Chief Transformation Officers, PE Operating Partners, and management-consulting buyers.
+The Inflexcvi platform converts qualitative strategic-management theory (Resource-Based View; Dynamic Capabilities; Core Competencies) into a quantitative, continuously-updated, AI-driven intelligence product. It produces the **Capability Value Index (CVI)** — a 0–1000 composite score representing industry-level capability health — alongside a portfolio of products (capability assessments, C-Suite perspectives, knowledge graph, technology project impact analysis, marketplace) targeted at Chief Strategy Officers, Chief Transformation Officers, PE Operating Partners, and management-consulting buyers.
 
 **Core thesis.** Organizational capabilities produce observable signals in the public information environment — consulting reports, market data, academic research, regulatory filings. These signals can be triangulated using Bayesian inference to produce reliable, quantified, time-series capability estimates with explicit credible intervals. GDP weighting and ontology-derived multipliers convert capability scores into economically interpretable signals.
 
@@ -109,8 +109,8 @@ Build and operate the canonical intelligence platform for measuring, benchmarkin
 
 ### 1.3 Strategic Intent (5-year horizon)
 
-1. **Be the index of record.** When an analyst, executive, or investor asks "how mature is Industry X's Capability Y?", the CEI is the cited answer.
-2. **Own the institutional memory.** The agent's accumulating research corpus (Mem0 + DB triangulations + CEI snapshots) becomes a non-replicable data moat. A late entrant can build the software but cannot buy the data.
+1. **Be the index of record.** When an analyst, executive, or investor asks "how mature is Industry X's Capability Y?", the CVI is the cited answer.
+2. **Own the institutional memory.** The agent's accumulating research corpus (Mem0 + DB triangulations + CVI snapshots) becomes a non-replicable data moat. A late entrant can build the software but cannot buy the data.
 3. **Become the data primitive other systems consume.** Bloomberg-style data licensing into financial terminals, BI tools, and consulting deliverables — capability scores as a factor in equity research, due diligence, and portfolio monitoring.
 4. **Operate at SaaS unit economics, not consulting unit economics.** Agent-first content production keeps marginal cost of an additional capability insight near-zero, structurally enabling 80%+ gross margin while replacing $200K–$2M consulting engagements.
 
@@ -134,7 +134,7 @@ Sustained competitive advantage derives from resources that are **valuable, rare
 
 ### 2.2 Dynamic Capabilities (Teece, Pisano & Shuen, 1997)
 
-Competitive advantage in rapidly changing environments requires the capacity to **sense, seize, and reconfigure** capabilities. Dynamic capabilities are meta-capabilities — the ability to build, integrate, and reconfigure existing ones. Measuring **capability velocity** (rate of change) is essential to assessing dynamic-capability health. The CEI's velocity term ($V_c$) directly operationalizes this.
+Competitive advantage in rapidly changing environments requires the capacity to **sense, seize, and reconfigure** capabilities. Dynamic capabilities are meta-capabilities — the ability to build, integrate, and reconfigure existing ones. Measuring **capability velocity** (rate of change) is essential to assessing dynamic-capability health. The CVI's velocity term ($V_c$) directly operationalizes this.
 
 ### 2.3 Core Competencies (Prahalad & Hamel, 1990)
 
@@ -153,7 +153,7 @@ The platform dissolves each of these asymmetries through **continuous, quantifie
 
 ### 2.5 The Composite-Index Analogue (UNDP HDI)
 
-The CEI's design draws on the UNDP **Human Development Index** — a multi-dimensional construct where component scores are weighted and aggregated into a single comparable scalar. The analogy is deliberate: HDI makes human development comparable across nations with different demographic profiles; CEI makes capability health comparable across industries with different economic structures. GDP weighting in CEI is the structural counterpart of HDI's logged-income normalization.
+The CVI's design draws on the UNDP **Human Development Index** — a multi-dimensional construct where component scores are weighted and aggregated into a single comparable scalar. The analogy is deliberate: HDI makes human development comparable across nations with different demographic profiles; CVI makes capability health comparable across industries with different economic structures. GDP weighting in CVI is the structural counterpart of HDI's logged-income normalization.
 
 ---
 
@@ -175,7 +175,7 @@ Capability health changes continuously, but measurement is episodic. Insurance i
 - **AI/ML in Underwriting** advanced from "emerging" to "competitive table stakes" between 2020 and 2024 — a 4-year window. Firms that failed to detect this trajectory and accelerate investment lost underwriting margin relative to early-detecting peers.
 - **Claims Automation** — COVID-19 forced a 3-year acceleration of automation adoption into 18 months. Insurers without continuous capability monitoring failed to respond until analyst reports confirmed the shift, often 12–18 months too late.
 
-The CEI's velocity term explicitly models this temporal dynamic. A capability with **score=65, velocity=+8** (strongly improving) is strategically different from **score=65, velocity=−3** (declining). The former may be approaching parity; the latter may be approaching a threshold breach.
+The CVI's velocity term explicitly models this temporal dynamic. A capability with **score=65, velocity=+8** (strongly improving) is strategically different from **score=65, velocity=−3** (declining). The former may be approaching parity; the latter may be approaching a threshold breach.
 
 ### 3.3 The C-Suite Misalignment Problem
 
@@ -194,9 +194,9 @@ In practice these views are never synthesised. Investment decisions are made in 
 
 ## 4. The Solution (Business View)
 
-### 4.1 Capability Economics Index (CEI)
+### 4.1 Capability Value Index (CVI)
 
-The CEI is the platform's primary output: a composite score (0–1000) representing the overall capability health of an industry, updated continuously by the autonomous agent. The mathematical formulation lives in §31 (technical) and Appendix A; the **business interpretation** is below.
+The CVI is the platform's primary output: a composite score (0–1000) representing the overall capability health of an industry, updated continuously by the autonomous agent. The mathematical formulation lives in §31 (technical) and Appendix A; the **business interpretation** is below.
 
 **Scoring bands and strategic implications:**
 
@@ -214,7 +214,7 @@ The CEI is the platform's primary output: a composite score (0–1000) represent
 
 | Module | Audience | Conversion role |
 |---|---|---|
-| **CEI Dashboard** | CSO, CTO | Continuous-monitoring surface; brand authority |
+| **CVI Dashboard** | CSO, CTO | Continuous-monitoring surface; brand authority |
 | **Capability Assessment Tool (`/assess`)** | Strategy / transformation leads at any size | Primary conversion mechanism (PLG AHA moment) |
 | **Industry Case Studies** | CFO, COO, board members | Quantitative grounding; ROI narrative |
 | **C-Suite Perspectives Hub** | All C-Suite roles | Role-translation layer; reduces internal alignment friction |
@@ -248,7 +248,7 @@ We use **bottom-up sizing anchored in observable market signals**, not top-down 
 
 - Gartner Strategy Management Software market: $8.2B (2025), 14% CAGR
 - Adjacent: Business Intelligence ($33B), GRC software ($16B)
-- CEI carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus)
+- CVI carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus)
 
 ### 5.2 Segment Sizing
 
@@ -269,7 +269,7 @@ After 12 months of 3× daily research cycles:
 
 - **~3,000 agent memories** in Mem0 Cloud (observations, patterns, insights, decision contexts)
 - **~4,000 source triangulations** in DB (Perplexity evidence per capability)
-- **~500 CEI snapshots** (time-series across 6 industries)
+- **~500 CVI snapshots** (time-series across 6 industries)
 - **Calibrated priors** — agent's Bayesian prior shifts from non-informative ($\mu_0=50$, $\sigma_0=25$) to informative posterior derived from 12 months of observed evidence
 
 A competitor launching today with the same technology stack cannot replicate this corpus — they can build the software but cannot buy the data. Every research cycle widens the gap.
@@ -280,7 +280,7 @@ A competitor launching today with the same technology stack cannot replicate thi
 
 ### 6.1 Porter's Five Forces
 
-- **Threat of new entrants — Medium-High.** Core technology (LLMs + research APIs) is commoditising. Defensible head-start: CEI formula, ontology graph (100+ cited sources), institutional memory corpus, C-Suite translation framework. Real barrier is dataset accumulation — a compounding moat.
+- **Threat of new entrants — Medium-High.** Core technology (LLMs + research APIs) is commoditising. Defensible head-start: CVI formula, ontology graph (100+ cited sources), institutional memory corpus, C-Suite translation framework. Real barrier is dataset accumulation — a compounding moat.
 - **Bargaining power of buyers — Medium.** Strong individually, no buyer >5% of revenue at scale. Switching cost moderate (benchmark scores + history create lock-in analogous to a financial-data terminal).
 - **Bargaining power of suppliers — Low-Medium.** Key suppliers (Perplexity, Anthropic, Mem0) all have viable alternatives (Tavily/Exa, OpenAI/Gemini, Pinecone/Weaviate). Abstraction layers in the codebase mitigate concentration.
 - **Threat of substitutes — Medium.** Primary substitutes: management consulting ($2M, 6 months) and doing nothing. Consulting substitute is 40–400× more expensive per insight. The "do nothing" substitute evaporates when a competitor adopts the platform — first-mover incentive.
@@ -295,7 +295,7 @@ A competitor launching today with the same technology stack cannot replicate thi
 | BCG Henderson Institute | No (research) | No | No | No | No | No |
 | Palantir Foundry | Yes (operational) | Yes | No | No | No | Partial |
 | Workday Peakon | Yes (HR) | Yes | Partial | No | No | No |
-| **Capability Economics** | **Yes (Bayesian)** | **Yes (8h)** | **Yes** | **Yes (GDP-weighted)** | **Yes (6 roles)** | **Yes (autonomous)** |
+| **Inflexcvi** | **Yes (Bayesian)** | **Yes (8h)** | **Yes** | **Yes (GDP-weighted)** | **Yes (6 roles)** | **Yes (autonomous)** |
 
 ---
 
@@ -305,13 +305,13 @@ A competitor launching today with the same technology stack cannot replicate thi
 
 **Design philosophy:** three buyer personas with distinct value perceptions, budget owners, and ROI expectations.
 
-**Explorer — Free (PLG motion).** Single industry; public CEI access; one self-assessment/month. Purpose: demonstrate value, convert within 30–90 days. No card required. **Conversion target: 15% of Explorer → Professional within 90 days.**
+**Explorer — Free (PLG motion).** Single industry; public CVI access; one self-assessment/month. Purpose: demonstrate value, convert within 30–90 days. No card required. **Conversion target: 15% of Explorer → Professional within 90 days.**
 
 **Professional — $2,500/month ($30K ACV).** All 6 industries; full benchmarks; unlimited assessments; full C-Suite Perspectives × industries; dashboard gap analysis with personalised roadmap; up to 5 users. Buyer: VP Strategy / Chief Transformation Officer at mid-market. ROI: replaces one consulting engagement (~$200K) for $30K/year.
 
 **Enterprise — $15,000–$50,000/month ($180K–$600K ACV).** Custom industry verticals; white-labelled reports; API access for BI integration; unlimited users + SSO; dedicated agent configuration; 99.9% uptime SLA. Buyer: CSO at F500 / PE Operating Partner. ROI: replaces 30% of annual consulting spend on capability diagnostics.
 
-**Data License — $100K–$500K/year.** Bulk historical CEI via REST API; real-time snapshots via webhook/streaming; custom scoring models. Buyer: Bloomberg Terminal, FactSet, S&P Global, index providers. ROI: new data product; capability indices as factor in equity research.
+**Data License — $100K–$500K/year.** Bulk historical CVI via REST API; real-time snapshots via webhook/streaming; custom scoring models. Buyer: Bloomberg Terminal, FactSet, S&P Global, index providers. ROI: new data product; capability indices as factor in equity research.
 
 **Marketplace take-rate.** 12–18% on completed transactions, mediated through Stripe Connect. Marketplace commissions are uncapped — they scale with marketplace volume independent of subscription tier.
 
@@ -377,34 +377,34 @@ The structural advantage of agent-generated content at scale: marginal cost of a
 
 ### 9.1 Strategic Positioning — "Bloomberg for Capabilities"
 
-The most effective positioning analogy for enterprise buyers: **Capability Economics is to organizational capabilities what Bloomberg Terminal is to financial assets.** Bloomberg made financial data continuous, quantified, benchmarked, and real-time, transforming qualitative market assessment into a data product. Capability Economics does the same for organizational capabilities. CFOs and investors immediately understand Bloomberg's value-creation event — the framing requires no education.
+The most effective positioning analogy for enterprise buyers: **Inflexcvi is to organizational capabilities what Bloomberg Terminal is to financial assets.** Bloomberg made financial data continuous, quantified, benchmarked, and real-time, transforming qualitative market assessment into a data product. Inflexcvi does the same for organizational capabilities. CFOs and investors immediately understand Bloomberg's value-creation event — the framing requires no education.
 
 ### 9.2 Three-Phase Go-to-Market
 
 **Phase 1 — Content-Led Authority (Months 1–6).** Establish epistemic credibility before selling.
 
-- Publish CEI Industry Reports (Insurance, Healthcare, Banking) ungated. 20-page PDFs with Bayesian-scored capability maps, velocity analysis, executive summaries. Differentiated from consulting whitepapers because they cite live data with credible intervals.
-- LinkedIn thought leadership: weekly CEI updates targeting CSOs and Chief Transformation Officers. Hook: "The capability your competitors are improving fastest right now."
-- Academic positioning: submit CEI methodology paper to *Strategic Management Journal* or *Journal of Strategic Information Systems*.
-- Explorer tier as content upgrade — readers of CEI reports offered free org assessment.
+- Publish CVI Industry Reports (Insurance, Healthcare, Banking) ungated. 20-page PDFs with Bayesian-scored capability maps, velocity analysis, executive summaries. Differentiated from consulting whitepapers because they cite live data with credible intervals.
+- LinkedIn thought leadership: weekly CVI updates targeting CSOs and Chief Transformation Officers. Hook: "The capability your competitors are improving fastest right now."
+- Academic positioning: submit CVI methodology paper to *Strategic Management Journal* or *Journal of Strategic Information Systems*.
+- Explorer tier as content upgrade — readers of CVI reports offered free org assessment.
 
 **Phase 2 — PLG → Sales-Assist (Months 4–12).** Convert Explorer users to Professional/Enterprise via in-product value delivery.
 
 - AHA moment: organisation sees its gap vs. industry benchmark on the radar chart. Every product decision accelerates time-to-AHA.
 - Sales-assist trigger: when Explorer org runs 3+ assessments, AE outbound with industry-specific insights about their gaps.
-- Champion-led expansion: Professional users present CEI data in board meetings → board members ask how to get enterprise access → upmarket via internal champion.
+- Champion-led expansion: Professional users present CVI data in board meetings → board members ask how to get enterprise access → upmarket via internal champion.
 
 **Phase 3 — Enterprise & Data Licensing (Months 12–36).** Land large contracts and high-margin data deals.
 
 - PE Operating Partner channel: one PE firm covering 20 portfolio companies = $400K–$2M contract. Wedge: portfolio-level capability benchmarking.
-- Big 4 partnership: white-label CEI data for consulting deliverables. McKinsey/BCG/Deloitte cannot build this fast enough; they will license. Position as "the data layer beneath their capability practice".
-- Financial data terminals: Bloomberg, FactSet alternative-data programs. CEI as alt-data factor in equity research is a novel, defensible product category.
+- Big 4 partnership: white-label CVI data for consulting deliverables. McKinsey/BCG/Deloitte cannot build this fast enough; they will license. Position as "the data layer beneath their capability practice".
+- Financial data terminals: Bloomberg, FactSet alternative-data programs. CVI as alt-data factor in equity research is a novel, defensible product category.
 
 ### 9.3 Demand Generation Channels
 
 | Channel | CAC | Volume | Quality | Priority |
 |---|---|---|---|---|
-| Content / SEO (CEI reports) | ~$500 | Medium | Medium | High |
+| Content / SEO (CVI reports) | ~$500 | Medium | Medium | High |
 | LinkedIn outbound | ~$8,000 | Low | High | Medium |
 | PLG (Explorer → paid) | ~$2,000 | Medium | High | Highest |
 | Conference speaking (Gartner, MIT Sloan) | ~$15,000 | Low | Very high | Medium |
@@ -483,10 +483,10 @@ The platform's greatest non-obvious risk is **epistemological legitimacy**: what
 **Mitigation architecture:**
 
 1. **Credible intervals are mandatory.** Every score reports a 95% CI. Scores that pretend to certainty invite challenge; scores that quantify uncertainty invite collaboration.
-2. **Source citation is mandatory.** Every CEI component cites its Perplexity research queries and returned sources. Evidence chain is auditable.
-3. **Calibration studies.** Annually compare CEI scores to realised financial performance for companies whose assessed capabilities are known. Calibration data builds statistical evidence for the formula's predictive validity.
-4. **Academic partnership.** Co-publish CEI methodology with a business school for third-party validation that sophisticated buyers cannot dismiss.
-5. **Transparency report.** Quarterly publication of CEI accuracy, recall patterns, methodology updates builds institutional trust over time.
+2. **Source citation is mandatory.** Every CVI component cites its Perplexity research queries and returned sources. Evidence chain is auditable.
+3. **Calibration studies.** Annually compare CVI scores to realised financial performance for companies whose assessed capabilities are known. Calibration data builds statistical evidence for the formula's predictive validity.
+4. **Academic partnership.** Co-publish CVI methodology with a business school for third-party validation that sophisticated buyers cannot dismiss.
+5. **Transparency report.** Quarterly publication of CVI accuracy, recall patterns, methodology updates builds institutional trust over time.
 
 ---
 
@@ -494,7 +494,7 @@ The platform's greatest non-obvious risk is **epistemological legitimacy**: what
 
 ### 12.1 Q2 2026 (Current State)
 
-- ✅ Live CEI with autonomous agent (8h research cycles + urgency watchdog)
+- ✅ Live CVI with autonomous agent (8h research cycles + urgency watchdog)
 - ✅ 6 industries × 60+ capabilities with full Bayesian scoring
 - ✅ C-Suite perspectives hub (AI-generated, 6 roles × 6 industries)
 - ✅ Insurance case study with 5-year ROI timeline (AI-generated)
@@ -509,8 +509,8 @@ The platform's greatest non-obvious risk is **epistemological legitimacy**: what
 - Multi-org dashboard (PE portfolio companies on one canvas)
 - Healthcare and Banking deep-dive case studies (agent-generated)
 - PDF report export (white-labelled, enterprise feature)
-- Embeddable CEI widget (investor decks, board materials)
-- Calibration study: CEI vs. financial performance for public companies
+- Embeddable CVI widget (investor decks, board materials)
+- Calibration study: CVI vs. financial performance for public companies
 - Marketplace seller onboarding KYC flow (Didit integration end-to-end)
 
 ### 12.3 Q4 2026
@@ -528,7 +528,7 @@ The platform's greatest non-obvious risk is **epistemological legitimacy**: what
 - International calibration: UK, EU, APAC (regional GDP weights, regional sources)
 - Agent fine-tuning: customers provide assessment data to personalise scoring priors
 - Acquisition due-diligence module: rapid capability assessment workflow for PE deal teams
-- Academic paper submission: CEI methodology + predictive validity evidence
+- Academic paper submission: CVI methodology + predictive validity evidence
 
 ### 12.5 Q2 2027
 
@@ -559,7 +559,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 
 | Stakeholder | Role in product | Decision rights | Information needs |
 |---|---|---|---|
-| Founder/CEO | Strategy, fundraising, founder-led sales | All product/strategy trade-offs; pricing; positioning | CEI accuracy, customer references, runway, competitive intel |
+| Founder/CEO | Strategy, fundraising, founder-led sales | All product/strategy trade-offs; pricing; positioning | CVI accuracy, customer references, runway, competitive intel |
 | Head of Engineering | Architecture, agent quality, platform reliability | Tech stack choices, infra topology, SLO targets | Agent run telemetry, error rates, build/deploy state, CVE backlog |
 | Head of Product | Feature prioritisation, UX, roadmap sequencing | Roadmap order, persona-feature mapping, beta gating | Feature usage, conversion funnel, NPS, support tickets |
 | Head of Sales | Pipeline, ACV mix, enterprise close | Discount approval (within bands), proposal contents | Lead source attribution, win/loss notes, competitor mentions |
@@ -578,7 +578,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 | Marketplace sellers | Take-rate relationship | Honest take-rate; transparent moderation; watermarking + audit trail to protect IP |
 | Marketplace buyers | Per-transaction relationship | Authentic artifacts; clear provenance; chargeback-able through Stripe |
 | Investors (current + prospective) | Funding source | Quarterly board pack; honest risk reporting; KPI transparency |
-| Academic partners | Co-research on CEI methodology | Methodology transparency; co-publication credit; calibration data access |
+| Academic partners | Co-research on CVI methodology | Methodology transparency; co-publication credit; calibration data access |
 | Suppliers (Anthropic, Perplexity, Mem0, Letta, Stripe, Clerk, Resend, NowPayments, Didit, Hedera, OpenRouter, Railway) | Vendor relationship | SLA adherence; predictable pricing; deprecation notice; security posture |
 | Regulators (where applicable) | Compliance counterparty | Honest disclosures; data-handling per jurisdiction |
 
@@ -587,7 +587,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 - **Roadmap decisions** — R: Head of Product; A: CEO; C: Engineering, Sales, CS; I: All hands.
 - **Pricing changes** — R: Head of Sales; A: CEO + Finance; C: Product, CS; I: Marketing.
 - **Schema / contract changes (`openapi.yaml`)** — R: Engineer making change; A: Head of Engineering; C: Frontend lead (consumer of generated hooks); I: Product.
-- **CEI methodology changes** — R: Founder/CEO + ML; A: CEO; C: Academic partners; I: All paying customers via release notes.
+- **CVI methodology changes** — R: Founder/CEO + ML; A: CEO; C: Academic partners; I: All paying customers via release notes.
 - **Marketplace moderation policy** — R: Trust & Safety / CS lead; A: CEO; C: Legal; I: Sellers.
 - **Production incident response** — R: On-call engineer; A: Head of Engineering; C: CS (customer comms), CEO (>P1); I: All hands post-incident.
 
@@ -599,13 +599,13 @@ The platform is a direct product of this convergence. Two years earlier: researc
 
 | ID | Objective | KPI(s) | Target |
 |---|---|---|---|
-| OBJ-01 | Establish CEI as cited industry index | Inbound mentions in analyst reports; LinkedIn impressions on CEI updates; downloaded CEI Industry Reports | 3 analyst mentions; 100K monthly LinkedIn impressions; 5,000 report downloads |
+| OBJ-01 | Establish CVI as cited industry index | Inbound mentions in analyst reports; LinkedIn impressions on CVI updates; downloaded CVI Industry Reports | 3 analyst mentions; 100K monthly LinkedIn impressions; 5,000 report downloads |
 | OBJ-02 | Achieve PLG-driven conversion engine | Explorer → Professional conversion rate; time-to-AHA (radar render) | 15%; <5 minutes |
 | OBJ-03 | Build enterprise pipeline | Qualified enterprise opportunities; enterprise pipeline coverage | 30 opps; 4× target |
 | OBJ-04 | Establish marketplace flywheel | Active sellers; completed transactions/month; take-rate revenue | 50 sellers; 75 txn/mo; $5K/mo |
-| OBJ-05 | Sustain agent reliability | Successful agent runs / scheduled runs; CEI staleness P95 | >98%; <9 hours |
-| OBJ-06 | Preserve epistemic credibility | Avg CI width on top-100 capabilities; sources cited per CEI component | <15 points; ≥4 sources |
-| OBJ-07 | Build dataset moat | Agent memories in Mem0; source triangulations in DB; CEI snapshots | 3,000; 4,000; 500 |
+| OBJ-05 | Sustain agent reliability | Successful agent runs / scheduled runs; CVI staleness P95 | >98%; <9 hours |
+| OBJ-06 | Preserve epistemic credibility | Avg CI width on top-100 capabilities; sources cited per CVI component | <15 points; ≥4 sources |
+| OBJ-07 | Build dataset moat | Agent memories in Mem0; source triangulations in DB; CVI snapshots | 3,000; 4,000; 500 |
 | OBJ-08 | Maintain compliance posture | Open GDPR/CCPA deletion requests >30 days; KYC pass-rate for sellers | 0; >80% |
 
 ### 14.2 Product KPIs (Operational)
@@ -614,7 +614,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 - **Retention:** D30 / D90 / D180 active-org cohort retention. Targets: 70% / 50% / 40%.
 - **Expansion:** Net Revenue Retention (paid cohorts). Target: ≥115%.
 - **Conversion funnel:** Explorer signup → Explorer active → Professional trial → Professional paid. Tracked as a 4-step funnel with weekly cohort analysis.
-- **CEI freshness:** Time since last successful agent run, per industry. SLO: <9 hours (vs. 8h schedule).
+- **CVI freshness:** Time since last successful agent run, per industry. SLO: <9 hours (vs. 8h schedule).
 - **Error budget:** API 5xx rate; agent run failure rate; SSE disconnect rate. Targets: <0.1%; <2%; <5%.
 
 ### 14.3 Engineering KPIs
@@ -632,7 +632,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 ### 15.1 In Scope (Q2 2026 baseline)
 
 - Public catalogue browse (industries, capabilities, roles, ontology, white papers, leaderboard, thresholds)
-- CEI live dashboard with SSE agent activity, history, methodology, manual admin refresh
+- CVI live dashboard with SSE agent activity, history, methodology, manual admin refresh
 - Capability Assessment flow (multi-step wizard with voice input, EDGAR autocomplete, document upload, AI-driven clarifying questions, WEF radar + roadmap output)
 - Organisation create/read/update + session-token auth
 - C-Suite Perspectives Hub (6 roles × 6 industries × seeded capabilities)
@@ -656,7 +656,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 - Customer-deployable on-prem build
 - Multi-region deployment / data residency controls
 - Multi-language UI (English only)
-- Programmatic CEI methodology overrides per-customer (Enterprise tier roadmap)
+- Programmatic CVI methodology overrides per-customer (Enterprise tier roadmap)
 
 ### 15.3 Explicit Non-Goals
 
@@ -672,12 +672,12 @@ Numbering convention: `BR-NNN`. Each requirement carries a priority (M=Must, S=S
 
 ### 16.1 Capability Intelligence Core
 
-- **BR-001** [M / P,E] The platform shall publish a continuously-updated Capability Economics Index (CEI) per supported industry, with score, velocity, confidence, and 95% credible interval per component. *Verified at `/cei`, `GET /api/cei/current`.*
-- **BR-002** [M / E] The CEI shall be recomputed by the autonomous agent at least every 8 hours under normal conditions; the system shall provide an urgency-watchdog mechanism that triggers refresh when confidence drops below 0.35, data age exceeds 10 days, or CEI changes >5 points. *Verified at `src/services/agent/scheduler.ts`.*
-- **BR-003** [M / E] Each CEI component shall cite at least 3 distinct sources from heterogeneous research frames (consulting, market analysis, academic, practitioner). *Verified at `source_triangulations` records and `/cei/methodology`.*
+- **BR-001** [M / P,E] The platform shall publish a continuously-updated Capability Value Index (CVI) per supported industry, with score, velocity, confidence, and 95% credible interval per component. *Verified at `/cei`, `GET /api/cei/current`.*
+- **BR-002** [M / E] The CVI shall be recomputed by the autonomous agent at least every 8 hours under normal conditions; the system shall provide an urgency-watchdog mechanism that triggers refresh when confidence drops below 0.35, data age exceeds 10 days, or CVI changes >5 points. *Verified at `src/services/agent/scheduler.ts`.*
+- **BR-003** [M / E] Each CVI component shall cite at least 3 distinct sources from heterogeneous research frames (consulting, market analysis, academic, practitioner). *Verified at `source_triangulations` records and `/cei/methodology`.*
 - **BR-004** [M / P,E] Every top-level capability shall have 4–6 sub-capabilities auto-generated by Haiku 4.5 and refreshed by the rotation scheduler. Parents must roll up children's posteriors (weighted average) and never be directly triangulated. *Verified at `services/sub-capability-generator.ts` and `expandAffectedCapabilityIds`.*
 - **BR-005** [M / P] The platform shall expose at least 6 industries and ≥60 capabilities at launch; sub-capabilities bring the addressable capability count to ≥300.
-- **BR-006** [M / P] CEI scoring bands (Nascent / Developing / Advancing / Leading / Transformative) shall be consistent across UI, API, and reports.
+- **BR-006** [M / P] CVI scoring bands (Nascent / Developing / Advancing / Leading / Transformative) shall be consistent across UI, API, and reports.
 
 ### 16.2 Capability Assessment
 
@@ -738,7 +738,7 @@ Numbering convention: `BR-NNN`. Each requirement carries a priority (M=Must, S=S
 - **BR-081** [M / E] Concurrency: only one agent run shall execute at a time; a mutex shall block overlapping runs.
 - **BR-082** [M / E] Agent activity shall stream in real time to clients via SSE at `/api/agent/events`.
 - **BR-083** [M / E] All external dependencies (Mem0, Letta, Perplexity) shall graceful-degrade: missing or unreachable services log a warning and disable the dependent feature, never crash the process.
-- **BR-084** [M / E] Each agent run shall write a row to `agent_runs` with status, trigger, counters, before/after CEI, error message, timings.
+- **BR-084** [M / E] Each agent run shall write a row to `agent_runs` with status, trigger, counters, before/after CVI, error message, timings.
 - **BR-085** [M / E] Perplexity calls per run shall be capped at 6 (configurable) for cost control.
 
 ### 16.10 Admin & Review
@@ -759,13 +759,13 @@ Numbering convention: `BR-NNN`. Each requirement carries a priority (M=Must, S=S
 ### 16.12 Education & Content
 
 - **BR-110** [M / P] Admin shall manage educational content via CMS (CRUD + publish/unpublish).
-- **BR-111** [S / P] Featured content surfaces on home and CEI pages.
+- **BR-111** [S / P] Featured content surfaces on home and CVI pages.
 - **BR-112** [S / P] White papers shall be curated with publisher, URL, date, relevance score.
 
 ### 16.13 Export, API, Embeds
 
-- **BR-120** [S / P] Data License customers shall consume CEI history + components via REST + signed webhook.
-- **BR-121** [S / P] Enterprise customers shall embed a CEI widget via signed iframe URL.
+- **BR-120** [S / P] Data License customers shall consume CVI history + components via REST + signed webhook.
+- **BR-121** [S / P] Enterprise customers shall embed a CVI widget via signed iframe URL.
 - **BR-122** [C / P] Enterprise customers shall export white-labelled PDF reports.
 
 ---
@@ -958,7 +958,7 @@ Each BR is verified via one of:
 - **Goal with the platform:** Replace one consulting engagement per year. Have a benchmark she can cite in board meetings.
 - **Conversion event:** First time she sees her firm's capability radar overlaid on industry average and identifies a 23-point gap on Claims Automation.
 - **Primary surfaces:** `/dashboard`, `/assess`, `/cei`, `/case-study`.
-- **Success signal:** Cites CEI in a board deck within 60 days of signup.
+- **Success signal:** Cites CVI in a board deck within 60 days of signup.
 
 ### 21.2 Persona 2 — Marcus, Chief Strategy Officer (Enterprise Tier)
 
@@ -978,9 +978,9 @@ Each BR is verified via one of:
 - **Daily reality:** Each portco assessed differently; no cross-portfolio capability view; 100-day plans rely on intuition.
 - **Frustration:** Capability gaps surface 18 months post-acquisition.
 - **Goal:** Pre-deal capability diagnostic in <2 weeks; continuous monitoring across the portfolio.
-- **Conversion event:** Multi-org dashboard showing 20 portcos colour-coded by CEI band and velocity.
+- **Conversion event:** Multi-org dashboard showing 20 portcos colour-coded by CVI band and velocity.
 - **Primary surfaces:** Multi-org dashboard (roadmap Q3 2026), `/cei`, exports.
-- **Success signal:** Uses CEI in 100-day plan for next acquisition.
+- **Success signal:** Uses CVI in 100-day plan for next acquisition.
 
 ### 21.4 Persona 4 — David, Independent Strategy Consultant (Marketplace Seller)
 
@@ -1012,7 +1012,7 @@ Each BR is verified via one of:
 
 ### 22.1 Journey 1 — Explorer Activation (Hannah)
 
-1. Lands on `/` from a LinkedIn CEI Industry Report download.
+1. Lands on `/` from a LinkedIn CVI Industry Report download.
 2. Reads the value prop; clicks "Try the assessment" → routed to `/assess`.
 3. Skips signup wall — assessment is publicly accessible for the first step.
 4. Enters company name; EDGAR autocomplete suggests her firm; selects it.
@@ -1038,14 +1038,14 @@ Each BR is verified via one of:
 7. Letta memory write retains her firm's context for future sessions.
 8. Sarah runs cross-industry comparison via `/knowledge-graph`.
 9. Generates PDF export for board (roadmap Q3 2026 — interim: screenshots).
-10. Board meeting: CEI score cited in capital-allocation discussion.
+10. Board meeting: CVI score cited in capital-allocation discussion.
 11. CFO asks: "Can we see this monthly?" → CSM scheduled for expansion conversation.
 
 **Instrumentation:** Time from contract to first assessment (target <7 days); time from first assessment to first board use (target <60 days); upsell conversation triggered at 90 days for cohorts that complete ≥3 assessments.
 
 ### 22.3 Journey 3 — Enterprise Discovery → Close (Marcus)
 
-1. Inbound from CEI Industry Report (Healthcare).
+1. Inbound from CVI Industry Report (Healthcare).
 2. SDR qualifies; books CSO discovery call.
 3. CSO discovery: pain points around portfolio-of-transformations.
 4. Technical deep-dive: Marcus's CIO + CDO attend; explore `/cei`, `/c-suite`, embedding plan.
@@ -1085,7 +1085,7 @@ Each BR is verified via one of:
 9. Frontend `/cei` page receives SSE; updates dashboard without reload.
 10. Tom watches the run unfold in `/admin/agent-runs`; if failure, error message visible in row; he investigates.
 
-**Instrumentation:** Per-phase duration; total wall time; Perplexity call count; memories stored; CEI delta; failure rate per node.
+**Instrumentation:** Per-phase duration; total wall time; Perplexity call count; memories stored; CVI delta; failure rate per node.
 
 ---
 
@@ -1104,15 +1104,15 @@ This section catalogues every shipped feature with its purpose, primary surface,
 - **White Papers** — `GET /api/white-papers`. Curated research with publisher, URL, relevance score.
 - **Industry Leaderboard** — `GET /api/leaderboard?industryId=`. Company benchmark rankings per industry per year.
 
-### 23.2 CEI Intelligence
+### 23.2 CVI Intelligence
 
-- **CEI Dashboard** — Surface: `/cei`. Live composite index with sentiment gauge, industry breakdown, agent activity stream, history charts.
-- **CEI Current** — `GET /api/cei/current`. Returns active snapshot with components.
-- **CEI History** — `GET /api/cei/history?industryId=&limit=`. Time-series; paginated.
-- **CEI Components** — `GET /api/cei/components?snapshotId=`. Per-capability score breakdown with velocity, multiplier, confidence, weight, CI low/high.
-- **CEI Methodology** — `GET /api/cei/methodology`. Public formula documentation.
-- **CEI Refresh** — `POST /api/cei/refresh`. Admin-only manual recompute trigger.
-- **CEI Backtest** — `GET /api/admin/backtest/history?limit=` + `POST /api/admin/backtest/run`. Admin-only: re-scores historical capability data against current methodology; persists results to `backtest_runs` with regression alerts (log-loss vs. rolling avg).
+- **CVI Dashboard** — Surface: `/cei`. Live composite index with sentiment gauge, industry breakdown, agent activity stream, history charts.
+- **CVI Current** — `GET /api/cei/current`. Returns active snapshot with components.
+- **CVI History** — `GET /api/cei/history?industryId=&limit=`. Time-series; paginated.
+- **CVI Components** — `GET /api/cei/components?snapshotId=`. Per-capability score breakdown with velocity, multiplier, confidence, weight, CI low/high.
+- **CVI Methodology** — `GET /api/cei/methodology`. Public formula documentation.
+- **CVI Refresh** — `POST /api/cei/refresh`. Admin-only manual recompute trigger.
+- **CVI Backtest** — `GET /api/admin/backtest/history?limit=` + `POST /api/admin/backtest/run`. Admin-only: re-scores historical capability data against current methodology; persists results to `backtest_runs` with regression alerts (log-loss vs. rolling avg).
 
 ### 23.3 Capability Assessment
 
@@ -1209,7 +1209,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 - **Insights Browse** — Surface: `/insights`. Mixed AI-generated + seeded insights.
 - **Insights Generate (Admin)** — `POST /api/insights/generate?capabilityId=`.
 - **Educational Content CMS (Admin)** — `GET/POST/PATCH/DELETE /api/admin/educational-content[/:id]`.
-- **Featured Content** — `GET /api/featured-content`. Home/CEI surface highlights.
+- **Featured Content** — `GET /api/featured-content`. Home/CVI surface highlights.
 
 ### 23.14 Case Studies
 
@@ -1235,7 +1235,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 - **Innovation Pipeline** — `GET /api/innovation-pipeline`. Pipeline-stage view.
 - **Ideation** — `POST /api/ideation`. Idea-generation helper.
 - **Simulation** — `POST /api/simulation`. What-if projections.
-- **Trade Signals** — `GET /api/trade-signals`. CEI-derived trade-style signals for data-license customers.
+- **Trade Signals** — `GET /api/trade-signals`. CVI-derived trade-style signals for data-license customers.
 - **Watchlist** — `GET/POST/DELETE /api/watchlist`. User-curated capability watchlist.
 
 ### 23.17 Collaboration & War Room
@@ -1255,7 +1255,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 
 ### 23.19 Embed, Export, API Keys, Credits, Usage, Metrics
 
-- **Embed** — `GET /api/embed/cei?widgetId=&signature=`. Signed iframe URL for embeddable CEI widget.
+- **Embed** — `GET /api/embed/cei?widgetId=&signature=`. Signed iframe URL for embeddable CVI widget.
 - **Exports** — `GET /api/exports/:id`. PDF / JSON / CSV exports.
 - **API Keys** — `GET/POST/DELETE /api/api-keys`. Self-serve API key management for Data License tier (manual provisioning today).
 - **Credits** — `GET /api/credits`. Per-org usage credits.
@@ -1279,7 +1279,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 
 ### 23.21 V1 Public API (Data License)
 
-- **`GET /api/v1/cei`** — Programmatic CEI access for Data License customers; auth via API key in `x-api-key` header.
+- **`GET /api/v1/cei`** — Programmatic CVI access for Data License customers; auth via API key in `x-api-key` header.
 - **`GET /api/v1/capabilities`** — Capability registry export.
 - **`GET /api/v1/companies`** — Company directory export.
 - **`GET /api/v1/snapshots?since=`** — Incremental snapshot pull for webhook-style consumers.
@@ -1308,14 +1308,14 @@ This section catalogues every shipped feature with its purpose, primary surface,
 - **Shape language** — Square / minimally-rounded corners (`rounded-none`, `rounded-sm`). High-information density. Minimal decorative elements. Aesthetic target: CFO who has seen enough rounded-corner SaaS dashboards.
 - **Iconography** — Lucide React; consistent stroke system.
 - **Animation** — Framer Motion; spring physics; layout animations on data state changes.
-- **Charts** — Recharts; composable; Recharts radar for capability views; LineChart for CEI history and backtest trends.
+- **Charts** — Recharts; composable; Recharts radar for capability views; LineChart for CVI history and backtest trends.
 
 ### 24.2 Page-by-Page Specification (Frontend `artifacts/capability-economics/`)
 
 | Route | Primary purpose | Key components | Refresh strategy | Notes |
 |---|---|---|---|---|
 | `/` | Landing + value prop | Hero + real-estate analogy + Mem0 institutional memory section | staleTime: 2 min | Public |
-| `/cei` | Live CEI dashboard | Sentiment gauge, industry breakdown, agent activity SSE, history line chart | SSE + staleTime: 30 s | Public read; SSE keeps it live |
+| `/cei` | Live CVI dashboard | Sentiment gauge, industry breakdown, agent activity SSE, history line chart | SSE + staleTime: 30 s | Public read; SSE keeps it live |
 | `/assess` | Capability assessment wizard | Multi-step form, voice dictation, EDGAR autocomplete, document upload, WEF radar output | staleTime: 24 h on catalogue data | Anonymous start; saved via session token |
 | `/case-study` | Insurance case study | Capability cards, 5-yr ROI line chart, implementation timeline | staleTime: 1 h | AI-generated content |
 | `/c-suite` | C-Suite perspectives | Role × industry × capability matrix; tabbed by role | staleTime: 1 h | Public |
@@ -1330,7 +1330,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 | `/marketplace/workspace` | Buyer workspace | Purchased artifacts, watermarked PDFs | staleTime: 30 s | Auth-gated |
 | `/workbench` | Custom analysis workbench | Workspace for building capability assessments | n/a | Auth-gated |
 | `/war-room` | Live cross-org deliberation | Read-mostly initially; turn-based collaboration | staleTime: 10 s | Auth-gated |
-| `/backtest` | CEI methodology backtest dashboard | TrendChart (Brier + log-loss), regression alert | n/a | Admin-only |
+| `/backtest` | CVI methodology backtest dashboard | TrendChart (Brier + log-loss), regression alert | n/a | Admin-only |
 | `/system-status` | System status (public) | Health table; latency badges | staleTime: 30 s | Public |
 | `/admin/*` | Admin surfaces | (see §23.20) | varies | Admin-gated |
 
@@ -1355,7 +1355,7 @@ Mobile responsive pass completed across all surfaces (commits `Task #40` series)
 
 ## 25. Data Flow Specification
 
-### 25.1 CEI Refresh Flow
+### 25.1 CVI Refresh Flow
 
 ```
 Scheduler (every 30 min)  ─┐
@@ -1547,7 +1547,7 @@ A full-stack intelligence platform that autonomously researches, scores, and adv
 ```
                           ┌─────────────────────────────────────┐
                           │           Railway Project           │
-                          │       "Capability Economics"        │
+                          │       "Inflexcvi"        │
                           ├─────────────────────────────────────┤
                           │                                     │
    Browser ◄───HTTPS─────►│  capabilityeconomics (api-server)   │
@@ -1734,7 +1734,7 @@ All routes mount under `/api`. Categorised:
 ```
 /api
 ├── Public catalogue          (industries, capabilities, roles, ontology, …)
-├── CEI Intelligence          (cei/*, including methodology, history)
+├── CVI Intelligence          (cei/*, including methodology, history)
 ├── Capability Assessment     (assess/*, sec/*)
 ├── C-Suite Perspectives      (csuite/*)
 ├── Knowledge Graph           (ontology, knowledge-graph)
@@ -1905,7 +1905,7 @@ interface AgentState {
 | `evaluate` | DB capabilities, Mem0 memories | Staleness assessments, confidence flags | Continues with empty memories if Mem0 fails |
 | `decide` | Staleness/confidence | Research target list, content queue | Skips all research if 0 targets selected |
 | `research` | Target capability list | 4 Perplexity results per capability | Partial: failed capabilities marked, others proceed |
-| `compute` | Research results, current DB scores | Bayesian posteriors, new CEI snapshot | Rolls back on DB write failure |
+| `compute` | Research results, current DB scores | Bayesian posteriors, new CVI snapshot | Rolls back on DB write failure |
 | `memorize` | Research findings, decisions | Mem0 write confirmations | Non-blocking — failure logged, agent continues |
 | `generateContent` | Content queue, Perplexity context | C-Suite perspectives, case-study ROI | Per-item failure logged; others proceed |
 | `finalize` | Run stats | DB run record, SSE completion event | Best-effort — never blocks process exit |
@@ -1948,7 +1948,7 @@ startScheduler()
               │
               ├── confidence < 0.35?  → executeRun("urgency:low_confidence")
               ├── research age > 10d? → executeRun("urgency:stale_data")
-              └── CEI drop > 5pts?    → executeRun("urgency:cei_drop")
+              └── CVI drop > 5pts?    → executeRun("urgency:cei_drop")
 ```
 
 **Mutex pattern.** `isRunning: boolean` flag in module scope. `executeRun` checks-and-sets atomically (JavaScript single-threaded event loop guarantees). Overlapping runs are impossible within a single process. Distributed mutex (Redis Redlock) required when scaling to multiple instances.
@@ -2000,11 +2000,11 @@ Events broadcast via in-memory subscriber list. Works at single-process scale; r
 
 ---
 
-## 31. CEI Computation Pipeline
+## 31. CVI Computation Pipeline
 
-### 31.1 Full CEI Formula
+### 31.1 Full CVI Formula
 
-$$\text{CEI} = \frac{\sum_{c} W_c \cdot C_c \cdot (1 + V_c) \cdot E_c \cdot \alpha_c}{\sum_{c} W_c} \times 10$$
+$$\text{CVI} = \frac{\sum_{c} W_c \cdot C_c \cdot (1 + V_c) \cdot E_c \cdot \alpha_c}{\sum_{c} W_c} \times 10$$
 
 | Variable | Symbol | Range | Derivation |
 |---|---|---|---|
@@ -2250,7 +2250,7 @@ Three subscription tiers (Free, Professional, Enterprise) plus a Data License pa
 
 - **Capability graph:** `industries`, `capabilities`, `capability_metrics`, `capability_dependencies`, `c_suite_roles`, `capability_role_mappings`, `ontology_relationships`, `ontology_industry_adapters`.
 - **Organisations:** `organizations`, `organization_capabilities`.
-- **CEI time-series:** `cei_snapshots`, `cei_components`, `source_triangulations`.
+- **CVI time-series:** `cei_snapshots`, `cei_components`, `source_triangulations`.
 - **Agent state:** `agent_runs`, `agent_memories`.
 - **Content (AI-generated, cached):** `csuite_perspectives`, `case_study_content`, `capability_insights`, `industry_leaderboard`, `industry_white_papers`, `data_sources`.
 - **Projects:** `technology_projects`, `project_capability_impacts`, `project_executive_insights`, `project_risks`.
@@ -2302,7 +2302,7 @@ Several tables (thresholds, leaderboard, white-papers) carry a `sourceIds` JSONB
 | Build | Vite | 7.x | Sub-second HMR; native ESM; fast production builds |
 | Styling | Tailwind CSS | v4 | CSS-first variables; no JS config overhead |
 | Animation | Framer Motion | 12.x | Spring physics; layout animations; gestures |
-| Charts | Recharts | 2.x | React-native; composable; radar suits CEI |
+| Charts | Recharts | 2.x | React-native; composable; radar suits CVI |
 | Routing | Wouter | 3.x | 2.1 KB router; sufficient for the page count |
 | Data fetching | TanStack Query v5 + Orval | 5.90 | Auto cache, dedup, staleness; codegen hooks |
 | Components | shadcn/ui (Radix) | latest | Accessible primitives; unstyled base; Tailwind-friendly |
@@ -2402,7 +2402,7 @@ The "Anthropic integration" (`@workspace/integrations-anthropic-ai`) is a shim t
 
 ### 38.2 Perplexity Sonar
 
-- `sonar-pro`: 4 queries per capability in CEI research cycles (higher cost, deeper search).
+- `sonar-pro`: 4 queries per capability in CVI research cycles (higher cost, deeper search).
 - `sonar`: on-demand research endpoint (lower cost, sufficient for ad-hoc queries).
 - Per-run cap: **6 Perplexity calls** (configurable in `tools.ts`). At 6 capabilities × 6 industries = 36 calls/cycle max.
 - Preferred over direct web scraping: real-time access without browser automation, built-in citation tracking, structured response, predictable rate limits.
@@ -2485,7 +2485,7 @@ Verify via `GET /api/health/services` — `mem0` and `letta` both `status: "ok"`
 
 ### 39.1 Service Topology
 
-Single Railway project ("Capability Economics") with these services:
+Single Railway project ("Inflexcvi") with these services:
 
 | Service | Source | Purpose |
 |---|---|---|
@@ -2557,7 +2557,7 @@ Missing bundle is non-fatal — the server logs a warning and runs API-only.
 | foundry | Foundry URL env var presence |
 | stripe | account ping (live mode aware) |
 | clerk | API auth ping |
-| demo_readiness | composite of agent run availability + CEI snapshot freshness |
+| demo_readiness | composite of agent run availability + CVI snapshot freshness |
 
 ### 40.3 Agent Telemetry
 
@@ -2657,7 +2657,7 @@ Current (single-tenant)          Multi-tenant (Phase 2)
 ─────────────────────────        ─────────────────────────
 session token → org              Clerk Auth → JWT → org RBAC
 fixed agent_id                   agent_id per org
-shared CEI index                 CEI index per org + industry
+shared CVI index                 CVI index per org + industry
 in-process scheduler             BullMQ + Redis job queue per org
 single Mem0 user_id              user_id = orgId
 ```
@@ -2733,9 +2733,9 @@ $$E_c = 1 + \frac{\sum_{j : c \in \text{deps}(j)} \text{strength}(j,c) \cdot E_j
 
 Iterate to fixed point (~5–10 iterations on the ontology graph).
 
-### A.4 Capability Economics Index
+### A.4 Capability Value Index
 
-$$\text{CEI} = \frac{\sum_c W_c \cdot \hat\theta_c \cdot (1 + V_c) \cdot E_c \cdot \alpha_c}{\sum_c W_c} \times 10$$
+$$\text{CVI} = \frac{\sum_c W_c \cdot \hat\theta_c \cdot (1 + V_c) \cdot E_c \cdot \alpha_c}{\sum_c W_c} \times 10$$
 
 ### A.5 Confidence
 
@@ -2792,7 +2792,7 @@ organization_capabilities (id SERIAL PK, org_id FK, capability_id FK, score INT,
                            UNIQUE (org_id, capability_id))
 ```
 
-### B.3 CEI Time-Series
+### B.3 CVI Time-Series
 
 ```sql
 cei_snapshots         (id SERIAL PK, industry_id FK, index_value NUMERIC,
@@ -2960,7 +2960,7 @@ Grouped by route file. All endpoints under `/api`. Admin-protected endpoints mar
 - `GET /regulations` — regulatory context per capability
 - `GET /macro-events`
 
-### C.2 CEI
+### C.2 CVI
 
 - `GET /cei/current`
 - `GET /cei/history`
@@ -3270,14 +3270,14 @@ Grouped by route file. All endpoints under `/api`. Admin-protected endpoints mar
 - **AHA moment** — Specific in-product event where a user perceives the value proposition. For this platform: org sees its gap vs. industry benchmark on the radar chart.
 - **Anchor (Hedera)** — Persisting an event's hash on Hedera HCS for tamper-evident verification.
 - **Bayesian credible interval** — A range $[a, b]$ such that the posterior probability of the parameter being in that range is, e.g., 95%. The Bayesian counterpart to a frequentist confidence interval; semantically more honest for use cases where the parameter is genuinely uncertain.
-- **CEI (Capability Economics Index)** — Composite 0–1000 score per industry; primary platform output.
+- **CVI (Capability Value Index)** — Composite 0–1000 score per industry; primary platform output.
 - **CSO** — Chief Strategy Officer; primary enterprise buyer persona.
 - **Conjugate Gaussian** — A Bayesian formulation where Normal prior + Normal likelihood yield Normal posterior, with closed-form update equations. Computationally cheap; suited to repeated incremental updating.
 - **D3 force-directed layout** — Graph visualisation technique using simulated physical forces. Used for the knowledge graph.
 - **EMA (Exponential Moving Average)** — Weighted average where recent observations carry more weight. Used to compute velocity from score deltas.
 - **Enrichment** — Pipeline that transforms Perplexity research into structured DB rows (quadrants, value chains, company profiles) via GLM 5.1 synthesis.
 - **Explorer** — Free PLG tier.
-- **GDP weight** — Per-industry economic weighting factor used in the CEI formula.
+- **GDP weight** — Per-industry economic weighting factor used in the CVI formula.
 - **GraphQL (Railway)** — Authoritative way to inspect Railway state from a Claude shell. Documented in CLAUDE.md.
 - **Hedera HCS** — Hedera Consensus Service, used to anchor audit-chain events with consensus timestamps.
 - **Idempotent webhook** — Webhook handler safe to invoke multiple times with the same payload without changing state more than once. Required for Stripe / NowPayments callbacks.
@@ -3285,12 +3285,12 @@ Grouped by route file. All endpoints under `/api`. Admin-protected endpoints mar
 - **LangGraph** — Framework for building stateful AI agents as directed graphs with typed state.
 - **Letta** — Stateful memory framework providing persistent memory blocks across agent process restarts.
 - **Mem0** — Semantic memory infrastructure with vector-DB-backed similarity search.
-- **Methodology version** — Stamp on CEI / backtest computations; protects historical comparisons from being polluted by formula changes.
+- **Methodology version** — Stamp on CVI / backtest computations; protects historical comparisons from being polluted by formula changes.
 - **NRR (Net Revenue Retention)** — % of revenue retained from existing customers including expansion. >100% means expansion exceeds churn.
 - **OpenAPI** — Specification language for HTTP APIs. The platform's contract authority lives in `lib/api-spec/openapi.yaml`.
 - **Ontology** — Capability dependency graph; relationships have type and strength.
 - **Orval** — Codegen tool that produces TanStack Query hooks and Zod validators from OpenAPI.
-- **Perplexity Sonar** — Web research API; `sonar-pro` for CEI cycles, `sonar` for ad-hoc.
+- **Perplexity Sonar** — Web research API; `sonar-pro` for CVI cycles, `sonar` for ad-hoc.
 - **PLG (Product-Led Growth)** — Go-to-market motion where the product drives acquisition, expansion, and retention; sales is assistive.
 - **Posterior** — In Bayesian inference, the updated belief about a parameter after observing evidence. Combines prior + likelihood.
 - **Project token (Railway)** — UUID-format token scoped to a single Railway project; sent as `Project-Access-Token` header on the GraphQL endpoint.

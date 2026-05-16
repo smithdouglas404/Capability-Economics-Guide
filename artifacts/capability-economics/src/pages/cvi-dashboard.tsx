@@ -50,7 +50,7 @@ interface IndustryBreakdown {
 
 interface CEIData {
   overallIndex: number;
-  // 95% credible interval on the overall (GDP-weighted) CEI. null when no
+  // 95% credible interval on the overall (GDP-weighted) CVI. null when no
   // industries have a Perplexity-cited weight.
   overallCiLow: number | null;
   overallCiHigh: number | null;
@@ -464,7 +464,7 @@ function AgentEventIcon({ type }: { type: string }) {
 function formatEventMessage(event: AgentSSEEvent): string {
   if (event.message) return event.message;
   if (event.type === "research") return `Researching ${event.capability} in ${event.industry}`;
-  if (event.type === "cei_updated") return `CEI updated to ${event.overallIndex}`;
+  if (event.type === "cei_updated") return `CVI updated to ${event.overallIndex}`;
   if (event.type === "cycle_complete") return `Cycle complete: ${event.researched} researched, ${event.skipped} skipped`;
   if (event.type === "run_started") return `Agent run #${event.runId} started`;
   return event.type;
@@ -507,7 +507,7 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
   const baseSentiment = 50 + sentimentShock;
   const sentimentLabel = cei.marketSentiment > 60 ? "Bullish" : cei.marketSentiment < 40 ? "Bearish" : "Neutral";
 
-  // Compute the actual range of industry leaf averages from the live CEI
+  // Compute the actual range of industry leaf averages from the live CVI
   // payload, replacing the hardcoded "56-64" string in the dialog
   // (PLAN.md item #5). When industry data isn't loaded, fall back to a
   // dash so we never display invented numbers.
@@ -550,7 +550,7 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
         <DialogHeader>
           <DialogTitle className="font-serif text-xl flex items-center gap-2">
             <BookOpenCheck className="w-5 h-5 text-primary" />
-            How to read the CEI right now
+            How to read the CVI right now
           </DialogTitle>
           <DialogDescription>
             Live walkthrough of where the index sits, why it moved, and what the headline numbers actually mean.
@@ -560,7 +560,7 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
         <div className="space-y-6 text-sm leading-relaxed">
 
           <section className="space-y-2">
-            <h3 className="font-serif text-base border-b pb-1">1. Why has the CEI moved?</h3>
+            <h3 className="font-serif text-base border-b pb-1">1. Why has the CVI moved?</h3>
             {historyData.length > 1 ? (
               <>
                 <p>
@@ -685,7 +685,7 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
   );
 }
 
-export default function CEIDashboard() {
+export default function CVIDashboard() {
   const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cei/current`);
   const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
@@ -737,7 +737,7 @@ export default function CEIDashboard() {
   }, [eventForm, adminKey, refetchMacroEvents, refetchCei]);
 
   const deleteEvent = useCallback(async (id: number) => {
-    if (!confirm("Delete this macro event? CEI will recompute without its shock.")) return;
+    if (!confirm("Delete this macro event? CVI will recompute without its shock.")) return;
     try {
       const res = await fetch(`${API_BASE}/macro-events/${id}`, {
         method: "DELETE",
@@ -813,7 +813,7 @@ export default function CEIDashboard() {
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Computing Capability Economics Index...</p>
+          <p className="text-muted-foreground">Computing Capability Value Index...</p>
         </div>
       </div>
     );
@@ -822,7 +822,7 @@ export default function CEIDashboard() {
   if (!cei) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
-        <p className="text-muted-foreground">Unable to load CEI data.</p>
+        <p className="text-muted-foreground">Unable to load CVI data.</p>
       </div>
     );
   }
@@ -890,7 +890,7 @@ export default function CEIDashboard() {
                   <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                 </div>
                 <h1 className="text-3xl md:text-4xl font-serif tracking-tight">
-                  Capability Economics Index
+                  Capability Value Index
                 </h1>
                 <p className="text-muted-foreground/70 mt-1 max-w-xl">
                   The world's first composite index measuring organizational capability maturity across industries — powered by multi-source Bayesian triangulation.
@@ -917,7 +917,7 @@ export default function CEIDashboard() {
               <div className="md:col-span-1 flex flex-col items-center">
                 <div className="relative">
                   <div className="absolute -inset-8 rounded-full opacity-20" style={{ background: `radial-gradient(circle, ${indexColor}40, transparent)` }} />
-                  <IndexTicker value={cei.overallIndex} label="CEI Index" trend={cei.marketSentiment > 50 ? "up" : cei.marketSentiment < 50 ? "down" : "neutral"} />
+                  <IndexTicker value={cei.overallIndex} label="CVI Index" trend={cei.marketSentiment > 50 ? "up" : cei.marketSentiment < 50 ? "down" : "neutral"} />
                 </div>
                 <div className="mt-3 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider" style={{ background: `${indexColor}20`, color: indexColor }}>
                   {indexLevel} Maturity
@@ -1322,7 +1322,7 @@ export default function CEIDashboard() {
 
                       {macroEvents && macroEvents.active.length === 0 ? (
                         <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-border rounded-sm">
-                          No active macro disruptions. The CEI reflects only baseline capability dynamics.
+                          No active macro disruptions. The CVI reflects only baseline capability dynamics.
                           <br />Add an event manually or run a world scan to detect real-time disruptions.
                         </div>
                       ) : (
@@ -1680,7 +1680,7 @@ export default function CEIDashboard() {
                 <BarChart3 className="w-5 h-5 text-primary" />
                 Industry Breakdown
               </CardTitle>
-              <CardDescription>CEI sub-indices weighted by GDP contribution</CardDescription>
+              <CardDescription>CVI sub-indices weighted by GDP contribution</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="grid lg:grid-cols-2 gap-6">
@@ -1703,10 +1703,10 @@ export default function CEIDashboard() {
                         contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4, fontSize: 12 }}
                         formatter={(value: number, name: string): [string, string] | null => {
                           if (name === "ciRange" || name === "95% CI") return null;
-                          return [value.toFixed(1), name === "value" ? "CEI Score" : "Weight %"];
+                          return [value.toFixed(1), name === "value" ? "CVI Score" : "Weight %"];
                         }}
                       />
-                      <Bar dataKey="value" name="CEI Score" radius={[0, 4, 4, 0]}>
+                      <Bar dataKey="value" name="CVI Score" radius={[0, 4, 4, 0]}>
                         {industries.map(([, ind], idx) => (
                           <Cell key={idx} fill={ind.indexValue >= 320 ? "#6366f1" : ind.indexValue >= 300 ? "#8b5cf6" : "#a78bfa"} />
                         ))}
@@ -1722,7 +1722,7 @@ export default function CEIDashboard() {
                       <PolarGrid stroke="hsl(var(--muted-foreground)/0.15)" />
                       <PolarAngleAxis dataKey="industry" tick={{ fill: 'hsl(var(--foreground))', fontSize: 10 }} />
                       <PolarRadiusAxis domain={[0, 400]} tick={false} axisLine={false} />
-                      <Radar name="CEI" dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={2} />
+                      <Radar name="CVI" dataKey="value" stroke="#6366f1" fill="#6366f1" fillOpacity={0.15} strokeWidth={2} />
                     </RadarChart>
                   </ResponsiveContainer>
                 </div>
@@ -1768,7 +1768,7 @@ export default function CEIDashboard() {
                     </div>
                     <div className="text-right">
                       <ScoreWithProvenance
-                        label={`${ind.industryName} — Industry CEI`}
+                        label={`${ind.industryName} — Industry CVI`}
                         value={ind.indexValue}
                         precision={0}
                         ciLow={ind.ciLow}
@@ -1821,7 +1821,7 @@ export default function CEIDashboard() {
                         <div className="pt-3 mt-3 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
                           <div className="grid grid-cols-2 gap-2">
                             <div className="bg-muted/50 rounded-sm p-2">
-                              <div className="text-[10px] text-muted-foreground uppercase">CEI Contribution</div>
+                              <div className="text-[10px] text-muted-foreground uppercase">CVI Contribution</div>
                               <div className="text-sm font-mono font-bold">{(ind.indexValue * ind.weight).toFixed(1)}</div>
                             </div>
                             <div className="bg-muted/50 rounded-sm p-2">
@@ -2016,7 +2016,7 @@ export default function CEIDashboard() {
                 {showAgentActivity ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </CardTitle>
               <CardDescription>
-                LangGraph-powered agent with Mem0 memory — autonomously monitors, researches, and updates the CEI
+                LangGraph-powered agent with Mem0 memory — autonomously monitors, researches, and updates the CVI
               </CardDescription>
             </CardHeader>
             <AnimatePresence>
@@ -2114,7 +2114,7 @@ export default function CEIDashboard() {
                         </div>
                         {agentStatus.latestRun.ceiBeforeIndex != null && agentStatus.latestRun.ceiAfterIndex != null && (
                           <div className="mt-2 text-xs text-center text-muted-foreground">
-                            CEI: {agentStatus.latestRun.ceiBeforeIndex} → {agentStatus.latestRun.ceiAfterIndex}
+                            CVI: {agentStatus.latestRun.ceiBeforeIndex} → {agentStatus.latestRun.ceiAfterIndex}
                             {" "}
                             <span className={
                               agentStatus.latestRun.ceiAfterIndex > agentStatus.latestRun.ceiBeforeIndex ? "text-primary" :
@@ -2176,7 +2176,7 @@ export default function CEIDashboard() {
                   <div>
                     <CardTitle className="font-serif text-lg flex items-center gap-2">
                       <Activity className="w-5 h-5 text-primary" />
-                      CEI Trend
+                      CVI Trend
                     </CardTitle>
                     <CardDescription>Historical index movement over time</CardDescription>
                   </div>
@@ -2203,7 +2203,7 @@ export default function CEIDashboard() {
                       <XAxis dataKey="time" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                       <YAxis domain={["auto", "auto"]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                       <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4, fontSize: 12 }} />
-                      <Area type="monotone" dataKey="index" stroke="#6366f1" fill="url(#ceiGrad)" strokeWidth={2} name="CEI" />
+                      <Area type="monotone" dataKey="index" stroke="#6366f1" fill="url(#ceiGrad)" strokeWidth={2} name="CVI" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -2226,13 +2226,13 @@ export default function CEIDashboard() {
               <CardTitle className="font-serif text-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-primary" />
-                  CEI Methodology v1.0
+                  CVI Methodology v1.0
                 </div>
                 {showMethodology ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
               </CardTitle>
               <CardDescription className="flex items-center gap-3 flex-wrap">
                 <span>
-                  How the Capability Economics Index is calculated — multi-source Bayesian triangulation, velocity tracking, and economic multipliers
+                  How the Capability Value Index is calculated — multi-source Bayesian triangulation, velocity tracking, and economic multipliers
                 </span>
                 <a
                   href="/backtest"
@@ -2295,7 +2295,7 @@ export default function CEIDashboard() {
                     <div className="bg-muted/30 rounded-sm p-4 border font-mono text-sm">
                       <div className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-sans font-bold">Formula</div>
                       <div className="text-foreground">
-                        CEI = Σ(W<sub>i</sub> × C<sub>i</sub> × (1 + V<sub>i</sub>) × E<sub>i</sub> × α<sub>i</sub>) / ΣW<sub>i</sub> × 10
+                        CVI = Σ(W<sub>i</sub> × C<sub>i</sub> × (1 + V<sub>i</sub>) × E<sub>i</sub> × α<sub>i</sub>) / ΣW<sub>i</sub> × 10
                       </div>
                       <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs text-muted-foreground font-sans">
                         <div><strong>W<sub>i</sub></strong> = GDP weight</div>

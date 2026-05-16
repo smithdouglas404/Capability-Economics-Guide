@@ -11,7 +11,7 @@ export default function WhatIsCEModal() {
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
       >
-        What is Capability Economics?
+        What is Inflexcvi?
         <ArrowRight className="w-3.5 h-3.5" />
       </button>
 
@@ -57,7 +57,7 @@ export default function WhatIsCEModal() {
                     <span className="h-px w-4 bg-accent" />
                     <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Executive Primer</span>
                   </div>
-                  <h2 className="text-3xl font-serif tracking-tight text-foreground">What is Capability Economics?</h2>
+                  <h2 className="text-3xl font-serif tracking-tight text-foreground">What is Inflexcvi?</h2>
                   <p className="mt-3 text-muted-foreground text-base leading-relaxed max-w-xl">
                     The study of how a company's internal capabilities — the unique combination of people, processes, and technology — drive financial performance.
                   </p>
@@ -83,7 +83,7 @@ export default function WhatIsCEModal() {
                         </p>
                       </div>
                       <div className="bg-primary/5 border border-primary/20 p-5">
-                        <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Capability Economics</div>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-primary mb-3">Inflexcvi</div>
                         <p className="text-sm text-foreground leading-relaxed">
                           Focuses on the cost of complexity versus the value of excellence. Opens the black box and puts a dollar value on what's inside.
                         </p>
@@ -105,12 +105,12 @@ export default function WhatIsCEModal() {
                         {
                           icon: Settings,
                           label: "Core vs. Context",
-                          desc: "Spending on what makes the company unique (Core) while automating or outsourcing everything else (Context). Pure Capability Economics.",
+                          desc: "Spending on what makes the company unique (Core) while automating or outsourcing everything else (Context). Pure Inflexcvi.",
                         },
                         {
                           icon: Cpu,
                           label: "Digital Transformation",
-                          desc: "Upgrading tech stacks to lower the marginal cost of serving customers. Capability Economics for the modern age.",
+                          desc: "Upgrading tech stacks to lower the marginal cost of serving customers. Inflexcvi for the modern age.",
                         },
                       ].map(({ icon: Icon, label, desc }) => (
                         <div key={label} className="flex gap-4 p-4 border border-border hover:bg-muted/30 transition-colors">
@@ -142,7 +142,7 @@ export default function WhatIsCEModal() {
                         <div>
                           <div className="text-sm font-semibold text-foreground mb-1">AI Integration</div>
                           <p className="text-sm text-muted-foreground leading-relaxed">
-                            Every CEO is asking "How does AI change our capabilities?" This is Capability Economics in real time — does an AI-driven capability generate better ROI than a human-heavy one?
+                            Every CEO is asking "How does AI change our capabilities?" This is Inflexcvi in real time — does an AI-driven capability generate better ROI than a human-heavy one?
                           </p>
                         </div>
                       </div>
@@ -175,7 +175,7 @@ export default function WhatIsCEModal() {
                 {/* Footer */}
                 <div className="px-8 py-5 border-t border-border bg-muted/20 flex items-center justify-between gap-4">
                   <p className="text-xs text-muted-foreground">
-                    The Capability Economics Index (CEI) quantifies these principles into a live, benchmarked score updated 3× daily.
+                    The Capability Value Index (CVI) quantifies these principles into a live, benchmarked score updated 3× daily.
                   </p>
                   <button
                     onClick={() => setOpen(false)}

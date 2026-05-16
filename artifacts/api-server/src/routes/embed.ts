@@ -7,7 +7,7 @@ import {
   industriesTable,
 } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
-import { getCEICurrent } from "../services/cvi-engine";
+import { getCVICurrent } from "../services/cvi-engine";
 import { buildFrameAncestorsCsp } from "../lib/embed-csp";
 import { resolveBranding } from "../lib/embed-token";
 
@@ -15,7 +15,7 @@ import { resolveBranding } from "../lib/embed-token";
  * Build the citation list embedded in widget responses. Derived from the
  * triangulation engine's `sourceScores` JSON: each entry already records
  * label, methodology, weight, and queriedAt. We don't fabricate URLs we
- * don't have — partners can click through to capabilityeconomics.com to
+ * don't have — partners can click through to inflexcvi.ai to
  * see the full provenance trail. Capped at 5 to keep payload tiny.
  */
 function buildCitations(
@@ -52,17 +52,17 @@ function embedFrameHeaders(req: Request, res: Response, next: NextFunction): voi
 router.use("/embed", embedFrameHeaders);
 
 /**
- * Live CEI snapshot for embedding. Tiny payload — overall index, CI,
+ * Live CVI snapshot for embedding. Tiny payload — overall index, CI,
  * methodology id, timestamp. No industry breakdown to keep widgets light.
  */
 router.get("/embed/cei", async (req, res) => {
   try {
-    const cei = await getCEICurrent();
+    const cei = await getCVICurrent();
     if (!cei) {
-      res.status(503).json({ error: "CEI not yet computed" });
+      res.status(503).json({ error: "CVI not yet computed" });
       return;
     }
-    // CEI is a model-derived rollup, not a per-source aggregate, so its
+    // CVI is a model-derived rollup, not a per-source aggregate, so its
     // provenance is the engine + the count of contributing industries
     // (each backed by Perplexity-cited GDP weights via industry_gdp_weights).
     const industryCount = Object.keys(cei.industryBreakdowns ?? {}).length;
@@ -92,7 +92,7 @@ router.get("/embed/cei", async (req, res) => {
     });
   } catch (err) {
     console.error("embed cei failed:", err);
-    res.status(500).json({ error: "Failed to load CEI" });
+    res.status(500).json({ error: "Failed to load CVI" });
   }
 });
 

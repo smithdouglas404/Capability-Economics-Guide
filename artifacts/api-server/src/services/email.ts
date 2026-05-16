@@ -8,7 +8,7 @@ import { logger } from "../lib/logger";
  *
  * Configure:
  *   RESEND_API_KEY   — API key from resend.com/api-keys
- *   EMAIL_FROM       — verified sender, e.g. "Capability Economics <no-reply@yourdomain.com>"
+ *   EMAIL_FROM       — verified sender, e.g. "Inflexcvi <no-reply@yourdomain.com>"
  *   APP_BASE_URL     — for building links in email bodies (fallback: inferred from request if available)
  */
 
@@ -99,7 +99,7 @@ function wrap(body: string): string {
   <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; max-width: 560px; margin: 0 auto; padding: 32px 24px;">
     <div style="margin-bottom: 24px;">
       <div style="display: inline-block; width: 40px; height: 40px; background: #4338ca; color: white; border-radius: 6px; text-align: center; line-height: 40px; font-family: Georgia, serif; font-weight: bold; font-size: 22px;">CE</div>
-      <div style="display: inline-block; margin-left: 10px; vertical-align: middle; font-family: Georgia, serif; font-size: 18px;">Capability Economics</div>
+      <div style="display: inline-block; margin-left: 10px; vertical-align: middle; font-family: Georgia, serif; font-size: 18px;">Inflexcvi</div>
     </div>
     ${body}
     <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 32px 0 16px;" />
@@ -114,12 +114,12 @@ export async function sendWelcomeEmail({ to, name, tierName }: { to: string; nam
   const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
   await sendRaw({
     to,
-    subject: `Welcome to Capability Economics — ${tierName} membership request received`,
+    subject: `Welcome to Inflexcvi — ${tierName} membership request received`,
     html: wrap(`
       <p>${greeting}</p>
       <p>Thanks for signing up for the <strong>${tierName}</strong> tier. We've received your request and our team will review it shortly.</p>
       <p>You'll get a follow-up email as soon as your membership is activated.</p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -133,7 +133,7 @@ export async function sendApprovalEmail({ to, name, tierName }: { to: string; na
       <p>${greeting}</p>
       <p>Good news — your <strong>${tierName}</strong> membership has been approved. You now have full access to the capabilities that ship with this tier.</p>
       <p><a href="${appUrl("/")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Open your dashboard</a></p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -148,7 +148,7 @@ export async function sendRejectionEmail({ to, name, tierName, reason }: { to: s
       <p>Your recent request for the <strong>${tierName}</strong> tier could not be approved at this time.</p>
       <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
       <p>If you believe this was in error, reply to this email and we'll take another look.</p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -157,13 +157,13 @@ export async function sendHoldEmail({ to, name, reason }: { to: string; name?: s
   const greeting = name ? `Hi ${name.split(" ")[0]},` : "Hi there,";
   await sendRaw({
     to,
-    subject: `Your Capability Economics account has been placed on hold`,
+    subject: `Your Inflexcvi account has been placed on hold`,
     html: wrap(`
       <p>${greeting}</p>
       <p>Your account access has been temporarily suspended.</p>
       <p><strong>Reason:</strong> ${escapeHtml(reason)}</p>
       <p>Please reply to this email to resolve this and restore access.</p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -202,10 +202,10 @@ export async function sendListingApprovedEmail({ to, name, listingTitle }: { to:
     subject: `Your listing "${listingTitle}" is live in the marketplace`,
     html: wrap(`
       <p>${greeting}</p>
-      <p>Your listing <strong>${escapeHtml(listingTitle)}</strong> has been approved and is now live in the Capability Economics marketplace.</p>
+      <p>Your listing <strong>${escapeHtml(listingTitle)}</strong> has been approved and is now live in the Inflexcvi marketplace.</p>
       <p>You'll start earning the moment someone purchases it. Payouts arrive via Stripe on your configured schedule.</p>
       <p><a href="${appUrl("/marketplace/sell")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">View your listings</a></p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -228,10 +228,10 @@ export async function sendListingRejectedEmail({ to, name, listingTitle, reason 
 export async function sendOrgInviteEmail({ to, orgName, inviterName, acceptUrl }: { to: string; orgName: string; inviterName?: string | null; acceptUrl: string }): Promise<void> {
   await sendRaw({
     to,
-    subject: `You've been invited to join ${orgName} on Capability Economics`,
+    subject: `You've been invited to join ${orgName} on Inflexcvi`,
     html: wrap(`
       <p>Hi there,</p>
-      <p>${inviterName ? `<strong>${escapeHtml(inviterName)}</strong>` : "An administrator"} has invited you to join <strong>${escapeHtml(orgName)}</strong> on Capability Economics.</p>
+      <p>${inviterName ? `<strong>${escapeHtml(inviterName)}</strong>` : "An administrator"} has invited you to join <strong>${escapeHtml(orgName)}</strong> on Inflexcvi.</p>
       <p>Accept the invite to gain access to your team's membership tier and shared resources.</p>
       <p><a href="${acceptUrl}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Accept invite</a></p>
       <p style="font-size: 12px; color: #888;">This invite expires in 7 days. If you weren't expecting it you can ignore this email.</p>
@@ -250,7 +250,7 @@ export async function sendPaymentFailedEmail({ to, name, tierName, amountCents }
       <p>We weren't able to process ${amt} for your <strong>${tierName}</strong> membership.</p>
       <p>Stripe will automatically retry over the next few days, but you can update your card now to avoid any interruption.</p>
       <p><a href="${appUrl("/account")}" style="display: inline-block; background: #4338ca; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Update payment method</a></p>
-      <p>— The Capability Economics team</p>
+      <p>— The Inflexcvi team</p>
     `),
   });
 }
@@ -297,7 +297,7 @@ export async function sendDigestEmail({ to, name, items }: { to: string; name?: 
   `).join("");
   return sendRawStrict({
     to,
-    subject: `Your daily Capability Economics digest — ${items.length} alert${items.length === 1 ? "" : "s"}`,
+    subject: `Your daily Inflexcvi digest — ${items.length} alert${items.length === 1 ? "" : "s"}`,
     html: wrap(`
       <p>${greeting}</p>
       <p>Here's a summary of the alerts triggered for you today:</p>

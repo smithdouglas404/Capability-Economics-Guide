@@ -207,7 +207,7 @@ export const computeCVITool = tool(
   },
   {
     name: "compute_cvi",
-    description: "Recompute the CEI index from current database state and save a new snapshot. Call this after research updates to refresh the index.",
+    description: "Recompute the CVI index from current database state and save a new snapshot. Call this after research updates to refresh the index.",
     schema: z.object({}),
   },
 );
@@ -310,7 +310,7 @@ export const generateCsuitePerspectivesTool = tool(
           : "";
 
         // GLM 5.1 — provocative questions + role-specific chart dimensions
-        const glmPrompt = `You are a Capability Economics expert advising a ${role.title} (${role.name}). Focus: ${role.focus}${contextSection}
+        const glmPrompt = `You are a Inflexcvi expert advising a ${role.title} (${role.name}). Focus: ${role.focus}${contextSection}
 
 Return ONLY valid JSON:
 {
@@ -344,13 +344,13 @@ Questions must challenge conventional thinking and be specific to ${role.title} 
         const glmParsed = JSON.parse(glmMatch[0]) as { questions: string[]; chartData: { subject: string; A: number; fullMark: number }[] };
 
         // Sonnet 4.5 — grounded scenario, capabilities, and metrics with real numbers
-        const sonnetPrompt = `You are a Capability Economics consultant. Generate a data-grounded executive perspective for the ${role.title} (${role.name}) role. Focus: ${role.focus}${contextSection}
+        const sonnetPrompt = `You are a Inflexcvi consultant. Generate a data-grounded executive perspective for the ${role.title} (${role.name}) role. Focus: ${role.focus}${contextSection}
 
 Use the research context to include real benchmarks and specific numbers.
 
 Return ONLY valid JSON:
 {
-  "scenario": "A 3-4 sentence real-world scenario where this executive applies Capability Economics to make a concrete business decision — include actual dollar amounts, percentages, and timeframes from real industry benchmarks.",
+  "scenario": "A 3-4 sentence real-world scenario where this executive applies Inflexcvi to make a concrete business decision — include actual dollar amounts, percentages, and timeframes from real industry benchmarks.",
   "capabilities": ["Real functional capability this ${role.title} owns 1", "Capability 2", "Capability 3"],
   "metrics": ["Specific named KPI with measured outcome grounded in real data, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2 with number", "Metric 3 with number", "Metric 4 with number", "Metric 5 with number"]
 }`;
@@ -445,7 +445,7 @@ export const generateCaseStudyContentTool = tool(
       ? `\nPERPLEXITY RESEARCH CONTEXT (real benchmarks to ground your response):\n${researchContext}\n`
       : "";
 
-    const prompt = `You are a Capability Economics consultant specialising in the ${industry.name} industry. Generate a detailed, credible case study grounded in real data.
+    const prompt = `You are a Inflexcvi consultant specialising in the ${industry.name} industry. Generate a detailed, credible case study grounded in real data.
 
 Top capabilities from our database:
 ${capSummaries}
@@ -460,7 +460,7 @@ Return ONLY valid JSON:
       "capabilityName": "${allCaps[0]?.name}",
       "description": "2 sentence description of the economic value of this capability in ${industry.name}.",
       "traditionalView": "How insurers/firms historically viewed this capability as a cost center.",
-      "economicView": "How Capability Economics reframes it as a quantifiable revenue and value driver.",
+      "economicView": "How Inflexcvi reframes it as a quantifiable revenue and value driver.",
       "metrics": [
         {"name": "Specific KPI Name", "value": "Measured outcome with real numbers", "trend": "up"},
         {"name": "Specific KPI Name 2", "value": "Measured outcome with real numbers", "trend": "down"},
@@ -501,8 +501,8 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
           headers: {
             Authorization: `Bearer ${openrouterKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://capabilityeconomics.com",
-            "X-Title": "Capability Economics",
+            "HTTP-Referer": "https://inflexcvi.ai",
+            "X-Title": "Inflexcvi",
           },
           body: JSON.stringify({
             model: "anthropic/claude-sonnet-4.6",
@@ -602,7 +602,7 @@ export const generateInsightsTool = tool(
       `What are the most urgent capability gaps, market disruptions, and strategic opportunities facing the ${industry.name} industry in 2024-2026? Include specific companies, percentages, dollar amounts, and real analyst data from McKinsey, Gartner, Deloitte, or Forrester. Focus on operational risks and economic impact.`
     );
 
-    const prompt = `You are a Capability Economics advisor analyzing the ${industry.name} industry using real market data.
+    const prompt = `You are a Inflexcvi advisor analyzing the ${industry.name} industry using real market data.
 
 Current capability scores:
 ${capSummary}
@@ -686,7 +686,7 @@ export const generateLeaderboardTool = tool(
       `Who are the top 4-5 companies in the ${industry.name} industry ranked by operational capability maturity, digital transformation, and innovation investment in 2024-2026? Include specific capability strengths and weaknesses, maturity scores, investment levels, and whether they are improving or declining. Use real data from analyst reports.`
     );
 
-    const prompt = `You are a Capability Economics analyst. Based on this research, generate a leaderboard of the top companies in ${industry.name}.
+    const prompt = `You are a Inflexcvi analyst. Based on this research, generate a leaderboard of the top companies in ${industry.name}.
 
 PERPLEXITY RESEARCH:
 ${researchContext}
@@ -774,7 +774,7 @@ export const generateWhitePapersTool = tool(
       `What are the most important and cited industry research reports, white papers, and analyst publications on capability maturity, digital transformation ROI, and operational excellence in the ${industry.name} sector published 2022-2026? Include actual titles, authors, organizations (McKinsey, Gartner, Deloitte, Forrester, Accenture, BCG, WEF, etc.) and key findings.`
     );
 
-    const prompt = `You are a research librarian for a Capability Economics platform. Generate 3 real research paper entries for the ${industry.name} industry.
+    const prompt = `You are a research librarian for a Inflexcvi platform. Generate 3 real research paper entries for the ${industry.name} industry.
 
 PERPLEXITY RESEARCH (use only real publications found in this data):
 ${researchContext}
@@ -907,8 +907,8 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
         headers: {
           "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://capabilityeconomics.com",
-          "X-Title": "Capability Economics",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi",
         },
         body: JSON.stringify({
           model: "deepseek/deepseek-chat",

@@ -59,7 +59,7 @@ router.post("/onboarding/start", async (req, res) => {
   const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, parsed.data.industryId));
   if (!industry) { res.status(404).json({ error: "Industry not found" }); return; }
 
-  // Pick top 5 capabilities for that industry. Ranking: approved + has CEI
+  // Pick top 5 capabilities for that industry. Ranking: approved + has CVI
   // component + ordered by consensusScore desc. We prefer leaf capabilities
   // since they're the most concrete to ideate against.
   const candidates = await db

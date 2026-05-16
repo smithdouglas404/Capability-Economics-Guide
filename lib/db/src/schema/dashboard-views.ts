@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { pgTable, serial, text, jsonb, boolean, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
- * Per-user saved dashboard views. Each dashboard (CEI, Alpha, Knowledge Graph,
+ * Per-user saved dashboard views. Each dashboard (CVI, Alpha, Knowledge Graph,
  * Companies) has its own namespace via `dashboardKey`. `stateJson` is opaque
  * to the server — the dashboard component owns the shape and is responsible
  * for tolerating older saved versions.

@@ -15,7 +15,7 @@
  *
  * Velocity is the EMA-smoothed score change per period in the engine
  * (range −0.5..+0.5). The thresholds below are deliberately conservative
- * so the stage label is stable across CEI runs and only flips on
+ * so the stage label is stable across CVI runs and only flips on
  * meaningful, sustained movement.
  */
 

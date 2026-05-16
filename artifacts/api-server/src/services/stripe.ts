@@ -44,7 +44,7 @@ export async function createCheckoutSession(input: CheckoutSessionInput): Promis
         unit_amount: input.amountCents,
         recurring,
         product_data: {
-          name: `${input.tierName} — Capability Economics`,
+          name: `${input.tierName} — Inflexcvi`,
           description: `${input.billingPeriod === "annual" ? "Annual" : "Monthly"} membership`,
         },
       },
@@ -114,7 +114,7 @@ export async function createOrgCheckoutSession(input: OrgCheckoutSessionInput): 
         unit_amount: input.perSeatPriceCents,
         recurring: { interval: input.billingPeriod === "annual" ? "year" : "month" },
         product_data: {
-          name: `${input.tierName} — Capability Economics (${input.orgName})`,
+          name: `${input.tierName} — Inflexcvi (${input.orgName})`,
           description: `${input.billingPeriod === "annual" ? "Annual" : "Monthly"} team membership, per seat`,
         },
       },
@@ -229,7 +229,7 @@ export async function createMarketplaceCheckoutSession(input: MarketplaceCheckou
         unit_amount: input.priceCents,
         product_data: {
           name: input.listingTitle,
-          description: `Capability Economics marketplace report`,
+          description: `Inflexcvi marketplace report`,
         },
       },
     }],

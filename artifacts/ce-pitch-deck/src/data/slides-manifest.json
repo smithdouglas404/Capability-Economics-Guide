@@ -35,7 +35,7 @@
     "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
     "position": 5,
     "filepath": "src/pages/slides/CEIQuadrant.tsx",
-    "title": "CEI Quadrant xRay",
+    "title": "CVI Quadrant xRay",
     "description": "Bubble chart with capabilities plotted by economic impact and adoption momentum",
     "speakerNotes": ""
   },
@@ -125,7 +125,7 @@
     "filepath": "src/pages/slides/MarketplaceTiersSlide.tsx",
     "title": "Marketplace + multi-tenant",
     "description": "Three seller tiers, four listing types, team-attributed purchases via Clerk org.",
-    "speakerNotes": "CEI is the moat, marketplace is the revenue mechanism. Take rates: 20/15/12 across the three tiers."
+    "speakerNotes": "CVI is the moat, marketplace is the revenue mechanism. Take rates: 20/15/12 across the three tiers."
   },
   {
     "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",

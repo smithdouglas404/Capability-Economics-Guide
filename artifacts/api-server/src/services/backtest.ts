@@ -27,8 +27,8 @@ const LOG_LOSS_REGRESSION_DELTA = 0.05;
 const REGRESSION_WINDOW = 5;
 
 /**
- * CEI backtesting harness — replays curated historical events through the
- * **actual** CEI engine in dry-run mode (no persistence) and reports the
+ * CVI backtesting harness — replays curated historical events through the
+ * **actual** CVI engine in dry-run mode (no persistence) and reports the
  * directional accuracy of each event's effect on the affected capabilities.
  *
  * How non-tautology is achieved:

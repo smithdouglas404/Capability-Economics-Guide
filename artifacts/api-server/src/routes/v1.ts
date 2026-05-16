@@ -60,7 +60,7 @@ router.get("/docs", (_req: Request, res: Response) => {
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Capability Economics — v1 API</title>
+  <title>Inflexcvi — v1 API</title>
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
 </head>
 <body>
@@ -169,7 +169,7 @@ router.get("/capabilities/:id", requireApiKey("read:capabilities"), async (req, 
   res.json(row);
 });
 
-// ---------- CEI ----------
+// ---------- CVI ----------
 router.get("/cvi/current", requireApiKey("read:cvi"), async (_req, res) => {
   const [row] = await db.select().from(cviSnapshotsTable).orderBy(desc(cviSnapshotsTable.snapshotAt)).limit(1);
   if (!row) { res.status(404).json({ error: "no_snapshot" }); return; }

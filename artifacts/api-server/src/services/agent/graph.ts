@@ -306,11 +306,11 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
 
 async function computeNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   if (state.researchResults.length === 0) {
-    emitAgentEvent({ type: "phase", phase: "skipped_compute", message: "No new research — skipping CEI recomputation" });
+    emitAgentEvent({ type: "phase", phase: "skipped_compute", message: "No new research — skipping CVI recomputation" });
     return { cviAfterIndex: state.cviBeforeIndex };
   }
 
-  emitAgentEvent({ type: "tool_call", tool: "compute_cvi", message: "Recomputing CEI index..." });
+  emitAgentEvent({ type: "tool_call", tool: "compute_cvi", message: "Recomputing CVI index..." });
   try {
     const resultStr = await computeCVITool.invoke({});
     const result = JSON.parse(resultStr);
@@ -354,9 +354,9 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     const industries = [...new Set(state.decisions.filter(d => d.action === "research").map(d => d.industryName))];
 
     const cycleSummary =
-      `CEI Cycle #${state.runId} (${state.trigger}): researched ${researchCount}, skipped ${skipCount}, ` +
+      `CVI Cycle #${state.runId} (${state.trigger}): researched ${researchCount}, skipped ${skipCount}, ` +
       `used memory for ${memoryCount}. Industries touched: ${industries.join(", ") || "none"}. ` +
-      `CEI ${state.cviBeforeIndex?.toFixed(1) ?? "n/a"} → ${state.cviAfterIndex?.toFixed(1) ?? "n/a"}. ` +
+      `CVI ${state.cviBeforeIndex?.toFixed(1) ?? "n/a"} → ${state.cviAfterIndex?.toFixed(1) ?? "n/a"}. ` +
       `Reflection: +${state.reflection?.added ?? 0} added, ${state.reflection?.updated ?? 0} refined, ${state.reflection?.contradictions ?? 0} contradictions.`;
 
     try {
@@ -374,7 +374,7 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
         {
           category: "decision",
           runId: state.runId,
-          context: `The CEI agent just finished its #${state.runId} research cycle. Summarize the outcome in durable, queryable terms so future cycles can recall and reason about what was learned, what was skipped, and how the index moved.`,
+          context: `The CVI agent just finished its #${state.runId} research cycle. Summarize the outcome in durable, queryable terms so future cycles can recall and reason about what was learned, what was skipped, and how the index moved.`,
         },
       );
       stored++;

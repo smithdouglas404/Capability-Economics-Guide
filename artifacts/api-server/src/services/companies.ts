@@ -368,7 +368,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
     (company.revenueUsd ? Math.min(25, Math.log10((company.revenueUsd ?? 1) + 1) * 5) : 0)
   ));
 
-  // Moat: average CEI of caps where confidence > 0.65 AND velocity > 0; weighted.
+  // Moat: average CVI of caps where confidence > 0.65 AND velocity > 0; weighted.
   let moatNum = 0; let moatDen = 0;
   for (const r of fpRows) {
     const m = ceiByCap.get(r.cap.id);
@@ -412,7 +412,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   const privateBoost = company.publicTicker ? 0 : 25;
   const acquisitionProbability = Math.max(0, Math.min(100, 50 - sizePenalty + fundingBoost + privateBoost));
 
-  // Quality of Asset: composite of CEI-weighted + confidence + moat.
+  // Quality of Asset: composite of CVI-weighted + confidence + moat.
   const qualityOfAsset = Math.max(0, Math.min(100, cviWeighted * 0.5 + avgConf * 100 * 0.3 + moatScore * 0.2));
 
   // Forecasted Value: cviWeighted + 12 × velocity (one-year extrapolation).

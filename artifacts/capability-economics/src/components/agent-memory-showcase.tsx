@@ -163,7 +163,7 @@ export default function AgentMemoryShowcase() {
                 Institutional Intelligence
               </h2>
               <p className="text-foreground/60 font-serif italic text-base max-w-lg">
-                The CEI agent builds persistent memory across research cycles — learning patterns, recording observations, and evolving its decision-making over time.
+                The CVI agent builds persistent memory across research cycles — learning patterns, recording observations, and evolving its decision-making over time.
               </p>
             </div>
 
@@ -226,7 +226,7 @@ export default function AgentMemoryShowcase() {
                 tooltip="Real-time web research queries made during this run. Each call grounds the agent's analysis in live market data and current industry benchmarks."
               />
               <StatCard
-                label="CEI Impact"
+                label="CVI Impact"
                 value={
                   agentStatus.latestRun.ceiBeforeIndex != null && agentStatus.latestRun.ceiAfterIndex != null
                     ? `${agentStatus.latestRun.ceiBeforeIndex}→${agentStatus.latestRun.ceiAfterIndex}`
@@ -235,7 +235,7 @@ export default function AgentMemoryShowcase() {
                 icon={Zap}
                 colorClass="text-primary"
                 history={statHistory.ceiAfter}
-                tooltip="Capability Economics Index before and after this run. Shows how the agent's research shifted the overall assessment — a rising number means improving competitive positioning."
+                tooltip="Capability Value Index before and after this run. Shows how the agent's research shifted the overall assessment — a rising number means improving competitive positioning."
               />
             </div>
           )}
@@ -311,7 +311,7 @@ export default function AgentMemoryShowcase() {
                             className="py-12 text-center text-muted-foreground"
                           >
                             <Brain className="w-7 h-7 mx-auto mb-3 opacity-30" aria-hidden="true" />
-                            <p className="text-sm">No memories yet. Trigger an agent run from the CEI Dashboard to start building institutional intelligence.</p>
+                            <p className="text-sm">No memories yet. Trigger an agent run from the CVI Dashboard to start building institutional intelligence.</p>
                           </motion.div>
                         ) : (
                           filtered.map((memory, i) => (

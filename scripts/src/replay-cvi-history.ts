@@ -1,5 +1,5 @@
 /**
- * One-shot historical CEI replay. Walks source_triangulations history and
+ * One-shot historical CVI replay. Walks source_triangulations history and
  * generates daily reconstructed snapshots for the past N days (default 90)
  * so the time-series UI has visible history immediately rather than waiting
  * weeks for live snapshots to accumulate.
@@ -22,7 +22,7 @@ async function main() {
   const toDate = new Date();
   const fromDate = new Date(toDate.getTime() - days * 24 * 60 * 60 * 1000);
 
-  console.log(`Replaying CEI history from ${fromDate.toISOString().slice(0, 10)} to ${toDate.toISOString().slice(0, 10)} (interval=${intervalDays}d, dryRun=${dryRun})…`);
+  console.log(`Replaying CVI history from ${fromDate.toISOString().slice(0, 10)} to ${toDate.toISOString().slice(0, 10)} (interval=${intervalDays}d, dryRun=${dryRun})…`);
 
   const result = await replayHistoricalCVI({ fromDate, toDate, intervalDays, dryRun });
 
@@ -44,6 +44,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error("CEI replay failed:", err);
+  console.error("CVI replay failed:", err);
   process.exit(1);
 });

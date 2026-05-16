@@ -277,7 +277,7 @@ export default function Companies() {
             <p className="text-muted-foreground text-sm mt-1 max-w-3xl">
               The deal-sourcing layer: short-list companies by capability fingerprint with transparent
               Moneyball composites, profile the value chain by stage with patents / VC / startup counts,
-              and read the hot/emerging/cooling/table-stakes quadrant — all anchored on the live CEI.
+              and read the hot/emerging/cooling/table-stakes quadrant — all anchored on the live CVI.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -452,7 +452,7 @@ export default function Companies() {
                                       { sourceLabel: "Quality of asset", rawScore: s.qualityOfAsset, weight: 0.20 },
                                       { sourceLabel: "Moat", rawScore: s.moatScore, weight: 0.20 },
                                       { sourceLabel: "Actionability", rawScore: s.actionability, weight: 0.15 },
-                                      { sourceLabel: "CEI-weighted", rawScore: s.ceiWeighted, weight: 0.20 },
+                                      { sourceLabel: "CVI-weighted", rawScore: s.ceiWeighted, weight: 0.20 },
                                     ]}
                                     className="font-mono text-xs"
                                   />
@@ -569,7 +569,7 @@ export default function Companies() {
                     <tr className="text-left text-muted-foreground text-xs uppercase tracking-wide">
                       <th className="py-2 pr-2">Stage</th>
                       <th className="py-2 pr-2"># Caps</th>
-                      <th className="py-2 pr-2">Avg CEI</th>
+                      <th className="py-2 pr-2">Avg CVI</th>
                       <th className="py-2 pr-2">Avg conf</th>
                       <th className="py-2 pr-2">Avg velocity</th>
                       <th className="py-2 pr-2">Companies</th>
@@ -605,14 +605,14 @@ export default function Companies() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2"><Target className="w-5 h-5" />Capability quadrant</CardTitle>
-                <p className="text-xs text-muted-foreground">x = velocity (Δscore/30d) · y = current CEI · bubble size = confidence</p>
+                <p className="text-xs text-muted-foreground">x = velocity (Δscore/30d) · y = current CVI · bubble size = confidence</p>
               </CardHeader>
               <CardContent>
                 <div className="relative bg-muted/20 rounded border" style={{ height: 480 }}>
                   {/* axes */}
                   <div className="absolute left-1/2 top-0 bottom-0 border-l border-dashed border-muted-foreground/30" />
                   <div className="absolute top-1/2 left-0 right-0 border-t border-dashed border-muted-foreground/30" />
-                  <div className="absolute top-2 right-2 text-xs text-muted-foreground">↑ CEI</div>
+                  <div className="absolute top-2 right-2 text-xs text-muted-foreground">↑ CVI</div>
                   <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">→ velocity</div>
                   <div className="absolute top-2 left-2 text-xs font-medium text-amber-600">Cooling</div>
                   <div className="absolute top-2 right-12 text-xs font-medium text-red-600">Hot</div>
@@ -662,7 +662,7 @@ export default function Companies() {
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                   <TrendingUp className="w-4 h-4" />
-                  Replaces the SunasiAI 2×2 quadrant — but every dot is a live CEI score with confidence and velocity from triangulated sources.
+                  Replaces the SunasiAI 2×2 quadrant — but every dot is a live CVI score with confidence and velocity from triangulated sources.
                 </div>
               </CardContent>
             </Card>

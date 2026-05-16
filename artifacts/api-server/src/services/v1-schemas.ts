@@ -199,7 +199,7 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
     },
   });
   r.registerPath({
-    method: "get", path: "/v1/cei/current", tags: ["CEI"],
+    method: "get", path: "/v1/cei/current", tags: ["CVI"],
     summary: "Latest Capability Economic Index snapshot",
     responses: {
       200: { description: "OK", ...jsonContent(CeiSnapshot) },
@@ -207,8 +207,8 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
     },
   });
   r.registerPath({
-    method: "get", path: "/v1/cei/history", tags: ["CEI"],
-    summary: "Historical CEI snapshots",
+    method: "get", path: "/v1/cei/history", tags: ["CVI"],
+    summary: "Historical CVI snapshots",
     request: {
       query: z.object({
         from: z.string().datetime().optional(),
@@ -270,11 +270,11 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
   const doc = generator.generateDocument({
     openapi: "3.0.3",
     info: {
-      title: "Capability Economics Public Data API",
+      title: "Inflexcvi Public Data API",
       version: "1.0.0",
       description:
-        "Stable, versioned access to industries, capabilities, the Capability Economic Index (CEI), macro events, and value-chain stages. Authenticate every request with `Authorization: Bearer ce_live_...`. Issue a key at /developers.",
-      contact: { name: "Capability Economics", url: "https://capabilityeconomics.com" },
+        "Stable, versioned access to industries, capabilities, the Capability Economic Index (CVI), macro events, and value-chain stages. Authenticate every request with `Authorization: Bearer ce_live_...`. Issue a key at /developers.",
+      contact: { name: "Inflexcvi", url: "https://inflexcvi.ai" },
     },
     servers: [{ url: serverUrl, description: "Production" }],
     security: [{ bearerAuth: [] }],

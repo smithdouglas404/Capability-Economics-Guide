@@ -15,7 +15,7 @@ const API_BASE = "/api";
 const ALL_SCOPES = [
   { id: "read:industries", label: "Industries" },
   { id: "read:capabilities", label: "Capabilities" },
-  { id: "read:cei", label: "CEI Snapshots" },
+  { id: "read:cei", label: "CVI Snapshots" },
   { id: "read:macro-events", label: "Macro Events" },
   { id: "read:value-chain", label: "Value Chain Stages" },
 ] as const;
@@ -172,7 +172,7 @@ export default function DevelopersPage() {
       <div>
         <h1 className="text-3xl font-serif tracking-tight">Public Data API</h1>
         <p className="text-muted-foreground mt-1">
-          Stable, versioned access to industries, capabilities, the CEI, macro events, and value-chain stages. Authenticate every request with{" "}
+          Stable, versioned access to industries, capabilities, the CVI, macro events, and value-chain stages. Authenticate every request with{" "}
           <code className="bg-muted px-1.5 py-0.5 text-xs">Authorization: Bearer ce_live_…</code>.
         </p>
       </div>
@@ -374,17 +374,17 @@ export default function DevelopersPage() {
               <div>
                 <div className="font-medium mb-1">Inspect your key</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  https://capabilityeconomics.com/v1/me`}</pre>
+  https://inflexcvi.ai/v1/me`}</pre>
               </div>
               <div>
-                <div className="font-medium mb-1">Latest CEI snapshot</div>
+                <div className="font-medium mb-1">Latest CVI snapshot</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  https://capabilityeconomics.com/v1/cei/current`}</pre>
+  https://inflexcvi.ai/v1/cei/current`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">List capabilities for an industry</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  "https://capabilityeconomics.com/v1/capabilities?industrySlug=insurance&limit=50"`}</pre>
+  "https://inflexcvi.ai/v1/capabilities?industrySlug=insurance&limit=50"`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">Response headers</div>

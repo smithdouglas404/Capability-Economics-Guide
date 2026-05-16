@@ -43,7 +43,7 @@ function useSlot(slotKey: string) {
   return state;
 }
 
-// ─── Ticker row — top 8 capabilities by recent CEI velocity ─────────────────
+// ─── Ticker row — top 8 capabilities by recent CVI velocity ─────────────────
 
 type TickerItem = { capabilityName: string; valueText: string; direction: "up" | "down"; score?: number };
 
@@ -249,7 +249,7 @@ export default function Home() {
       .then(r => r.ok ? r.json() : null)
       .then((d: HomeTiles | null) => setHomeTiles(d))
       .catch(() => {});
-    fetch("/api/cei/current")
+    fetch("/api/cvi/current")
       .then(r => r.ok ? r.json() : null)
       .then((d: CeiCurrent | null) => setCeiCurrent(d))
       .catch(() => {});
@@ -421,7 +421,7 @@ export default function Home() {
               />
               <div className="grid grid-cols-2 gap-2">
                 <MetricTile
-                  label="Avg CEI Score"
+                  label="Avg CVI Score"
                   value={ceiCurrent ? ceiCurrent.overallIndex.toFixed(1) : "—"}
                   sub={homeTiles?.quarterlyDelta
                     ? `${homeTiles.quarterlyDelta.direction === "up" ? "↑" : "↓"} ${Math.abs(homeTiles.quarterlyDelta.pts)} pts this quarter`
@@ -485,7 +485,7 @@ export default function Home() {
             >
               Think of a capability as a muscle your organization has built — like{" "}
               <em>rapid order fulfillment</em> or <em>precision underwriting</em>.
-              Capability Economics stops treating these muscles as operational processes,
+              Inflexcvi stops treating these muscles as operational processes,
               and starts treating them as{" "}
               <span className="text-foreground font-medium not-italic border-b border-accent/60">economic assets</span>{" "}
               that can be measured, valued, and invested in.
@@ -543,7 +543,7 @@ export default function Home() {
                 </p>
               </div>
               <blockquote className="font-serif text-xl text-foreground leading-relaxed mt-8 pl-5 border-l-2 border-accent">
-                Capability Economics is the blueprint and the ledger — so you renovate the floors that generate the highest returns.
+                Inflexcvi is the blueprint and the ledger — so you renovate the floors that generate the highest returns.
               </blockquote>
             </div>
 

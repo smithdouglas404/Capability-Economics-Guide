@@ -150,7 +150,7 @@ export default function CaseStudy() {
               </h2>
             </div>
             <p className="font-serif text-lg lg:text-xl text-foreground/75 leading-relaxed self-end max-w-2xl">
-              Traditional accounting treats these functions as cost centers — budgets get trimmed uniformly when margins compress. Capability Economics treats them as distinct economic engines, each with its own ROI curve, moat, and decay profile.
+              Traditional accounting treats these functions as cost centers — budgets get trimmed uniformly when margins compress. Inflexcvi treats them as distinct economic engines, each with its own ROI curve, moat, and decay profile.
             </p>
           </div>
 
@@ -436,7 +436,7 @@ export default function CaseStudy() {
             </div>
             <div className="flex flex-col gap-4">
               <p className="font-serif italic text-lg text-foreground/60 leading-relaxed max-w-2xl">
-                Capability Economics requires cross-functional alignment. See how different executives view these exact same capabilities.
+                Inflexcvi requires cross-functional alignment. See how different executives view these exact same capabilities.
               </p>
               <Link
                 href="/c-suite"

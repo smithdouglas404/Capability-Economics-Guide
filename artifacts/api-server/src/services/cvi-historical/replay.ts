@@ -3,7 +3,7 @@ import { eq, lte, sql, and, gte, asc } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
 /**
- * Historical CEI replay: reconstructs as-of CEI snapshots by replaying the
+ * Historical CVI replay: reconstructs as-of CVI snapshots by replaying the
  * weighted source_triangulations data that existed at each historical
  * date. Fills the time series with pseudo-history immediately rather than
  * waiting weeks for live snapshots to accumulate.
@@ -14,7 +14,7 @@ import { logger } from "../../lib/logger";
  * surface and (optionally) in chart styling (e.g. dashed line for
  * reconstructed segments).
  *
- * Reconstruction model (intentionally simpler than the live CEI engine):
+ * Reconstruction model (intentionally simpler than the live CVI engine):
  *   1. For each as-of date, pull every source_triangulations row with
  *      queriedAt <= date.
  *   2. Group by (industryId, capabilityId), compute weighted-average

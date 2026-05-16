@@ -47,7 +47,7 @@ export type InvoiceData = {
     paidAt: Date | null;
   };
   provider: {
-    name: string; // "Capability Economics"
+    name: string; // "Inflexcvi"
     address?: string[];
     email?: string;
   };

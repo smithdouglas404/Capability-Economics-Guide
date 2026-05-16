@@ -71,8 +71,8 @@ async function chatWithTools(messages: ChatMessage[], opts: { model?: string; ma
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi",
       },
       body: JSON.stringify({
         model,
@@ -158,7 +158,7 @@ function buildSystemPrompt(state: State): string {
     const capId = state.targetCapabilityIds![0]!;
     const indId = state.targetIndustryIds?.[0];
     const indFragment = indId != null ? `${indId}` : "<the cap's industryId>";
-    return `You are the Capability Economics enrichment agent. The user clicked "Rerun economics" on capability id=${capId}${indId != null ? ` (industry id=${indId})` : ""}. The caller has already (a) deleted the existing capability_economics row, (b) re-run classify_quadrants for this cap so capability_quadrants is fresh.
+    return `You are the Inflexcvi enrichment agent. The user clicked "Rerun economics" on capability id=${capId}${indId != null ? ` (industry id=${indId})` : ""}. The caller has already (a) deleted the existing capability_economics row, (b) re-run classify_quadrants for this cap so capability_quadrants is fresh.
 
 YOUR JOB IS A FIXED 3-STEP SEQUENCE. DO NOT SKIP, DO NOT REORDER, DO NOT ASK. EXECUTE EXACTLY THIS:
 
@@ -171,7 +171,7 @@ STEP 3 — call finish({"summary": "<one sentence summarising what was written>"
 Each tool returns {ok: true, ...} on success or {ok: false, error: "..."} on failure. If any step fails with ok:false, surface the error in finish but still call finish. Do NOT call classify_quadrants (route already did it), query_database, recall_memories, store_memory, map_value_chain, or discover_companies.`;
   }
 
-  return `You are the Capability Economics enrichment agent. Your job is to keep every capability's economic profile current — quadrants, value-chain stages, leading companies, economic alpha (TAM/EVaR/half-life), and detail narratives (Traditional View, Economic View, Key Metrics, dependencies, playbook).
+  return `You are the Inflexcvi enrichment agent. Your job is to keep every capability's economic profile current — quadrants, value-chain stages, leading companies, economic alpha (TAM/EVaR/half-life), and detail narratives (Traditional View, Economic View, Key Metrics, dependencies, playbook).
 
 You have access to the SAME functions the "Rerun economic" button uses. Each function is exposed as a tool. Call them in whatever order makes sense.
 

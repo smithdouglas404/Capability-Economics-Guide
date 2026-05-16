@@ -680,7 +680,7 @@ export default function Insights() {
             <div className="bg-muted/40 border rounded-sm p-6">
               <h2 className="text-lg font-serif mb-2 text-foreground flex items-center gap-2">
                 <Brain className="w-5 h-5 text-primary" />
-                Capability Economics Ontology
+                Inflexcvi Ontology
               </h2>
               <p className="text-sm text-muted-foreground">
                 The ontology maps how capabilities relate to each other — which capabilities enable others, which compete for resources, and which can substitute. Industry adapters customize the base ontology for sector-specific capability dynamics.

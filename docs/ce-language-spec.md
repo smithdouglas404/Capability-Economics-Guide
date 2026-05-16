@@ -1,4 +1,4 @@
-# Capability Economics — Naming & Language Spec
+# Inflexcvi — Naming & Language Spec
 
 **Goal:** stop using SunasiAI's vocabulary (Moneyball, Aged Index, Moat, FEVI…)
 which is borrowed, metaphorical, and backward-looking. Replace it with a coherent
@@ -42,7 +42,7 @@ voice of the platform.
 
 | Verb | Meaning | Example term |
 |---|---|---|
-| **Posterior** | Bayesian point estimate with confidence band | *Posterior Quality*, *Posterior CEI* |
+| **Posterior** | Bayesian point estimate with confidence band | *Posterior Quality*, *Posterior CVI* |
 | **Trajectory** | Δ over time of a quantity | *Confidence Trajectory* |
 | **Regime** | Δ-of-Δ (acceleration); regime-shift detection | *Velocity Regime* |
 | **Propagation** | impact transmitted through a graph (tree, peer, event) | *Shock Propagation*, *Tree Propagation* |
@@ -67,11 +67,11 @@ canonical home for these scores is those two files. A planned refactor
 to extract them into a dedicated `services/posterior.ts` has not been
 started — do not create that file until it is explicitly tasked.
 
-### 3.1 Posterior CEI Coverage `posteriorCeiCoverage`
+### 3.1 Posterior CVI Coverage `posteriorCeiCoverage`
 - **Was:** `ceiWeighted` + `capabilityCoverage` (two overlapping scores).
 - **Is now:** Σ(weight × posterior_mean × confidence) / Σ weight, then rebased
   0–100. One score, confidence-aware, Bayesian.
-- **Reads like:** "Stripe's posterior CEI coverage is 64.8."
+- **Reads like:** "Stripe's posterior CVI coverage is 64.8."
 - **Math:** weighted Bayesian posterior on the firm's fingerprint caps.
 - **Trace:** `cei_components.consensus_score`, `confidence`,
   `company_capability_fingerprint.weight`.
@@ -81,7 +81,7 @@ started — do not create that file until it is explicitly tasked.
 - **Is now:** acceleration — `velocity_30d − velocity_90d`. Tells you the
   thesis is *speeding up* or *slowing down*, not its current speed.
 - **Reads like:** "Stripe's velocity regime is +18 (accelerating)."
-- **Math:** second-derivative of CEI over time, fingerprint-weighted.
+- **Math:** second-derivative of CVI over time, fingerprint-weighted.
 - **Trace:** `cei_components_history` (new table, daily snapshot).
 
 ### 3.3 Confidence Trajectory `confidenceTrajectory`
@@ -136,7 +136,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `macro_events`, parent/child edges.
 
 ### 3.8 Crowd-Inverse Moat `crowdInverseMoat`
-- **Was:** SunasiAI's *Moat Score* (avg CEI of high-confidence positive caps —
+- **Was:** SunasiAI's *Moat Score* (avg CVI of high-confidence positive caps —
   measures *industry strength*, not *firm uniqueness*).
 - **Is now:** inverse fingerprint-cosine density. If 25 peers in your
   industry share your fingerprint vector at cosine > 0.6, you have no moat
@@ -205,13 +205,13 @@ at 35 %, three structural quality measures at 30 %, two precision measures at
 | "Stripe's Moneyball composite is 67.5" | "Stripe's CFI is 67.5" |
 | "Strong moat" | "Crowd-inverse moat 78" |
 | "High forecasted value" | "Velocity regime +22 (accelerating)" |
-| "Quality of asset is 71" | "Posterior CEI coverage 71" |
+| "Quality of asset is 71" | "Posterior CVI coverage 71" |
 | "Risk profile 28" | "Counterfactual resilience 87" |
 | "AI disruptable" | "Shock propagation −18 (exposed)" |
 | "Sensitivity profile high" | "Tree divergence 31 — fingerprint sits on
 internally split parents" |
 | "Aged index 30" | "Provenance age 28 years" |
-| "Hot quadrant" | "Velocity regime > 0, posterior CEI > 65" |
+| "Hot quadrant" | "Velocity regime > 0, posterior CVI > 65" |
 | "Cooling capability" | "Velocity trajectory negative, evidence decay > 60
 days" |
 | "Industry trend" | "Industry posterior" |
@@ -255,14 +255,14 @@ is < 20 %.
 - **Product surface:** `/companies` page renames "Top 15 companies — ranked
   by CE composite" → **"Top 15 companies — ranked by CFI."** Column headers
   use the §3 names. Tooltip on each header shows the §3 one-line math.
-- **Deck:** the Capability Economics slide deck replaces every instance of
+- **Deck:** the Inflexcvi slide deck replaces every instance of
   "Moneyball" with "CFI." Replaces SunasiAI's quadrant slide with a
-  velocity-regime × posterior-CEI scatter labelled "Posterior × Velocity
+  velocity-regime × posterior-CVI scatter labelled "Posterior × Velocity
   Regime."
 - **Marketing copy:** "We do not run engagements. We expose a continuously
   updated posterior over your industry's capability stack, queryable as a
   REST endpoint and a Postgres warehouse."
-- **One-line elevator pitch:** *"Capability Economics is the live posterior
+- **One-line elevator pitch:** *"Inflexcvi is the live posterior
   layer for industry strategy."*
 - **Three-word tagline:** *"Posterior. Provenance. Propagation."*
 

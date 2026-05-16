@@ -191,8 +191,8 @@ Be specific, strategic, and grounded in real ${industry.name} industry dynamics.
           headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://capabilityeconomics.com",
-            "X-Title": "Capability Economics",
+            "HTTP-Referer": "https://inflexcvi.ai",
+            "X-Title": "Inflexcvi",
           },
           body: JSON.stringify({
             model,

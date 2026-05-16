@@ -167,7 +167,7 @@ export default function WhatIfPage() {
           <h1 className="font-serif text-3xl tracking-tight">What-if macro simulator</h1>
         </div>
         <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-          Define a hypothetical macro event and project how the CEI would respond if it fired right now.
+          Define a hypothetical macro event and project how the CVI would respond if it fired right now.
           Read-only — does not insert into macro_events.
         </p>
       </div>

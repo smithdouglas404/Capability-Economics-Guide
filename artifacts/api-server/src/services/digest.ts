@@ -177,7 +177,7 @@ export function formatDigestHtml(p: DigestPayload, appBaseUrl: string): { subjec
           </td>
           <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;">
             <span style="color:#0a0a0f;font-weight:600;">${c.consensusScore?.toFixed(0) ?? "—"}</span>
-            <div style="color:#666;font-size:11px;margin-top:2px;">CEI</div>
+            <div style="color:#666;font-size:11px;margin-top:2px;">CVI</div>
           </td>
           <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-family:monospace;">
             <span style="color:#10b981;font-weight:600;">+${(c.velocity ?? 0).toFixed(1)}</span>
@@ -208,7 +208,7 @@ export function formatDigestHtml(p: DigestPayload, appBaseUrl: string): { subjec
 <body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#1a1a2e;">
   <div style="max-width:680px;margin:0 auto;background:#ffffff;padding:32px 24px;">
     <div style="border-bottom:1px solid #e5e7eb;padding-bottom:16px;margin-bottom:24px;">
-      <div style="font-family:monospace;font-size:11px;color:#4f6ef7;letter-spacing:0.18em;text-transform:uppercase;">Capability Economics · weekly digest</div>
+      <div style="font-family:monospace;font-size:11px;color:#4f6ef7;letter-spacing:0.18em;text-transform:uppercase;">Inflexcvi · weekly digest</div>
       <h1 style="font-family:Georgia,serif;font-size:28px;color:#0a0a0f;margin:8px 0 4px 0;line-height:1.15;">What moved this week.</h1>
       <div style="color:#666;font-size:13px;">${segLine} · ${new Date(p.generatedAt).toLocaleDateString()}</div>
     </div>
@@ -218,7 +218,7 @@ export function formatDigestHtml(p: DigestPayload, appBaseUrl: string): { subjec
     <table style="width:100%;border-collapse:collapse;">${disruptionRows}</table>
 
     <h2 style="font-family:Georgia,serif;font-size:18px;color:#0a0a0f;margin:32px 0 8px 0;">Net-new capabilities</h2>
-    <p style="color:#666;font-size:13px;margin:0 0 12px 0;">Capabilities that did not exist 24 months ago and now show meaningful CEI.</p>
+    <p style="color:#666;font-size:13px;margin:0 0 12px 0;">Capabilities that did not exist 24 months ago and now show meaningful CVI.</p>
     <table style="width:100%;border-collapse:collapse;">${newCapRows}</table>
 
     ${macroRows}
@@ -235,14 +235,14 @@ export function formatDigestHtml(p: DigestPayload, appBaseUrl: string): { subjec
 </body></html>`;
 
   const text = [
-    `Capability Economics · weekly digest`,
+    `Inflexcvi · weekly digest`,
     `${segLine} · ${new Date(p.generatedAt).toLocaleDateString()}`,
     ``,
     `── Disruption Watch ──`,
     ...p.disruptionWatch.map(d => `- ${d.capabilityName} (${d.industryName}) · P(disrupt) ${(d.probability * 100).toFixed(0)}% · velocity +${(d.velocity ?? 0).toFixed(1)}`),
     ``,
     `── Net-new capabilities ──`,
-    ...p.newCapabilities.map(c => `- ${c.capabilityName} (${c.industryName}) · ${c.ageMonths.toFixed(0)}mo old · CEI ${c.consensusScore?.toFixed(0) ?? "—"} · velocity +${(c.velocity ?? 0).toFixed(1)}`),
+    ...p.newCapabilities.map(c => `- ${c.capabilityName} (${c.industryName}) · ${c.ageMonths.toFixed(0)}mo old · CVI ${c.consensusScore?.toFixed(0) ?? "—"} · velocity +${(c.velocity ?? 0).toFixed(1)}`),
     ``,
     p.macroEvents.length > 0 ? "── Macro events ──" : "",
     ...p.macroEvents.map(m => `- ${m.title} · severity ${m.severity.toFixed(1)} · ${m.sentimentDirection}`),
@@ -292,7 +292,7 @@ export function formatDigestSlack(p: DigestPayload, appBaseUrl: string): Record<
         type: "section",
         text: {
           type: "mrkdwn",
-          text: `<${link(`/capability/${c.capabilityId}`)}|*${c.capabilityName}*> (${c.industryName})\n${c.ageMonths.toFixed(0)}mo old · CEI *${c.consensusScore?.toFixed(0) ?? "—"}* · velocity *+${(c.velocity ?? 0).toFixed(1)}*`,
+          text: `<${link(`/capability/${c.capabilityId}`)}|*${c.capabilityName}*> (${c.industryName})\n${c.ageMonths.toFixed(0)}mo old · CVI *${c.consensusScore?.toFixed(0) ?? "—"}* · velocity *+${(c.velocity ?? 0).toFixed(1)}*`,
         },
       });
     });

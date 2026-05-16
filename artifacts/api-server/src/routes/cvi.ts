@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { computeCVI, getCEICurrent, getCEIHistory, CEI_METHODOLOGY } from "../services/cvi-engine";
+import { computeCVI, getCVICurrent, getCVIHistory, CVI_METHODOLOGY } from "../services/cvi-engine";
 import { triangulateCapability, getStaleCapabilities } from "../services/triangulation";
 import { triggerRotationNow } from "../services/agent/scheduler";
 import { db } from "@workspace/db";
@@ -15,7 +15,7 @@ const REFRESH_COOLDOWN_MS = 5 * 60 * 1000;
 
 router.get("/cvi/current", async (_req, res) => {
   try {
-    let result = await getCEICurrent();
+    let result = await getCVICurrent();
 
     if (!result) {
       result = await computeCVI();
@@ -23,19 +23,19 @@ router.get("/cvi/current", async (_req, res) => {
 
     res.json(result);
   } catch (err: unknown) {
-    console.error("CEI current failed:", err);
-    res.status(500).json({ error: "Failed to get CEI data" });
+    console.error("CVI current failed:", err);
+    res.status(500).json({ error: "Failed to get CVI data" });
   }
 });
 
 router.get("/cvi/history", async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
-    const history = await getCEIHistory(limit);
+    const history = await getCVIHistory(limit);
     res.json(history);
   } catch (err: unknown) {
-    console.error("CEI history failed:", err);
-    res.status(500).json({ error: "Failed to get CEI history" });
+    console.error("CVI history failed:", err);
+    res.status(500).json({ error: "Failed to get CVI history" });
   }
 });
 
@@ -75,14 +75,14 @@ router.post("/cvi/refresh", requireAdmin, async (req, res) => {
       res.json({ cei, triangulations: [] });
     }
   } catch (err: unknown) {
-    console.error("CEI refresh failed:", err);
+    console.error("CVI refresh failed:", err);
     const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ error: "CEI refresh failed", details: message });
+    res.status(500).json({ error: "CVI refresh failed", details: message });
   }
 });
 
 router.get("/cvi/methodology", async (_req, res) => {
-  res.json({ methodology: CEI_METHODOLOGY, version: "1.1" });
+  res.json({ methodology: CVI_METHODOLOGY, version: "1.1" });
 });
 
 /**
@@ -90,7 +90,7 @@ router.get("/cvi/methodology", async (_req, res) => {
  *
  * Top + bottom scoring leaf capabilities right now. Replaces the hardcoded
  * "Agentic AI ~26, AML/KYC ~42" call-outs in the cei-dashboard "How to read
- * the CEI right now" dialog (pages/cei-dashboard.tsx:597). Both are single
+ * the CVI right now" dialog (pages/cei-dashboard.tsx:597). Both are single
  * rows — cheap query, no caching.
  */
 router.get("/cvi/exemplars", async (_req, res) => {
@@ -136,7 +136,7 @@ router.get("/cvi/exemplars", async (_req, res) => {
       } : null,
     });
   } catch (err) {
-    console.error("CEI exemplars failed:", err);
+    console.error("CVI exemplars failed:", err);
     res.status(500).json({ error: "Failed to fetch exemplars" });
   }
 });
@@ -234,7 +234,7 @@ router.get("/cvi/freshness", async (_req, res) => {
       capabilities: items,
     });
   } catch (err) {
-    console.error("CEI freshness failed:", err);
+    console.error("CVI freshness failed:", err);
     res.status(500).json({ error: "Failed to compute freshness" });
   }
 });
@@ -328,7 +328,7 @@ router.get("/cvi/capability-tree", async (req, res) => {
 
     res.json({ roots, total: caps.length });
   } catch (err: unknown) {
-    console.error("CEI capability-tree failed:", err);
+    console.error("CVI capability-tree failed:", err);
     res.status(500).json({ error: "Failed to get capability tree" });
   }
 });
@@ -356,8 +356,8 @@ router.get("/cvi/components", async (req, res) => {
     }));
     res.json(enriched);
   } catch (err: unknown) {
-    console.error("CEI components failed:", err);
-    res.status(500).json({ error: "Failed to get CEI components" });
+    console.error("CVI components failed:", err);
+    res.status(500).json({ error: "Failed to get CVI components" });
   }
 });
 

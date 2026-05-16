@@ -63,7 +63,7 @@ router.post("/simulation/run", async (req, res) => {
       .where(inArray(capabilityEconomicsTable.capabilityId, capIds));
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
 
-    // Get current CEI components
+    // Get current CVI components
     const components = await db.select().from(cviComponentsTable)
       .where(inArray(cviComponentsTable.capabilityId, capIds));
     const compMap = new Map(components.map((c) => [c.capabilityId, c]));
@@ -138,7 +138,7 @@ router.post("/simulation/run", async (req, res) => {
       }
     }
 
-    // Get baseline CEI
+    // Get baseline CVI
     const allComponents = await db.select().from(cviComponentsTable);
     const baselineCei = allComponents.length
       ? allComponents.reduce((s, c) => s + c.consensusScore * c.economicMultiplier, 0) / allComponents.length * 10

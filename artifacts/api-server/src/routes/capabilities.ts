@@ -95,7 +95,7 @@ router.get("/capabilities/:id", async (req, res) => {
     .innerJoin(cSuiteRolesTable, eq(cSuiteRolesTable.id, capabilityRoleMappingsTable.roleId))
     .where(eq(capabilityRoleMappingsTable.capabilityId, id));
 
-  // Derived lifecycle stage from the cap's current CEI posterior.
+  // Derived lifecycle stage from the cap's current CVI posterior.
   const [comp] = await db
     .select({ consensusScore: cviComponentsTable.consensusScore, velocity: cviComponentsTable.velocity })
     .from(cviComponentsTable)
@@ -160,7 +160,7 @@ router.get("/capabilities/:id/peer-benchmark", async (req, res) => {
 });
 
 /**
- * Per-capability CEI history. Derives the industry index series from
+ * Per-capability CVI history. Derives the industry index series from
  * cvi_snapshots.industryBreakdowns over the requested window. Marks
  * each point as live or reconstructed via methodologyVersion so the
  * frontend can render reconstructed segments differently (dashed line,
@@ -234,7 +234,7 @@ router.get("/capabilities/:id/cvi-history", async (req, res) => {
       reconstructedCount,
     });
   } catch (err) {
-    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch CEI history" });
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch CVI history" });
   }
 });
 

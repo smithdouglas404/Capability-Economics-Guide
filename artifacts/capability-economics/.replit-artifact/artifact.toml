@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Capability Economics"
+title = "Inflexcvi"
 version = "1.0.0"
 id = "artifacts/capability-economics"
 router = "path"

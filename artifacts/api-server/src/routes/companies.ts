@@ -163,7 +163,7 @@ router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
 router.get("/workbench/value-chain/:industryId", async (req, res) => {
   const industryId = parseInt(String(Array.isArray(req.params.industryId) ? req.params.industryId[0] : req.params.industryId), 10);
   const profile = await valueChainStageProfile(industryId);
-  // Augment with rolled-up CEI per stage.
+  // Augment with rolled-up CVI per stage.
   const caps = await db.select({
     id: capabilitiesTable.id,
     stage: capabilitiesTable.valueChainStage,

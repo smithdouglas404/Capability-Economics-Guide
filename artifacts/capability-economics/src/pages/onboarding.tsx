@@ -130,7 +130,7 @@ export default function OnboardingPage() {
   if (!user) {
     return (
       <div className="container mx-auto px-4 py-10 max-w-2xl">
-        <h1 className="font-serif text-3xl tracking-tight mb-2">Welcome to Capability Economics</h1>
+        <h1 className="font-serif text-3xl tracking-tight mb-2">Welcome to Inflexcvi</h1>
         <p className="text-sm text-muted-foreground mb-4">Sign in to set up your first workbench board.</p>
         <Link href="/sign-in"><Button>Sign in</Button></Link>
       </div>
@@ -204,7 +204,7 @@ export default function OnboardingPage() {
               </div>
               <ul className="space-y-2 text-sm">
                 <li className="flex items-start gap-2"><Layers className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" /><span>Create a board named "Welcome — [Industry] starter board"</span></li>
-                <li className="flex items-start gap-2"><Telescope className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" /><span>Add the 5 highest-signal capabilities (top CEI × confidence, leaf preferred)</span></li>
+                <li className="flex items-start gap-2"><Telescope className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" /><span>Add the 5 highest-signal capabilities (top CVI × confidence, leaf preferred)</span></li>
                 <li className="flex items-start gap-2"><Lightbulb className="w-3.5 h-3.5 mt-1 text-muted-foreground shrink-0" /><span>Generate a Claude lifecycle outlook on the first card so you land on real content</span></li>
               </ul>
               {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-3 py-2 text-sm font-mono">{err}</div>}

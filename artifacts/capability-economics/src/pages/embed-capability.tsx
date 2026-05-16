@@ -120,12 +120,12 @@ export default function EmbedCapability() {
           <div className={`mt-3 pt-3 border-t ${dark ? "border-zinc-800" : "border-zinc-200"} flex items-center justify-between text-[10px]`}>
             <span className="opacity-50 uppercase tracking-wider">Powered by</span>
             <a
-              href={`https://capabilityeconomics.com/explore`}
+              href={`https://inflexcvi.ai/explore`}
               target="_blank"
               rel="noopener noreferrer"
               className={`inline-flex items-center gap-1 ${dark ? "text-emerald-400" : "text-emerald-700"} hover:underline font-mono`}
             >
-              Capability Economics <ExternalLink className="w-2.5 h-2.5" />
+              Inflexcvi <ExternalLink className="w-2.5 h-2.5" />
             </a>
           </div>
         )}

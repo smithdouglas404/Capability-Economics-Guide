@@ -129,7 +129,7 @@ export async function renderBoardPdf(args: ExportArgs): Promise<{ buffer: Buffer
           doc.moveDown(1.5);
           doc.fontSize(15).fillColor("#0a0a0f").text(cap?.name ?? `Capability #${card.capabilityId}`, { align: "left" });
           doc.fontSize(10).fillColor("#666666").text(
-            `${ind?.name ?? "Unknown industry"} · CEI ${comp?.consensusScore != null ? comp.consensusScore.toFixed(1) : "—"} · Velocity ${comp?.velocity != null ? ((comp.velocity > 0 ? "+" : "") + comp.velocity.toFixed(2)) : "—"} · ${lifecycle ?? "unknown lifecycle"}`,
+            `${ind?.name ?? "Unknown industry"} · CVI ${comp?.consensusScore != null ? comp.consensusScore.toFixed(1) : "—"} · Velocity ${comp?.velocity != null ? ((comp.velocity > 0 ? "+" : "") + comp.velocity.toFixed(2)) : "—"} · ${lifecycle ?? "unknown lifecycle"}`,
             { align: "left" },
           );
           if (cap?.description) {
@@ -166,7 +166,7 @@ export async function renderBoardPdf(args: ExportArgs): Promise<{ buffer: Buffer
       doc.fontSize(11).fillColor("#666666").text("METHODOLOGY", { align: "left" });
       doc.moveDown(0.5);
       doc.fontSize(11).fillColor("#1a1a2e").text(
-        "This document was assembled in the Capability Economics Workbench. Each capability section carries the live CEI score, velocity, and lifecycle stage from the platform's Bayesian triangulation engine. Claude-generated insights were produced using the platform's ideation prompts (10 unexpected applications, cross-industry analogues, critique, what to invent, lifecycle outlook). Underlying source provenance for any CEI number is available on the live capability detail page; the platform never editorializes a score without a cited source.",
+        "This document was assembled in the Inflexcvi Workbench. Each capability section carries the live CVI score, velocity, and lifecycle stage from the platform's Bayesian triangulation engine. Claude-generated insights were produced using the platform's ideation prompts (10 unexpected applications, cross-industry analogues, critique, what to invent, lifecycle outlook). Underlying source provenance for any CVI number is available on the live capability detail page; the platform never editorializes a score without a cited source.",
         { align: "left", lineGap: 4 },
       );
 

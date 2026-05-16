@@ -54,8 +54,8 @@ export async function botLlmCall(opts: BotLlmCallOpts): Promise<BotLlmResult> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": `Capability Economics Bot · ${opts.personaKey}`,
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": `Inflexcvi Bot · ${opts.personaKey}`,
       },
       body: JSON.stringify({
         model: opts.model,

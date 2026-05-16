@@ -2,8 +2,8 @@ import { db, marketplaceSellersTable, marketplaceListingsTable } from "@workspac
 import { eq } from "drizzle-orm";
 
 const SEED_SELLER_USER_ID = "seed_platform_seller";
-const SEED_SELLER_DISPLAY_NAME = "Capability Economics Research";
-const SEED_SELLER_EMAIL = "research@capabilityeconomics.com";
+const SEED_SELLER_DISPLAY_NAME = "Inflexcvi Research";
+const SEED_SELLER_EMAIL = "research@inflexcvi.ai";
 
 const day = 24 * 60 * 60 * 1000;
 const daysFromNow = (n: number) => new Date(Date.now() + n * day);
@@ -22,7 +22,7 @@ const LISTINGS: SeedListing[] = [
   {
     type: "report",
     title: "State of Generative AI in Enterprise: 2026 Adoption Benchmarks",
-    description: "A 60-page benchmark report on GenAI deployment across 240 enterprises. Includes cost-per-token analysis by workload, build-vs-buy decision frameworks, and adoption curves segmented by sector and company size. Authored by the Capability Economics research team.",
+    description: "A 60-page benchmark report on GenAI deployment across 240 enterprises. Includes cost-per-token analysis by workload, build-vs-buy decision frameworks, and adoption curves segmented by sector and company size. Authored by the Inflexcvi research team.",
     priceCents: 14900,
     tags: ["technology", "ai", "benchmark", "2026"],
     expiresInDays: 30,

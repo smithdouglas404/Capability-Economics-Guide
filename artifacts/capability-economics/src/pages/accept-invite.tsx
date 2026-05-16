@@ -53,7 +53,7 @@ export default function AcceptInvitePage() {
             Accept team invite
           </CardTitle>
           <CardDescription>
-            You've been invited to join a team on Capability Economics.
+            You've been invited to join a team on Inflexcvi.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

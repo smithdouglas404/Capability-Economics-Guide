@@ -1,5 +1,5 @@
 /**
- * Capability Economics — Palantir Foundry connection config + Project RIDs.
+ * Inflexcvi — Palantir Foundry connection config + Project RIDs.
  *
  * Token + URL are read from env at call time so they can be rotated without
  * code changes. Set FOUNDRY_BASE_URL + FOUNDRY_TOKEN as Replit Secrets.
@@ -35,7 +35,7 @@ export const ONTOLOGY = {
   rid: "ri.ontology.main.ontology.84e2e319-c566-4304-a12a-8dbb05224f4f",
 } as const;
 
-// Capability Economics Compass Project (folder).
+// Inflexcvi Compass Project (folder).
 export const CE_PROJECT_RID = "ri.compass.main.folder.0b7baf38-d7f4-4413-aa27-962236f947d2";
 
 // Backing Datasets — one per Object Type. Created 2026-04-25.

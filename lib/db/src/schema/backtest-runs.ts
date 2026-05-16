@@ -1,7 +1,7 @@
 import { pgTable, serial, integer, real, text, timestamp, index } from "drizzle-orm/pg-core";
 
 /**
- * Persisted history of CEI backtest harness runs. One row per `runBacktest`
+ * Persisted history of CVI backtest harness runs. One row per `runBacktest`
  * invocation. Lets the UI render trend lines (Brier / log-loss / directional
  * accuracy over time) so improvements to the engine become continuously
  * visible — the harness stops being a one-shot snapshot and starts being a

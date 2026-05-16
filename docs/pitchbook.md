@@ -1,4 +1,4 @@
-# Capability Economics
+# Inflexcvi
 
 ## Investor Pitchbook — PE / VC Edition
 
@@ -14,7 +14,7 @@
 - Slide 1. Cover
 - Slide 2. The Insight That Changes Everything
 - Slide 3. The Problem (For Three Buyers)
-- Slide 4. The Solution: The Capability Economics Index (CEI)
+- Slide 4. The Solution: The Capability Value Index (CVI)
 - Slide 5. The Product — A Walk Through What Is Live Today
 - Slide 6. The Moat — Five Compounding Defensibilities
 - Slide 7. Market Size and Sizing Methodology
@@ -35,13 +35,13 @@
 - A5. Unit Economics Deep-Dive
 - A6. Comparable-Company Analysis
 - A7. Detailed Use of Funds with Milestones
-- A8. Glossary of Capability Economics Terms
+- A8. Glossary of Inflexcvi Terms
 
 ---
 
 ## SLIDE 1 — COVER
 
-# Capability Economics
+# Inflexcvi
 
 *The institutional intelligence layer for organizational capabilities — the "Bloomberg Terminal" for what actually drives enterprise value.*
 
@@ -49,7 +49,7 @@
 
 A live, autonomous research and analytics platform that quantifies organizational capabilities as economic assets — with explicit uncertainty, dependency-aware impact modeling, and a human-in-the-loop governance layer that prevents AI hallucination from leaking into client deliverables.
 
-**One sentence for an investment committee:** Capability Economics turns the $280B/year qualitative capability-assessment industry into a software-margin product, anchored by a proprietary, accumulating dataset that compounds with every research cycle and is governed by an institutional-grade review queue.
+**One sentence for an investment committee:** Inflexcvi turns the $280B/year qualitative capability-assessment industry into a software-margin product, anchored by a proprietary, accumulating dataset that compounds with every research cycle and is governed by an institutional-grade review queue.
 
 ---
 
@@ -95,7 +95,7 @@ The platform addresses a single underlying market failure — the absence of qua
 
 ---
 
-## SLIDE 4 — THE SOLUTION: THE CAPABILITY ECONOMICS INDEX (CEI)
+## SLIDE 4 — THE SOLUTION: THE CAPABILITY ECONOMICS INDEX (CVI)
 
 **A live, governed, AI-native intelligence platform that quantifies the economic value of organizational capabilities.**
 
@@ -208,7 +208,7 @@ Every research cycle writes durable rows into `capability_economics`, `capabilit
 
 - ~3,000 agent memories in Mem0 across observation/pattern/insight/decision-context types
 - ~4,000 source triangulations in `capability_economics.sources` jsonb
-- ~500 CEI snapshots time-series across 6 industries
+- ~500 CVI snapshots time-series across 6 industries
 - A growing graph of GLM-scored dependency edges with probability, time-to-impact, and dollar-impact estimates
 
 A competitor launching today with the same model stack cannot replicate this corpus. They can rent the same APIs; they cannot rent the prior research cycles. **Every research cycle widens the gap. The moat is path-dependent.**
@@ -247,7 +247,7 @@ This split matters for two reasons. First, it diversifies model risk — no sing
 | 10-tab analytical surface | 9–12 months focused engineering |
 | HITL governance pipeline + audit-grade provenance | 3–6 months of process design + engineering |
 | Mem0 institutional memory architecture | 2–3 months engineering, but corpus takes 12+ months to compound |
-| Proprietary research corpus (~3,000 memories, ~4,000 triangulations, ~500 CEI snapshots) | 12–18 months of cycle-time, irrespective of headcount |
+| Proprietary research corpus (~3,000 memories, ~4,000 triangulations, ~500 CVI snapshots) | 12–18 months of cycle-time, irrespective of headcount |
 | Dual-source rigor (Perplexity + GLM) | Trivial to set up, very hard to retrofit into an existing single-model architecture |
 
 A competitor writing a $20M cheque today catches our product surface in roughly 12 months. They do not catch our corpus.
@@ -268,7 +268,7 @@ We use a bottom-up methodology anchored in observable market signals, not top-do
 
 - Gartner Strategy Management Software market: $8.2B in 2025, growing at 14% CAGR.
 - Adjacent markets: Business Intelligence ($33B), GRC software ($16B).
-- Capability Economics carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus), not Strategy SaaS (no continuous research engine).
+- Inflexcvi carves a differentiated position: not BI (no capability framework), not GRC (no compliance focus), not Strategy SaaS (no continuous research engine).
 
 ### 7.3 Primary segment sizing
 
@@ -395,7 +395,7 @@ The competitive set falls into three buckets: legacy consulting (no software), a
 | BCG Henderson Institute | Research reports | No | No | No | No | No | Editorial | No | Yes (human) |
 | Glean / Perplexity Enterprise | Enterprise search / RAG | No | Yes | Yes | No | No | None | Single-source | No |
 | Generic AI consultancy product (typical 2025 startup) | Single-tab AI dashboard | Sometimes | Yes | Yes | Rare | No | None | Single-source | No |
-| **Capability Economics** | **Live AI agent + governed catalog + 10-tab analytical surface + VCE campaigns** | **Yes (with credible intervals)** | **Yes (durable queue)** | **Yes (3 tiers)** | **Yes (GDP-weighted CEI + per-cap economics)** | **Yes (`capability_dependencies` + GLM-scored edges)** | **Yes (HITL queue, enforced at query layer)** | **Yes (Perplexity + GLM-5.1)** | **Yes (VCE LangGraph campaigns)** |
+| **Inflexcvi** | **Live AI agent + governed catalog + 10-tab analytical surface + VCE campaigns** | **Yes (with credible intervals)** | **Yes (durable queue)** | **Yes (3 tiers)** | **Yes (GDP-weighted CVI + per-cap economics)** | **Yes (`capability_dependencies` + GLM-scored edges)** | **Yes (HITL queue, enforced at query layer)** | **Yes (Perplexity + GLM-5.1)** | **Yes (VCE LangGraph campaigns)** |
 
 ### 10.2 Why each comparable loses
 
@@ -547,7 +547,7 @@ LangGraph for orchestration, Mem0 + Letta for persistent memory, BullMQ + Redis 
 
 ### 14.2 Enterprise AI spend is looking for ROI, not for prompts
 
-Every Fortune 500 spent 2024–2025 on AI experimentation. Boards are now asking: *"What did we get?"* The answer must be quantified in capability outcomes — not in token consumption, not in seat count, not in chatbot deflection rate. Capability Economics is the measurement layer that converts AI investment into board-readable economic outcomes.
+Every Fortune 500 spent 2024–2025 on AI experimentation. Boards are now asking: *"What did we get?"* The answer must be quantified in capability outcomes — not in token consumption, not in seat count, not in chatbot deflection rate. Inflexcvi is the measurement layer that converts AI investment into board-readable economic outcomes.
 
 ### 14.3 The PE operating model is under structural pressure
 
@@ -567,7 +567,7 @@ Capabilities are the engine of every organization. They determine who wins marke
 
 For the first time, those capabilities can be measured, benchmarked, tracked, and quantified economically — continuously, autonomously, defensibly, and at a price point that lands on a $299/mo line item or a $25,000/yr platform contract.
 
-Capability Economics is not a feature. It is not an analyst report. It is not a consulting engagement. It is the institutional intelligence layer that the discipline has lacked for thirty years — built with the controls institutional buyers require and the durability institutional capital requires.
+Inflexcvi is not a feature. It is not an analyst report. It is not a consulting engagement. It is the institutional intelligence layer that the discipline has lacked for thirty years — built with the controls institutional buyers require and the durability institutional capital requires.
 
 The agent is running. The corpus is compounding. The governance is in place.
 
@@ -688,8 +688,8 @@ A failure in any stage marks the capability with the failed stage and a structur
 | Control | Implementation |
 |---|---|
 | Admin authentication | `requireAdmin` middleware enforcing `x-admin-key === ADMIN_API_KEY` in production |
-| Mutating-endpoint protection | All admin routes, enrichment routes, alpha enrich routes, agent scheduler routes, CEI refresh, insights generate, membership PATCH, dynamic-industries POST, case-studies admin, educational-content admin, and review-queue routes are gated by `requireAdmin` |
-| Public read endpoints | Intentionally open (catalog browse, methodology, public CEI) — no PII surface |
+| Mutating-endpoint protection | All admin routes, enrichment routes, alpha enrich routes, agent scheduler routes, CVI refresh, insights generate, membership PATCH, dynamic-industries POST, case-studies admin, educational-content admin, and review-queue routes are gated by `requireAdmin` |
+| Public read endpoints | Intentionally open (catalog browse, methodology, public CVI) — no PII surface |
 | Public catalog filtering | `reviewStatus='approved'` enforced at query layer — unreviewed capability drafts cannot leak |
 | Request validation | Zod schemas on every route (path/query/body), generated from OpenAPI 3.1 — drift is impossible |
 | Database access | Drizzle ORM with parameterized queries; no raw SQL from user input |
@@ -980,7 +980,7 @@ A pessimistic combination (9% Briefing churn, 8% expansion, 95% NRR, flat APIs, 
 
 ## APPENDIX A6 — COMPARABLE-COMPANY ANALYSIS
 
-We benchmark Capability Economics against four comparable categories. The objective is not to claim a multiple — at this stage we are too early — but to give a diligence team the reference set they will use to triangulate a valuation range.
+We benchmark Inflexcvi against four comparable categories. The objective is not to claim a multiple — at this stage we are too early — but to give a diligence team the reference set they will use to triangulate a valuation range.
 
 ### A6.1 Public Comparables
 
@@ -988,10 +988,10 @@ We benchmark Capability Economics against four comparable categories. The object
 |---|---|---|---|---|
 | Gartner | Research subscriptions + advisory | ~$6.0B | ~5–6× | Closest analog to our Briefing tier — research subscriptions to enterprise buyers |
 | Palantir | Enterprise data + analytics platform | ~$2.6B | ~25–35× (premium for AI exposure) | Closest analog to our Platform tier — multi-seat enterprise deployment of an analytical platform |
-| MSCI | Index + analytics | ~$2.6B | ~17–22× | Analog to our CEI as a proprietary index licensed to capital allocators |
+| MSCI | Index + analytics | ~$2.6B | ~17–22× | Analog to our CVI as a proprietary index licensed to capital allocators |
 | FactSet | Financial data + analytics | ~$2.2B | ~8–10× | Analog to our Workbench — workflow tool for analyst desks |
 
-**Triangulated range.** A category-creating, AI-native, governance-strong research platform with both PLG and enterprise motion would reasonably trade in the 8–15× forward revenue range at IPO scale, with optionality toward MSCI-style index multiples (17–22×) if the CEI itself becomes a licensed factor for capital allocators.
+**Triangulated range.** A category-creating, AI-native, governance-strong research platform with both PLG and enterprise motion would reasonably trade in the 8–15× forward revenue range at IPO scale, with optionality toward MSCI-style index multiples (17–22×) if the CVI itself becomes a licensed factor for capital allocators.
 
 ### A6.2 Private Comparables (Recent Funding Rounds)
 
@@ -1007,13 +1007,13 @@ We benchmark Capability Economics against four comparable categories. The object
 ### A6.3 Why CE Deserves a Premium Within the Comp Set
 
 1. **Three buyer cohorts, one product surface** — most comps serve one cohort (Glean = IT, AlphaSense = finance research, Hebbia = finance research). CE simultaneously serves Operators, PE, and VC from the same back-end.
-2. **Proprietary index** — CE has a defensible composite index (CEI) with potential to become a licensed factor product. Glean does not. Hebbia does not. AlphaSense does not. MSCI's premium multiple is precisely about owning the index.
+2. **Proprietary index** — CE has a defensible composite index (CVI) with potential to become a licensed factor product. Glean does not. Hebbia does not. AlphaSense does not. MSCI's premium multiple is precisely about owning the index.
 3. **Governance perimeter as a moat** — none of the AI-native comps ship with a HITL review queue enforced at the query layer. This is a market-access prerequisite for regulated-industry buyers and an underwriting-quality differentiator for capital allocators.
 4. **Dependency graph as analytical primitive** — competitors compute single-asset signals; CE computes propagation. This is what Cascade and M&A Twin enable, and it has no obvious analog in the comp set.
 
 ### A6.4 What CE Should Not Claim
 
-We are not Palantir Foundry. We do not deploy customer data into a managed ontology. We are not MSCI. We have not (yet) licensed the CEI as a factor to a Bloomberg Terminal or FactSet. These are forward-leaning optionality, not present claims.
+We are not Palantir Foundry. We do not deploy customer data into a managed ontology. We are not MSCI. We have not (yet) licensed the CVI as a factor to a Bloomberg Terminal or FactSet. These are forward-leaning optionality, not present claims.
 
 ---
 
@@ -1141,13 +1141,13 @@ This glossary serves diligence teams who are encountering the platform's termino
 
 **CE Alpha.** The 10-tab analytical surface at `/alpha`. Each tab computes a different analytical lens (EVaR, Cascade, Narrative Δ, Moat, Fragility, Arbitrage, Flows, Talent, M&A Twin, Thesis) on the live capability and dependency dataset.
 
-**CEI (Capability Economics Index).** Composite score 0–1000 representing an industry's overall capability health. Computed as a GDP-weighted, velocity-adjusted, confidence-attenuated aggregation of per-capability scores. Documented in full at `/api/cei/methodology`.
+**CVI (Capability Value Index).** Composite score 0–1000 representing an industry's overall capability health. Computed as a GDP-weighted, velocity-adjusted, confidence-attenuated aggregation of per-capability scores. Documented in full at `/api/cei/methodology`.
 
 **Capability.** A row in the `capabilities` table — a named organizational ability (e.g., "Claims Automation") with a slug, dual descriptions (traditional + economic), industry assignments, and enrichment fields.
 
-**Capability Economics.** The discipline of treating organizational capabilities as quantifiable economic assets with TAM, SAM, margin structure, half-life, revenue exposure, and dependency relationships. Distinct from generic "capability assessment" which is qualitative.
+**Inflexcvi.** The discipline of treating organizational capabilities as quantifiable economic assets with TAM, SAM, margin structure, half-life, revenue exposure, and dependency relationships. Distinct from generic "capability assessment" which is qualitative.
 
-**Capability Economics Enrichment.** The structured process by which a capability row is populated with TAM, SAM, margin %, half-life, revenue exposure, and consensus quadrant via a Perplexity → GLM-5.1 pipeline. Stored in `capability_economics`.
+**Inflexcvi Enrichment.** The structured process by which a capability row is populated with TAM, SAM, margin %, half-life, revenue exposure, and consensus quadrant via a Perplexity → GLM-5.1 pipeline. Stored in `capability_economics`.
 
 **Capability Dependency.** A directed edge between two capabilities indicating that one is a structural prerequisite or downstream consequence of the other. Stored in `capability_dependencies` with strength.
 
@@ -1197,4 +1197,4 @@ This glossary serves diligence teams who are encountering the platform's termino
 
 ---
 
-*End of Capability Economics PE/VC Pitchbook — April 2026.*
+*End of Inflexcvi PE/VC Pitchbook — April 2026.*

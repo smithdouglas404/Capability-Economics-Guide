@@ -256,7 +256,7 @@ export default function CapabilityDetailPage() {
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">{cap.description}</p>
           </div>
           <div className="text-right shrink-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">CEI score</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">CVI score</div>
             <div className="font-mono text-4xl tabular-nums">
               {quality?.consensusScore !== null && quality?.consensusScore !== undefined
                 ? quality.consensusScore.toFixed(1)
@@ -531,8 +531,8 @@ export default function CapabilityDetailPage() {
         </Card>
       )}
 
-      {/* ─── CEI trend sparkline ───────────────────────────────────────────── */}
-      {cap && <CeiHistoryCard capabilityId={id} />}
+      {/* ─── CVI trend sparkline ───────────────────────────────────────────── */}
+      {cap && <CviHistoryCard capabilityId={id} />}
 
       {/* ─── SEC filings panel ─────────────────────────────────────────────── */}
       {cap && <SecFilingsPanel capabilityId={id} capabilityName={cap.name} />}
@@ -546,7 +546,7 @@ export default function CapabilityDetailPage() {
   );
 }
 
-interface CeiHistoryResp {
+interface CviHistoryResp {
   industryId: number;
   capabilityId: number;
   days: number;
@@ -556,17 +556,17 @@ interface CeiHistoryResp {
   reconstructedCount: number;
 }
 
-function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
-  const [data, setData] = useState<CeiHistoryResp | null>(null);
+function CviHistoryCard({ capabilityId }: { capabilityId: number }) {
+  const [data, setData] = useState<CviHistoryResp | null>(null);
   const [loading, setLoading] = useState(true);
   const [windowDays, setWindowDays] = useState<30 | 90 | 180>(90);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetch(`${API_BASE}/capabilities/${capabilityId}/cei-history?days=${windowDays}`)
+    fetch(`${API_BASE}/capabilities/${capabilityId}/cvi-history?days=${windowDays}`)
       .then(r => r.ok ? r.json() : null)
-      .then((j: CeiHistoryResp | null) => { if (!cancelled) setData(j); })
+      .then((j: CviHistoryResp | null) => { if (!cancelled) setData(j); })
       .catch(() => { /* show empty state */ })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -606,7 +606,7 @@ function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
       <CardContent className="pt-6 space-y-4">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
-          <h2 className="font-serif text-xl tracking-tight">CEI trend</h2>
+          <h2 className="font-serif text-xl tracking-tight">CVI trend</h2>
           <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
             {data?.granularity === "per-capability" ? "Per-capability" : "Industry index"}
           </Badge>
@@ -624,7 +624,7 @@ function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
         </div>
         {loading && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> Loading CEI history…
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading CVI history…
           </div>
         )}
         {!loading && (!data || data.series.length < 2) && (

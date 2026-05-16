@@ -29,11 +29,11 @@ Trigger path today: Perplexity ingestion → fingerprint alignment → `computeC
 
 | # | Score | Current formula | Uses SunasiAI's name? | Uses a signal only CE has? |
 |---|---|---|---|---|
-| 1 | `capabilityCoverage` | `(#high-CEI caps covered / #high-CEI caps in industry) × 200`, clamped 100 | no (ours) | partial (uses CEI which is ours) |
-| 2 | `ceiWeighted` | `Σ(weight × CEI) / Σ weight` | no | partial |
+| 1 | `capabilityCoverage` | `(#high-CVI caps covered / #high-CVI caps in industry) × 200`, clamped 100 | no (ours) | partial (uses CVI which is ours) |
+| 2 | `ceiWeighted` | `Σ(weight × CVI) / Σ weight` | no | partial |
 | 3 | **`agedIndex`** | `100 − (age − 3)/37 × 100` | **yes — SunasiAI name** | **no — pure foundedYear arithmetic** |
 | 4 | **`awarenessScore`** | `citations × 6 + (public?25:0) + log10(revenue) × 5` | **yes** | **no — SEC / press signals, not CE** |
-| 5 | **`moatScore`** | `weighted avg CEI of fingerprint caps where conf > 0.65 AND vel > 0` | **yes** | partial (uses CEI+conf+vel) |
+| 5 | **`moatScore`** | `weighted avg CVI of fingerprint caps where conf > 0.65 AND vel > 0` | **yes** | partial (uses CVI+conf+vel) |
 | 6 | **`aiDisruptability`** | `Σ (severity × decay × weight) over tech_shift events hitting the fingerprint` | **yes** | **yes** (uses our `macro_events`) |
 | 7 | **`actionability`** | `revenue?30 + funding?25 + url?15 + emp?15 + conf×15` | **yes** | **no — presence-flags on static fields** |
 | 8 | **`acquisitionProbability`** | `50 − size_penalty + funding_boost + (private?25:0)` | **yes** | **no — just size + funding + listed flag** |
@@ -117,7 +117,7 @@ VelocityRegime = 50 + clamp(Σ(weight × regime_r) / Σ weight × 500, -50, +50)
 ---
 
 ### 3.4 `EvidenceFreshnessScore` (0–100)
-**What it measures:** how recent the evidence underlying the firm's fingerprint caps is. A CEI of 70 built on six-month-old triangulations is worth less than a CEI of 65 built on last-week's. Rewards firms whose thesis is grounded in fresh research.
+**What it measures:** how recent the evidence underlying the firm's fingerprint caps is. A CVI of 70 built on six-month-old triangulations is worth less than a CVI of 65 built on last-week's. Rewards firms whose thesis is grounded in fresh research.
 
 **Formula:**
 ```
@@ -184,8 +184,8 @@ CrowdednessInverseMoat = 100 − clamp(|peers| × 4, 0, 100)
 **Formula:**
 ```
 For each fingerprint cap r:
-  otherCei_r = max CEI of the same cap-name across other industries
-  home_cei_r = CEI in firm's home industry
+  otherCei_r = max CVI of the same cap-name across other industries
+  home_cei_r = CVI in firm's home industry
   spill_r   = max(0, otherCei_r − home_cei_r)       # extra upside beyond home
 Spillover = Σ(weight × spill_r) / Σ weight × 2
 ```

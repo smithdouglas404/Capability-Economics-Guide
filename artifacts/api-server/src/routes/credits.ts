@@ -8,8 +8,8 @@ import {
   userMembershipsTable,
   membershipTiersTable,
   TIER_ALLOCATIONS,
-  CEI_CREDIT_BLOCK_SIZE,
-  CEI_CREDIT_BLOCK_PRICE_CENTS,
+  CVI_CREDIT_BLOCK_SIZE,
+  CVI_CREDIT_BLOCK_PRICE_CENTS,
   CREDIT_COSTS,
 } from "@workspace/db";
 import { eq, and, desc, asc } from "drizzle-orm";
@@ -33,8 +33,8 @@ router.get("/credits/balance", async (req, res) => {
         monthlyAllocation: 50,
         tierSlug: "discovery",
         creditCosts: CREDIT_COSTS,
-        blockSize: CEI_CREDIT_BLOCK_SIZE,
-        blockPriceCents: CEI_CREDIT_BLOCK_PRICE_CENTS,
+        blockSize: CVI_CREDIT_BLOCK_SIZE,
+        blockPriceCents: CVI_CREDIT_BLOCK_PRICE_CENTS,
         canPurchase: false,
       });
       return;
@@ -75,8 +75,8 @@ router.get("/credits/balance", async (req, res) => {
       tierSlug: account.tierSlug,
       lastTopUpAt: account.lastTopUpAt,
       creditCosts: CREDIT_COSTS,
-      blockSize: CEI_CREDIT_BLOCK_SIZE,
-      blockPriceCents: CEI_CREDIT_BLOCK_PRICE_CENTS,
+      blockSize: CVI_CREDIT_BLOCK_SIZE,
+      blockPriceCents: CVI_CREDIT_BLOCK_PRICE_CENTS,
       // Every authenticated tier can purchase — including discovery and payg.
       // The previous discovery-block was a credits-tied gate, not a security
       // gate, and prevented the whole payg use case. Anonymous/unauth users
@@ -139,7 +139,7 @@ router.post("/credits/purchase", async (req, res) => {
     let credits: number;
     let amountCents: number;
     let packSlug: string | null = null;
-    let packDisplayName = "CEI Credits";
+    let packDisplayName = "CVI Credits";
     let expiresAt: Date | null = null;
 
     if (typeof req.body.packSlug === "string") {
@@ -158,8 +158,8 @@ router.post("/credits/purchase", async (req, res) => {
       expiresAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
     } else {
       const blocks = Math.max(1, Math.min(100, Number(req.body.blocks) || 1));
-      credits = blocks * CEI_CREDIT_BLOCK_SIZE;
-      amountCents = blocks * CEI_CREDIT_BLOCK_PRICE_CENTS;
+      credits = blocks * CVI_CREDIT_BLOCK_SIZE;
+      amountCents = blocks * CVI_CREDIT_BLOCK_PRICE_CENTS;
       // Legacy block-based purchases also get the 1-year expiry now —
       // applying the same policy across both paths simplifies enforcement.
       expiresAt = new Date(Date.now() + PAYG_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
@@ -210,7 +210,7 @@ router.post("/credits/purchase", async (req, res) => {
 
       const session = await createCheckoutSession({
         membershipId: purchase.id, // reusing the field for purchase ID
-        tierName: packSlug ? `${packDisplayName} (${credits.toLocaleString()} credits)` : `${credits.toLocaleString()} CEI Credits`,
+        tierName: packSlug ? `${packDisplayName} (${credits.toLocaleString()} credits)` : `${credits.toLocaleString()} CVI Credits`,
         tierSlug: "credits",
         amountCents,
         billingPeriod: "monthly",

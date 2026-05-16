@@ -33,7 +33,7 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
   const cents = billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
 
   if (tier.isContactSales) {
-    window.location.href = `mailto:sales@capabilityeconomics.com?subject=${encodeURIComponent(`Inquiry: ${tier.name}`)}`;
+    window.location.href = `mailto:sales@inflexcvi.ai?subject=${encodeURIComponent(`Inquiry: ${tier.name}`)}`;
     return;
   }
 
@@ -322,7 +322,7 @@ export default function Membership() {
               </h1>
             </div>
             <p className="font-serif text-lg lg:text-xl text-foreground/70 leading-relaxed max-w-md italic">
-              From reading the index to running Capability Economics on your own industries — four ways in.
+              From reading the index to running Inflexcvi on your own industries — four ways in.
             </p>
           </motion.div>
 
@@ -412,7 +412,7 @@ export default function Membership() {
             <div className="text-foreground/80 mb-2">Enterprise</div>
             <p className="normal-case tracking-normal font-sans text-sm leading-relaxed">
               Procurement, security review, SSO, and custom industries supported on Platform.{" "}
-              <a href="mailto:sales@capabilityeconomics.com" className="underline underline-offset-2 hover:text-foreground">
+              <a href="mailto:sales@inflexcvi.ai" className="underline underline-offset-2 hover:text-foreground">
                 Talk to sales
               </a>.
             </p>

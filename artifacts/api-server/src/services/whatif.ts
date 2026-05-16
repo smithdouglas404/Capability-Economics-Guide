@@ -3,7 +3,7 @@
  *
  * Takes a hypothetical macro event spec (industry/capability scope, severity,
  * sentiment direction, decay) and projects what the per-capability + per-industry
- * CEI would look like if it actually fired right now. Read-only: does not insert
+ * CVI would look like if it actually fired right now. Read-only: does not insert
  * into macro_events.
  *
  * Re-uses the same propagation as the live engine — capability scope expands
@@ -158,7 +158,7 @@ export async function runWhatIf(input: WhatIfInput): Promise<WhatIfResult> {
   }
   indRows.sort((a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0));
 
-  // GDP-weighted delta across industries (matches the live CEI rollup shape).
+  // GDP-weighted delta across industries (matches the live CVI rollup shape).
   let weighted = 0;
   let weightSum = 0;
   for (const r of indRows) {
@@ -196,7 +196,7 @@ function composeNarrative(
   const parts: string[] = [];
   parts.push(`Hypothetical ${input.eventType} at severity ${input.severity.toFixed(1)} would create a ${dirWord} on ${caps.length} capabilities.`);
   if (gdpWeightedDelta !== null) {
-    parts.push(`GDP-weighted CEI delta: ${gdpWeightedDelta > 0 ? "+" : ""}${gdpWeightedDelta.toFixed(2)} pts.`);
+    parts.push(`GDP-weighted CVI delta: ${gdpWeightedDelta > 0 ? "+" : ""}${gdpWeightedDelta.toFixed(2)} pts.`);
   }
   if (inds.length > 0) {
     const topInd = inds[0];

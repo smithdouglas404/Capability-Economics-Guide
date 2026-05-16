@@ -3,7 +3,7 @@
  *
  * Identifies capabilities created in the last N months — the "agentic AI
  * orchestration" pattern: capabilities that didn't exist in the ontology
- * two years ago but now have non-trivial CEI scores, velocity, and VC capital.
+ * two years ago but now have non-trivial CVI scores, velocity, and VC capital.
  *
  * Tracking capability *genesis* (not just maturity) is one of the platform's
  * distinctive features — no competitor surfaces this.

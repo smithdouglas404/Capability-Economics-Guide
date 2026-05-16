@@ -321,10 +321,10 @@ export default function BacktestPage() {
             </a>
           </Link>
           <h1 className="font-serif text-2xl tracking-tight flex items-center gap-2">
-            <BarChart3 className="w-6 h-6" /> CEI Backtesting Harness
+            <BarChart3 className="w-6 h-6" /> CVI Backtesting Harness
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Replays curated historical events against the current CEI baseline and reports
+            Replays curated historical events against the current CVI baseline and reports
             directional accuracy — proof that the index moves the way the model predicts.
           </p>
         </div>
@@ -646,7 +646,7 @@ export default function BacktestPage() {
         <CardContent className="p-4 text-xs text-muted-foreground space-y-2">
           <p>
             <strong className="text-foreground">Method.</strong> For each event the harness runs the
-            <em> actual </em> CEI engine twice in dry-run mode (no DB writes): once with no event
+            <em> actual </em> CVI engine twice in dry-run mode (no DB writes): once with no event
             injected (baseline / T-1) and once with the historical event injected as an extra active
             macro_event at peak shock (T+1). The predicted delta is the engine's own per-capability
             score difference — flowing through bayesian triangulation, parent/child rollup, velocity

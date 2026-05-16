@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   client.setOperator(AccountId.fromString(operatorId), PrivateKey.fromString(operatorKey));
 
   const tx = await new TopicCreateTransaction()
-    .setTopicMemo("Capability Economics — audit chain (admin-key rotations, KYC, marketplace events, security incidents)")
+    .setTopicMemo("Inflexcvi — audit chain (admin-key rotations, KYC, marketplace events, security incidents)")
     .execute(client);
   const receipt = await tx.getReceipt(client);
   const topicId = receipt.topicId?.toString();

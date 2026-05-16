@@ -86,8 +86,8 @@ Be factual and specific — do not invent details, only synthesize what the obse
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics Memory Consolidator",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi Memory Consolidator",
       },
       body: JSON.stringify({
         model: CLAUDE_MODEL,

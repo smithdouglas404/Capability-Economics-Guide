@@ -101,7 +101,7 @@ interface SlideDef {
 
 const SLIDES: SlideDef[] = [
   { key: "intro",       durationMs: 18000, liveLink: null,            liveLabel: null },
-  { key: "cei",         durationMs: 35000, liveLink: "/cei",          liveLabel: "Open the live CEI" },
+  { key: "cei",         durationMs: 35000, liveLink: "/cei",          liveLabel: "Open the live CVI" },
   { key: "proof",       durationMs: 32000, liveLink: "/proof",        liveLabel: "See the proof gallery" },
   { key: "disruption",  durationMs: 32000, liveLink: "/disruption",   liveLabel: "Open Disruption Watch" },
   { key: "newcaps",     durationMs: 28000, liveLink: "/disruption",   liveLabel: "See net-new capabilities" },
@@ -320,13 +320,13 @@ function IntroSlide() {
       <div className="text-center max-w-3xl mx-auto">
         <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider mb-4">
           <Sparkles className="w-3 h-3 mr-1 inline text-amber-500" />
-          Capability Economics
+          Inflexcvi
         </Badge>
         <h1 className="font-serif text-5xl lg:text-7xl tracking-tight leading-[0.95] mb-6">
           A probabilistic capability index <span className="italic text-foreground/60">and</span> the workbench that invents the next one.
         </h1>
         <p className="text-lg text-muted-foreground leading-relaxed">
-          In the next five minutes you'll see how Capability Economics scores every business capability with
+          In the next five minutes you'll see how Inflexcvi scores every business capability with
           Bayesian triangulation, replays history to prove it, and turns the data into a design-thinking
           surface where Claude helps you find new markets.
         </p>
@@ -336,7 +336,7 @@ function IntroSlide() {
           <CardContent className="p-5">
             <Activity className="w-5 h-5 text-accent mb-2" />
             <h3 className="font-serif text-xl mb-1">Numbers</h3>
-            <p className="text-sm text-muted-foreground">CEI scores with 95% credible intervals, GDP weighting, evidence provenance on every value, historical backtesting against real shocks.</p>
+            <p className="text-sm text-muted-foreground">CVI scores with 95% credible intervals, GDP weighting, evidence provenance on every value, historical backtesting against real shocks.</p>
           </CardContent>
         </Card>
         <Card className="rounded-none border-border/60">
@@ -361,7 +361,7 @@ function CeiSlide({ data }: { data: CEIData | null }) {
         <SlideHeader
           eyebrow="The Index"
           title="One number that traces to its sources."
-          subtitle="The Capability Economics Index is a GDP-weighted composite of capability maturity across every tracked industry. Every score is a Bayesian posterior with a 95% credible interval. Every input is cited."
+          subtitle="The Capability Value Index is a GDP-weighted composite of capability maturity across every tracked industry. Every score is a Bayesian posterior with a 95% credible interval. Every input is cited."
           icon={Activity}
         />
         <ul className="space-y-2 mt-4">
@@ -376,7 +376,7 @@ function CeiSlide({ data }: { data: CEIData | null }) {
           {data ? (
             <>
               <div className="text-center">
-                <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-1">Overall CEI</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-1">Overall CVI</div>
                 <div className="font-mono text-6xl tabular-nums">{data.overallIndex.toFixed(1)}</div>
                 {data.overallCiLow !== null && data.overallCiHigh !== null && (
                   <div className="font-mono text-xs text-muted-foreground mt-1">
@@ -400,7 +400,7 @@ function CeiSlide({ data }: { data: CEIData | null }) {
           ) : (
             <div className="text-sm text-muted-foreground flex items-center gap-2 py-8 justify-center">
               <Loader2 className="w-4 h-4 animate-spin" />
-              Loading live CEI…
+              Loading live CVI…
             </div>
           )}
         </CardContent>
@@ -416,7 +416,7 @@ function ProofSlide({ data }: { data: BacktestSummary | null }) {
         <SlideHeader
           eyebrow="Did the model see it coming?"
           title="We replay history through the engine."
-          subtitle="The same CEI engine that runs the live index is re-run with each curated historical event injected as a macro shock. We measure whether the engine's response matches the recorded historical direction."
+          subtitle="The same CVI engine that runs the live index is re-run with each curated historical event injected as a macro shock. We measure whether the engine's response matches the recorded historical direction."
           icon={CheckCircle2}
         />
         <ul className="space-y-2 mt-4">
@@ -515,7 +515,7 @@ function NewCapsSlide({ rows }: { rows: NewCapEntry[] | null }) {
       <SlideHeader
         eyebrow="Net-new capabilities"
         title="The capabilities that didn't exist 24 months ago."
-        subtitle="No competitor tracks the genesis of capabilities — just the maturity. We capture the moment a new capability emerges with non-trivial CEI, VC flowing in, and startups racing to own it."
+        subtitle="No competitor tracks the genesis of capabilities — just the maturity. We capture the moment a new capability emerges with non-trivial CVI, VC flowing in, and startups racing to own it."
         icon={Sparkles}
       />
       {rows === null ? (
@@ -534,7 +534,7 @@ function NewCapsSlide({ rows }: { rows: NewCapEntry[] | null }) {
                 <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2">{r.industryName}</div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
-                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CEI</div>
+                    <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CVI</div>
                     <div className="font-mono text-lg tabular-nums">{r.consensusScore?.toFixed(0) ?? "—"}</div>
                   </div>
                   <div>
@@ -662,7 +662,7 @@ function MarketplaceSlide({ rows }: { rows: MarketplaceListing[] | null }) {
         <SlideHeader
           eyebrow="Marketplace"
           title="Analysts sell research on top of the data. Network effect, no add."
-          subtitle="Three seller tiers (open / verified analyst / featured), four listing types (reports, datasets, templates, services), Stripe Connect payouts, KYC, watermarked PDF delivery. The CEI is the moat; the marketplace is the revenue mechanism."
+          subtitle="Three seller tiers (open / verified analyst / featured), four listing types (reports, datasets, templates, services), Stripe Connect payouts, KYC, watermarked PDF delivery. The CVI is the moat; the marketplace is the revenue mechanism."
           icon={Store}
         />
         <ul className="space-y-2 mt-4">

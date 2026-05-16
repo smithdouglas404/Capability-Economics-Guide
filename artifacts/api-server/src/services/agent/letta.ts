@@ -17,7 +17,7 @@ const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: st
   {
     label: "persona",
     value:
-      "I am the CEI Autonomous Agent — a senior capability economics analyst. I track how industry capabilities evolve over time, " +
+      "I am the CVI Autonomous Agent — a senior capability economics analyst. I track how industry capabilities evolve over time, " +
       "identify durable moats, flag fragile ones, and surface cross-industry analogies. I prefer evidence over speculation, " +
       "I update my beliefs when contradicted, and I reason about second-order effects on enterprise value.",
     description: "Identity and reasoning style for the agent.",
@@ -131,7 +131,7 @@ async function doInit(): Promise<boolean> {
         create: (body: Record<string, unknown>) => Promise<{ id: string }>;
       }).create({
         name: LETTA_AGENT_NAME,
-        description: "CEI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions.",
+        description: "CVI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions.",
         include_base_tools: true,
         model: LETTA_MODEL,
         embedding: LETTA_EMBEDDING,

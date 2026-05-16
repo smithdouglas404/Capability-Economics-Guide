@@ -1,7 +1,7 @@
-# Residential Solar + Storage — Capability Economics Deep Dive
+# Residential Solar + Storage — Inflexcvi Deep Dive
 
 **Prepared for:** Client (PE / Strategic Investor)
-**Prepared by:** Capability Economics Platform
+**Prepared by:** Inflexcvi Platform
 **Report date:** April 17, 2026
 **Methodology:** Continuous CE platform run (no bespoke engagement). Every number in this document is traceable to either a `source_triangulations` record, a `macro_events` record, a `companies`/`company_scores` row in the CE warehouse, or a dated Perplexity market query. All platform data as of the run timestamp.
 
@@ -9,7 +9,7 @@
 
 ## Executive Read in Three Numbers
 
-1. **Industry CEI (Manufacturing / Energy-Transition slice): 58.3 / 100, confidence 0.54, 55 capabilities tracked.**
+1. **Industry CVI (Manufacturing / Energy-Transition slice): 58.3 / 100, confidence 0.54, 55 capabilities tracked.**
    Down modestly on a 30-day view. Three active macro headwinds depressing the score (Iran / Strait of Hormuz supply shock severity 8, US CPI at 3.3 % severity 7, US industrial production −0.5 % severity 6). One late-breaking tailwind (EIA 86 GW utility-scale forecast, severity 9 positive) that the next world-scan cycle will fold in.
 
 2. **Residential solar + storage is a two-speed market.**
@@ -29,7 +29,7 @@ A traditional solar workbench is a four-week paid engagement that produces a sli
 | Elapsed time to produce this report | 4 weeks | minutes |
 | Signal refresh | one-shot | 6 h rotation on 356 capabilities + 24 h macro world-scan |
 | Per-score citations | not disclosed | 3 – 8 cited sources per capability in `source_triangulations` |
-| Score type | quadrant bucket | CEI 0 – 100 with Bayesian posterior and 95 % CI |
+| Score type | quadrant bucket | CVI 0 – 100 with Bayesian posterior and 95 % CI |
 | Movement over time | re-run the engagement | live `velocity` field (Δ score / 30 d) |
 | Macro-event reactivity | static | 14 active events right now, decay-weighted, propagated through the capability tree |
 | Sub-capability layer | one flat list | 59 parents × 297 children, each child independently triangulated |
@@ -44,7 +44,7 @@ Every chart / number in §2 – §9 is either (a) a SQL query against the CE war
 
 ### 2.1 CE stage roll-up — Manufacturing industry, as of run time  `[CE]`
 
-| Stage | Caps | Avg CEI | Avg Confidence | Avg Velocity | Patents 5y | VC 5y | Startups 5y |
+| Stage | Caps | Avg CVI | Avg Confidence | Avg Velocity | Patents 5y | VC 5y | Startups 5y |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | **Service** (O&M, installation, monitoring-as-a-service) | 5 | **66.5** | 0.47 | +0.000 | in-flight | in-flight | in-flight |
 | **Monitor** (SCADA, inverter telemetry, fleet health) | 7 | **61.7** | 0.49 | −0.001 | 198 | $8.1 B | 198 |
@@ -64,15 +64,15 @@ Every chart / number in §2 – §9 is either (a) a SQL query against the CE war
 
 ### 2.3 Read
 
-**Service + Monitor** are the two highest-CEI stages — the "picks-and-shovels" of the residential thesis. **Make** and **Extract** are the lowest and both carry active macro headwinds in the CE event log. A thesis that overweights Service-layer software / data / O&M businesses is scoring materially better than one that overweights cell / polysilicon manufacturers.
+**Service + Monitor** are the two highest-CVI stages — the "picks-and-shovels" of the residential thesis. **Make** and **Extract** are the lowest and both carry active macro headwinds in the CE event log. A thesis that overweights Service-layer software / data / O&M businesses is scoring materially better than one that overweights cell / polysilicon manufacturers.
 
 ---
 
 ## 3. Hot / Cooling / Emerging Quadrant
 
-### 3.1 Hot — CEI ≥ 65 and velocity > 0  `[CE]`
+### 3.1 Hot — CVI ≥ 65 and velocity > 0  `[CE]`
 
-| Capability | CEI | Velocity (Δ / 30d) | Confidence | Stage |
+| Capability | CVI | Velocity (Δ / 30d) | Confidence | Stage |
 |---|---:|---:|---:|---|
 | Statistical Process Control | **76.3** | +0.009 | 0.88 | Monitor |
 | Predictive Maintenance & Asset Lifecycle Management | **75.7** | +0.001 | 0.34 | Extract |
@@ -85,7 +85,7 @@ Every chart / number in §2 – §9 is either (a) a SQL query against the CE war
 
 ### 3.2 Cooling — negative velocity on a 30-day look-back  `[CE]`
 
-| Capability | CEI | Velocity | Note |
+| Capability | CVI | Velocity | Note |
 |---|---:|---:|---|
 | Safety Operations & Incident Response | 42.9 | **−0.009** | |
 | Safety Culture & Behavioral Compliance | 42.7 | −0.006 | |
@@ -96,12 +96,12 @@ Every chart / number in §2 – §9 is either (a) a SQL query against the CE war
 | Demand Forecasting & Signal Processing | 46.0 | −0.004 | |
 | Constraint-Based Resource Allocation | 47.7 | −0.004 | |
 
-### 3.3 Emerging — CEI < 55 and velocity > 0  `[CE]`
+### 3.3 Emerging — CVI < 55 and velocity > 0  `[CE]`
 
-- **Carbon Footprint Measurement & Accounting** — CEI 60.6, vel +0.001 (borderline "emerging"; compliance-driven adoption)
-- **Safety Stock & Service Level Management** — CEI 63.8, vel +0.001
+- **Carbon Footprint Measurement & Accounting** — CVI 60.6, vel +0.001 (borderline "emerging"; compliance-driven adoption)
+- **Safety Stock & Service Level Management** — CVI 63.8, vel +0.001
 
-### 3.4 Table-Stakes — CEI 55 – 65, velocity ≈ 0  `[CE]`
+### 3.4 Table-Stakes — CVI 55 – 65, velocity ≈ 0  `[CE]`
 
 Quality Systems Integration, Supply Chain Network Optimization, Inventory Accuracy — present in every operator, no read-across value.
 
@@ -261,9 +261,9 @@ returns ranked peers with a `sharedCaps` count — fully transparent, reproducib
 
 Every one of the 13 composites is a deterministic function read straight from `services/companies.ts`. Representative formulas:
 
-- **capabilityCoverage** = Σ (weight × CEI × confidence) / Σ weight across the firm's fingerprint.
+- **capabilityCoverage** = Σ (weight × CVI × confidence) / Σ weight across the firm's fingerprint.
 - **ceiWeighted** = capabilityCoverage rebased to 0 – 100.
-- **moatScore** = avg(CEI of fingerprint caps) − stddev penalty + revenue-scale bonus.
+- **moatScore** = avg(CVI of fingerprint caps) − stddev penalty + revenue-scale bonus.
 - **acquisitionProbability** = 95 if vc-backed & funded > $100 M, 65 if vc-backed < $100 M, 40 if public, 10 otherwise, with a velocity tilt.
 - **aiDisruptability** = fraction of fingerprint caps matching an AI-cooling pattern × severity of active AI events.
 - **forecastedValue** = ceiWeighted × avg velocity bonus × (1 + active positive-event boost).
@@ -277,7 +277,7 @@ A SunasiAI-style "Moneyball composite = 73" with no formula is an opinion. A CE 
 
 The platform's `/vce` page supports ad-hoc what-if queries:
 
-- "What happens to Manufacturing CEI if we invest $500 M in Industrial IoT Sensor Networks?" → before/after radar, Δ-CEI per capability, Δ-confidence, Δ per-stage profile.
+- "What happens to Manufacturing CVI if we invest $500 M in Industrial IoT Sensor Networks?" → before/after radar, Δ-CVI per capability, Δ-confidence, Δ per-stage profile.
 - "What if we acquire Enphase and divest Northvolt?" → fingerprint delta applied to the company layer, recomputes industry-level composites.
 - "What if the Iran event decays to zero in 10 days vs extends by 30?" → re-runs the macro-event propagation, shows delta.
 
@@ -350,7 +350,7 @@ All Perplexity queries (question + model + run timestamp + response + cited URLs
 
 | § | Chart / table | Reproduce by |
 |---|---|---|
-| Exec read #1 | Industry CEI | `SELECT AVG(consensus_score), AVG(confidence), COUNT(*) FROM cei_components WHERE industry_id=4;` |
+| Exec read #1 | Industry CVI | `SELECT AVG(consensus_score), AVG(confidence), COUNT(*) FROM cei_components WHERE industry_id=4;` |
 | §2.1 | Stage profile | `GET /api/workbench/value-chain/4` |
 | §3.1/3.2 | Hot / cool list | `GET /api/capabilities?industryId=4&sort=velocity` |
 | §4 | Sub-cap trees | `SELECT p.name, pcc.consensus_score, ch.name, chcc.consensus_score FROM capabilities ch JOIN capabilities p ON p.id=ch.parent_capability_id LEFT JOIN cei_components pcc ON pcc.capability_id=p.id LEFT JOIN cei_components chcc ON chcc.capability_id=ch.id WHERE ch.industry_id=4 ORDER BY p.id, chcc.consensus_score DESC;` |

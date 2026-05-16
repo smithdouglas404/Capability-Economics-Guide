@@ -48,8 +48,8 @@ export interface DatasetSpec {
 export const DATASETS: Record<DatasetId, DatasetSpec> = {
   cvi_snapshots: {
     id: "cvi_snapshots",
-    label: "CEI snapshots",
-    description: "Capability Economics Index — overall index, breakdowns, sentiment, volatility.",
+    label: "CVI snapshots",
+    description: "Capability Value Index — overall index, breakdowns, sentiment, volatility.",
     columns: ["id", "overallIndex", "overallCiLow", "overallCiHigh", "marketSentiment", "volatility", "methodologyVersion", "industryBreakdowns", "snapshotAt"],
     parquetTypes: {
       id: "INT64",

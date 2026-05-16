@@ -92,7 +92,7 @@ export default function ProofPage() {
         <h1 className="font-serif text-4xl tracking-tight">Did the model see it coming?</h1>
         <p className="text-base text-muted-foreground mt-3 max-w-3xl leading-relaxed">
           We replay historical shocks — COVID, ChatGPT's launch, SVB's collapse, the 2025 tariffs — through
-          the same CEI engine that runs the live index. For each event we record what the engine
+          the same CVI engine that runs the live index. For each event we record what the engine
           predicts vs. what actually happened. Read on for the methodology and the numbers.
         </p>
       </div>
@@ -136,7 +136,7 @@ export default function ProofPage() {
               </div>
               <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
                 <strong>What this measures:</strong> directional accuracy of the engine's response to each event — did the
-                CEI move in the same direction the historical record says it should have? Per-capability score history is
+                CVI move in the same direction the historical record says it should have? Per-capability score history is
                 not retained, so the baseline is "the engine's current state without the event" and the predicted is
                 "the engine's current state with the event injected." This is a test of model propagation, not historical
                 reconstruction. Run timestamp: {new Date(data.ranAt).toLocaleString()}.
@@ -256,7 +256,7 @@ export default function ProofPage() {
                 <li>For each historical event, the harness invokes <code className="font-mono text-xs bg-muted px-1">computeCEI()</code> twice: once with no event injected (baseline) and once with the event injected as an extra active <code className="font-mono text-xs bg-muted px-1">macro_event</code>.</li>
                 <li>The predicted delta per capability is the engine-output score difference — not a hand-derived sign. It flows through the real Bayesian posterior, parent/child rollup, velocity smoothing, and economic multiplier code paths.</li>
                 <li>Expected directions are stored separately and allowed to disagree with the event's overall sentiment. COVID is globally negative but positive for telehealth; the EU AI Act is a cost burden but positive for AI-governance tooling. A naive engine misses these — the harness surfaces those gaps.</li>
-                <li>Replay runs in dry-run mode (<code className="font-mono text-xs bg-muted px-1">persist: false</code>); the live CEI and snapshots are untouched.</li>
+                <li>Replay runs in dry-run mode (<code className="font-mono text-xs bg-muted px-1">persist: false</code>); the live CVI and snapshots are untouched.</li>
               </ol>
               <p className="text-xs text-muted-foreground italic">
                 What this proves: the engine's directional response under shock is consistent with the recorded historical record on a curated event set.

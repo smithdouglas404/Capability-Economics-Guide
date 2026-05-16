@@ -39,7 +39,7 @@ function buildInvoiceData(opts: {
       entityType: invoiceEntityType(membership.entityType),
     },
     lineItem: {
-      description: `${tier?.name ?? "Membership"} — ${tier?.tagline ?? "Capability Economics"}`,
+      description: `${tier?.name ?? "Membership"} — ${tier?.tagline ?? "Inflexcvi"}`,
       amountCents: amt,
       periodLabel,
     },
@@ -50,9 +50,9 @@ function buildInvoiceData(opts: {
       paidAt: membership.approvedAt,
     },
     provider: {
-      name: "Capability Economics",
-      address: ["Capability Economics, Inc."],
-      email: "billing@capabilityeconomics.com",
+      name: "Inflexcvi",
+      address: ["Inflexcvi, Inc."],
+      email: "billing@inflexcvi.ai",
     },
   };
 }

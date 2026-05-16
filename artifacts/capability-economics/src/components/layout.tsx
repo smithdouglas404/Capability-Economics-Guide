@@ -44,7 +44,7 @@ const navGroups: NavGroup[] = [
     label: "Index",
     matchPaths: ["/cei", "/knowledge-graph", "/regulations"],
     children: [
-      { href: "/cei", label: "CEI Dashboard", icon: Activity, description: "Live composite index & macro events" },
+      { href: "/cei", label: "CVI Dashboard", icon: Activity, description: "Live composite index & macro events" },
       { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network, description: "Capability relationships & dependencies" },
       { href: "/regulations", label: "Regulations", icon: Scale, description: "Compliance & regulatory landscape" },
     ],
@@ -187,7 +187,7 @@ function MobileNav({
             <div className="w-7 h-7 bg-foreground flex items-center justify-center text-background font-serif tracking-tight text-sm">
               CE
             </div>
-            <span className="font-serif text-base tracking-tight">Capability Economics</span>
+            <span className="font-serif text-base tracking-tight">Inflexcvi</span>
           </div>
         </div>
 
@@ -364,7 +364,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 CE
               </div>
               <div className="hidden sm:flex items-baseline gap-1.5">
-                <span className="font-serif text-base tracking-tight">Capability Economics</span>
+                <span className="font-serif text-base tracking-tight">Inflexcvi</span>
                 <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Alpha</span>
               </div>
             </div>
@@ -490,7 +490,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <Link href="/membership">
                     <button
                       data-testid="nav-credits"
-                      title={`${creditBalance.toLocaleString()} CEI credits remaining`}
+                      title={`${creditBalance.toLocaleString()} CVI credits remaining`}
                       className={`px-2.5 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-1 hover:bg-muted ${
                         creditBalance <= 10 ? "text-destructive bg-destructive/10" : creditBalance <= 50 ? "text-amber-500 bg-amber-500/10" : "text-muted-foreground"
                       }`}
@@ -518,7 +518,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     {creditBalance !== null && (
                       <>
                         <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-center justify-between">
-                          <span>CEI Credits</span>
+                          <span>CVI Credits</span>
                           <span className="font-mono font-medium">{creditBalance.toLocaleString()}</span>
                         </div>
                         <DropdownMenuSeparator />
@@ -589,7 +589,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <span className="font-serif italic text-sm text-foreground/60">"Understanding the true value of what your organization can do."</span>
           </div>
           <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
-            &copy; {new Date().getFullYear()} Capability Economics
+            &copy; {new Date().getFullYear()} Inflexcvi
           </div>
         </div>
       </footer>

@@ -6,7 +6,7 @@
  * Used to populate the marketplace browse page with realistic content
  * for demos and VC walkthroughs.
  *
- * Approach: one "Capability Economics Research" seller account (Featured
+ * Approach: one "Inflexcvi Research" seller account (Featured
  * tier) authors all seeded reports. Each listing gets a generated
  * placeholder PDF so the buy/download flow works end-to-end during demos —
  * the placeholder PDF is a clean cover + executive summary + a "full content
@@ -65,7 +65,7 @@ For: CTOs, Heads of Engineering, AI Platform leads at companies with 500+ headco
     tags: ["technology", "ai", "agents", "orchestration", "platform-strategy"],
     featured: true,
     pdfCoverHeadline: "Agentic AI is becoming infrastructure. This is the buyer's brief.",
-    pdfExecutiveSummary: `Agentic AI orchestration moved from emerging to adopted between Q4 2025 and Q2 2026 — a velocity that mirrors the cloud-API transition of the mid-2010s. The CEI for this capability rose from 41 to 64 over four windows; macro-event coverage (15 SDK launches across the four foundation-model vendors in a single quarter) confirms the structural shift.
+    pdfExecutiveSummary: `Agentic AI orchestration moved from emerging to adopted between Q4 2025 and Q2 2026 — a velocity that mirrors the cloud-API transition of the mid-2010s. The CVI for this capability rose from 41 to 64 over four windows; macro-event coverage (15 SDK launches across the four foundation-model vendors in a single quarter) confirms the structural shift.
 
 The buyer's question is no longer "should we adopt." It is "which substrate do we standardize on, and how do we avoid the per-vertical agent vendors who'll get squeezed in eighteen months."`,
     pdfKeyQuestions: [
@@ -147,7 +147,7 @@ The remaining frontier is mid-market commercial and specialty — where the data
   },
   {
     title: "Cross-Industry Capability Arbitrage — Payments Fraud → Healthcare Claims",
-    description: `A specific worked example of the cross-industry capability arbitrage pattern: real-time fraud detection is a mature capability in payments (CEI 82) but emerging in healthcare claims (CEI 51) — a 31-point gap with $4B of disclosed VC flowing into the gap. This report walks through how the technical building blocks transfer, why the data-access moat is the real bottleneck, and the three operator profiles best-positioned to capture the transfer.
+    description: `A specific worked example of the cross-industry capability arbitrage pattern: real-time fraud detection is a mature capability in payments (CVI 82) but emerging in healthcare claims (CVI 51) — a 31-point gap with $4B of disclosed VC flowing into the gap. This report walks through how the technical building blocks transfer, why the data-access moat is the real bottleneck, and the three operator profiles best-positioned to capture the transfer.
 
 Includes: a side-by-side capability decomposition (which sub-capabilities transfer, which don't), an integration-architecture reference for payer-claims feeds, and a list of 12 acquisition targets if the reader is in M&A mode rather than build mode.
 
@@ -157,9 +157,9 @@ For: PE partners evaluating insurtech / healthtech rollups, operators considerin
     tags: ["fintech", "healthcare", "fraud", "cross-industry", "m&a"],
     featured: false,
     pdfCoverHeadline: "Mature in payments. Emerging in healthcare. Worth $4B.",
-    pdfExecutiveSummary: `Cross-industry capability arbitrage is the most under-exploited pattern on the Capability Economics platform — a capability that has matured in one industry can frequently be transplanted to an adjacent industry where it is still emerging, at compressed time-to-traction.
+    pdfExecutiveSummary: `Cross-industry capability arbitrage is the most under-exploited pattern on the Inflexcvi platform — a capability that has matured in one industry can frequently be transplanted to an adjacent industry where it is still emerging, at compressed time-to-traction.
 
-Real-time fraud detection in payment streams is the canonical example: a 31-point CEI gap between payments (where it is mature) and healthcare claims (where it is emerging), with $4B of disclosed venture capital flowing into the gap and 47 active companies trying to capture it.`,
+Real-time fraud detection in payment streams is the canonical example: a 31-point CVI gap between payments (where it is mature) and healthcare claims (where it is emerging), with $4B of disclosed venture capital flowing into the gap and 47 active companies trying to capture it.`,
     pdfKeyQuestions: [
       "Which technical sub-capabilities transfer cleanly from payments to claims, and which require ground-up rebuilding?",
       "Why is the payer-API data-access moat 9-12 months of integration work, and how do you sequence it?",
@@ -170,7 +170,7 @@ Real-time fraud detection in payment streams is the canonical example: a 31-poin
   },
   {
     title: "Net-New Capabilities Tracker — 2025 Cohort",
-    description: `A structured dataset of every capability the Capability Economics platform began tracking between January 2025 and April 2026 that did not exist in our ontology at start-of-year. 47 net-new capabilities profiled, ranked by current CEI velocity, with each carrying: industry mapping, originating macro events, top three vendor-incumbent matchups, and the cross-pollination pattern (which existing capabilities were assembled into the new one).
+    description: `A structured dataset of every capability the Inflexcvi platform began tracking between January 2025 and April 2026 that did not exist in our ontology at start-of-year. 47 net-new capabilities profiled, ranked by current CVI velocity, with each carrying: industry mapping, originating macro events, top three vendor-incumbent matchups, and the cross-pollination pattern (which existing capabilities were assembled into the new one).
 
 Delivered as a structured dataset (CSV + JSON) plus a 12-page interpretive guide. Updated quarterly via subscription — current quarter included; renewal at $399/quarter for ongoing access.
 
@@ -180,11 +180,11 @@ For: Capability-strategy teams, VCs maintaining new-category lists, corporate-de
     tags: ["dataset", "net-new-capabilities", "venture", "thematic-investing", "quarterly"],
     featured: false,
     pdfCoverHeadline: "47 capabilities that did not exist 18 months ago. With numbers.",
-    pdfExecutiveSummary: `Most capability research surfaces what is already obvious. The Net-New Capabilities Tracker surfaces what is just barely visible: 47 capabilities the platform began tracking between January 2025 and April 2026 that did not exist in the ontology at start-of-year. Each carries CEI velocity, originating macro events, vendor-incumbent matchups, and the cross-pollination pattern that created it.
+    pdfExecutiveSummary: `Most capability research surfaces what is already obvious. The Net-New Capabilities Tracker surfaces what is just barely visible: 47 capabilities the platform began tracking between January 2025 and April 2026 that did not exist in the ontology at start-of-year. Each carries CVI velocity, originating macro events, vendor-incumbent matchups, and the cross-pollination pattern that created it.
 
 This is the dataset to query when planning thematic investments or corporate M&A searches: don't ask "what is hot" — ask "what is structurally new."`,
     pdfKeyQuestions: [
-      "Which of the 47 capabilities has the highest 12-month CEI velocity, and which is decelerating despite hype?",
+      "Which of the 47 capabilities has the highest 12-month CVI velocity, and which is decelerating despite hype?",
       "What is the cross-pollination pattern that creates net-new capabilities (the Uber-style pattern)?",
       "Which macro events generated the most net-new-capability emergence per event-severity unit?",
       "Where are the vendor-incumbent matchups most lopsided, and where are they evenly contested?",
@@ -193,7 +193,7 @@ This is the dataset to query when planning thematic investments or corporate M&A
   },
   {
     title: "Capability-Based Due Diligence Template — VC / PE Edition",
-    description: `A structured due-diligence template adapted from the Capability Economics framework, designed for VC and PE deal teams who want to evaluate a target through the lens of "which capabilities does this company actually own, and which are commodity / outsourced / fragile."
+    description: `A structured due-diligence template adapted from the Inflexcvi framework, designed for VC and PE deal teams who want to evaluate a target through the lens of "which capabilities does this company actually own, and which are commodity / outsourced / fragile."
 
 Includes: a 38-question diligence checklist organized by capability tier (proprietary / strategic / table-stakes / outsourced), a scoring rubric, a sample completed template for a hypothetical Series B insurtech, and a stakeholder-mapping worksheet for interviewing target management.
 
@@ -205,7 +205,7 @@ For: VC associates running first-pass diligence, PE deal teams conducting full-s
     pdfCoverHeadline: "Diligence the capability stack, not the product.",
     pdfExecutiveSummary: `Most early-stage diligence asks the wrong question. "Is the product good?" is downstream of "which capabilities does this company actually own?" — a question most diligence packs never structure.
 
-This template adapts the Capability Economics framework for deal teams. The output is a one-page capability-tier map that makes a target's actual structural position legible at a glance: proprietary capabilities that earn the multiple, strategic capabilities that need investment, table-stakes capabilities that are commodity, and outsourced capabilities that represent execution risk.`,
+This template adapts the Inflexcvi framework for deal teams. The output is a one-page capability-tier map that makes a target's actual structural position legible at a glance: proprietary capabilities that earn the multiple, strategic capabilities that need investment, table-stakes capabilities that are commodity, and outsourced capabilities that represent execution risk.`,
     pdfKeyQuestions: [
       "Which capabilities does the target actually own vs. rent vs. outsource?",
       "Where in the value chain is the target capturing margin, and where is margin leaking?",
@@ -244,7 +244,7 @@ The board-level question is not "do we have enough security tools." It is "which
 async function buildPlaceholderPdf(report: SeedReport): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
     try {
-      const doc = new PDFDocument({ size: "LETTER", margin: 64, info: { Title: report.title, Author: "Capability Economics Research" } });
+      const doc = new PDFDocument({ size: "LETTER", margin: 64, info: { Title: report.title, Author: "Inflexcvi Research" } });
       const chunks: Buffer[] = [];
       doc.on("data", c => chunks.push(c));
       doc.on("end", () => resolve(Buffer.concat(chunks)));
@@ -279,11 +279,11 @@ async function buildPlaceholderPdf(report: SeedReport): Promise<Buffer> {
       doc.fontSize(11).fillColor("#666666").text("METHODOLOGY", { align: "left" });
       doc.moveDown(0.5);
       doc.fontSize(11).fillColor("#1a1a2e").text(
-        "Capability Economics Research reports combine: (1) the platform's Bayesian capability index with propagated 95% credible intervals on every score; (2) Perplexity-cited macro-event evidence; (3) interviews with operating teams when accessible; (4) public regulatory filings and disclosed venture data. Every number in our reports traces to a citation. No editorial fallback values are used.",
+        "Inflexcvi Research reports combine: (1) the platform's Bayesian capability index with propagated 95% credible intervals on every score; (2) Perplexity-cited macro-event evidence; (3) interviews with operating teams when accessible; (4) public regulatory filings and disclosed venture data. Every number in our reports traces to a citation. No editorial fallback values are used.",
         { align: "left", lineGap: 4 },
       );
       doc.moveDown(2);
-      doc.fontSize(9).fillColor("#888888").text("Capability Economics Research is the in-house imprint of the Capability Economics platform. This preview document was generated automatically; the full report you receive after purchase is the complete edited content.", { align: "left", lineGap: 3 });
+      doc.fontSize(9).fillColor("#888888").text("Inflexcvi Research is the in-house imprint of the Inflexcvi platform. This preview document was generated automatically; the full report you receive after purchase is the complete edited content.", { align: "left", lineGap: 3 });
 
       doc.end();
     } catch (err) {
@@ -323,8 +323,8 @@ async function ensureSeedSeller(stripeAccountId: string): Promise<typeof marketp
   }
   const [created] = await db.insert(marketplaceSellersTable).values({
     userId: SEED_SELLER_USER_ID,
-    email: "research@capabilityeconomics.com",
-    displayName: "Capability Economics Research",
+    email: "research@inflexcvi.ai",
+    displayName: "Inflexcvi Research",
     stripeAccountId,
     chargesEnabled: true,
     payoutsEnabled: true,
@@ -333,7 +333,7 @@ async function ensureSeedSeller(stripeAccountId: string): Promise<typeof marketp
     tierGrantedBy: "system_seed",
     tierGrantedAt: new Date(),
     tierNote: "In-house research imprint backed by a Stripe Connect test account.",
-    bio: "The in-house research arm of the Capability Economics platform. We publish strategic briefs on capability shifts across industries, with every claim traceable to the live CEI engine and Perplexity-cited macro evidence.",
+    bio: "The in-house research arm of the Inflexcvi platform. We publish strategic briefs on capability shifts across industries, with every claim traceable to the live CVI engine and Perplexity-cited macro evidence.",
     websiteUrl: null,
   }).returning();
   return created;

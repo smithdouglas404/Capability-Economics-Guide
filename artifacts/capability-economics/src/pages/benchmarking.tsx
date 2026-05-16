@@ -373,7 +373,7 @@ export default function Benchmarking() {
                       <th className="text-left py-2 px-2 sticky left-0 bg-background">Capability</th>
                       <th className="text-right py-2 px-2">Benchmark</th>
                       <th className="text-right py-2 px-2">Your Score</th>
-                      <th className="text-right py-2 px-2">CEI</th>
+                      <th className="text-right py-2 px-2">CVI</th>
                       {result.companies.map(c => (
                         <th key={c.id} className="text-right py-2 px-2 max-w-[100px] truncate" title={c.name}>{c.name.split(" ")[0]}</th>
                       ))}

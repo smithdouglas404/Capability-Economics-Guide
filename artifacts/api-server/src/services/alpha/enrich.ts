@@ -50,8 +50,8 @@ async function glmJson(prompt: string, maxTokens = 2000): Promise<string> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics Alpha",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi Alpha",
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4.6",

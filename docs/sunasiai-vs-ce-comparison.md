@@ -1,4 +1,4 @@
-# SunasiAI Residential-Solar Deep Dive vs. Capability Economics Platform — v2
+# SunasiAI Residential-Solar Deep Dive vs. Inflexcvi Platform — v2
 
 **Subject report:** *Renewable Energy / Solar Case Study — Residential Solar Deep Dive*
 by Ralph Welborn, Vince Kasten, Joe Gallagher (SunasiAI, 2025).
@@ -17,9 +17,9 @@ Each row is one capability that SunasiAI's Workbench presents in their report.
 platform produces today, in production, with the artefact you can click to.
 Verdict is the honest read on which platform is materially ahead.
 
-| # | Axis | SunasiAI Workbench | Capability Economics | Verdict |
+| # | Axis | SunasiAI Workbench | Inflexcvi | Verdict |
 |---|---|---|---|---|
-| 1 | **Capability score type** | Quadrant bucket (Hot / Cooling / Emerging / Table-Stakes) — qualitative 2×2 placement. | Continuous **CEI 0–100 with Bayesian posterior + 95 % confidence band** per capability, recomputed every 6 h. | **CE — wide margin.** A bucket is a bucket. A score with a CI is rankable, threshold-able, alertable, back-testable. |
+| 1 | **Capability score type** | Quadrant bucket (Hot / Cooling / Emerging / Table-Stakes) — qualitative 2×2 placement. | Continuous **CVI 0–100 with Bayesian posterior + 95 % confidence band** per capability, recomputed every 6 h. | **CE — wide margin.** A bucket is a bucket. A score with a CI is rankable, threshold-able, alertable, back-testable. |
 | 2 | **Per-score provenance / citations** | "Graph analytics, GNN, agentic AI engines." No per-score citation surfaced in the deck. | Every score links to a `source_triangulations` record with 3–8 distinct Perplexity-cited sources, each with URL, publish date, weight, and one-line assertion. | **CE.** Defensible to an IC in two clicks. |
 | 3 | **Score movement / velocity** | Re-run the engagement to see drift. | First-class `velocity` field (Δscore / 30 d) per capability. Stale caps auto-rotate; urgent caps jump the queue. | **CE.** You see capabilities heating *while* they heat. |
 | 4 | **Macro-event reactivity** | None visible — patent / capital / start-up tables in their report are static. | Live macro event ingestion (Iran/Strait of Hormuz, US CPI, AI rout, private-credit liquidity, etc.) with severity 0–10, decay window, **per-capability shock map**, and **bidirectional propagation through the parent ↔ child capability tree**. Currently 14 active events, 45 capabilities flagged with red impact bubbles + hover citations. | **CE — only one of the two has it.** |
@@ -27,15 +27,15 @@ Verdict is the honest read on which platform is materially ahead.
 | 6 | **Cross-capability ripple effects** | Qualitative diagram. | **Quantitative bidirectional shock propagation** — a shock to "Battery Storage Cell Chemistry" recomputes its parent ("Energy Storage") and its siblings via the dependency graph. Every shock carries a `via: explicit \| parent \| child` attribution. | **CE.** Auditable cause-and-effect, not a McKinsey arrow diagram. |
 | 7 | **Confidence transparency** | Not surfaced per capability in the deck. | Every score shows N sources, posterior std-dev, and an explicit confidence band; low-confidence caps are visually muted. | **CE.** |
 | 8 | **C-suite role lens** | Not a first-class concept. | Each capability tagged with C-suite relevance weights (CEO / CFO / CIO / CISO / COO / CRO / CMO). The dashboard rewrites the same data per role. | **CE.** SunasiAI is one view for all roles. |
-| 9 | **What-if / project simulation** | Implicit — comes out of the analyst engagement. | **VCE simulator** — define a hypothetical investment / divestiture and the dashboard renders before/after radar charts, Δ-CEI per capability, Δ-confidence. Self-service, no engagement required. | **CE.** |
+| 9 | **What-if / project simulation** | Implicit — comes out of the analyst engagement. | **VCE simulator** — define a hypothetical investment / divestiture and the dashboard renders before/after radar charts, Δ-CVI per capability, Δ-confidence. Self-service, no engagement required. | **CE.** |
 | 10 | **Refresh cost & cadence** | Custom engagement — the residential-solar deep dive ran for four weeks. | Always-on. 6-hour rotation across ~600 caps; 24-hour world-scan for macro events; ~$5–8 / day Perplexity spend. | **CE.** A single SunasiAI engagement is roughly the cost of a year of CE running continuously. |
 | 11 | **Auditability / data warehouse** | Output is a slide deck. | Output is a typed REST API + a Postgres warehouse. Every score, source, event, company, fingerprint, and Moneyball composite lives in queryable tables: `source_triangulations`, `cei_components`, `macro_events`, `capabilities`, `companies`, `company_capability_fingerprint`, `company_scores`. | **CE.** LPs / auditors get raw evidence, not screenshots. |
-| 12 | **Value-chain stage model** | Six core + four enabling stages (Extract / Design / Make / Test / Service / Dispose + enable-1..3). | **Live in CE today.** `capabilities.value_chain_stage` column; 8 stages (extract / design / make / test / service / dispose / monitor / enable); 356 capabilities classified across all 6 industries; per-stage roll-up endpoint at `GET /api/workbench/value-chain/:industryId` returns capability count, average CEI, average confidence, average velocity, company count, and the patent / VC / startup totals per stage. Rendered as a sortable table on the Companies tab. | **CE.** SunasiAI prints six stages once in a static slide. CE has every industry × every stage live with CEI overlaid. |
+| 12 | **Value-chain stage model** | Six core + four enabling stages (Extract / Design / Make / Test / Service / Dispose + enable-1..3). | **Live in CE today.** `capabilities.value_chain_stage` column; 8 stages (extract / design / make / test / service / dispose / monitor / enable); 356 capabilities classified across all 6 industries; per-stage roll-up endpoint at `GET /api/workbench/value-chain/:industryId` returns capability count, average CVI, average confidence, average velocity, company count, and the patent / VC / startup totals per stage. Rendered as a sortable table on the Companies tab. | **CE.** SunasiAI prints six stages once in a static slide. CE has every industry × every stage live with CVI overlaid. |
 | 13 | **Company entity layer** | Pivot of the report — they short-listed 5 000 → 100 → 10 firms. | **Live in CE today.** `companies` + `company_capability_fingerprint` + `company_scores` tables. **95 companies** ingested across all 6 industries via Perplexity, each tagged with 2–6 capability fingerprints anchored against the live capability menu. Endpoints: `GET /api/workbench/companies?industryId=X`, `GET /api/workbench/companies/:id`, `POST /api/workbench/companies/_ingest`, `POST /api/workbench/companies/_recompute`. | **Tied on coverage, CE wins on transparency** — every fingerprint weight is queryable; every score formula is open. |
-| 14 | **Moneyball-style composites** | Listed in their report: Aged Index, Acquisition Probability Score, Awareness Score, Moat Score, AI Disruptability Score, Actionability Score, Quality of Asset, Forecasted Value, Risk Profile, Sensitivity Profile. Formulas not disclosed. | **Live in CE today.** Thirteen composites computed per company, every formula auditable in `services/companies.ts`: `composite`, `forecastedValue`, `qualityOfAsset`, `moatScore`, `actionability`, `acquisitionProbability`, `aiDisruptability`, `awarenessScore`, `agedIndex`, `capabilityCoverage`, `ceiWeighted`, `riskProfile`, `sensitivityProfile`. Every score is a deterministic function of (capability fingerprint × live CEI × confidence × velocity × active macro events × firm structural data). | **CE.** Same composites, but ours are transparent — an IC can read why Plaid scores 71.4 composite vs. Stripe at 67.5. |
+| 14 | **Moneyball-style composites** | Listed in their report: Aged Index, Acquisition Probability Score, Awareness Score, Moat Score, AI Disruptability Score, Actionability Score, Quality of Asset, Forecasted Value, Risk Profile, Sensitivity Profile. Formulas not disclosed. | **Live in CE today.** Thirteen composites computed per company, every formula auditable in `services/companies.ts`: `composite`, `forecastedValue`, `qualityOfAsset`, `moatScore`, `actionability`, `acquisitionProbability`, `aiDisruptability`, `awarenessScore`, `agedIndex`, `capabilityCoverage`, `ceiWeighted`, `riskProfile`, `sensitivityProfile`. Every score is a deterministic function of (capability fingerprint × live CVI × confidence × velocity × active macro events × firm structural data). | **CE.** Same composites, but ours are transparent — an IC can read why Plaid scores 71.4 composite vs. Stripe at 67.5. |
 | 15 | **Companies-like similarity search** | "Find like companies based on capabilities & financial criteria" (their words). | **Live in CE today.** `GET /api/workbench/companies/:id/similar` returns ranked peers via cosine similarity on the capability-fingerprint vectors, with a `sharedCaps` count per peer. | **CE — fully transparent.** SunasiAI's similarity is a black box; ours is a dot product over a vector you can read. |
-| 16 | **Patents / VC / start-up counts per stage** | The table in the deck (882 / 1 231 / 2 494 patents; $2 b / $111 b / $29 b VC; 64 / 704 / 653 start-ups across the six stages). One-time scrape. | **Live in CE today.** `capabilities.patent_count`, `capabilities.vc_capital_usd`, `capabilities.startup_count`, `capabilities.external_signals_updated_at` columns. Perplexity ingestion at `POST /api/workbench/external-signals/_ingest` per industry; rolled up to the value-chain-stage profile alongside CEI / velocity / confidence. Refreshed on a 30-day staleness threshold, auto. | **CE — same numbers, kept fresh automatically.** |
-| 17 | **Quadrant chart UI** | Their iconic 2×2 (Hot / Cooling / Emerging / Table-Stakes). | **Live in CE today.** `GET /api/workbench/quadrant/:industryId` returns x = velocity, y = CEI, size = confidence per capability with a derived `quadrant` label. Rendered on the Companies tab as both a scatter plot and four ranked side-cards. | **CE.** Same chart, but the dots are live CEI scores with confidence and velocity, and clicking through goes to source citations — not to the next slide. |
+| 16 | **Patents / VC / start-up counts per stage** | The table in the deck (882 / 1 231 / 2 494 patents; $2 b / $111 b / $29 b VC; 64 / 704 / 653 start-ups across the six stages). One-time scrape. | **Live in CE today.** `capabilities.patent_count`, `capabilities.vc_capital_usd`, `capabilities.startup_count`, `capabilities.external_signals_updated_at` columns. Perplexity ingestion at `POST /api/workbench/external-signals/_ingest` per industry; rolled up to the value-chain-stage profile alongside CVI / velocity / confidence. Refreshed on a 30-day staleness threshold, auto. | **CE — same numbers, kept fresh automatically.** |
+| 17 | **Quadrant chart UI** | Their iconic 2×2 (Hot / Cooling / Emerging / Table-Stakes). | **Live in CE today.** `GET /api/workbench/quadrant/:industryId` returns x = velocity, y = CVI, size = confidence per capability with a derived `quadrant` label. Rendered on the Companies tab as both a scatter plot and four ranked side-cards. | **CE.** Same chart, but the dots are live CVI scores with confidence and velocity, and clicking through goes to source citations — not to the next slide. |
 | 18 | **Sub-capability decomposition** *(net-new from CE)* | Not in their report. | Every parent capability auto-spawns 5–7 children via Haiku; parent score = weighted roll-up of children. Triangulation only enqueues `is_leaf=true` caps; parents recompute in-process. | **CE — only one of the two has it.** |
 | 19 | **Knowledge-graph industry network** *(net-new from CE)* | Static slide of "what connects with what." | Live force-graph on `/knowledge-graph` with industry detail drill-in (radar of top-level caps, then chip selector for any decomposed parent's sub-cap radar). Red impact bubbles on each capability flagged by an active macro event, hover for citations. | **CE.** |
 | 20 | **Bayesian roll-up with disagreement penalty** *(net-new from CE)* | Not in their report. | Parent confidence = avg child confidence × max(0, 1 − stddev(children)/50) — when children disagree, the parent's confidence is automatically penalised. | **CE.** |
@@ -89,10 +89,10 @@ This is a delta over the v1 comparison so the reader can verify the claim.
 - `/companies` page with three tabs:
   - **Company Shortlist** — ranked table of every ingested firm with all 13
     Moneyball composites visible, plus revenue / funding / public-ticker badges.
-  - **Value Chain** — per-stage roll-up: capability count, avg CEI, avg
+  - **Value Chain** — per-stage roll-up: capability count, avg CVI, avg
     confidence, avg velocity, company count, patents (5y), VC capital (5y),
     startups (5y).
-  - **Quadrant** — scatter plot (x = velocity, y = CEI, size = confidence)
+  - **Quadrant** — scatter plot (x = velocity, y = CVI, size = confidence)
     with four side-cards listing the capabilities in each quadrant.
 - New "Companies" entry in the main navigation between Knowledge Graph and
   Projects.
@@ -116,7 +116,7 @@ Same eight sections as v1, but every section is now `[live]` — no
 `[gap → fix]` left.
 
 ### 3.1 Executive read in three numbers — `[live]`
-- Industry CEI for the Renewable Energy / Manufacturing slice today, GDP-weighted,
+- Industry CVI for the Renewable Energy / Manufacturing slice today, GDP-weighted,
   with 95 % CI and Δ vs. 30 days ago.
 - Top 5 macro shocks currently moving residential solar, with severity, decay
   countdown, and the specific capabilities each is hitting (Iran/Strait of
@@ -127,18 +127,18 @@ Same eight sections as v1, but every section is now `[live]` — no
 
 ### 3.2 Value-chain stage profile — `[live]`
 The table in §1 row 12. Same six stages SunasiAI prints (+ enable / monitor),
-populated with capability count, average CEI, confidence, velocity, company
+populated with capability count, average CVI, confidence, velocity, company
 count, and patent / VC / startup totals — all from CE's own warehouse, refreshed
 on a 30-day staleness threshold.
 
 ### 3.3 Hot / Cooling / Emerging quadrant — `[live]`
 The Companies tab → Quadrant view. Same 2×2 as the SunasiAI Quadrant chart, but
-populated from CE's velocity (x-axis) × current CEI (y-axis), with bubble size =
+populated from CE's velocity (x-axis) × current CVI (y-axis), with bubble size =
 confidence. Hover shows the underlying triangulation sources.
 
 ### 3.4 Sub-capability decomposition — `[live, our differentiator]`
 For each parent capability in residential solar, expand into the 5–7 children.
-For each child show CEI, CI, velocity, age of evidence, and which macro events
+For each child show CVI, CI, velocity, age of evidence, and which macro events
 are touching it. SunasiAI's report collapses this layer.
 
 ### 3.5 Macro-disruption blast radius — `[live, our differentiator]`
@@ -155,7 +155,7 @@ sub-scores). Every fingerprint weight and every score formula is queryable.
 
 ### 3.7 Stress test / VCE simulator — `[live, our differentiator]`
 The existing `/vce` page already runs what-if investment / divestiture scenarios
-and renders before/after radars + Δ-CEI per capability + Δ-confidence. Hooks
+and renders before/after radars + Δ-CVI per capability + Δ-confidence. Hooks
 straight into the company-fingerprint table for "what if we acquire firm X?"
 queries.
 

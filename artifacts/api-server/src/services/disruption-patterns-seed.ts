@@ -54,7 +54,7 @@ The answer was the ride-hailing platform: an on-demand network of distributed dr
 
 The incumbents — Yellow Cab, Hertz, Avis — could not respond because they were optimizing within a different capability. Taxis competed on dispatch efficiency; rental cars on fleet utilization. Neither moved toward the assembled capability because their existing margin came from the unassembled one.
 
-The lesson for a Capability Economics operator: when you see several mature capabilities in adjacent industries, ask "what new capability could I build by assembling them?" The disruption opportunity is rarely in any one capability — it is in the composition no incumbent has incentive to attempt.`,
+The lesson for a Inflexcvi operator: when you see several mature capabilities in adjacent industries, ask "what new capability could I build by assembling them?" The disruption opportunity is rarely in any one capability — it is in the composition no incumbent has incentive to attempt.`,
     whatToLookFor: [
       "Industries where several capabilities are mature but never assembled into one product surface.",
       "Incumbent margin structures that would be destroyed by the assembly.",

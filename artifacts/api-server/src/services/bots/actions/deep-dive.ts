@@ -98,7 +98,7 @@ export async function runDeepDiveAction(bot: Bot): Promise<{ ok: boolean; costCe
     const todayIso = new Date().toISOString().slice(0, 10);
     const systemPrompt = buildPersonaSystemPrompt(bot, todayIso);
     const userPrompt = [
-      `Write a 5-7 paragraph deep-dive analysis of "${target.name}" for posting to the Capability Economics platform feed.`,
+      `Write a 5-7 paragraph deep-dive analysis of "${target.name}" for posting to the Inflexcvi platform feed.`,
       "Voice: your professional voice (no hype, no headers, no bullet points unless absolutely necessary). Cite specific $ figures, real company names, and concrete forward-looking thesis points.",
       "",
       "Recent research from Perplexity that you should anchor the analysis on:",

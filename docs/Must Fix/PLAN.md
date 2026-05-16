@@ -32,7 +32,7 @@ Going into limited production. Real customers + investors will see the UI. Anyth
 | 2 | `pages/home.tsx:217-225` | `stat: "4.2×"` avg ROI / `"18%"` median margin improvement | NEW: `/api/metrics/principle-stats` — aggregates over `capability_economics` | Replace literals. |
 | 3 | `pages/home.tsx:347-352` | Hero tiles: `74.2`, `840+`, `$2.1B`, `4.7×`, `"↑ 3.1 pts this quarter"` | `/api/cei/current.overallIndex` (74.2), `/api/capabilities` count (840+), NEW `/api/metrics/home-tiles` for the rest | Replace static `value`/`sub` props. |
 | 4 | `pages/home.tsx:458-497` | Analogy card: "WireDrop closed $1.2B Series B"; $4.2M IT budget; $1.8M Digital Onboarding; $8.5M value generated; $6.7M unlocked | Page already calls `useSlot("homepage_case_card")` → `/api/featured-content/{slotKey}`. NEW: `/api/case-study/{slug}/economics-breakdown` from extended `case_studies` schema. | Backfill 1+ real case study (Progressive). Wire analogy card to that case study. |
-| 5 | `pages/cei-dashboard.tsx:551-633` | "How to read the CEI right now" dialog — 8 hardcoded numbers: `297 leaves`, `56-64`, `~600`, `~0`, `~0.01`, `(0.01 + volBoost)`, `Agentic AI ~26, AML/KYC ~42`, `~60/100` | Page **already fetches** `/api/cei/freshness` (line 75, 160) which provides most numbers. NEW: `/api/cei/exemplars` for the top/bottom-scoring leaf call-outs. | Replace every prose literal with interpolation from already-fetched `freshness` object + exemplars. |
+| 5 | `pages/cei-dashboard.tsx:551-633` | "How to read the CVI right now" dialog — 8 hardcoded numbers: `297 leaves`, `56-64`, `~600`, `~0`, `~0.01`, `(0.01 + volBoost)`, `Agentic AI ~26, AML/KYC ~42`, `~60/100` | Page **already fetches** `/api/cei/freshness` (line 75, 160) which provides most numbers. NEW: `/api/cei/exemplars` for the top/bottom-scoring leaf call-outs. | Replace every prose literal with interpolation from already-fetched `freshness` object + exemplars. |
 
 ### Tier 2 — HIGH (primary feature pages)
 
@@ -41,7 +41,7 @@ Going into limited production. Real customers + investors will see the UI. Anyth
 | 6 | `pages/alpha.tsx:371-374` | EVaR silent fallbacks: 36 months, 20% velocity, 40% margin | `/api/alpha/evar` already returns null for missing fields | **Frontend only:** render `—` instead of `?? 36` / `?? 0.2` / `?? 40` with tooltip "data unavailable for this row." |
 | 7 | `pages/alpha.tsx:987` | Arbitrage multiples (hot=15×, emerging=10×, cooling=7×, table_stakes=4×, declining=1×) hardcoded in hidden `TraceabilityDialog` | NEW: `/api/alpha/config/quadrant-multiples` from `alpha_config` table | Move multiples to backend config. Surface multiples + methodology link on the Arbitrage card itself. |
 | 8 | `pages/vce.tsx:236-251` | `SAMPLE_BRIEF` constant: 750-word "Atlas Copper Holdings" mining case | NEW: `/api/vce/sample-brief` returning anonymized real brief from `vce_assessments` | Replace constant with `useQuery`. Backend picks recent real assessment, redacts identifying info. |
-| 9 | `pages/workbench-example.tsx:80-265` | `FIXTURE` array: 8 capability cards with fabricated metrics (CEI scores, "47 users, $15/mo, 64% retention", dates) | NEW: `/api/workbench/example` returning top 8 capabilities + economics + insights | Page becomes API consumer. Same layout, real data. |
+| 9 | `pages/workbench-example.tsx:80-265` | `FIXTURE` array: 8 capability cards with fabricated metrics (CVI scores, "47 users, $15/mo, 64% retention", dates) | NEW: `/api/workbench/example` returning top 8 capabilities + economics + insights | Page becomes API consumer. Same layout, real data. |
 | 10 | `pages/whatif.tsx:65-71` | `SUGGESTED_EVENTS` array: 5 hardcoded geopolitical scenarios | NEW: `/api/whatif/presets` from `macro_events` table | Replace array with `useQuery`. |
 
 ### Tier 3 — MEDIUM
@@ -63,7 +63,7 @@ Inspected, fully dynamic from APIs already: `case-studies.tsx`, `case-study.tsx`
 |---|---|---|---|
 | B1 | `GET /api/metrics/home-ticker` | `[{ capabilityName, label, valueText, direction }]` (×8) | `capability_economics` + recent `cei_components` movements |
 | B2 | `GET /api/metrics/principle-stats` | `{ avgROIMultiple, medianMarginImprovement }` | aggregate over `capability_economics` |
-| B3 | `GET /api/metrics/home-tiles` | `{ valueUnlocked, topROI, quarterlyDelta }` | aggregate + CEI history 90d delta |
+| B3 | `GET /api/metrics/home-tiles` | `{ valueUnlocked, topROI, quarterlyDelta }` | aggregate + CVI history 90d delta |
 | B4 | `GET /api/case-study/:slug/economics-breakdown` | `{ companyName, eventTitle, costBreakdown[], valueGenerated, unlocked }` | extended `case_studies.economics_breakdown` jsonb column |
 | B5 | `GET /api/cei/exemplars` | `{ topLeaf, bottomLeaf }` | 2 SELECTs against `capabilities` + `cei_components` |
 | B6 | `GET /api/alpha/config/quadrant-multiples` | `{ hot, emerging, cooling, table_stakes, declining, methodologyUrl }` | new `alpha_config` table |
@@ -109,9 +109,9 @@ Inspected, fully dynamic from APIs already: `case-studies.tsx`, `case-study.tsx`
 |---|---|
 | 1 | `curl /api/metrics/home-ticker` → 8 capabilities. Grep `pages/home.tsx` for "Digital Onboarding" → 0 matches. |
 | 2 | `curl /api/metrics/principle-stats` returns numbers. Page shows those values, not "4.2×". |
-| 3 | Home "Avg CEI" tile matches `/api/cei/current.overallIndex` to 0.1. Capability count tile matches `/api/capabilities | jq length` to ±5. |
+| 3 | Home "Avg CVI" tile matches `/api/cei/current.overallIndex` to 0.1. Capability count tile matches `/api/capabilities | jq length` to ±5. |
 | 4 | Visit `/` signed-out. Analogy card shows real company name. Grep for "WireDrop" → 0 matches. |
-| 5 | CEI dialog numbers match `/api/cei/freshness`. "Agentic AI ~26" replaced with real top-scoring leaf from `/api/cei/exemplars`. |
+| 5 | CVI dialog numbers match `/api/cei/freshness`. "Agentic AI ~26" replaced with real top-scoring leaf from `/api/cei/exemplars`. |
 | 6 | Row in `/api/alpha/evar` with null `halfLifeMonths` → EVaR table shows "—" for that row, not 36. |
 | 7 | `/alpha` arbitrage card shows multiples + "Methodology" link → lands on `/methodology#quadrant-multiples`. |
 | 8 | "Try with sample brief" on `/vce` populates from `/api/vce/sample-brief`, not "Atlas Copper Holdings". |

@@ -94,7 +94,7 @@ export async function setSubscriptionActive(userId: string, id: number, active: 
 
 /**
  * Snapshot of per-capability state used for change detection. Built once
- * at the start of evaluateAfterCEI and diffed against the just-persisted
+ * at the start of evaluateAfterCVI and diffed against the just-persisted
  * cvi_components rows.
  */
 interface CapState {
@@ -111,7 +111,7 @@ interface CapState {
  * persisted its updates — the engine handles capturing this and passes
  * it in. If absent, only threshold (above/below) checks fire.
  */
-export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Promise<void> {
+export async function evaluateAfterCVI(prevByCapId: Map<number, CapState>): Promise<void> {
   const subs = await db.select().from(userSubscriptionsTable).where(and(
     eq(userSubscriptionsTable.active, 1),
     sql`${userSubscriptionsTable.targetType} IN ('capability_threshold','lifecycle_change','velocity_signflip')`,
@@ -143,7 +143,7 @@ export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Prom
         const cap = await getCapabilityName(cond.capabilityId);
         await dispatch(sub, {
           subject: `${cap ?? "Capability"} lifecycle: ${prev.lifecycle} → ${curr.lifecycle}`,
-          body: `${cap ?? `Capability #${cond.capabilityId}`} moved from ${prev.lifecycle} to ${curr.lifecycle} on the latest CEI snapshot.`,
+          body: `${cap ?? `Capability #${cond.capabilityId}`} moved from ${prev.lifecycle} to ${curr.lifecycle} on the latest CVI snapshot.`,
           payload: { capabilityId: cond.capabilityId, previousStage: prev.lifecycle, currentStage: curr.lifecycle },
         });
       } else if (sub.targetType === "velocity_signflip") {
@@ -163,7 +163,7 @@ export async function evaluateAfterCEI(prevByCapId: Map<number, CapState>): Prom
         const dir = cs > 0 ? "decelerating → accelerating" : "accelerating → decelerating";
         await dispatch(sub, {
           subject: `${cap ?? "Capability"} velocity flipped (${dir})`,
-          body: `${cap ?? `Capability #${cond.capabilityId}`} velocity went from ${prev.velocity.toFixed(2)} to ${curr.velocity.toFixed(2)} on the latest CEI snapshot.`,
+          body: `${cap ?? `Capability #${cond.capabilityId}`} velocity went from ${prev.velocity.toFixed(2)} to ${curr.velocity.toFixed(2)} on the latest CVI snapshot.`,
           payload: { capabilityId: cond.capabilityId, previousVelocity: prev.velocity, currentVelocity: curr.velocity },
         });
       }

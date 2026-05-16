@@ -26,7 +26,7 @@ import { Separator } from "@/components/ui/separator";
 //
 // The fixture below is hand-curated to demo the platform's strongest
 // pattern: cross-pollinating mature capabilities into a new agentic stack.
-// Numbers (CEI, velocity, VC) are realistic but illustrative.
+// Numbers (CVI, velocity, VC) are realistic but illustrative.
 
 type Lane = "scan" | "frame" | "ideate" | "validate" | "launch";
 
@@ -78,7 +78,7 @@ const INSIGHT_LABEL: Record<ExampleInsight["kind"], string> = {
 };
 
 // FIXTURE removed (PLAN.md item #9). The example board is now sourced from
-// /api/workbench/example which returns the top 8 capabilities by recent CEI
+// /api/workbench/example which returns the top 8 capabilities by recent CVI
 // velocity + their real economics + each capability's actual summaryNarrative.
 // The page maps that response into the existing ExampleCard shape so the
 // visual stays identical (5-lane Double-Diamond Kanban, click-to-view detail).
@@ -242,7 +242,7 @@ export default function WorkbenchExamplePage() {
                     {activeCard.lifecycle}
                   </Badge>
                   {activeCard.cei !== null && (
-                    <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">CEI {activeCard.cei}</Badge>
+                    <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">CVI {activeCard.cei}</Badge>
                   )}
                   {activeCard.velocity !== null && (
                     <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">v {(activeCard.velocity > 0 ? "+" : "") + activeCard.velocity.toFixed(1)}</Badge>

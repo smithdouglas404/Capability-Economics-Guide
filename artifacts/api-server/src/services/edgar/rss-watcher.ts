@@ -29,7 +29,7 @@ import { logger } from "../../lib/logger";
  */
 
 const EDGAR_ATOM = "https://www.sec.gov/cgi-bin/browse-edgar";
-const EDGAR_USER_AGENT = process.env.EDGAR_USER_AGENT ?? "CapabilityEconomics research-bot ops@capabilityeconomics.com";
+const EDGAR_USER_AGENT = process.env.EDGAR_USER_AGENT ?? "CapabilityEconomics research-bot ops@inflexcvi.ai";
 
 interface AtomEntry {
   title: string;

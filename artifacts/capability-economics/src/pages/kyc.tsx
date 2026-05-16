@@ -329,7 +329,7 @@ export default function KycPage() {
             <div className="flex-1">
               <h3 className="font-semibold mb-1">Verification declined</h3>
               <p className="text-sm text-muted-foreground mb-3">
-                We couldn't verify your identity. Contact <a className="underline" href="mailto:support@capabilityeconomics.com">support@capabilityeconomics.com</a> if you think this is in error.
+                We couldn't verify your identity. Contact <a className="underline" href="mailto:support@inflexcvi.ai">support@inflexcvi.ai</a> if you think this is in error.
               </p>
             </div>
           </CardContent>

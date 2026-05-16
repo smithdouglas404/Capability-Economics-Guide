@@ -297,7 +297,7 @@ export function CapabilityAnnotations({ capabilityId, targetSourceTriangulationI
                 onChange={(e) => setBody(e.target.value)}
                 placeholder={
                   tab === "dispute"
-                    ? "Why do you think this CEI score is wrong? Cite evidence or reasoning."
+                    ? "Why do you think this CVI score is wrong? Cite evidence or reasoning."
                     : tab === "source_flag"
                       ? "Which source is unreliable / outdated / methodologically flawed?"
                       : "Add a note — context, caveats, internal annotation."

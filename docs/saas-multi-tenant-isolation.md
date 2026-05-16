@@ -2,7 +2,7 @@
 
 **Audience:** Investor / VC / PE diligence teams, prospective enterprise customers performing security review, internal engineering.
 
-**Status:** Architectural plan. Implementation is gated on first paying customer signature (see *Rollout* section). Foundry primitives referenced below are platform features Capability Economics (CE) inherits — not subsystems CE is building from scratch.
+**Status:** Architectural plan. Implementation is gated on first paying customer signature (see *Rollout* section). Foundry primitives referenced below are platform features Inflexcvi (CE) inherits — not subsystems CE is building from scratch.
 
 **Last reviewed:** 2026-04-25.
 
@@ -10,7 +10,7 @@
 
 ## 1. Goals
 
-The Capability Economics platform serves enterprise, F500, and regulated buyers (financial services, energy, healthcare-adjacent). These buyers will not sign without a defensible answer to "how do you isolate our data from every other customer's data?" This document describes the isolation model, the controls that enforce it, and the audit posture that demonstrates enforcement.
+The Inflexcvi platform serves enterprise, F500, and regulated buyers (financial services, energy, healthcare-adjacent). These buyers will not sign without a defensible answer to "how do you isolate our data from every other customer's data?" This document describes the isolation model, the controls that enforce it, and the audit posture that demonstrates enforcement.
 
 Concretely, the goals are:
 
@@ -24,7 +24,7 @@ Concretely, the goals are:
 
 ## 2. Architecture overview
 
-Capability Economics is built on Palantir Foundry. The isolation primitives we rely on are first-class platform features:
+Inflexcvi is built on Palantir Foundry. The isolation primitives we rely on are first-class platform features:
 
 - **Compass Projects** — Foundry's top-level resource container. RBAC is applied at the Project level: a user with no role in a Project sees no resources inside it.
 - **Markings** — Foundry's data-classification system. A Marking is a label on a resource (Dataset, Object Type, individual row) that gates access. Markings are *sticky*: data tagged with `customer-acme` carries that tag through transformations, AIP agent reads, and downstream Datasets. Access is denied at any boundary where the requesting user lacks the Marking grant.
@@ -41,7 +41,7 @@ flowchart TB
         IDPCE["CE Internal IdP"]
     end
 
-    subgraph FOUNDRY["Palantir Foundry Tenant - Capability Economics"]
+    subgraph FOUNDRY["Palantir Foundry Tenant - Inflexcvi"]
         subgraph SHARED["Compass Project: CE - Shared (read-only to all customers)"]
             SHAREDOBJ["Capability catalog<br/>Market enrichment<br/>Industry benchmarks"]
         end
@@ -156,7 +156,7 @@ Assessment uploads, scorecard inputs, organization-specific capability assessmen
 
 ### 5.2 Shared market enrichment — read-only fan-out
 
-The capability catalog, per-capability market enrichment (CEI snapshots, source triangulations, market caps), industry benchmarks, and value-chain data are *not* customer-specific — they describe the market, not any customer. These live in `CE - Shared`, are tagged with a `ce-shared-public` Marking that every customer holds, and are read-only to customers.
+The capability catalog, per-capability market enrichment (CVI snapshots, source triangulations, market caps), industry benchmarks, and value-chain data are *not* customer-specific — they describe the market, not any customer. These live in `CE - Shared`, are tagged with a `ce-shared-public` Marking that every customer holds, and are read-only to customers.
 
 This is critical for honest diligence: when we say "your data is isolated," that is true of *your* data. The market enrichment that powers the platform is a shared resource, computed once and referenced by all customers. It does not contain any customer-specific signal.
 
@@ -174,7 +174,7 @@ Foundry encrypts data at rest using AES-256 and in transit using TLS 1.2+. Key m
 
 ## 7. Compliance posture
 
-Capability Economics inherits the following compliance certifications from the Foundry platform:
+Inflexcvi inherits the following compliance certifications from the Foundry platform:
 
 - **SOC 2 Type 2** — Foundry holds an annual SOC 2 Type 2 attestation covering Security, Availability, and Confidentiality. CE will obtain a SOC 2 of its own scoping the application layer; the underlying platform attestation is referenced.
 - **GDPR** — Foundry supports data-subject-access requests, right-to-erasure workflows, and EU-region data residency (Foundry has EU-hosted instances). Customers requiring EU residency will be deployed onto an EU Foundry instance.

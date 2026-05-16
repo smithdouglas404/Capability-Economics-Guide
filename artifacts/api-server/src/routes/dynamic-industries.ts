@@ -30,8 +30,8 @@ async function callGlm(prompt: string, maxTokens = 6000): Promise<string> {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://capabilityeconomics.com",
-        "X-Title": "Capability Economics",
+        "HTTP-Referer": "https://inflexcvi.ai",
+        "X-Title": "Inflexcvi",
       },
       body: JSON.stringify({
         model: "anthropic/claude-sonnet-4.6",
@@ -134,7 +134,7 @@ Each capability MUST have these fields:
   "slug": "<lowercase-hyphen>",
   "description": "<1 sentence>",
   "traditionalView": "<1 sentence: how legacy thinking treats it>",
-  "economicView": "<1 sentence: how Capability Economics treats it>",
+  "economicView": "<1 sentence: how Inflexcvi treats it>",
   "benchmarkScore": <integer 30-85>,
   "greenMin": <integer, threshold for green/healthy, typically benchmarkScore + 10>,
   "yellowMin": <integer, threshold for yellow/warning, typically benchmarkScore - 5>,

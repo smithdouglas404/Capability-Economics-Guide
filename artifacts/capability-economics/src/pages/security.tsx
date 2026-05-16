@@ -29,7 +29,7 @@ export default function SecurityPage() {
         <h1 className="font-serif text-4xl tracking-tight">Security, identity, and data lineage</h1>
         <p className="text-base text-muted-foreground mt-3 max-w-3xl leading-relaxed">
           A summary of how the platform handles identity, data, and deployment options for enterprise buyers.
-          For procurement documentation or a signed DPA, contact <a href="mailto:security@capabilityeconomics.com" className="text-primary hover:underline">security@capabilityeconomics.com</a>.
+          For procurement documentation or a signed DPA, contact <a href="mailto:security@inflexcvi.ai" className="text-primary hover:underline">security@inflexcvi.ai</a>.
         </p>
       </div>
 
@@ -71,7 +71,7 @@ export default function SecurityPage() {
             <h2 className="font-serif text-2xl tracking-tight">Data lineage & provenance</h2>
           </div>
           <p className="text-sm leading-relaxed">
-            Every CEI score on the platform carries machine-readable provenance: the source label, methodology
+            Every CVI score on the platform carries machine-readable provenance: the source label, methodology
             tag (consulting / academic / regulatory / news / seed), Bayesian posterior variance, GDP weighting,
             and last-queried timestamp. The <code className="font-mono text-xs bg-muted px-1">ScoreWithProvenance</code> UI
             component surfaces this on hover; the same data is available programmatically via{" "}
@@ -79,7 +79,7 @@ export default function SecurityPage() {
           </p>
           <ul className="text-sm space-y-1.5 list-disc list-outside ml-5">
             <li><strong>Source-quality audit</strong>: <Link href="/admin/source-quality" className="text-primary hover:underline">/admin/source-quality</Link> flags every capability with single-source dependence, stale triangulations, missing consulting corroboration, or wide credible intervals.</li>
-            <li><strong>Industry GDP weights</strong>: the global CEI rollup includes only industries with a Perplexity-cited GDP weight (<code className="font-mono text-xs bg-muted px-1">industry_gdp_weights</code> table, every row carries a source URL). Industries without a cited weight are excluded from the rollup — never weighted by an editorial fallback.</li>
+            <li><strong>Industry GDP weights</strong>: the global CVI rollup includes only industries with a Perplexity-cited GDP weight (<code className="font-mono text-xs bg-muted px-1">industry_gdp_weights</code> table, every row carries a source URL). Industries without a cited weight are excluded from the rollup — never weighted by an editorial fallback.</li>
             <li><strong>Backtesting harness</strong>: see <Link href="/proof" className="text-primary hover:underline">/proof</Link> for the historical-event replay accuracy. The harness measures model propagation under shock, not historical reconstruction.</li>
             <li><strong>Audit log</strong>: every admin action and analyst annotation is recorded in <code className="font-mono text-xs bg-muted px-1">admin_audit_log</code>, queryable by actor, action, target, and date range with CSV export.</li>
           </ul>
@@ -178,9 +178,9 @@ export default function SecurityPage() {
       <div className="text-center pt-4">
         <p className="text-sm text-muted-foreground">
           Need a procurement packet, signed DPA, or vendor risk assessment?{" "}
-          <a href="mailto:security@capabilityeconomics.com" className="text-primary hover:underline inline-flex items-center gap-1">
+          <a href="mailto:security@inflexcvi.ai" className="text-primary hover:underline inline-flex items-center gap-1">
             <ExternalLink className="w-3 h-3" />
-            security@capabilityeconomics.com
+            security@inflexcvi.ai
           </a>
         </p>
       </div>

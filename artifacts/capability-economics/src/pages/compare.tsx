@@ -134,7 +134,7 @@ export default function ComparePage() {
     if (!caps || caps.length === 0) return [];
     // Five axes scaled to 0–100 for visual comparison.
     const axes: Array<{ label: string; pick: (c: ComparedCap) => number | null }> = [
-      { label: "CEI score", pick: c => c.consensusScore ?? c.benchmarkScore ?? null },
+      { label: "CVI score", pick: c => c.consensusScore ?? c.benchmarkScore ?? null },
       { label: "Confidence ×100", pick: c => c.confidence !== null && c.confidence !== undefined ? c.confidence * 100 : null },
       { label: "Velocity (+50)", pick: c => c.velocity !== null && c.velocity !== undefined ? Math.max(0, Math.min(100, c.velocity + 50)) : null },
       { label: "Source count ×10", pick: c => c.sourceCount !== undefined ? Math.min(100, c.sourceCount * 10) : null },
@@ -320,7 +320,7 @@ export default function ComparePage() {
                   </thead>
                   <tbody>
                     {[
-                      { label: "CEI score", pick: (c: ComparedCap) => c.consensusScore?.toFixed(1) ?? c.benchmarkScore?.toFixed(1) ?? "—" },
+                      { label: "CVI score", pick: (c: ComparedCap) => c.consensusScore?.toFixed(1) ?? c.benchmarkScore?.toFixed(1) ?? "—" },
                       { label: "CI low", pick: (c: ComparedCap) => c.ciLow?.toFixed(1) ?? "—" },
                       { label: "CI high", pick: (c: ComparedCap) => c.ciHigh?.toFixed(1) ?? "—" },
                       { label: "Confidence", pick: (c: ComparedCap) => c.confidence?.toFixed(2) ?? "—" },

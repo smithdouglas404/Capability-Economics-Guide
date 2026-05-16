@@ -39,7 +39,7 @@ const PEER_BENCHMARKS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // SEC's feed updates throughout the day; this cadence catches new filings
 // while staying well under EDGAR's per-IP rate limits.
 const EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000;
-// CEI signal detector runs daily — sweeps the per-cap history table for
+// CVI signal detector runs daily — sweeps the per-cap history table for
 // moves >= threshold within the configured window. Cheap (in-memory pair
 // comparison after one DB pull).
 const CEI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
@@ -107,7 +107,7 @@ async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: stri
     if (snapshots.length === 2) {
       const drop = snapshots[1].overallIndex - snapshots[0].overallIndex;
       if (drop > 5) {
-        return { urgent: true, reason: `CEI index dropped ${drop.toFixed(1)} points since last snapshot` };
+        return { urgent: true, reason: `CVI index dropped ${drop.toFixed(1)} points since last snapshot` };
       }
     }
 
@@ -128,16 +128,16 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     lastRunAt = new Date();
     lastRunResult = result;
 
-    // Deterministic CEI snapshot at the end of every routine cycle. The
+    // Deterministic CVI snapshot at the end of every routine cycle. The
     // agent may or may not have invoked the compute_cei tool — we don't
     // trust Sonnet's tool-selection to bank the time-series moat. Banking
     // a snapshot per cycle is the cheapest, most defensible way to convert
     // system age into competitive history (Task #3 tactic 1).
     try {
       const cei = await computeCVI();
-      console.log(`[Agent] CEI snapshot persisted (${trigger}): overallIndex=${cei.overallIndex}`);
+      console.log(`[Agent] CVI snapshot persisted (${trigger}): overallIndex=${cei.overallIndex}`);
     } catch (ceiErr) {
-      console.warn("[Agent] CEI snapshot failed (non-fatal):", ceiErr);
+      console.warn("[Agent] CVI snapshot failed (non-fatal):", ceiErr);
     }
 
     // Deterministic null-detail backfill. The agent (Sonnet) freely skips
@@ -240,7 +240,7 @@ async function executeWorldScan(trigger: string): Promise<void> {
 
     if (result.totalInserted > 0) {
       const cei = await computeCVI();
-      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CEI recomputed after world scan: ${cei.overallIndex}` });
+      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after world scan: ${cei.overallIndex}` });
     }
   } catch (err) {
     console.error("[World Scan] failed:", err);
@@ -281,7 +281,7 @@ async function executeRotation(trigger: string): Promise<void> {
     });
     if (result.succeeded > 0) {
       const cei = await computeCVI();
-      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CEI recomputed after rotation: ${cei.overallIndex}` });
+      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after rotation: ${cei.overallIndex}` });
     }
   } catch (err) {
     console.error("[Triangulation Rotation] failed:", err);
@@ -341,7 +341,7 @@ async function edgarRssTick(): Promise<void> {
 }
 
 /**
- * Daily CEI signal detector — finds capability moves >= 5pt within 30d
+ * Daily CVI signal detector — finds capability moves >= 5pt within 30d
  * window and inserts them as cvi_signal_events for the predictive backtest
  * framework (Task #5).
  */
@@ -383,7 +383,7 @@ async function botLoopTick(): Promise<void> {
     }
 
     // If any bot action mutated assessment state (assessments specifically —
-    // browses don't change capability-economics), bank a CEI snapshot so
+    // browses don't change capability-economics), bank a CVI snapshot so
     // the time-series records the moment. Cheap when bots are idle (no
     // assessments → no snapshot triggered).
     const assessmentRan = results.some(r => r.actionsRun > 0);
@@ -391,7 +391,7 @@ async function botLoopTick(): Promise<void> {
       try {
         await computeCVI();
       } catch (err) {
-        console.warn("[Bots] post-tick CEI snapshot failed:", err);
+        console.warn("[Bots] post-tick CVI snapshot failed:", err);
       }
     }
   } catch (err) {
@@ -466,7 +466,7 @@ export function startScheduler(): void {
   // EDGAR RSS first fire staggered 4 min so it doesn't pile on top of the
   // other startup tasks; subsequent runs hit the 15-min interval.
   setTimeout(() => edgarRssTick(), 240_000);
-  // CEI signals detector — 5 min stagger, then daily.
+  // CVI signals detector — 5 min stagger, then daily.
   setTimeout(() => ceiSignalsTick(), 300_000);
 }
 

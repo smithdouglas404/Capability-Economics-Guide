@@ -15,7 +15,7 @@ export default function MarketplaceTiersSlide() {
           Revenue mechanism on top of the moat.
         </h2>
         <p className="font-body text-muted mt-[1vh]" style={{ fontSize: "1.4vw", maxWidth: "70vw" }}>
-          CEI data is the platform's moat. The marketplace is how third-party analysts <em>build on it</em> and
+          CVI data is the platform's moat. The marketplace is how third-party analysts <em>build on it</em> and
           how the platform earns recurring revenue without owning every research artifact.
         </p>
       </div>

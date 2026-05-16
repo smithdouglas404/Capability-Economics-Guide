@@ -3,7 +3,7 @@ import { LifecycleChip } from "@/components/lifecycle-chip";
 
 /**
  * Standalone documentation page for capability lifecycle stages.
- * Linked from the Scorecard legend, the CEI Dashboard tooltip, and the
+ * Linked from the Scorecard legend, the CVI Dashboard tooltip, and the
  * Knowledge Graph capability detail header.
  */
 export default function LifecycleDocs() {
@@ -25,7 +25,7 @@ export default function LifecycleDocs() {
         <CardHeader><CardTitle className="font-serif tracking-tight text-lg">How the stage is computed</CardTitle></CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-3">
           <p>
-            The stage is derived on every read from two posterior fields the CEI engine already maintains:
+            The stage is derived on every read from two posterior fields the CVI engine already maintains:
             the Bayesian <strong>consensus score</strong> (0–100) and the EMA-smoothed <strong>velocity</strong> (−0.5 to +0.5).
             It is never persisted, so it can never go stale: the moment the next triangulation lands, the stage
             reflects it.
@@ -72,10 +72,10 @@ export default function LifecycleDocs() {
         <CardContent className="text-sm text-muted-foreground space-y-2">
           <ul className="list-disc list-inside space-y-1">
             <li>Capability Scorecard — chip on every row, with a stage filter dropdown and a stage-sort column.</li>
-            <li>CEI Dashboard — chip in the freshness tables (Most Recently Refreshed, Stalest in Queue).</li>
+            <li>CVI Dashboard — chip in the freshness tables (Most Recently Refreshed, Stalest in Queue).</li>
             <li>Knowledge Graph — chip next to each capability detail page title.</li>
             <li>Every capability API surface (<code>/api/capabilities</code>, <code>/api/capabilities/:id</code>,
-              <code> /api/industries/:id</code>, <code>/api/cei/components</code>, <code>/api/cei/freshness</code>,
+              <code> /api/industries/:id</code>, <code>/api/cvi/components</code>, <code>/api/cvi/freshness</code>,
               <code> /api/war-room/compare</code>) emits <code>lifecycleStage</code> on each cap row.</li>
           </ul>
         </CardContent>
