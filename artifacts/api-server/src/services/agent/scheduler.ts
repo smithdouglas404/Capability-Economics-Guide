@@ -6,6 +6,7 @@ import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
 import { ensureSharedStoreReady } from "./store";
 import { optimizeAgentInstructions } from "./optimizer";
+import { runMacroEventAgent } from "../macro-event-agent";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -58,6 +59,11 @@ const MEM0_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // Weekly cadence is plenty — instructions are stable directives, not
 // per-cycle state. Cheap (~1 Haiku call per agent per week).
 const OPTIMIZER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+// Macro Event Agent: polls EDGAR, summarizes active macro events,
+// publishes a digest to NS.macroEvents() for downstream agents.
+// 30-minute cadence aligns with the EDGAR RSS polling interval the
+// scheduler already runs (15min) so the agent always sees fresh data.
+const MACRO_EVENT_AGENT_INTERVAL_MS = 30 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -83,6 +89,7 @@ let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let optimizerTimer: ReturnType<typeof setInterval> | null = null;
+let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -486,6 +493,11 @@ export function startScheduler(): void {
         : console.log(`[Agent] Optimizer skipped: ${r.reason ?? "no change"}`))
       .catch(err => console.warn("[Agent] Optimizer failed:", err instanceof Error ? err.message : err));
   }, OPTIMIZER_INTERVAL_MS);
+  macroEventAgentTimer = setInterval(() => {
+    runMacroEventAgent()
+      .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
+  }, MACRO_EVENT_AGENT_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -557,6 +569,7 @@ export function stopScheduler(): void {
   if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   if (optimizerTimer) { clearInterval(optimizerTimer); optimizerTimer = null; }
+  if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
