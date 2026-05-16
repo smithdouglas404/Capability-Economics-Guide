@@ -12,6 +12,7 @@ import { runAllBotsTick } from "../bots/loop";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
+import { detectCeiSignalEvents } from "../cei-signals/detector";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -37,6 +38,10 @@ const PEER_BENCHMARKS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // SEC's feed updates throughout the day; this cadence catches new filings
 // while staying well under EDGAR's per-IP rate limits.
 const EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000;
+// CEI signal detector runs daily — sweeps the per-cap history table for
+// moves >= threshold within the configured window. Cheap (in-memory pair
+// comparison after one DB pull).
+const CEI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -59,6 +64,7 @@ let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
+let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -67,6 +73,7 @@ let isBotTicking = false;
 let isExpiring = false;
 let isAggregatingBenchmarks = false;
 let isEdgarRssTicking = false;
+let isDetectingSignals = false;
 let lastRunAt: Date | null = null;
 let lastRotationAt: Date | null = null;
 let lastWorldScanAt: Date | null = null;
@@ -333,6 +340,23 @@ async function edgarRssTick(): Promise<void> {
 }
 
 /**
+ * Daily CEI signal detector — finds capability moves >= 5pt within 30d
+ * window and inserts them as cei_signal_events for the predictive backtest
+ * framework (Task #5).
+ */
+async function ceiSignalsTick(): Promise<void> {
+  if (isDetectingSignals) return;
+  isDetectingSignals = true;
+  try {
+    await detectCeiSignalEvents();
+  } catch (err) {
+    console.warn("[CeiSignals] detection failed:", err);
+  } finally {
+    isDetectingSignals = false;
+  }
+}
+
+/**
  * Bot loop tick: wake all active bots, run any actions due per persona
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
@@ -411,6 +435,7 @@ export function startScheduler(): void {
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
+  ceiSignalsTimer = setInterval(() => ceiSignalsTick(), CEI_SIGNALS_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -435,6 +460,8 @@ export function startScheduler(): void {
   // EDGAR RSS first fire staggered 4 min so it doesn't pile on top of the
   // other startup tasks; subsequent runs hit the 15-min interval.
   setTimeout(() => edgarRssTick(), 240_000);
+  // CEI signals detector — 5 min stagger, then daily.
+  setTimeout(() => ceiSignalsTick(), 300_000);
 }
 
 /**
@@ -458,6 +485,7 @@ export function stopScheduler(): void {
   if (creditExpiryTimer) { clearInterval(creditExpiryTimer); creditExpiryTimer = null; }
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
+  if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");

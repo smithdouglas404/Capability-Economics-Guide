@@ -1221,10 +1221,83 @@ function SyntheticAgentsPanel() {
               <Button size="sm" variant="ghost" onClick={triggerTick} className="text-xs">Fire tick now</Button>
               <Button size="sm" variant="ghost" onClick={() => refetch()} className="text-xs">Refresh</Button>
             </div>
+
+            <BotActivityFeed />
           </>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+interface BotActivityResp {
+  actions: Array<{
+    id: number;
+    botId: number;
+    botName: string | null;
+    personaKey: string | null;
+    actionType: string;
+    targetType: string | null;
+    targetId: string | null;
+    summary: string | null;
+    costCents: number;
+    succeeded: boolean;
+    errorMessage: string | null;
+    createdAt: string;
+  }>;
+}
+
+function BotActivityFeed() {
+  const { data, loading, refetch } = useApi<BotActivityResp>("/admin/bots/activity?limit=30");
+  const totalCostCents = (data?.actions ?? []).reduce((a, b) => a + (b.succeeded ? b.costCents : 0), 0);
+  return (
+    <div className="border-t border-border pt-4 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs uppercase text-muted-foreground font-mono tracking-[0.18em]">
+          Recent activity {data && `· last 30 · $${(totalCostCents / 100).toFixed(2)}`}
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => refetch()} className="h-6 text-[10px]">Refresh</Button>
+      </div>
+      {loading && !data ? (
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      ) : !data || data.actions.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No bot actions yet — fire a tick or wait for the hourly run.</p>
+      ) : (
+        <div className="max-h-80 overflow-y-auto border border-border/60">
+          <table className="w-full text-xs">
+            <tbody>
+              {data.actions.map(a => (
+                <tr key={a.id} className={`border-b border-border/40 ${a.succeeded ? "" : "bg-red-500/5"}`}>
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap text-muted-foreground font-mono text-[10px]">
+                    {new Date(a.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap">
+                    <span className="font-medium">{a.botName ?? `bot#${a.botId}`}</span>
+                  </td>
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap">
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono uppercase tracking-wider ${
+                      a.actionType === "deep_dive" ? "bg-purple-500/10 text-purple-600 border border-purple-500/20" :
+                      a.actionType === "assessment" ? "bg-blue-500/10 text-blue-600 border border-blue-500/20" :
+                      a.actionType === "marketplace_list" ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" :
+                      a.actionType === "comment" ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" :
+                      a.actionType === "reflection" ? "bg-pink-500/10 text-pink-600 border border-pink-500/20" :
+                      a.actionType === "budget_skip" ? "bg-red-500/10 text-red-600 border border-red-500/20" :
+                      "bg-muted text-muted-foreground border border-border"
+                    }`}>{a.actionType.replace(/_/g, " ")}</span>
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground truncate max-w-md" title={a.summary ?? a.errorMessage ?? ""}>
+                    {a.summary ?? a.errorMessage ?? "—"}
+                  </td>
+                  <td className="px-2 py-1.5 align-top whitespace-nowrap text-right font-mono text-[10px] tabular-nums">
+                    ${(a.costCents / 100).toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 

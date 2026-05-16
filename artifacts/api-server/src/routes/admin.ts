@@ -23,6 +23,7 @@ import { triggerBotTickNow } from "../services/agent/scheduler";
 import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
 import { replayHistoricalCEI } from "../services/cei-historical/replay";
 import { extractFilingsViaHaiku } from "../services/edgar/extractor";
+import { detectCeiSignalEvents, listRecentSignalEvents } from "../services/cei-signals/detector";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -367,6 +368,36 @@ router.post("/admin/edgar/extract", async (req, res) => {
   }
 });
 
+router.post("/admin/cei/signals/detect", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const r = await detectCeiSignalEvents({
+      lookbackDays: typeof body.lookbackDays === "number" ? body.lookbackDays : undefined,
+      windowDays: typeof body.windowDays === "number" ? body.windowDays : undefined,
+      moderateThreshold: typeof body.moderateThreshold === "number" ? body.moderateThreshold : undefined,
+    });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "detection failed" });
+  }
+});
+
+router.get("/admin/cei/signals", async (req, res) => {
+  try {
+    const days = Number(req.query.days);
+    const limit = Number(req.query.limit);
+    const minSeverity = typeof req.query.minSeverity === "string" ? req.query.minSeverity : undefined;
+    const events = await listRecentSignalEvents({
+      days: Number.isFinite(days) ? days : undefined,
+      limit: Number.isFinite(limit) ? limit : undefined,
+      minSeverity: minSeverity === "moderate" || minSeverity === "large" || minSeverity === "extreme" ? minSeverity : undefined,
+    });
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "fetch failed" });
+  }
+});
+
 router.post("/admin/cei/replay-history", async (req, res) => {
   try {
     const body = req.body ?? {};
@@ -397,6 +428,37 @@ router.post("/admin/bots/tick", async (_req, res) => {
     res.json(r);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "tick failed" });
+  }
+});
+
+router.get("/admin/bots/activity", async (req, res) => {
+  try {
+    const { db: dbConn, botActionsTable, botsTable } = await import("@workspace/db");
+    const { desc: descOrder } = await import("drizzle-orm");
+    const { eq: eqOp } = await import("drizzle-orm");
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit) || 50));
+    const rows = await dbConn
+      .select({
+        id: botActionsTable.id,
+        botId: botActionsTable.botId,
+        botName: botsTable.displayName,
+        personaKey: botsTable.personaKey,
+        actionType: botActionsTable.actionType,
+        targetType: botActionsTable.targetType,
+        targetId: botActionsTable.targetId,
+        summary: botActionsTable.summary,
+        costCents: botActionsTable.costCents,
+        succeeded: botActionsTable.succeeded,
+        errorMessage: botActionsTable.errorMessage,
+        createdAt: botActionsTable.createdAt,
+      })
+      .from(botActionsTable)
+      .leftJoin(botsTable, eqOp(botActionsTable.botId, botsTable.id))
+      .orderBy(descOrder(botActionsTable.createdAt))
+      .limit(limit);
+    res.json({ actions: rows });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to fetch activity" });
   }
 });
 
