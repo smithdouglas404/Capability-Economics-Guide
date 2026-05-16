@@ -7,6 +7,10 @@ import { mem0Prune } from "./memory";
 import { ensureSharedStoreReady } from "./store";
 import { optimizeAgentInstructions } from "./optimizer";
 import { runMacroEventAgent } from "../macro-event-agent";
+import { runDisruptionAgent } from "../disruption-agent";
+import { runPeerCoopAgent } from "../peer-coop-agent";
+import { runStackOptimizerAgent } from "../stack-optimizer-agent";
+import { runOntologyAgent } from "../ontology-agent";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -64,6 +68,18 @@ const OPTIMIZER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // 30-minute cadence aligns with the EDGAR RSS polling interval the
 // scheduler already runs (15min) so the agent always sees fresh data.
 const MACRO_EVENT_AGENT_INTERVAL_MS = 30 * 60 * 1000;
+// Disruption Agent: depends on macro-event digest; runs slightly less
+// often so it gets a fresh upstream digest each cycle. 60min cadence.
+const DISRUPTION_AGENT_INTERVAL_MS = 60 * 60 * 1000;
+// Peer Co-op Agent: cohort benchmarks change slowly; 6h is plenty.
+const PEER_COOP_AGENT_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Stack Optimizer Agent: depends on disruption + peer-coop digests;
+// daily cadence keeps cost down while still reacting to new context.
+const STACK_OPTIMIZER_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Ontology Agent: reads all other agents' digests for entity
+// extraction; runs last in the chain after others have published.
+// 4h matches the natural rollup horizon.
+const ONTOLOGY_AGENT_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -90,6 +106,10 @@ let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let optimizerTimer: ReturnType<typeof setInterval> | null = null;
 let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
+let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
+let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
+let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
+let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -498,6 +518,26 @@ export function startScheduler(): void {
       .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
       .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
   }, MACRO_EVENT_AGENT_INTERVAL_MS);
+  disruptionAgentTimer = setInterval(() => {
+    runDisruptionAgent()
+      .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
+  }, DISRUPTION_AGENT_INTERVAL_MS);
+  peerCoopAgentTimer = setInterval(() => {
+    runPeerCoopAgent()
+      .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
+  }, PEER_COOP_AGENT_INTERVAL_MS);
+  stackOptimizerAgentTimer = setInterval(() => {
+    runStackOptimizerAgent()
+      .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
+  }, STACK_OPTIMIZER_AGENT_INTERVAL_MS);
+  ontologyAgentTimer = setInterval(() => {
+    runOntologyAgent()
+      .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
+  }, ONTOLOGY_AGENT_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -570,6 +610,10 @@ export function stopScheduler(): void {
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   if (optimizerTimer) { clearInterval(optimizerTimer); optimizerTimer = null; }
   if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }
+  if (disruptionAgentTimer) { clearInterval(disruptionAgentTimer); disruptionAgentTimer = null; }
+  if (peerCoopAgentTimer) { clearInterval(peerCoopAgentTimer); peerCoopAgentTimer = null; }
+  if (stackOptimizerAgentTimer) { clearInterval(stackOptimizerAgentTimer); stackOptimizerAgentTimer = null; }
+  if (ontologyAgentTimer) { clearInterval(ontologyAgentTimer); ontologyAgentTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
