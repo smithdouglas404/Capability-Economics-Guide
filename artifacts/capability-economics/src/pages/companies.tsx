@@ -175,16 +175,45 @@ export default function Companies() {
   // the new rows appear without the user reloading.
   useEffect(() => {
     if (!industryId || !ingestStatus || ingestStatus.state !== "running") return;
+    let consecutiveErrors = 0;
     const id = setInterval(async () => {
       try {
         const r = await fetch(`/api/workbench/companies/_ingest-status?industryId=${industryId}`);
+        if (!r.ok) throw new Error(`status endpoint returned HTTP ${r.status}`);
         const s = await r.json() as IngestStatus;
+        consecutiveErrors = 0;
         setIngestStatus(s);
         if (s.state === "done") refetchTabs(industryId);
-      } catch { /* keep polling */ }
+      } catch (err) {
+        consecutiveErrors++;
+        // Three failed polls in a row (~12s) means the deploy doesn't have
+        // the /_ingest-status endpoint yet (old bundle still serving) or the
+        // api-server is unreachable. Stop polling and surface the issue
+        // instead of spinning forever with no feedback.
+        if (consecutiveErrors >= 3) {
+          const startedAt = ingestStatus?.state === "running" ? ingestStatus.startedAt : new Date().toISOString();
+          setIngestStatus({
+            state: "failed",
+            industryId,
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            error: `Status endpoint not responding: ${err instanceof Error ? err.message : String(err)}. Hard-refresh the browser (Cmd+Shift+R / Ctrl+Shift+R) — the deployed bundle may be older than the API.`,
+          });
+        }
+      }
     }, 4000);
     return () => clearInterval(id);
   }, [industryId, ingestStatus?.state]);
+
+  // Tick once a second while running so the banner shows real elapsed time —
+  // no more "is it hung or working?" guessing. Stops automatically when
+  // state transitions out of "running".
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!ingestStatus || ingestStatus.state !== "running") return;
+    const id = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [ingestStatus?.state]);
 
   const triggerIngest = async () => {
     if (!industryId) return;
@@ -285,12 +314,26 @@ export default function Companies() {
                 ? <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
                 : <CheckCircle2 className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" />)}
               <div className="flex-1 min-w-0">
-                {ingestStatus.state === "running" && (
-                  <div className="text-sm">
-                    <span className="font-medium">Ingesting companies via Perplexity…</span>
-                    <span className="text-muted-foreground ml-2">Typically 60–90s. Started {new Date(ingestStatus.startedAt).toLocaleTimeString()}.</span>
-                  </div>
-                )}
+                {ingestStatus.state === "running" && (() => {
+                  // `tick` is referenced so React re-renders this branch every
+                  // second and the elapsed counter actually advances.
+                  void tick;
+                  const elapsedSec = Math.floor((Date.now() - new Date(ingestStatus.startedAt).getTime()) / 1000);
+                  const overTime = elapsedSec > 130;
+                  return (
+                    <div className="text-sm">
+                      <span className="font-medium">Ingesting companies via Perplexity…</span>
+                      <span className={`ml-2 font-mono ${overTime ? "text-amber-700" : "text-muted-foreground"}`}>
+                        {elapsedSec}s elapsed
+                      </span>
+                      <span className="text-muted-foreground ml-2">
+                        {overTime
+                          ? "(longer than typical — Perplexity 120s timeout will trip soon if it's stuck)"
+                          : "(typical: 60–90s for Perplexity + ~10s DB inserts)"}
+                      </span>
+                    </div>
+                  );
+                })()}
                 {ingestStatus.state === "failed" && (
                   <div className="text-sm">
                     <div className="font-medium text-red-700">Ingestion failed to start</div>
