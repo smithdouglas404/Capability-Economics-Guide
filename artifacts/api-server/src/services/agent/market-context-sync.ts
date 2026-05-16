@@ -14,7 +14,8 @@
  */
 import { db, cviSignalEventsTable, capabilityFilingsTable, capabilitiesTable, industriesTable } from "@workspace/db";
 import { desc, eq, sql } from "drizzle-orm";
-import { lettaUpdateBlock } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8.
+import { putAgentPriorBlock } from "./store";
 
 const MAX_SIGNAL_EVENTS = 5;
 const MAX_FILINGS = 5;
@@ -112,7 +113,7 @@ async function renderMarketContextBlock(): Promise<string> {
 export async function syncMarketContextToLetta(): Promise<boolean> {
   try {
     const text = await renderMarketContextBlock();
-    return await lettaUpdateBlock("market_context", text);
+    return await putAgentPriorBlock("market_context", text, { updatedReason: "macro_events_poll" });
   } catch (err) {
     console.error("[market-context-sync] failed:", err instanceof Error ? err.message : err);
     return false;

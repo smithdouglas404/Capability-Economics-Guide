@@ -15,7 +15,8 @@
  */
 import { db, economicRulesTable } from "@workspace/db";
 import { asc } from "drizzle-orm";
-import { lettaUpdateBlock } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8.
+import { putAgentPriorBlock } from "./store";
 
 function truncate(s: string, max: number): string {
   return s.length <= max ? s : s.slice(0, max - 1) + "…";
@@ -49,7 +50,7 @@ export async function renderEconomicRulesBlock(): Promise<string> {
 export async function syncEconomicRulesToLetta(): Promise<boolean> {
   try {
     const text = await renderEconomicRulesBlock();
-    return await lettaUpdateBlock("economic_rules", text);
+    return await putAgentPriorBlock("economic_rules", text, { updatedReason: "rules_table_sync" });
   } catch (err) {
     console.error("[economic-rules-sync] failed:", err instanceof Error ? err.message : err);
     return false;

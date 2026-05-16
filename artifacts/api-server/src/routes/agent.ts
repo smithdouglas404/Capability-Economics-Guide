@@ -29,6 +29,7 @@ import {
   runConsolidation,
   lettaReadBlock,
   lettaReadAllBlocks,
+  getAllAgentPriorBlocks,
 } from "../services/agent";
 import { consolidationRunsTable } from "@workspace/db";
 import { generateOntologyTool } from "../services/agent/tools";
@@ -261,20 +262,32 @@ router.get("/agent/memory/stats", async (_req, res) => {
       getGraphStats(),
       getLastConsolidation(),
     ]);
+    // Forward path: read agent priors from PostgresStore.
+    // The legacy Letta block read is retained below so we report both
+    // sources while Phase 1.8 migration is in flight. Once Letta is
+    // deleted in Step 6 the lettaBlocks branch goes away.
+    let storeBlocks: Record<string, { length: number; preview: string } | null> = {};
+    try {
+      const labels = ["persona", "industry_priors", "research_strategy", "current_focus", "economic_rules", "project_focus", "market_context"];
+      const all = await getAllAgentPriorBlocks(labels);
+      for (const [label, v] of Object.entries(all)) {
+        storeBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
+      }
+    } catch {
+      // storePing in /api/health/services covers the failure case; if
+      // the store is down here we just return empty blocks.
+    }
+
     let lettaBlocks: Record<string, { length: number; preview: string } | null> = {};
     const lettaStatus = getLettaStatus();
     if (lettaStatus.connected) {
-      // Parallel pull of every block (including new economic_rules,
-      // project_focus, market_context) via the single-round-trip helper
-      // instead of the sequential per-label loop we had before.
       try {
         const all = await lettaReadAllBlocks();
         for (const [label, v] of Object.entries(all)) {
           lettaBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
         }
       } catch {
-        // helper already swallows individual failures; if the whole
-        // wrapper throws, fall through with empty blocks map.
+        // helper already swallows individual failures
       }
     }
     res.json({
@@ -291,6 +304,7 @@ router.get("/agent/memory/stats", async (_req, res) => {
         errorMessage: lastConsolidation.errorMessage,
       } : null,
       letta: { ...lettaStatus, blocks: lettaBlocks },
+      sharedStore: { blocks: storeBlocks },
     });
   } catch (err) {
     console.error("[/agent/memory/stats] error:", err);

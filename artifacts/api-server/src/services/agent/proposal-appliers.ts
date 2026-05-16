@@ -19,7 +19,8 @@
  */
 import { db, economicRulesTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import { lettaReadBlock, lettaUpdateBlock } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8.
+import { getAgentPriorBlock, putAgentPriorBlock } from "./store";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 
 export interface ApplyContext {
@@ -131,7 +132,7 @@ async function applyIndustryPriorUpdate({ proposalId, payload }: ApplyContext): 
   if (!industrySlug) throw new Error("missing industry_slug in payload");
   if (!priorText) throw new Error("missing prior_text in payload");
 
-  const current = (await lettaReadBlock("industry_priors")) ?? "";
+  const current = (await getAgentPriorBlock("industry_priors")) ?? "";
   const sectionHeader = `## ${industrySlug}`;
   const headerLine = `${sectionHeader}\n${priorText}`;
 
@@ -146,7 +147,7 @@ async function applyIndustryPriorUpdate({ proposalId, payload }: ApplyContext): 
       : headerLine;
   }
 
-  const ok = await lettaUpdateBlock("industry_priors", next);
+  const ok = await putAgentPriorBlock("industry_priors", next, { sourceProposalId: proposalId });
   if (!ok) throw new Error("Letta block update returned false — block not modified");
 
   return {

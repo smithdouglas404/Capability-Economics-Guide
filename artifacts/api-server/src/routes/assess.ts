@@ -20,14 +20,8 @@ function rm(name: string): string {
   return _resolveModel ? _resolveModel(name) : name;
 }
 
-async function getLetta() {
-  try {
-    const mod = await import("../services/agent/letta.js");
-    return mod;
-  } catch {
-    return null;
-  }
-}
+// getLetta() removed — assess.ts now writes to the shared store via
+// appendAgentArchive (see end of complete-assessment handler).
 
 const router: IRouter = Router();
 
@@ -496,23 +490,25 @@ Rules:
     .set({ analysisResult: analysis, roadmap: roadmap || null, confidenceScore, status: "complete" })
     .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
 
-  const lettaMod = await getLetta();
-  if (lettaMod) {
-    const status = lettaMod.getLettaStatus?.();
-    if (status?.connected) {
-      const memoryText = [
-        `Company: ${session.companyName || "Unknown"} | Industry: ${session.industry || "Unknown"}`,
-        `Executive Summary: ${analysis.executiveSummary as string || ""}`,
-        `Confidence: ${confidenceScore}/100`,
-        `Top gaps: ${((analysis.gaps as Array<{ capability: string }>) || []).slice(0, 3).map((g) => g.capability).join(", ")}`,
-        `Top recommendations: ${((analysis.topRecommendations as Array<{ title: string }>) || []).slice(0, 3).map((r) => r.title).join(", ")}`,
-      ].join("\n");
-
-      lettaMod.lettaSendMessage(
-        `New capability assessment completed. Store for future reference:\n\n${memoryText}`
-      ).catch((e: unknown) => console.warn("[Letta] Memory write failed:", e));
-    }
-  }
+  // Persist assessment summary to the shared store under an
+  // assessment-agent archive namespace. Phase 1.8 migration replaces
+  // the prior lettaSendMessage call which was used purely for
+  // long-term reference, not for any agentic reasoning loop.
+  try {
+    const { appendAgentArchive } = await import("../services/agent/store");
+    const memoryText = [
+      `Company: ${session.companyName || "Unknown"} | Industry: ${session.industry || "Unknown"}`,
+      `Executive Summary: ${analysis.executiveSummary as string || ""}`,
+      `Confidence: ${confidenceScore}/100`,
+      `Top gaps: ${((analysis.gaps as Array<{ capability: string }>) || []).slice(0, 3).map((g) => g.capability).join(", ")}`,
+      `Top recommendations: ${((analysis.topRecommendations as Array<{ title: string }>) || []).slice(0, 3).map((r) => r.title).join(", ")}`,
+    ].join("\n");
+    void appendAgentArchive(
+      memoryText,
+      { kind: "assessment_complete", sessionId, confidenceScore },
+      "assessment-agent",
+    ).catch(e => console.warn("[assessment] store write failed:", e));
+  } catch (e) { console.warn("[assessment] store write failed:", e); }
 
   res.json({ analysis, roadmap });
 });
