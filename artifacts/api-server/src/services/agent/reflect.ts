@@ -76,6 +76,33 @@ export async function reflectOnFindings(
             { category: "contradiction", runId },
           );
           contradictions++;
+
+          // Auto-file an agent_proposals row when contradictions are
+          // both high-magnitude AND high-prior-confidence. This is the
+          // closed loop: reflection detects → proposal queued → human
+          // reviews → applier mutates canonical data. Without this,
+          // contradictions just sit in memory and the agent never
+          // surfaces them as action items.
+          try {
+            const { agentProposalsTable } = await import("@workspace/db");
+            const { db: dbHandle } = await import("@workspace/db");
+            await dbHandle.insert(agentProposalsTable).values({
+              agentRunId: runId,
+              proposalType: "capability_flag",
+              targetEntity: `capability:${f.capabilityId}`,
+              payload: {
+                capability_id: f.capabilityId,
+                severity: delta >= 25 ? "alert" : "concern",
+                reason: `CVI contradiction detected: ${f.capabilityName} in ${f.industryName} moved ${delta.toFixed(1)}pt against a ${prior.relevanceScore.toFixed(2)}-confidence prior at ${priorScore.toFixed(1)}.`,
+              },
+              agentRationale:
+                `Reflect-node auto-file. Cycle #${runId} found a ${delta.toFixed(1)}pt swing on a capability whose prior was high-confidence (relevance ${prior.relevanceScore.toFixed(2)}). ` +
+                `Per the reflection policy this warrants admin attention before the next cycle's research budget is allocated.`,
+              proposedBy: "letta-agent:reflect-node",
+            });
+          } catch (err) {
+            console.warn("[reflect] auto-file proposal failed:", err instanceof Error ? err.message : err);
+          }
           break;
         }
         if (delta < REFINEMENT_THRESHOLD && delta > 0) {
