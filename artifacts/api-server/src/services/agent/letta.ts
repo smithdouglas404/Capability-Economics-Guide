@@ -211,14 +211,22 @@ async function doInit(): Promise<boolean> {
       lettaAgentId = existing.id;
       console.log(`[Letta] Connected — found agent "${LETTA_AGENT_NAME}" (${lettaAgentId})`);
     } else {
+      // enable_sleeptime: true tells Letta to spin up a background
+      // "sleep-time agent" that shares this primary agent's memory blocks
+      // and runs every N steps to synthesize history into core memory.
+      // Native Letta version of what our custom consolidator.ts has been
+      // doing manually. Both can coexist — Letta handles the Letta-block
+      // half, our consolidator keeps the Mem0-side dedup half — until
+      // we verify sleep-time output quality matches.
       const newAgent = await (lettaClient.agents as unknown as {
-        create: (body: Record<string, unknown>) => Promise<{ id: string }>;
+        create: (body: Record<string, unknown>) => Promise<{ id: string; managed_group?: { id: string } }>;
       }).create({
         name: LETTA_AGENT_NAME,
         description: "CVI Autonomous Agent — tracks capability economics patterns, institutional memory, and research decisions.",
         include_base_tools: true,
         model: LETTA_MODEL,
         embedding: LETTA_EMBEDDING,
+        enable_sleeptime: true,
         memory_blocks: CORE_BLOCKS.map((b) => ({
           label: b.label,
           value: b.value,
@@ -228,7 +236,29 @@ async function doInit(): Promise<boolean> {
         })),
       });
       lettaAgentId = newAgent.id;
-      console.log(`[Letta] Connected — created agent "${LETTA_AGENT_NAME}" (${lettaAgentId}) with ${CORE_BLOCKS.length} blocks`);
+      console.log(`[Letta] Connected — created agent "${LETTA_AGENT_NAME}" (${lettaAgentId}) with ${CORE_BLOCKS.length} blocks + sleep-time enabled`);
+
+      // Configure sleep-time cadence. Frequency 1 = run after every
+      // primary step; our primary agent only "steps" once per 30-min
+      // cycle so this maps to ~daily sleep-time runs. Non-fatal on
+      // failure: agent works without the freq tweak, just at the
+      // default 5-step cadence.
+      if (newAgent.managed_group?.id) {
+        try {
+          // The `groups` resource isn't typed on this SDK version yet —
+          // cast through unknown to invoke. If the runtime lacks it
+          // (older Letta server), the call throws and we log + continue
+          // with default sleep-time cadence (5 steps).
+          await ((lettaClient as unknown as {
+            groups?: { update: (groupId: string, config: Record<string, unknown>) => Promise<unknown> };
+          }).groups?.update(newAgent.managed_group.id, {
+            manager_config: { sleeptime_agent_frequency: 1 },
+          }) ?? Promise.reject(new Error("Letta SDK lacks groups resource — using default cadence")));
+          console.log(`[Letta] Sleep-time frequency configured on group ${newAgent.managed_group.id}`);
+        } catch (err) {
+          console.log(`[Letta] Sleep-time frequency config failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+        }
+      }
     }
 
     await ensureCoreBlocks();

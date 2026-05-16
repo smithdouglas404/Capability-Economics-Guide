@@ -24,6 +24,7 @@ import {
   getLastConsolidation,
   runConsolidation,
   lettaReadBlock,
+  lettaReadAllBlocks,
 } from "../services/agent";
 import { consolidationRunsTable } from "@workspace/db";
 import { generateOntologyTool } from "../services/agent/tools";
@@ -259,13 +260,17 @@ router.get("/agent/memory/stats", async (_req, res) => {
     let lettaBlocks: Record<string, { length: number; preview: string } | null> = {};
     const lettaStatus = getLettaStatus();
     if (lettaStatus.connected) {
-      for (const label of ["persona", "industry_priors", "research_strategy", "current_focus"] as const) {
-        try {
-          const v = await lettaReadBlock(label);
+      // Parallel pull of every block (including new economic_rules,
+      // project_focus, market_context) via the single-round-trip helper
+      // instead of the sequential per-label loop we had before.
+      try {
+        const all = await lettaReadAllBlocks();
+        for (const [label, v] of Object.entries(all)) {
           lettaBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
-        } catch {
-          lettaBlocks[label] = null;
         }
+      } catch {
+        // helper already swallows individual failures; if the whole
+        // wrapper throws, fall through with empty blocks map.
       }
     }
     res.json({

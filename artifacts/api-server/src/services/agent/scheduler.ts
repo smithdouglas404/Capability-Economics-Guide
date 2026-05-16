@@ -2,6 +2,7 @@ import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
+import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
@@ -352,6 +353,9 @@ async function edgarRssTick(): Promise<void> {
   isEdgarRssTicking = true;
   try {
     await runEdgarRssTick();
+    // Refresh the Letta market_context block whenever new filings land
+    // so the agent's next cycle decision sees them. Non-fatal.
+    syncMarketContextToLetta().catch(() => {});
   } catch (err) {
     console.warn("[EdgarRSS] tick failed:", err);
   } finally {
@@ -374,6 +378,9 @@ async function ceiSignalsTick(): Promise<void> {
     // attribution job has its own outcome_attributed flag so this is
     // bounded — only sweeps unprocessed events.
     await attributeSignalOutcomes({ limit: 50 });
+    // Refresh the Letta market_context block — large/extreme CVI moves
+    // detected this tick should bias the next cycle's prioritization.
+    syncMarketContextToLetta().catch(() => {});
   } catch (err) {
     console.warn("[CeiSignals] detection / attribution failed:", err);
   } finally {
@@ -478,6 +485,9 @@ export function startScheduler(): void {
     syncEconomicRulesToLetta()
       .then(ok => console.log(`[Agent] Economic rules → Letta block sync: ${ok ? "ok" : "skipped/failed"}`))
       .catch(err => console.warn("[Agent] economic-rules sync error:", err instanceof Error ? err.message : err));
+    syncMarketContextToLetta()
+      .then(ok => console.log(`[Agent] Market context → Letta block sync: ${ok ? "ok" : "skipped/failed"}`))
+      .catch(err => console.warn("[Agent] market-context sync error:", err instanceof Error ? err.message : err));
   }, 15_000);
 
   executeRun("startup");

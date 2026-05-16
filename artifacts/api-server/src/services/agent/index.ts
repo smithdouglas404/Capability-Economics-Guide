@@ -16,6 +16,7 @@ export {
 export { allTools } from "./tools";
 export { getLettaStatus, lettaUpdateBlock, lettaReadBlock, lettaReadAllBlocks, lettaArchivalInsert, lettaArchivalSearch } from "./letta";
 export { syncEconomicRulesToLetta, renderEconomicRulesBlock } from "./economic-rules-sync";
+export { syncMarketContextToLetta } from "./market-context-sync";
 export { inferTopic, type Topic } from "./topics";
 export { startConsolidator, stopConsolidator, runConsolidation, getLastConsolidation } from "./consolidator";
 export { getGraphStats, findCorrelations, findRelated } from "./graphMemory";
