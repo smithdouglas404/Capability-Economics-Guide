@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { DegradedServiceBanner } from "@/components/degraded-banner";
+import { VoiceAdvisor } from "@/components/voice-advisor";
 import { MobileNotice } from "@/components/mobile";
 
 // Pages explicitly tuned for mobile. Everything else gets the
@@ -593,6 +594,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </footer>
+      {hasAccess && <VoiceAdvisor />}
     </div>
   );
 }

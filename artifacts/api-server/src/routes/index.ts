@@ -8,6 +8,8 @@ import projectsRouter from "./projects";
 import insightsRouter from "./insights";
 import cviRouter from "./cvi";
 import dvxRouter from "./dvx";
+import businessCasesRouter from "./business-cases";
+import voiceRouter from "./voice";
 import coverageRouter from "./coverage";
 import sourceQualityRouter from "./source-quality";
 import capabilityAnnotationsRouter from "./capability-annotations";
@@ -92,6 +94,8 @@ router.use(projectsRouter);
 router.use(insightsRouter);
 router.use(cviRouter);
 router.use(dvxRouter);
+router.use(businessCasesRouter);
+router.use(voiceRouter);
 router.use(coverageRouter);
 // sourceQualityRouter mounts BEFORE adminRouter so its /admin/source-quality
 // route uses its own per-route requireAdmin middleware rather than the catch-all.
