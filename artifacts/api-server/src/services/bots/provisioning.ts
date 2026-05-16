@@ -16,6 +16,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { getPersona, listPersonas, type PersonaTemplate } from "./personas";
+import { getTuning } from "../agent-tuning";
 import { logger } from "../../lib/logger";
 
 const HIGHEST_TIER_SLUG = "platform";
@@ -108,6 +109,12 @@ export async function provisionBot(opts: {
   const sessionToken = synthSessionToken();
   const billingOrgSlug = synthBillingOrgSlug(persona.key);
   const mem0Namespace = `bot_${persona.key}_${crypto.randomBytes(3).toString("hex")}`;
+
+  // Resolve the budget cap: explicit per-provision override wins, else the
+  // admin-tunable system-wide default from agent_tuning, else the in-code
+  // floor. Anything tunable lives in agent_tuning — no hardcoded ceiling.
+  const tuning = await getTuning();
+  const resolvedBudgetCap = opts.monthlyBudgetUsdCap ?? tuning.defaultBotBudgetUsdCap;
 
   // node-postgres + drizzle: db.transaction wraps inserts atomically.
   const result = await db.transaction(async (tx) => {
@@ -230,7 +237,7 @@ export async function provisionBot(opts: {
       bio: persona.bio,
       title: persona.title,
       avatarUrl: persona.avatarUrl,
-      monthlyBudgetUsdCap: opts.monthlyBudgetUsdCap ?? 40,
+      monthlyBudgetUsdCap: resolvedBudgetCap,
       mem0Namespace,
       biases: persona.biases as unknown as Record<string, unknown>,
     }).returning();
@@ -293,6 +300,31 @@ export async function disableBot(botId: number, opts: { actorUserId: string; act
       targetType: "bot",
       targetId: String(botId),
       details: { personaKey: existing.personaKey, clerkUserId: existing.clerkUserId },
+    });
+  });
+}
+
+/**
+ * Update a single bot's monthly budget cap. Range-checked. Audit-logged.
+ * Bots that were over their old cap will resume acting on the next tick
+ * once the new cap is high enough — no manual intervention needed.
+ */
+export async function setBotBudget(botId: number, monthlyBudgetUsdCap: number, opts: { actorUserId: string; actorEmail?: string | null }): Promise<void> {
+  if (!(monthlyBudgetUsdCap >= 0 && monthlyBudgetUsdCap <= 10000)) {
+    throw new Error("monthlyBudgetUsdCap must be between 0 and 10000 USD");
+  }
+  const [existing] = await db.select().from(botsTable).where(eq(botsTable.id, botId)).limit(1);
+  if (!existing) throw new Error(`Bot ${botId} not found`);
+
+  await db.transaction(async (tx) => {
+    await tx.update(botsTable).set({ monthlyBudgetUsdCap, updatedAt: new Date() }).where(eq(botsTable.id, botId));
+    await tx.insert(adminAuditLogTable).values({
+      actorUserId: opts.actorUserId,
+      actorEmail: opts.actorEmail ?? null,
+      action: "bot.set_budget",
+      targetType: "bot",
+      targetId: String(botId),
+      details: { personaKey: existing.personaKey, clerkUserId: existing.clerkUserId, oldCap: existing.monthlyBudgetUsdCap, newCap: monthlyBudgetUsdCap },
     });
   });
 }

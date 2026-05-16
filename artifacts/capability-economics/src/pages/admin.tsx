@@ -816,6 +816,7 @@ type TuningResponse = {
     routineIntervalHours: number;
     detailBackfillLimit: number;
     agentPerplexityCap: number;
+    defaultBotBudgetUsdCap: number;
     updatedAt: string;
     updatedBy: string | null;
   };
@@ -823,12 +824,13 @@ type TuningResponse = {
     routineIntervalHours: number;
     detailBackfillLimit: number;
     agentPerplexityCap: number;
+    defaultBotBudgetUsdCap: number;
   };
 };
 
 function RuntimeTuningPanel() {
   const { data, loading, refetch } = useApi<TuningResponse>("/admin/agent-tuning");
-  const [draft, setDraft] = useState<{ routineIntervalHours: string; detailBackfillLimit: string; agentPerplexityCap: string } | null>(null);
+  const [draft, setDraft] = useState<{ routineIntervalHours: string; detailBackfillLimit: string; agentPerplexityCap: string; defaultBotBudgetUsdCap: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -838,6 +840,7 @@ function RuntimeTuningPanel() {
         routineIntervalHours: String(data.tuning.routineIntervalHours),
         detailBackfillLimit: String(data.tuning.detailBackfillLimit),
         agentPerplexityCap: String(data.tuning.agentPerplexityCap),
+        defaultBotBudgetUsdCap: String(data.tuning.defaultBotBudgetUsdCap),
       });
     }
   }, [data, draft]);
@@ -851,6 +854,7 @@ function RuntimeTuningPanel() {
         routineIntervalHours: Number(draft.routineIntervalHours),
         detailBackfillLimit: Number(draft.detailBackfillLimit),
         agentPerplexityCap: Number(draft.agentPerplexityCap),
+        defaultBotBudgetUsdCap: Number(draft.defaultBotBudgetUsdCap),
       };
       const res = await fetch(`${API_BASE}/admin/agent-tuning`, {
         method: "PATCH",
@@ -877,6 +881,7 @@ function RuntimeTuningPanel() {
       routineIntervalHours: String(data.tuning.routineIntervalHours),
       detailBackfillLimit: String(data.tuning.detailBackfillLimit),
       agentPerplexityCap: String(data.tuning.agentPerplexityCap),
+      defaultBotBudgetUsdCap: String(data.tuning.defaultBotBudgetUsdCap),
     });
     setError(null);
   };
@@ -887,6 +892,7 @@ function RuntimeTuningPanel() {
       routineIntervalHours: String(data.defaults.routineIntervalHours),
       detailBackfillLimit: String(data.defaults.detailBackfillLimit),
       agentPerplexityCap: String(data.defaults.agentPerplexityCap),
+      defaultBotBudgetUsdCap: String(data.defaults.defaultBotBudgetUsdCap),
     });
     setError(null);
   };
@@ -894,7 +900,8 @@ function RuntimeTuningPanel() {
   const dirty = !!(data?.tuning && draft && (
     Number(draft.routineIntervalHours) !== data.tuning.routineIntervalHours ||
     Number(draft.detailBackfillLimit) !== data.tuning.detailBackfillLimit ||
-    Number(draft.agentPerplexityCap) !== data.tuning.agentPerplexityCap
+    Number(draft.agentPerplexityCap) !== data.tuning.agentPerplexityCap ||
+    Number(draft.defaultBotBudgetUsdCap) !== data.tuning.defaultBotBudgetUsdCap
   ));
 
   return (
@@ -914,7 +921,7 @@ function RuntimeTuningPanel() {
           <p className="text-sm text-muted-foreground">Initializing…</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <Label htmlFor="routineIntervalHours" className="text-xs">Routine cycle interval (hours)</Label>
                 <Input id="routineIntervalHours" type="number" step="0.25" min="0.25" max="720"
@@ -938,6 +945,14 @@ function RuntimeTuningPanel() {
                   onChange={(e) => setDraft({ ...draft, agentPerplexityCap: e.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">Default {data?.defaults.agentPerplexityCap}. Runaway-loop circuit breaker.</p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="defaultBotBudgetUsdCap" className="text-xs">Default bot monthly budget (USD)</Label>
+                <Input id="defaultBotBudgetUsdCap" type="number" step="1" min="0" max="10000"
+                  value={draft.defaultBotBudgetUsdCap}
+                  onChange={(e) => setDraft({ ...draft, defaultBotBudgetUsdCap: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Default ${data?.defaults.defaultBotBudgetUsdCap}. Applied to new bots; per-bot overrides in roster.</p>
               </div>
             </div>
             {error && (

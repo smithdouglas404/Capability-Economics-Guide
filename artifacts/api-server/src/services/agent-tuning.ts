@@ -5,6 +5,7 @@ const DEFAULTS = {
   routineIntervalHours: 96,
   detailBackfillLimit: 15,
   agentPerplexityCap: 6,
+  defaultBotBudgetUsdCap: 40,
 } as const;
 
 const CACHE_TTL_MS = 60_000;
@@ -22,6 +23,7 @@ function defaultRow(): AgentTuning {
     routineIntervalHours: DEFAULTS.routineIntervalHours,
     detailBackfillLimit: DEFAULTS.detailBackfillLimit,
     agentPerplexityCap: DEFAULTS.agentPerplexityCap,
+    defaultBotBudgetUsdCap: DEFAULTS.defaultBotBudgetUsdCap,
     updatedAt: new Date(0),
     updatedBy: null,
   };
@@ -57,6 +59,7 @@ export interface TuningPatch {
   routineIntervalHours?: number;
   detailBackfillLimit?: number;
   agentPerplexityCap?: number;
+  defaultBotBudgetUsdCap?: number;
   updatedBy?: string | null;
 }
 
@@ -81,6 +84,11 @@ export async function saveTuning(patch: TuningPatch): Promise<AgentTuning> {
       throw new Error("agentPerplexityCap must be an integer between 0 and 100");
     }
   }
+  if (patch.defaultBotBudgetUsdCap != null) {
+    if (!(patch.defaultBotBudgetUsdCap >= 0 && patch.defaultBotBudgetUsdCap <= 10000)) {
+      throw new Error("defaultBotBudgetUsdCap must be between 0 and 10000 USD");
+    }
+  }
 
   const existing = await db.select().from(agentTuningTable).where(eq(agentTuningTable.id, 1)).limit(1);
   const next = {
@@ -88,6 +96,7 @@ export async function saveTuning(patch: TuningPatch): Promise<AgentTuning> {
     routineIntervalHours: patch.routineIntervalHours ?? existing[0]?.routineIntervalHours ?? DEFAULTS.routineIntervalHours,
     detailBackfillLimit: patch.detailBackfillLimit ?? existing[0]?.detailBackfillLimit ?? DEFAULTS.detailBackfillLimit,
     agentPerplexityCap: patch.agentPerplexityCap ?? existing[0]?.agentPerplexityCap ?? DEFAULTS.agentPerplexityCap,
+    defaultBotBudgetUsdCap: patch.defaultBotBudgetUsdCap ?? existing[0]?.defaultBotBudgetUsdCap ?? DEFAULTS.defaultBotBudgetUsdCap,
     updatedAt: new Date(),
     updatedBy: patch.updatedBy ?? null,
   };

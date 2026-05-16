@@ -16,12 +16,17 @@ import { pgTable, integer, real, timestamp, text } from "drizzle-orm/pg-core";
  * - agentPerplexityCap: max perplexity_research tool calls a single agent
  *   run may issue before short-circuiting (runaway-loop circuit breaker).
  *   Previously MAX_RESEARCH_PER_RUN in services/agent/graph.ts.
+ * - defaultBotBudgetUsdCap: default monthly LLM-spend cap (USD) applied to
+ *   each newly-provisioned synthetic agent. Per-bot overrides at provision
+ *   time still win, but the system-wide default is admin-editable here so
+ *   no value is ever truly hardcoded.
  */
 export const agentTuningTable = pgTable("agent_tuning", {
   id: integer("id").primaryKey().default(1),
   routineIntervalHours: real("routine_interval_hours").notNull().default(96),
   detailBackfillLimit: integer("detail_backfill_limit").notNull().default(15),
   agentPerplexityCap: integer("agent_perplexity_cap").notNull().default(6),
+  defaultBotBudgetUsdCap: real("default_bot_budget_usd_cap").notNull().default(40),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   updatedBy: text("updated_by"),
 });

@@ -16,7 +16,7 @@ import { desc, count, gte, sql, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { backfillAiNarratives } from "../services/alpha/enrich";
 import { getTuning, saveTuning, TUNING_DEFAULTS } from "../services/agent-tuning";
-import { provisionBot, disableBot, setBotStatus, listBots, listAvailablePersonas } from "../services/bots/provisioning";
+import { provisionBot, disableBot, setBotStatus, setBotBudget, listBots, listAvailablePersonas } from "../services/bots/provisioning";
 import { listPersonas } from "../services/bots/personas";
 import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budget";
 import { triggerBotTickNow } from "../services/agent/scheduler";
@@ -322,12 +322,28 @@ router.patch("/admin/bots/:id", async (req, res) => {
     const body = req.body ?? {};
     const actorHeader = (req.headers["x-admin-actor"] as string | undefined) ?? "admin";
     const actorEmail = typeof body.actorEmail === "string" ? body.actorEmail : null;
-    if (body.status === "disabled") {
-      await disableBot(botId, { actorUserId: actorHeader, actorEmail });
-    } else if (body.status === "active" || body.status === "paused") {
-      await setBotStatus(botId, body.status, { actorUserId: actorHeader, actorEmail });
-    } else {
-      res.status(400).json({ error: "status must be 'active', 'paused', or 'disabled'" });
+
+    // Status update path (independent from budget update)
+    if (body.status !== undefined) {
+      if (body.status === "disabled") {
+        await disableBot(botId, { actorUserId: actorHeader, actorEmail });
+      } else if (body.status === "active" || body.status === "paused") {
+        await setBotStatus(botId, body.status, { actorUserId: actorHeader, actorEmail });
+      } else {
+        res.status(400).json({ error: "status must be 'active', 'paused', or 'disabled'" });
+        return;
+      }
+    }
+
+    // Budget update path — admin-tunable per-bot cap. Stacks with status
+    // updates in the same request so the UI can do "pause + lower cap"
+    // in one round-trip.
+    if (typeof body.monthlyBudgetUsdCap === "number") {
+      await setBotBudget(botId, body.monthlyBudgetUsdCap, { actorUserId: actorHeader, actorEmail });
+    }
+
+    if (body.status === undefined && typeof body.monthlyBudgetUsdCap !== "number") {
+      res.status(400).json({ error: "must supply status, monthlyBudgetUsdCap, or both" });
       return;
     }
     res.json({ ok: true });
