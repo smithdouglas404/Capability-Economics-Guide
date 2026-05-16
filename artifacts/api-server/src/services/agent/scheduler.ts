@@ -8,6 +8,7 @@ import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../mark
 import { runDigestSweep } from "../digest";
 import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
+import { runAllBotsTick } from "../bots/loop";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -16,6 +17,12 @@ import { desc } from "drizzle-orm";
 // constant here is how often we *check* whether it's time to run.
 const ROUTINE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
+// Bot loop tick: every hour we wake all active bots and check whether each
+// has actions due per its persona cadence. The runBotTick function is
+// internally idempotent — running it more often than actions are due is a
+// no-op. Hourly gives quick response after a new bot is spawned without
+// over-polling.
+const BOT_LOOP_INTERVAL_MS = 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -34,10 +41,12 @@ let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
+let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
 let isDigesting = false;
+let isBotTicking = false;
 let lastRunAt: Date | null = null;
 let lastRotationAt: Date | null = null;
 let lastWorldScanAt: Date | null = null;
@@ -242,6 +251,32 @@ async function executeRotation(trigger: string): Promise<void> {
 }
 
 /**
+ * Bot loop tick: wake all active bots, run any actions due per persona
+ * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
+ * doesn't overlap with the next hourly fire.
+ */
+async function botLoopTick(): Promise<void> {
+  if (isBotTicking) {
+    console.log("[Bots] Skipping tick — previous tick still in progress");
+    return;
+  }
+  isBotTicking = true;
+  try {
+    const results = await runAllBotsTick();
+    const totalActions = results.reduce((a, r) => a + r.actionsRun, 0);
+    const totalSkipped = results.reduce((a, r) => a + r.actionsSkippedBudget, 0);
+    const totalCostCents = results.reduce((a, r) => a + r.totalCostCents, 0);
+    if (totalActions > 0 || totalSkipped > 0) {
+      console.log(`[Bots] Hourly tick: ${results.length} active bot(s), ${totalActions} actions, ${totalSkipped} budget-skips, $${(totalCostCents / 100).toFixed(2)} this tick`);
+    }
+  } catch (err) {
+    console.warn("[Bots] tick failed:", err);
+  } finally {
+    isBotTicking = false;
+  }
+}
+
+/**
  * Routine cycle check: read the admin-tunable routine interval and run
  * executeRun("routine") if enough time has elapsed since lastRunAt. Called
  * every ROUTINE_CHECK_INTERVAL_MS — moving away from a fixed setInterval
@@ -277,6 +312,7 @@ export function startScheduler(): void {
   rotationTimer = setInterval(() => executeRotation("daily"), ROTATION_INTERVAL_MS);
   worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
   digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
+  botLoopTimer = setInterval(() => botLoopTick(), BOT_LOOP_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -289,6 +325,20 @@ export function startScheduler(): void {
   // Run the digest sweep once at startup but staggered so we don't pile up
   // outbound mail in the first minute after deploy.
   setTimeout(() => executeDigestSweep("startup"), 90_000);
+  // Fire one bot tick shortly after boot so a freshly-provisioned bot
+  // doesn't have to wait an hour to take its first action.
+  setTimeout(() => botLoopTick(), 45_000);
+}
+
+/**
+ * Admin-triggered manual bot tick. Returns a summary so the admin UI can
+ * show "fired tick: 2 actions, $0.04 spent" immediately rather than waiting
+ * for the next hourly fire.
+ */
+export async function triggerBotTickNow(): Promise<{ ok: boolean; reason?: string }> {
+  if (isBotTicking) return { ok: false, reason: "bot tick already in progress" };
+  await botLoopTick();
+  return { ok: true };
 }
 
 export function stopScheduler(): void {
@@ -297,6 +347,7 @@ export function stopScheduler(): void {
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   if (digestTimer) { clearInterval(digestTimer); digestTimer = null; }
+  if (botLoopTimer) { clearInterval(botLoopTimer); botLoopTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
