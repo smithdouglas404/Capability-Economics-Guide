@@ -1,6 +1,7 @@
 import { db, capabilityFilingsTable, capabilityFilingStatusTable, capabilitiesTable } from "@workspace/db";
 import { eq, desc, sql, and } from "drizzle-orm";
 import { searchEdgar } from "./fetcher";
+import { extractFilingsViaHaiku } from "./extractor";
 import { logger } from "../../lib/logger";
 
 /**
@@ -111,6 +112,16 @@ export async function getOrFetchCapabilityFilings(capabilityId: number, opts: { 
       updatedAt: new Date(),
     })
     .where(eq(capabilityFilingStatusTable.capabilityId, capabilityId));
+
+  // Phase 2: queue Haiku extraction of any newly-added rows so the next
+  // page render shows cleaned-up excerpts + section refs instead of raw
+  // EDGAR snippets. Capped at 10 per request to bound latency / cost
+  // (~$0.20 worst case per first-view of a popular capability).
+  if (newAdded > 0) {
+    extractFilingsViaHaiku({ capabilityId, limit: 10 }).catch(err => {
+      logger.warn({ err, capabilityId }, "[edgar] background extraction failed (non-fatal)");
+    });
+  }
 
   const filings = await db
     .select()

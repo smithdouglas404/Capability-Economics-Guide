@@ -22,6 +22,7 @@ import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budg
 import { triggerBotTickNow } from "../services/agent/scheduler";
 import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
 import { replayHistoricalCEI } from "../services/cei-historical/replay";
+import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -351,6 +352,18 @@ router.patch("/admin/bots/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "update failed" });
+  }
+});
+
+router.post("/admin/edgar/extract", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const capabilityId = typeof body.capabilityId === "number" ? body.capabilityId : undefined;
+    const limit = typeof body.limit === "number" ? body.limit : 20;
+    const r = await extractFilingsViaHaiku({ capabilityId, limit });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "extraction failed" });
   }
 });
 
