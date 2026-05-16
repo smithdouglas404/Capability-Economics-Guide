@@ -2,6 +2,7 @@ import type { Letta as LettaClient } from "@letta-ai/letta-client";
 import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents";
 import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
+import { LETTA_CUSTOM_TOOLS } from "./letta-tools";
 
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
@@ -113,6 +114,36 @@ async function ensureCoreBlocks(): Promise<void> {
   }
 }
 
+/**
+ * Idempotently upsert each tool in LETTA_CUSTOM_TOOLS and attach it to
+ * the agent. Letta auto-generates the JSON schema from the Python source's
+ * signature + docstring, so we only ship source + name + description.
+ *
+ * Without these tools, the Letta agent can only reply to messages — it
+ * has no autonomous read access to live CVI state, recent reflections,
+ * or Mem0. Registering them turns it into a real agent that can call
+ * back into the api-server between user messages.
+ */
+async function ensureCustomTools(): Promise<void> {
+  if (!lettaClient || !lettaAgentId) return;
+  for (const tool of LETTA_CUSTOM_TOOLS) {
+    try {
+      const upserted = await (lettaClient.tools as unknown as {
+        upsert: (body: { source_code: string; description?: string }) => Promise<{ id: string; name?: string }>;
+      }).upsert({
+        source_code: tool.sourceCode,
+        description: tool.description,
+      });
+      await (lettaClient.agents.tools as unknown as {
+        attach: (toolID: string, params: { agent_id: string }) => Promise<unknown>;
+      }).attach(upserted.id, { agent_id: lettaAgentId });
+      console.log(`[Letta] Upserted + attached tool "${tool.name}" (${upserted.id})`);
+    } catch (err) {
+      console.log(`[Letta] Tool ${tool.name} registration failed: ${err instanceof Error ? err.message : err}`);
+    }
+  }
+}
+
 async function doInit(): Promise<boolean> {
   try {
     const { default: Letta } = await import("@letta-ai/letta-client");
@@ -159,6 +190,7 @@ async function doInit(): Promise<boolean> {
     }
 
     await ensureCoreBlocks();
+    await ensureCustomTools();
 
     lettaConnected = true;
     emitAgentEvent({ type: "letta_connected", agentId: lettaAgentId });

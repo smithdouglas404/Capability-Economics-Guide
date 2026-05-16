@@ -1,7 +1,15 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { db } from "@workspace/db";
-import { agentRunsTable, agentMemoriesTable } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import {
+  agentRunsTable,
+  agentMemoriesTable,
+  capabilitiesTable,
+  industriesTable,
+  cviComponentsTable,
+  dvxComponentsTable,
+} from "@workspace/db";
+import { and, desc, eq, or, ilike } from "drizzle-orm";
+import { recallMemories, type MemoryCategory } from "../services/agent/memory";
 import {
   getSchedulerStatus,
   startScheduler,
@@ -317,6 +325,146 @@ router.get("/agent/consolidation/runs", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error("[/agent/consolidation/runs] error:", err);
     res.status(500).json({ error: err instanceof Error ? err.message : "list failed" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Letta autonomous-tool callback endpoints (/api/agent/tools/*)
+//
+// These are called BY the Letta server when its agent invokes one of the
+// custom tools registered via services/agent/letta-tools.ts. The Letta
+// container holds the shared secret in INFLEXCVI_AGENT_TOOL_KEY and sends
+// it on every request as X-Agent-Tool-Key. Without these endpoints, the
+// Letta agent has no autonomous read access to platform state.
+// ---------------------------------------------------------------------------
+
+function requireAgentToolKey(req: Request, res: Response, next: NextFunction): void {
+  const expected = process.env.INFLEXCVI_AGENT_TOOL_KEY;
+  if (!expected) {
+    res.status(503).json({
+      error: "INFLEXCVI_AGENT_TOOL_KEY not configured on api-server — autonomous tools disabled",
+    });
+    return;
+  }
+  const got = req.header("x-agent-tool-key");
+  if (!got || got !== expected) {
+    res.status(401).json({ error: "invalid or missing X-Agent-Tool-Key" });
+    return;
+  }
+  next();
+}
+
+router.get("/agent/tools/capability-state", requireAgentToolKey, async (req, res) => {
+  try {
+    const industry = String(req.query.industry ?? "").trim();
+    const capability = String(req.query.capability ?? "").trim();
+    if (!industry || !capability) {
+      res.status(400).json({ error: "industry and capability query params are required" });
+      return;
+    }
+
+    const [ind] = await db.select().from(industriesTable).where(
+      or(eq(industriesTable.slug, industry), ilike(industriesTable.name, industry)),
+    ).limit(1);
+    if (!ind) {
+      res.json({ found: false, reason: `no industry matched "${industry}"` });
+      return;
+    }
+
+    const [cap] = await db.select().from(capabilitiesTable).where(and(
+      eq(capabilitiesTable.industryId, ind.id),
+      or(eq(capabilitiesTable.slug, capability), ilike(capabilitiesTable.name, capability)),
+    )).limit(1);
+    if (!cap) {
+      res.json({ found: false, reason: `no capability matched "${capability}" in ${ind.name}` });
+      return;
+    }
+
+    const [cvi] = await db.select().from(cviComponentsTable).where(and(
+      eq(cviComponentsTable.capabilityId, cap.id),
+      eq(cviComponentsTable.industryId, ind.id),
+    )).limit(1);
+    const [dvx] = await db.select().from(dvxComponentsTable).where(and(
+      eq(dvxComponentsTable.capabilityId, cap.id),
+      eq(dvxComponentsTable.industryId, ind.id),
+    )).limit(1);
+
+    res.json({
+      found: true,
+      industry: { id: ind.id, name: ind.name, slug: ind.slug },
+      capability: { id: cap.id, name: cap.name, slug: cap.slug },
+      cvi: cvi ? {
+        score: cvi.consensusScore,
+        posteriorVariance: cvi.posteriorVariance,
+        ciLow: cvi.ciLow,
+        ciHigh: cvi.ciHigh,
+        confidence: cvi.confidence,
+        velocity: cvi.velocity,
+        updatedAt: cvi.updatedAt?.toISOString() ?? null,
+      } : null,
+      dvx: dvx ? {
+        score: dvx.disruptionScore,
+        velocity: dvx.velocity,
+        monthsToDisplacement: dvx.monthsToDisplacement,
+        topDisruptors: dvx.topDisruptors,
+        matchedPatternSlug: dvx.matchedPatternSlug,
+        updatedAt: dvx.updatedAt?.toISOString() ?? null,
+      } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "lookup failed" });
+  }
+});
+
+router.get("/agent/tools/recall", requireAgentToolKey, async (req, res) => {
+  try {
+    const q = String(req.query.q ?? "").trim();
+    if (!q) {
+      res.status(400).json({ error: "q query param is required" });
+      return;
+    }
+    const limit = Math.max(1, Math.min(20, Number(req.query.limit ?? 5) || 5));
+    const category = req.query.category ? String(req.query.category) as MemoryCategory : undefined;
+
+    const memories = await recallMemories(q, undefined, limit, category ? { category } : {});
+    res.json({
+      results: memories.map(m => ({
+        content: m.content,
+        category: m.category,
+        runScope: m.runScope,
+        score: m.relevanceScore,
+        createdAt: m.createdAt.toISOString(),
+        source: m.source,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "recall failed" });
+  }
+});
+
+router.get("/agent/tools/reflections", requireAgentToolKey, async (req, res) => {
+  try {
+    const limit = Math.max(1, Math.min(20, Number(req.query.limit ?? 5) || 5));
+    const runs = await db.select().from(agentRunsTable)
+      .orderBy(desc(agentRunsTable.startedAt))
+      .limit(limit);
+    res.json({
+      reflections: runs.map(r => ({
+        runId: r.id,
+        trigger: r.trigger,
+        status: r.status,
+        industriesEvaluated: r.industriesEvaluated,
+        capabilitiesResearched: r.capabilitiesResearched,
+        capabilitiesSkipped: r.capabilitiesSkipped,
+        memoriesStored: r.memoriesStored,
+        cviBefore: r.cviBeforeIndex,
+        cviAfter: r.cviAfterIndex,
+        finishedAt: r.completedAt?.toISOString() ?? null,
+        durationMs: r.completedAt ? r.completedAt.getTime() - r.startedAt.getTime() : null,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "reflections fetch failed" });
   }
 });
 

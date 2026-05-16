@@ -227,7 +227,13 @@ export async function storeMemory(
 export async function updateMemory(memoryId: string, newContent: string): Promise<boolean> {
   if (!isMem0Available()) return false;
   try {
-    await mem0Fetch(`/memories/${memoryId}`, "PUT", { text: newContent });
+    // Mem0 self-hosted v2.x PUT /memories/{id} model is MemoryUpdateRequest
+    // with field `data` (not `text`, which the hosted-cloud docs use). We
+    // were sending `text` and the server was silently accepting then no-op'ing,
+    // so refinement memories from reflectNode never actually persisted upstream.
+    // Send both to stay compatible if the operator bumps to a version that
+    // renames it; the server ignores unknown keys.
+    await mem0Fetch(`/memories/${memoryId}`, "PUT", { data: newContent, text: newContent });
     await db.update(agentMemoriesTable)
       .set({ content: newContent })
       .where(eq(agentMemoriesTable.mem0Id, memoryId));
@@ -273,17 +279,31 @@ export async function recallMemories(
 
   if (isMem0Available()) {
     try {
+      // Push type + category filters to the server (Mem0 supports a
+      // `filters` object that runs against the metadata jsonb we already
+      // write). Previously we fetched 100 and filtered in JS, which both
+      // wasted bandwidth and silently dropped matches past the page.
+      // `threshold` keeps low-confidence vector hits out of the agent's
+      // working memory — 0.35 is conservative; tighten if recall is noisy.
+      const metadataFilter: Record<string, unknown> = {};
+      if (type) metadataFilter.memoryType = type;
+      if (options.category) metadataFilter.category = options.category;
+
       const res = await mem0Fetch("/search", "POST", {
         query,
         agent_id: MEM0_AGENT_ID,
         ...(options.runId ? { run_id: `cycle-${options.runId}` } : {}),
         limit,
+        threshold: 0.35,
+        ...(Object.keys(metadataFilter).length > 0 ? { filters: { metadata: metadataFilter } } : {}),
       }) as { results?: Array<{ id?: string; memory?: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> };
 
       for (const m of res?.results ?? []) {
         const meta = m.metadata || {};
         const memType = (meta.memoryType as string) || type || "observation";
         const memCat = meta.category as string | undefined;
+        // Server-side filtering is best-effort; defensively re-check on
+        // older server versions that ignore `filters`.
         if (type && memType !== type) continue;
         if (options.category && memCat !== options.category) continue;
         results.push({
@@ -293,7 +313,11 @@ export async function recallMemories(
           runScope: (meta.runId as string) || null,
           content: m.memory || "",
           metadata: meta,
-          relevanceScore: m.score ?? 0.8,
+          // Don't fabricate a score — downstream filterMemoriesForTarget
+          // and the decide gate at graph.ts:208 use this as a real signal.
+          // 0.8 inflated every result, making the "validated_pattern" gate
+          // trigger on memories the vector search wasn't confident in.
+          relevanceScore: typeof m.score === "number" ? m.score : 0,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
           source: "mem0",

@@ -16,7 +16,7 @@ import {
 } from "./memory";
 import { emitAgentEvent } from "./events";
 import { getTuning } from "../agent-tuning";
-import { lettaUpdateBlock, lettaArchivalInsert } from "./letta";
+import { lettaUpdateBlock, lettaArchivalInsert, lettaArchivalSearch, lettaSendMessage } from "./letta";
 import { reflectOnFindings, type ResearchFinding } from "./reflect";
 import {
   perplexityResearchTool,
@@ -56,6 +56,7 @@ const AgentState = Annotation.Root({
   trigger: Annotation<string>,
   targets: Annotation<CapabilityTarget[]>,
   recalledMemories: Annotation<AgentMemory[]>,
+  lettaArchivalSnippets: Annotation<string[]>,
   decisions: Annotation<AgentDecision[]>,
   researchResults: Annotation<ResearchFinding[]>,
   reflection: Annotation<{ added: number; updated: number; contradictions: number; priorsUpdated: boolean } | null>,
@@ -132,13 +133,46 @@ async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateTy
 async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   emitAgentEvent({ type: "phase", phase: "recalling", message: "Recalling institutional memory..." });
 
-  // Pull both pattern and validated_pattern memories so decide has both raw signals & consolidations
-  const patterns = await recallMemoriesBatch("pattern", 100);
-  console.log(`[Agent] Recall node: ${patterns.length} pattern memories pulled before decide`);
+  // Pull every memory type that decideNode can act on. Previously only
+  // "pattern" was recalled, which made the other 4 types we write
+  // (insight, observation, decision_context) and the "validated_pattern"
+  // and "contradiction" categories dead-weight at recall time — they sat
+  // in Mem0 forever but never influenced a decision.
+  //
+  // Parallel pull, then merge + dedupe on mem0Id (fall back to id for
+  // local-only rows). Per-type cap keeps any one bucket from drowning
+  // the others when one category has accumulated more memories.
+  const [patterns, insights, observations, decisions] = await Promise.all([
+    recallMemoriesBatch("pattern", 60),
+    recallMemoriesBatch("insight", 30),
+    recallMemoriesBatch("observation", 30),
+    recallMemoriesBatch("decision_context", 20),
+  ]);
+  const merged = [...patterns, ...insights, ...observations, ...decisions];
+  const seen = new Set<string>();
+  const deduped = merged.filter(m => {
+    const key = String(m.mem0Id ?? m.id);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  console.log(`[Agent] Recall: ${patterns.length}P + ${insights.length}I + ${observations.length}O + ${decisions.length}D → ${deduped.length} unique`);
+
+  // Also query Letta archival for the targets we're about to consider —
+  // cycle summaries written via lettaArchivalInsert at memorize time are
+  // a second institutional-memory tier and previously were never read.
+  const archivalSnippets: string[] = [];
+  try {
+    const topQueries = state.targets.slice(0, 5).map(t => `${t.industryName} ${t.capabilityName}`);
+    const archivals = await Promise.all(topQueries.map(q => lettaArchivalSearch(q, 2)));
+    for (const list of archivals) for (const p of list) if (p.text) archivalSnippets.push(p.text);
+  } catch { /* non-fatal — archival is supplementary */ }
 
   emitAgentEvent({
     type: "recall_complete",
     patternMemories: patterns.length,
+    totalMemories: deduped.length,
+    lettaArchivalHits: archivalSnippets.length,
     runId: state.runId,
   });
 
@@ -148,7 +182,7 @@ async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType
     await lettaUpdateBlock("current_focus", `Run #${state.runId} (${state.trigger}). Top targets: ${top}.`);
   } catch { /* non-fatal */ }
 
-  return { recalledMemories: patterns };
+  return { recalledMemories: deduped, lettaArchivalSnippets: archivalSnippets };
 }
 
 async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
@@ -386,6 +420,28 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     try {
       await lettaArchivalInsert(`[cycle #${state.runId}] ${cycleSummary}`);
     } catch { /* non-fatal */ }
+
+    // Close the Letta feedback loop: when contradictions surface, prompt
+    // the stateful agent to refine its `industry_priors` core block. Without
+    // this, core memory stays pinned to its seed text forever — the agent
+    // never actually "updates beliefs on contradiction" despite the persona
+    // claiming to. Letta's base tools include core_memory_replace so it can
+    // execute the rewrite autonomously when the prompt invites it to.
+    const contradictionCount = state.reflection?.contradictions ?? 0;
+    const refinedCount = state.reflection?.updated ?? 0;
+    if (contradictionCount > 0 || refinedCount >= 3) {
+      try {
+        const touchedIndustries = industries.slice(0, 4).join(", ") || "none specified";
+        const prompt =
+          `Cycle #${state.runId} just finished. Reflection found ` +
+          `${contradictionCount} contradiction${contradictionCount === 1 ? "" : "s"} and ` +
+          `${refinedCount} refinement${refinedCount === 1 ? "" : "s"} across: ${touchedIndustries}. ` +
+          `If any of these meaningfully change what you believe about an industry's capability dynamics, ` +
+          `revise your industry_priors core memory block now using core_memory_replace. Keep it concise — ` +
+          `priors should be principles, not transcript. If nothing material changed, reply "no update" and skip.`;
+        await lettaSendMessage(prompt);
+      } catch { /* non-fatal — agent shouldn't fail a cycle on Letta hiccup */ }
+    }
   }
 
   emitAgentEvent({
