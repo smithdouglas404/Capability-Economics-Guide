@@ -24,9 +24,28 @@ const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-sonn
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 
-export type CoreBlockLabel = "persona" | "industry_priors" | "research_strategy" | "current_focus";
+export type CoreBlockLabel =
+  | "persona"
+  | "industry_priors"
+  | "research_strategy"
+  | "current_focus"
+  | "economic_rules"
+  | "project_focus"
+  | "market_context";
 
-const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: string; limit: number }> = [
+/**
+ * read_only blocks are operator-defined policy: the Letta agent can
+ * see them but its core_memory_replace tool cannot rewrite them. Keeps
+ * a noisy synthesis pass from corrupting the agent's persona or its
+ * research strategy.
+ *
+ * economic_rules is read_only from the AGENT's perspective — it can
+ * read the thresholds but must propose changes via the write-tool
+ * queue (services/agent/letta-tools.ts). The api-server still writes
+ * to it directly via syncEconomicRulesToLetta when an admin edits the
+ * underlying economic_rules table.
+ */
+const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: string; limit: number; readOnly?: boolean }> = [
   {
     label: "persona",
     value:
@@ -35,6 +54,7 @@ const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: st
       "I update my beliefs when contradicted, and I reason about second-order effects on enterprise value.",
     description: "Identity and reasoning style for the agent.",
     limit: 4000,
+    readOnly: true,
   },
   {
     label: "industry_priors",
@@ -50,12 +70,32 @@ const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: st
       "Sleeptime consolidator runs daily to promote repeat patterns into validated_pattern category.",
     description: "How the agent decides what to research, what to recall, and what to consolidate.",
     limit: 4000,
+    readOnly: true,
   },
   {
     label: "current_focus",
     value: "(initialized — updated each cycle with the targeted industries and the reasoning trigger)",
     description: "What the agent is currently working on this cycle.",
     limit: 2000,
+  },
+  {
+    label: "economic_rules",
+    value: "(empty — synced from the economic_rules Postgres table by services/agent/economic-rules-sync.ts on boot and on admin edits)",
+    description: "Admin-tunable strategic thresholds the agent reasons against (CVI floor, DVX ceiling, posterior variance limit, DVX factor weights, EVaR alarm levels). When a live data point crosses one of these, the agent should file a write proposal rather than silently note it.",
+    limit: 4000,
+    readOnly: true,
+  },
+  {
+    label: "project_focus",
+    value: "(no project pinned — operating in routine cycle mode across all industries)",
+    description: "The user's currently pinned project / use case (e.g. 'M&A diligence on payments-fintech consolidation'). When non-empty, the agent biases priority toward capabilities in the pinned scope.",
+    limit: 2000,
+  },
+  {
+    label: "market_context",
+    value: "(empty — populated by scheduler when macro events are detected via EDGAR + CVI-signal polling)",
+    description: "Current macro-economic and regulatory context biasing this cycle. Rolling 5 most-recent macro events. Examples: Fed rate decision, major regulatory ruling, sector-wide earnings surprise.",
+    limit: 3000,
   },
 ];
 
@@ -94,17 +134,18 @@ async function ensureCoreBlocks(): Promise<void> {
       if (existingLabels.has(block.label)) continue;
       try {
         const created = await (lettaClient.blocks as unknown as {
-          create: (body: { label: string; value: string; description?: string; limit?: number }) => Promise<{ id: string }>;
+          create: (body: { label: string; value: string; description?: string; limit?: number; read_only?: boolean }) => Promise<{ id: string }>;
         }).create({
           label: block.label,
           value: block.value,
           description: block.description,
           limit: block.limit,
+          ...(block.readOnly ? { read_only: true } : {}),
         });
         await (lettaClient.agents.blocks as unknown as {
           attach: (blockID: string, params: { agent_id: string }) => Promise<unknown>;
         }).attach(created.id, { agent_id: lettaAgentId });
-        console.log(`[Letta] Created + attached core block "${block.label}" (${created.id})`);
+        console.log(`[Letta] Created + attached core block "${block.label}"${block.readOnly ? " (read-only)" : ""} (${created.id})`);
       } catch (err) {
         console.log(`[Letta] Could not create block ${block.label}: ${err instanceof Error ? err.message : err}`);
       }
@@ -183,6 +224,7 @@ async function doInit(): Promise<boolean> {
           value: b.value,
           description: b.description,
           limit: b.limit,
+          ...(b.readOnly ? { read_only: true } : {}),
         })),
       });
       lettaAgentId = newAgent.id;
@@ -357,6 +399,35 @@ export async function lettaPing(): Promise<{
     lettaConnected = false;
     return { configured: true, ok: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+/**
+ * Read every core block in a single parallel pass — used by the admin
+ * memory-stats endpoint so operators can inspect the agent's entire
+ * working memory state in one round-trip instead of N sequential calls.
+ *
+ * Returns null for any block that fails to read (Letta down, block not
+ * yet created, timeout). Never throws.
+ *
+ * Per plan Phase 1.6.5.
+ */
+export async function lettaReadAllBlocks(): Promise<Record<CoreBlockLabel, string | null>> {
+  const init: Record<CoreBlockLabel, string | null> = {
+    persona: null,
+    industry_priors: null,
+    research_strategy: null,
+    current_focus: null,
+    economic_rules: null,
+    project_focus: null,
+    market_context: null,
+  };
+  if (!lettaConnected && !await initLettaClient()) return init;
+  const labels = CORE_BLOCKS.map((b) => b.label);
+  const results = await Promise.all(labels.map((label) => lettaReadBlock(label)));
+  for (let i = 0; i < labels.length; i++) {
+    init[labels[i]!] = results[i] ?? null;
+  }
+  return init;
 }
 
 initLettaClient().catch(() => {});
