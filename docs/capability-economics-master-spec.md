@@ -1310,7 +1310,7 @@ This section catalogues every shipped feature with its purpose, primary surface,
 - **Animation** — Framer Motion; spring physics; layout animations on data state changes.
 - **Charts** — Recharts; composable; Recharts radar for capability views; LineChart for CVI history and backtest trends.
 
-### 24.2 Page-by-Page Specification (Frontend `artifacts/capability-economics/`)
+### 24.2 Page-by-Page Specification (Frontend `artifacts/inflexcvi/`)
 
 | Route | Primary purpose | Key components | Refresh strategy | Notes |
 |---|---|---|---|---|
@@ -1659,7 +1659,7 @@ The root `tsconfig.json` is a **solution file** with project references to the f
 | `pnpm run start` | runs api-server (which also serves built SPA) |
 | `pnpm --filter @workspace/api-server run dev` | NODE_ENV=development, build + start |
 | `pnpm --filter @workspace/api-server run build` | esbuild → `artifacts/api-server/dist/index.mjs` |
-| `pnpm --filter @workspace/capability-economics run build` | `vite build` → `dist/public` |
+| `pnpm --filter @workspace/inflexcvi run build` | `vite build` → `dist/public` |
 | `pnpm --filter @workspace/api-spec run codegen` | regenerate api-client-react + api-zod from openapi.yaml |
 | `cd lib/db && npx drizzle-kit push --force` | push schema changes (dev only) |
 
@@ -1676,10 +1676,10 @@ pnpm run build:deploy
     │                 lib/api-zod, lib/integrations-anthropic-ai
     │       Output: declaration files (.d.ts) + source maps
     │
-    ├── pnpm --filter @workspace/capability-economics run build
+    ├── pnpm --filter @workspace/inflexcvi run build
     │   └── vite build
     │       Input: src/main.tsx
-    │       Output: artifacts/capability-economics/dist/public/
+    │       Output: artifacts/inflexcvi/dist/public/
     │       Chunks: vendor chunk (React, Recharts), route chunks (code-split)
     │       Asset hashing: [name]-[hash].js for cache busting
     │
@@ -1722,7 +1722,7 @@ pnpm run build:deploy
 2. Builds the Express app via `src/app.ts`.
 3. `app.use("/api", router)` mounts all routes under `/api`.
 4. When a built frontend bundle is resolvable, mounts it statically with a non-`/api` SPA fallback.
-   - Resolution order: `FRONTEND_DIST_PATH` env → `$cwd/artifacts/capability-economics/dist/public` → `__dirname/../../capability-economics/dist/public`.
+   - Resolution order: `FRONTEND_DIST_PATH` env → `$cwd/artifacts/inflexcvi/dist/public` → `__dirname/../../capability-economics/dist/public`.
    - Missing bundle is non-fatal: server logs a warning and runs API-only.
 5. `app.listen(PORT, callback)` — callback invokes `startScheduler()`.
 6. Scheduler runs `executeRun("startup")` immediately, then schedules routine (every 30 min) + urgency watchdog (every 5 min).
@@ -2104,7 +2104,7 @@ artifacts/api-server/src/services/
 lib/db/src/schema/
   marketplace.ts            # listings, sellers, purchases, reviews
 
-artifacts/capability-economics/src/
+artifacts/inflexcvi/src/
   pages/marketplace-listing.tsx
   pages/marketplace-library.tsx
   pages/marketplace-workspace.tsx
@@ -2319,7 +2319,7 @@ Both Vite configs (capability-economics and pitch-deck) default `PORT=5173/5174`
 ### 37.3 Code Organisation
 
 ```
-artifacts/capability-economics/src/
+artifacts/inflexcvi/src/
 ├── main.tsx                # entry
 ├── App.tsx                 # router + providers
 ├── pages/                  # one per route
@@ -2514,7 +2514,7 @@ Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod b
 api-server resolves the SPA bundle in this order:
 
 1. `FRONTEND_DIST_PATH` env override
-2. `$cwd/artifacts/capability-economics/dist/public`
+2. `$cwd/artifacts/inflexcvi/dist/public`
 3. `__dirname/../../capability-economics/dist/public` (monorepo layout)
 
 Missing bundle is non-fatal — the server logs a warning and runs API-only.

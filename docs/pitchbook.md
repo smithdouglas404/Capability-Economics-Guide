@@ -126,7 +126,7 @@ It is not a category-creation pitch resting on a deck — it is institutional in
 
 ## SLIDE 5 — THE PRODUCT — A WALK THROUGH WHAT IS LIVE TODAY
 
-This section walks an investor through what they would see if they logged into the platform right now. Every page named is in `artifacts/capability-economics/src/pages/`. Every API route is in `artifacts/api-server/src/routes/`. Every database object referenced is defined in `lib/db/src/schema/`.
+This section walks an investor through what they would see if they logged into the platform right now. Every page named is in `artifacts/inflexcvi/src/pages/`. Every API route is in `artifacts/api-server/src/routes/`. Every database object referenced is defined in `lib/db/src/schema/`.
 
 ### 5.1 The CE Alpha Analytical Surface — Ten Tabs of Capability-Level Intelligence
 
@@ -190,7 +190,7 @@ The tiers are not aspirational — they are live in production, listed at `/memb
 
 ### 5.5 Other Pages Currently Live
 
-The following pages are shipped (`artifacts/capability-economics/src/pages/`):
+The following pages are shipped (`artifacts/inflexcvi/src/pages/`):
 
 `home`, `alpha`, `vce`, `review-queue`, `cei-dashboard`, `c-suite`, `knowledge-graph`, `insights`, `dashboard`, `assess`, `organization`, `projects`, `insurance-example`, `workbench`, `membership`, `admin`, `not-found`.
 

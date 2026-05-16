@@ -2,20 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-`replit.md` contains the authoritative product/feature description and design-system notes — read it before touching `artifacts/capability-economics/` or the data model. This file focuses on how the pieces fit together.
+`replit.md` contains the authoritative product/feature description and design-system notes — read it before touching `artifacts/inflexcvi/` or the data model. This file focuses on how the pieces fit together.
 
 ## Commands
 
 ```bash
 pnpm run typecheck                                   # tsc --build for libs + per-artifact tsc --noEmit
 pnpm run build                                       # typecheck + pnpm -r run build (all packages)
-pnpm run build:deploy                                # libs + capability-economics + api-server only (Railway build)
+pnpm run build:deploy                                # libs + inflexcvi + api-server only (Railway build)
 pnpm run start                                       # runs api-server (which also serves the built SPA)
 pnpm --filter @workspace/api-server run build        # esbuild → artifacts/api-server/dist/index.mjs
 pnpm --filter @workspace/api-server run dev          # NODE_ENV=development, build + start
 pnpm --filter @workspace/api-server run start        # node --enable-source-maps dist/index.mjs
-pnpm --filter @workspace/capability-economics run dev    # vite dev server (defaults PORT=5173, BASE_PATH=/)
-pnpm --filter @workspace/capability-economics run build  # vite build → dist/public
+pnpm --filter @workspace/inflexcvi run dev    # vite dev server (defaults PORT=5173, BASE_PATH=/)
+pnpm --filter @workspace/inflexcvi run build  # vite build → dist/public
 pnpm --filter @workspace/api-spec run codegen        # regenerate api-client-react + api-zod from openapi.yaml
 cd lib/db && npx drizzle-kit push --force            # push schema changes (dev only)
 ```
@@ -32,7 +32,7 @@ There is no test runner configured in any package — do not invent `pnpm test` 
 
 pnpm workspace with three tiers:
 
-- `artifacts/*` — deployables. `api-server` (Express 5 backend, port 8080), `capability-economics` (Vite/React SPA, the main product), `ce-pitch-deck` (pitch deck frontend), `mockup-sandbox` (secondary frontend).
+- `artifacts/*` — deployables. `api-server` (Express 5 backend, port 8080), `inflexcvi` (Vite/React SPA, the main product), `ce-pitch-deck` (pitch deck frontend), `mockup-sandbox` (secondary frontend).
 - `lib/*` — shared packages referenced as `@workspace/<name>`. `db` (Drizzle schema + pg Pool), `api-spec` (OpenAPI source of truth + Orval config), `api-zod` (generated Zod validators), `api-client-react` (generated React Query hooks + `customFetch`), `integrations-anthropic-ai` (Replit AI Integrations proxy), `integrations` (additional integration packages).
 - `scripts` — one-off TS scripts (seeders, Perplexity client). Runs under `tsx`.
 
@@ -57,11 +57,11 @@ Dependencies are pinned via **pnpm catalog** (`pnpm-workspace.yaml`). React, Vit
 
 Express 5, bundled with esbuild (`build.mjs`) into a single `dist/index.mjs` ESM file. The bundle includes pino via `esbuild-plugin-pino` (transports as sibling `pino-*.mjs` files). Many native/unbundleable packages are externalized in `build.mjs` — add to that list if adding a new dep that uses native modules or path traversal.
 
-`src/index.ts` requires `PORT` (throws if missing) and kicks off `startScheduler()` in the `app.listen` callback. `src/app.ts` mounts middleware + `app.use("/api", router)` and, when a built frontend bundle is resolvable, serves it statically with a non-`/api` SPA fallback. Resolution order: `FRONTEND_DIST_PATH` env var → `$cwd/artifacts/capability-economics/dist/public` → `__dirname/../../capability-economics/dist/public` (monorepo layout). Missing bundle is non-fatal — the server logs a warning and runs API-only.
+`src/index.ts` requires `PORT` (throws if missing) and kicks off `startScheduler()` in the `app.listen` callback. `src/app.ts` mounts middleware + `app.use("/api", router)` and, when a built frontend bundle is resolvable, serves it statically with a non-`/api` SPA fallback. Resolution order: `FRONTEND_DIST_PATH` env var → `$cwd/artifacts/inflexcvi/dist/public` → `__dirname/../../inflexcvi/dist/public` (monorepo layout). Missing bundle is non-fatal — the server logs a warning and runs API-only.
 
 All routes are mounted under `/api`. Route handlers use generated Zod schemas from `@workspace/api-zod` to validate `params`/`query`/`body`. The `lib/db` package throws on import if `DATABASE_URL` isn't set.
 
-**Admin-protected routes**: Middleware in `src/middlewares/requireAdmin.ts` requires `x-admin-key` header matching `ADMIN_API_KEY`. Set `ADMIN_AUTH_BYPASS=1` to disable the check locally (never in production). Protected routes include enrichment triggers, agent scheduler control, CEI refresh, insight generation, review queue, admin dashboards, and content management. Public read-only endpoints (catalog browsing, capability detail, EVaR, moat, etc.) remain open.
+**Admin-protected routes**: Middleware in `src/middlewares/requireAdmin.ts` requires `x-admin-key` header matching `ADMIN_API_KEY`. Set `ADMIN_AUTH_BYPASS=1` to disable the check locally (never in production). Protected routes include enrichment triggers, agent scheduler control, CVI refresh, insight generation, review queue, admin dashboards, and content management. Public read-only endpoints (catalog browsing, capability detail, EVaR, moat, etc.) remain open.
 
 ### Enrichment pipeline
 
@@ -71,13 +71,13 @@ Perplexity research feeds into GLM 5.1 (via OpenRouter) for synthesis and DB ins
 
 Every top-level capability has 4–6 sub-capabilities auto-generated by Haiku 4.5. Children get factually triangulated by the rotation scheduler; parents are pure rollups (weighted avg of children's posteriors, never directly triangulated — avoids double-counting). New approved capabilities auto-decompose via `services/sub-capability-generator.ts`. Macro events on a parent expand bidirectionally to children (and vice versa) through `expandAffectedCapabilityIds`. Backfill script: `scripts/backfill-sub-capabilities.ts`.
 
-### Autonomous CEI agent (`src/services/agent/`)
+### Autonomous CVI agent (`src/services/agent/`)
 
 The most complex subsystem. LangGraph state machine with nodes `evaluate → decide → research → compute → memorize → finalize`, running every 30 minutes via `scheduler.ts` (guarded against overlap). Live events stream to the frontend via SSE at `/api/agent/events`.
 
 Key files:
 - `graph.ts` — LangGraph nodes, state transitions
-- `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cei, recall_memories, store_memory)
+- `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cvi, recall_memories, store_memory)
 - `memory.ts` — Mem0 Cloud client with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking cloud ↔ local rows; `getAllMemories` dedupes on that.
 - `letta.ts` — optional stateful agent. Lazy-initializes against `LETTA_BASE_URL` (default `http://localhost:8283`), has a 60s retry cooldown, gracefully degrades if unreachable.
 - `events.ts` — in-process pub/sub for SSE.
@@ -86,7 +86,7 @@ All three integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env v
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
-### Frontend (`artifacts/capability-economics`)
+### Frontend (`artifacts/inflexcvi`)
 
 Vite + React 19 + wouter (not React Router) + TanStack Query + shadcn/ui (Radix primitives + Tailwind). Tailwind v4 via `@tailwindcss/vite`.
 
@@ -98,7 +98,7 @@ Session management (non-obvious): session token in `localStorage` as `ce_session
 
 Drizzle ORM over node-postgres. Schema in `src/schema.ts` (re-exported from `src/index.ts`). Zod validators via `drizzle-zod`. Migrations use `drizzle-kit push` in dev; there is no migration-file workflow configured.
 
-Notable tables: `industries` / `capabilities` / `capability_metrics` / `capability_dependencies` form the core capability graph; `organizations` + `organization_capabilities` hold user assessments (unique constraint on `(org_id, capability_id)`); `cei_snapshots` / `cei_components` / `source_triangulations` back the CEI computation; `agent_runs` + `agent_memories` back the autonomous agent; `data_sources` with `sourceIds` jsonb columns on thresholds/leaderboard/white-papers implements the citation system.
+Notable tables: `industries` / `capabilities` / `capability_metrics` / `capability_dependencies` form the core capability graph; `organizations` + `organization_capabilities` hold user assessments (unique constraint on `(org_id, capability_id)`); `cvi_snapshots` / `cvi_components` / `source_triangulations` back the CVI computation; `agent_runs` + `agent_memories` back the autonomous agent; `data_sources` with `sourceIds` jsonb columns on thresholds/leaderboard/white-papers implements the citation system.
 
 ### Required environment variables
 
@@ -123,7 +123,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 - `gh` and `railway` CLI **cannot be authenticated from within a Claude Code session** without user-supplied tokens. If a task requires either, ask the user to either (a) paste a fresh token as `export RAILWAY_API_TOKEN=…` / `export GH_TOKEN=…` in the same shell, or (b) move the work to desktop Claude Code.
 
 **Working around missing CLI auth — diagnostics that don't need it:**
-- Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
+- Prod health: `curl https://inflexcvi-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
 - Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` in `env` *may* still work (they target the live Railway Letta service) — but treat a 401 as "the local key is stale," not "Letta is broken."
 - Direct Mem0 queries: same caveat. Header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below.
 
@@ -145,10 +145,10 @@ curl -s -X POST https://backboard.railway.com/graphql/v2 \
   -d '{"query":"query Vars($p:String!,$e:String!,$s:String!){variables(projectId:$p,environmentId:$e,serviceId:$s)}","variables":{"p":"<projectId>","e":"<envId>","s":"<serviceId>"}}'
 ```
 
-Capability Economics project IDs (verify via discovery query before relying on them — services get renamed):
+Inflexcvi project IDs (verify via discovery query before relying on them — services get renamed):
 - projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
 - production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
-- service `capabilityeconomics` (api-server): `f4585a12-c207-4faa-9171-5362997768ec`
+- service `capabilityeconomics` (api-server, rename to `inflexcvi` pending in Railway dashboard): `f4585a12-c207-4faa-9171-5362997768ec`
 - service `letta-2EOT`: `b6b84d74-984e-4792-8218-3e97bcc2831c`
 - service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
@@ -159,7 +159,7 @@ Never reuse a token from memory or a prior session — always ask for a fresh on
 
 ### Deploying to Railway
 
-Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built capability-economics SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
+Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built inflexcvi SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
 
 ### Mem0 + Letta on Railway
 

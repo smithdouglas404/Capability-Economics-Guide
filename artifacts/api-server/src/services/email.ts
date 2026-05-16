@@ -310,7 +310,7 @@ export async function sendDigestEmail({ to, name, items }: { to: string; name?: 
 // ───────────────────── Helpers ─────────────────────
 
 function appUrl(path: string): string {
-  const base = process.env.APP_BASE_URL ?? "https://capabilityeconomics-staging.up.railway.app";
+  const base = process.env.APP_BASE_URL ?? "https://inflexcvi-staging.up.railway.app";
   return `${base.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 

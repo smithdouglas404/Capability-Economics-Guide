@@ -66,7 +66,7 @@ Plus all `RAILWAY_*` (auto-injected) and the `RAILWAY_VOLUME_*` set (a volume is
 
 | Env var | Current behavior | Decision |
 |---|---|---|
-| **`APP_BASE_URL`** | Defaults to hardcoded `"https://capabilityeconomics-staging.up.railway.app"` in `services/email.ts:293`. Used to build links in transactional emails. | **Leave as-is.** Functionally identical to the current Railway URL. Revisit when a custom production domain is provisioned. |
+| **`APP_BASE_URL`** | Defaults to hardcoded `"https://inflexcvi-staging.up.railway.app"` in `services/email.ts:293`. Used to build links in transactional emails. | **Leave as-is.** Functionally identical to the current Railway URL. Revisit when a custom production domain is provisioned. |
 
 ---
 
@@ -202,13 +202,13 @@ See § 3 and § 4 above for the resolved-state summary. Files changed:
 ```
 artifacts/api-server/src/services/marketplace-seed.ts
 scripts/src/seed-marketplace-listings.ts
-artifacts/capability-economics/src/App.tsx                  (RequireAuth + auth-gated routes)
-artifacts/capability-economics/src/pages/vce.tsx            (conditional sample-brief CTA)
-artifacts/capability-economics/src/pages/security.tsx       (real email, ×2)
-artifacts/capability-economics/src/pages/demo.tsx           (humanized patterns string)
-artifacts/capability-economics/src/components/manual-comp-form.tsx
-artifacts/capability-economics/src/pages/organization.tsx
-artifacts/capability-economics/src/pages/account.tsx
+artifacts/inflexcvi/src/App.tsx                  (RequireAuth + auth-gated routes)
+artifacts/inflexcvi/src/pages/vce.tsx            (conditional sample-brief CTA)
+artifacts/inflexcvi/src/pages/security.tsx       (real email, ×2)
+artifacts/inflexcvi/src/pages/demo.tsx           (humanized patterns string)
+artifacts/inflexcvi/src/components/manual-comp-form.tsx
+artifacts/inflexcvi/src/pages/organization.tsx
+artifacts/inflexcvi/src/pages/account.tsx
 CLAUDE.md                                                   (X-API-Key, not Bearer)
 docs/limited-production-readiness.md                        (this document)
 ```
@@ -218,14 +218,14 @@ docs/limited-production-readiness.md                        (this document)
 ## 7. Verification — end-to-end smoke test before declaring limited-prod ready
 
 1. **Railway services** all `SUCCESS` (`railway service status --all`).
-2. **Health endpoint:** `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` returns `overall: "ok"`, with `mem0: ok`, `letta: ok`, `perplexity: ok`, `openrouter: ok`, `stripe: ok`, `clerk: ok`, `demo_readiness: ok`. (`anthropic` and `foundry` remain `not_configured` — deliberate.)
+2. **Health endpoint:** `curl https://inflexcvi-staging.up.railway.app/api/health/services` returns `overall: "ok"`, with `mem0: ok`, `letta: ok`, `perplexity: ok`, `openrouter: ok`, `stripe: ok`, `clerk: ok`, `demo_readiness: ok`. (`anthropic` and `foundry` remain `not_configured` — deliberate.)
 3. **Auth-gated routes:** in an incognito browser, `/demo` and `/workbench/example` redirect to sign-in. After sign-in, both render.
 4. **Marketplace gating:**
    - Without the env var: `GET /api/marketplace/listings` returns 0 items at boot; no `acct_xxx` seller strings in the database.
    - With the env var set to a real test Connect account: listings are present and Stripe Checkout completes with a Stripe test card (`4242 4242 4242 4242`).
 5. **Security page:** `/security` shows `security@inflexcvi.ai`, not `@example.com`.
 6. **Form placeholders:** `/account`, `/organization`, and a manual-comp-form context show no `Acme` strings.
-7. **Admin auth:** `curl -H "X-Admin-Key: <ADMIN_API_KEY>" https://capabilityeconomics-staging.up.railway.app/api/admin/...` returns 200; without the header it returns 401.
+7. **Admin auth:** `curl -H "X-Admin-Key: <ADMIN_API_KEY>" https://inflexcvi-staging.up.railway.app/api/admin/...` returns 200; without the header it returns 401.
 
 Once all seven check out, the app is ready for limited-production rollout. Anything surfaced during rollout becomes the next round of cleanup, not a launch blocker.
 

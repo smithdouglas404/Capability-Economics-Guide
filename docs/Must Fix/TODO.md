@@ -62,16 +62,16 @@ Canonical task list. All implementation work is committed and pushed to `main`. 
 
 - [x] `pnpm run typecheck` — passes (all 5 packages).
 - [x] `pnpm run build` — passes (capability-economics frontend builds clean).
-- [x] Repo grep `WireDrop|Atlas Copper|Adam Patel|Sarah Chen|illustrative|TICKER_ITEMS|SUGGESTED_EVENTS|SAMPLE_BRIEF|FIXTURE` against `artifacts/capability-economics/src` — zero non-comment matches.
+- [x] Repo grep `WireDrop|Atlas Copper|Adam Patel|Sarah Chen|illustrative|TICKER_ITEMS|SUGGESTED_EVENTS|SAMPLE_BRIEF|FIXTURE` against `artifacts/inflexcvi/src` — zero non-comment matches.
 - [ ] **Pending:** manual browser walkthrough after next Railway deploy. Watch the 4 routes that changed most: `/`, `/cei`, `/alpha`, `/workbench/example`.
 - [ ] **Pending:** curl each new endpoint against prod after deploy:
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/home-ticker`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/principle-stats`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/metrics/home-tiles`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/cei/exemplars`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/alpha/config/quadrant-multiples`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/whatif/presets`
-  - `curl https://capabilityeconomics-staging.up.railway.app/api/case-study/insurance/economics-breakdown` (will show null `economicsBreakdown` until populated)
+  - `curl https://inflexcvi-staging.up.railway.app/api/metrics/home-ticker`
+  - `curl https://inflexcvi-staging.up.railway.app/api/metrics/principle-stats`
+  - `curl https://inflexcvi-staging.up.railway.app/api/metrics/home-tiles`
+  - `curl https://inflexcvi-staging.up.railway.app/api/cei/exemplars`
+  - `curl https://inflexcvi-staging.up.railway.app/api/alpha/config/quadrant-multiples`
+  - `curl https://inflexcvi-staging.up.railway.app/api/whatif/presets`
+  - `curl https://inflexcvi-staging.up.railway.app/api/case-study/insurance/economics-breakdown` (will show null `economicsBreakdown` until populated)
 
 ---
 

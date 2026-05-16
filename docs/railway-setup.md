@@ -28,11 +28,11 @@ The api-server (`capabilityeconomics`) is the only public-internet-facing servic
 ### 1. `capabilityeconomics` — the api-server
 
 - **Source:** This repo, branch `main`, builder is the root `Dockerfile`
-- **Public:** Yes — `capabilityeconomics-staging.up.railway.app`
+- **Public:** Yes — `inflexcvi-staging.up.railway.app`
 - **Required env:** `DATABASE_URL`, `PORT` (Railway injects), `ADMIN_API_KEY`, plus consumer keys for any integration it should talk to (see env reference below)
 - **Build:** `pnpm install --frozen-lockfile && pnpm run build:deploy` → `pnpm run start`
 
-This service does *not* host Mem0/Letta/Postgres — it only consumes them. It also serves the built `capability-economics` SPA as static files (`artifacts/capability-economics/dist/public`).
+This service does *not* host Mem0/Letta/Postgres — it only consumes them. It also serves the built `capability-economics` SPA as static files (`artifacts/inflexcvi/dist/public`).
 
 ### 2. `Postgres` — app database
 
@@ -111,7 +111,7 @@ STRIPE_WEBHOOK_SECRET=<your key>
 Verify everything with:
 
 ```
-GET https://capabilityeconomics-staging.up.railway.app/api/health/services
+GET https://inflexcvi-staging.up.railway.app/api/health/services
 ```
 
 Each service entry returns `ok` / `degraded` / `down` / `not_configured`. The `not_configured` state means an env var is intentionally absent — that's fine, the integration just turns off. `down` / `degraded` are real problems.
@@ -258,8 +258,8 @@ curl -X POST https://backboard.railway.app/graphql/v2 \
 | Letta client | `artifacts/api-server/src/services/agent/letta.ts` |
 | Health probes (mem0, letta, perplexity, openrouter, stripe, clerk, etc.) | `artifacts/api-server/src/services/health/probes.ts` |
 | `/api/health/services` route | `artifacts/api-server/src/routes/` |
-| Degraded-service banner on the SPA | `artifacts/capability-economics/src/components/degraded-banner.tsx` |
-| Frontend hook that polls health | `artifacts/capability-economics/src/hooks/use-service-health.ts` |
+| Degraded-service banner on the SPA | `artifacts/inflexcvi/src/components/degraded-banner.tsx` |
+| Frontend hook that polls health | `artifacts/inflexcvi/src/hooks/use-service-health.ts` |
 
 ---
 

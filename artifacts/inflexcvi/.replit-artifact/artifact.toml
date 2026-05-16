@@ -2,7 +2,7 @@ kind = "web"
 previewPath = "/"
 title = "Inflexcvi"
 version = "1.0.0"
-id = "artifacts/capability-economics"
+id = "artifacts/inflexcvi"
 router = "path"
 
 [[integratedSkills]]
@@ -15,11 +15,11 @@ paths = [ "/" ]
 localPort = 20020
 
 [services.development]
-run = "pnpm --filter @workspace/capability-economics run dev"
+run = "pnpm --filter @workspace/inflexcvi run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/capability-economics", "run", "build" ]
-publicDir = "artifacts/capability-economics/dist/public"
+build = [ "pnpm", "--filter", "@workspace/inflexcvi", "run", "build" ]
+publicDir = "artifacts/inflexcvi/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]

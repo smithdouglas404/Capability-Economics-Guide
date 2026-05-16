@@ -78,14 +78,14 @@ Inspected, fully dynamic from APIs already: `case-studies.tsx`, `case-study.tsx`
 ## 3. Files modified
 
 **Frontend (8):**
-- `artifacts/capability-economics/src/pages/home.tsx` (items 1-4)
-- `artifacts/capability-economics/src/pages/cei-dashboard.tsx` (item 5)
-- `artifacts/capability-economics/src/pages/alpha.tsx` (items 6, 7)
-- `artifacts/capability-economics/src/pages/methodology.tsx` (item 7 supporting)
-- `artifacts/capability-economics/src/pages/vce.tsx` (item 8)
-- `artifacts/capability-economics/src/pages/workbench-example.tsx` (item 9)
-- `artifacts/capability-economics/src/pages/whatif.tsx` (item 10)
-- `artifacts/capability-economics/src/pages/membership.tsx` (item 11)
+- `artifacts/inflexcvi/src/pages/home.tsx` (items 1-4)
+- `artifacts/inflexcvi/src/pages/cei-dashboard.tsx` (item 5)
+- `artifacts/inflexcvi/src/pages/alpha.tsx` (items 6, 7)
+- `artifacts/inflexcvi/src/pages/methodology.tsx` (item 7 supporting)
+- `artifacts/inflexcvi/src/pages/vce.tsx` (item 8)
+- `artifacts/inflexcvi/src/pages/workbench-example.tsx` (item 9)
+- `artifacts/inflexcvi/src/pages/whatif.tsx` (item 10)
+- `artifacts/inflexcvi/src/pages/membership.tsx` (item 11)
 
 **Backend (new + extended):**
 - `artifacts/api-server/src/routes/metrics.ts` (new: B1, B2, B3)

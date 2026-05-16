@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/capability-economics",
+  "name": "@workspace/inflexcvi",
   "version": "0.0.0",
   "dependencies": {
     "@clerk/react": "^6.4.1",

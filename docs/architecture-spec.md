@@ -524,7 +524,7 @@ CREATE INDEX idx_csuite_generated_at
 
 ---
 
-## 7. Frontend Architecture (`artifacts/capability-economics/`)
+## 7. Frontend Architecture (`artifacts/inflexcvi/`)
 
 ### 7.1 Technology Stack
 
@@ -700,7 +700,7 @@ Railway project
     └── DATABASE_URL auto-injected via Railway variable reference
 ```
 
-**Single-service architecture:** The API server statically serves the built frontend SPA from `artifacts/capability-economics/dist/public/`. All non-`/api` routes return `index.html` (SPA fallback). This eliminates the need for a separate CDN or frontend hosting service at current scale.
+**Single-service architecture:** The API server statically serves the built frontend SPA from `artifacts/inflexcvi/dist/public/`. All non-`/api` routes return `index.html` (SPA fallback). This eliminates the need for a separate CDN or frontend hosting service at current scale.
 
 **Database initialization:** `drizzle-kit push` runs before server start on every deploy. This is idempotent — it applies only the schema diff. Zero-downtime deploys are achieved because Railway spins up the new container before terminating the old one; the push command completes in <5 seconds on an empty diff.
 
@@ -715,10 +715,10 @@ pnpm run build:deploy
     │                 lib/integrations/anthropic-ai
     │       Output: Declaration files (.d.ts) + source maps
     │
-    ├── pnpm --filter @workspace/capability-economics run build
+    ├── pnpm --filter @workspace/inflexcvi run build
     │   └── vite build
     │       Input: src/main.tsx
-    │       Output: artifacts/capability-economics/dist/public/
+    │       Output: artifacts/inflexcvi/dist/public/
     │       Chunks: vendor chunk (React, Recharts), route chunks (code-split)
     │       Asset hashing: [name]-[hash].js for cache busting
     │

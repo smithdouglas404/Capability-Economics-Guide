@@ -74,7 +74,7 @@ function resolveFrontendDist(): string | null {
   const override = process.env.FRONTEND_DIST_PATH;
   const candidates = [
     override,
-    path.resolve(process.cwd(), "artifacts/capability-economics/dist/public"),
+    path.resolve(process.cwd(), "artifacts/inflexcvi/dist/public"),
     path.resolve(__dirname, "../../capability-economics/dist/public"),
   ].filter((p): p is string => typeof p === "string" && p.length > 0);
 
@@ -107,7 +107,7 @@ if (frontendDist) {
   });
 } else {
   logger.warn(
-    "No frontend dist found — running API-only. Set FRONTEND_DIST_PATH or build @workspace/capability-economics to enable SPA serving.",
+    "No frontend dist found — running API-only. Set FRONTEND_DIST_PATH or build @workspace/inflexcvi to enable SPA serving.",
   );
 }
 
