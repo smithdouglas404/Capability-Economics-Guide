@@ -11,14 +11,49 @@ import {
   tradeSignalsTable,
 } from "@workspace/db";
 import { eq, sql, desc, and, gt, lt, inArray } from "drizzle-orm";
+import { runNlQueryRag } from "../services/rag/nl-query";
 
 const router = Router();
 
-// Natural language query endpoint
+// Natural language query endpoint.
+// Defaults to the Claude RAG pipeline (services/rag/nl-query.ts).
+// Append ?fallback=1 to force the legacy regex-pattern path (rarely useful;
+// kept for debugging only).
 router.post("/nl-query", async (req, res) => {
   try {
     const { query, sessionToken } = req.body as { query: string; sessionToken?: string };
     if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+    const useFallback = req.query.fallback === "1";
+    if (!useFallback) {
+      try {
+        const rag = await runNlQueryRag(query);
+        await db.insert(nlQueryLogsTable).values({
+          sessionToken,
+          query,
+          response: rag.answer,
+          dataReturned: { citations: rag.citations, followUps: rag.followUps, classification: rag.classification, retrievedContextCount: rag.retrievedContextCount },
+          modelUsed: "rag-claude",
+          durationMs: rag.durationMs,
+        });
+        res.json({
+          query,
+          response: rag.answer,
+          data: {
+            citations: rag.citations,
+            followUps: rag.followUps,
+            classification: rag.classification,
+          },
+          durationMs: rag.durationMs,
+          costCents: rag.costCents,
+        });
+        return;
+      } catch (ragErr) {
+        // If RAG fails (e.g. OPENROUTER_API_KEY missing), fall through to
+        // the legacy path so the endpoint never just 500s.
+        console.warn("[nl-query] RAG failed, falling back to regex path:", ragErr);
+      }
+    }
 
     const start = Date.now();
     const lowerQ = query.toLowerCase();
