@@ -5,7 +5,7 @@ import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
 import { ensureSharedStoreReady } from "./store";
-import { optimizeAgentInstructions } from "./optimizer";
+import { optimizeAgentInstructions, learnFromHumanOverrides } from "./optimizer";
 import { runMacroEventAgent } from "../macro-event-agent";
 import { runDisruptionAgent } from "../disruption-agent";
 import { runPeerCoopAgent } from "../peer-coop-agent";
@@ -507,11 +507,31 @@ export function startScheduler(): void {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
   optimizerTimer = setInterval(() => {
-    optimizeAgentInstructions("cvi-autonomous-agent")
-      .then(r => r.optimized
-        ? console.log(`[Agent] Optimizer rewrote cvi-autonomous-agent priors from ${r.basedOnRuns} runs`)
-        : console.log(`[Agent] Optimizer skipped: ${r.reason ?? "no change"}`))
-      .catch(err => console.warn("[Agent] Optimizer failed:", err instanceof Error ? err.message : err));
+    // Run BOTH per-agent optimization passes weekly: (1) rewrite
+    // standing instructions based on run outcomes; (2) rewrite
+    // decision_priors based on human override rejections. Same
+    // cadence, same cost discipline. Each is independently no-op if
+    // there's nothing new to learn.
+    const agents = [
+      "cvi-autonomous-agent",
+      "macro-event-agent",
+      "disruption-agent",
+      "peer-coop-agent",
+      "stack-optimizer-agent",
+      "ontology-agent",
+    ];
+    for (const name of agents) {
+      optimizeAgentInstructions(name)
+        .then(r => r.optimized
+          ? console.log(`[Agent] Optimizer rewrote ${name} instructions from ${r.basedOnRuns} runs`)
+          : console.log(`[Agent] Optimizer skipped ${name}: ${r.reason ?? "no change"}`))
+        .catch(err => console.warn(`[Agent] Optimizer ${name} failed:`, err instanceof Error ? err.message : err));
+      learnFromHumanOverrides(name)
+        .then(r => r.rewritten
+          ? console.log(`[Agent] Override-learn rewrote ${name} decision_priors from ${r.basedOnRejections} rejections`)
+          : console.log(`[Agent] Override-learn skipped ${name}: ${r.reason ?? "no change"}`))
+        .catch(err => console.warn(`[Agent] Override-learn ${name} failed:`, err instanceof Error ? err.message : err));
+    }
   }, OPTIMIZER_INTERVAL_MS);
   macroEventAgentTimer = setInterval(() => {
     runMacroEventAgent()

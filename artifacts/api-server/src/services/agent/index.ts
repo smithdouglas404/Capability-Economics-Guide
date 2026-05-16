@@ -28,7 +28,7 @@ export {
   searchAgentArchive,
   storePing,
 } from "./store";
-export { optimizeAgentInstructions } from "./optimizer";
+export { optimizeAgentInstructions, learnFromHumanOverrides } from "./optimizer";
 export { inferTopic, type Topic } from "./topics";
 export { startConsolidator, stopConsolidator, runConsolidation, getLastConsolidation } from "./consolidator";
 export { getGraphStats, findCorrelations, findRelated } from "./graphMemory";
