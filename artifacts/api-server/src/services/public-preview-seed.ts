@@ -1,5 +1,5 @@
 import { db, capabilitiesTable, industriesTable } from "@workspace/db";
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 /**
@@ -59,7 +59,10 @@ export async function ensurePublicPreviewSeed(targetCount = 10): Promise<void> {
         .limit(limit);
       if (candidates.length === 0) continue;
       const ids = candidates.map(c => c.id);
-      await db.execute(sql`UPDATE capabilities SET public_preview = true WHERE id = ANY(${ids})`);
+      // Use drizzle's inArray (renders id IN (...)) instead of raw ANY().
+      // Tagged-template sql`ANY(${ids})` spreads the array as positional
+      // params, which pg interprets as a tuple, not an array — bug.
+      await db.update(capabilitiesTable).set({ publicPreview: true }).where(inArray(capabilitiesTable.id, ids));
       added += candidates.length;
     }
 
@@ -80,7 +83,7 @@ export async function ensurePublicPreviewSeed(targetCount = 10): Promise<void> {
         .limit(need);
       if (extra.length > 0) {
         const ids = extra.map(c => c.id);
-        await db.execute(sql`UPDATE capabilities SET public_preview = true WHERE id = ANY(${ids})`);
+        await db.update(capabilitiesTable).set({ publicPreview: true }).where(inArray(capabilitiesTable.id, ids));
         added += extra.length;
       }
     }

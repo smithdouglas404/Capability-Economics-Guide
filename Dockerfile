@@ -23,34 +23,23 @@ RUN pnpm run build:deploy
 ENV PORT=8080
 EXPOSE 8080
 
-# Push schema + seed every idempotent catalog, then start server.
+# `pnpm run start` calls scripts/src/deploy-migrate.ts, which now runs:
+#   1. SQL migrations (lib/db/migrations/*.sql) — table renames + column
+#      corrections that drizzle-kit cannot infer (cei_* → cvi_* etc.).
+#   2. drizzle-kit push --force — creates / aligns all tables to the
+#      source-of-truth schema files.
+#   3. The full seed chain in dependency order — every idempotent seed
+#      (knowledge graph base, marketplace, organizations, design-thinking
+#      patterns, marketplace reports, alpha-config, payg tier, DVX
+#      disruption patterns, disruption events catalog).
+#   4. Then api-server start.
 #
-# We use `db run push-force` (drizzle-kit push --force) here so it never
-# prompts in this TTY-less container. `pnpm run start` will also invoke
-# `deploy:migrate` which is a second push-force; that's idempotent and
-# acts as a safety net if the first push silently no-ops.
+# Each phase fails fast if a step fails; api-server boot is gated on the
+# whole chain succeeding. Per-seed skip flags + whole-phase skip flags
+# documented in scripts/src/deploy-migrate.ts.
 #
-# Order matters:
-#   1. db push-force        — schema must be current before any seed runs
-#   2. seed                 — base data (industries, capabilities)
-#   3. seed:marketplace     — legacy marketplace seed (kept for back-compat)
-#   4. seed:organizations   — 12 reference orgs — fixes "Scorecard 0 scored"
-#   5. seed:patterns        — Uber/Stripe/OpenAI design-thinking exemplars
-#   6. seed:reports         — 8 substantive marketplace research listings (+ placeholder PDFs)
-#   7. seed:alpha-config    — quadrant→EV multiples for /alpha (was hardcoded; PLAN.md item 7)
-#   8. start                — runs deploy:migrate (push-force) then api-server,
-#                             which also serves SPA + starts digest cron
-#
-# seed:case-study-economics is INTENTIONALLY NOT in this chain. It makes a
-# live Perplexity call per company (sequential, ~60s each, sometimes failing
-# validation), which can push total boot time past Railway's health-check
-# window and cause "application failed to load" on every redeploy. Run it
-# manually when you need to refresh case-study economics — it's idempotent
-# and skips already-populated rows:
+# seed:case-study-economics is INTENTIONALLY NOT in the chain — it makes
+# live Perplexity calls per company (~60s each) and can push boot past
+# Railway's health-check window. Run manually when needed:
 #   pnpm --filter @workspace/scripts run seed:case-study-economics
-#
-# Every seed in the boot chain is fast (no external calls) and idempotent
-# (upsert on slug/title/userId); safe-on-every-restart. Any seed can be
-# skipped by setting SKIP_ORG_SEED / SKIP_PATTERNS_SEED / SKIP_MARKETPLACE_SEED /
-# SKIP_ALPHA_CONFIG_SEED / SKIP_MIGRATE = 1 in env.
-CMD ["sh", "-c", "pnpm --filter @workspace/db run push-force && pnpm --filter @workspace/scripts run seed && pnpm --filter @workspace/scripts run seed:marketplace && pnpm --filter @workspace/scripts run seed:organizations && pnpm --filter @workspace/scripts run seed:patterns && pnpm --filter @workspace/scripts run seed:reports && pnpm --filter @workspace/scripts run seed:alpha-config && pnpm run start"]
+CMD ["sh", "-c", "pnpm run start"]
