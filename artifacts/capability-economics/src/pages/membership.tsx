@@ -390,6 +390,9 @@ export default function Membership() {
         )}
       </main>
 
+      {/* Credit packs for payg / paid users */}
+      <CreditPacksSection />
+
       {/* Footer note */}
       <footer className="max-w-7xl mx-auto px-6 lg:px-10 py-12">
         <div className="grid lg:grid-cols-3 gap-8 font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -417,5 +420,109 @@ export default function Membership() {
         </div>
       </footer>
     </div>
+  );
+}
+
+interface CreditPack {
+  id: number;
+  slug: string;
+  displayName: string;
+  description: string | null;
+  priceCents: number;
+  creditAmount: number;
+  highlight: string | null;
+}
+
+function CreditPacksSection() {
+  const [packs, setPacks] = useState<CreditPack[] | null>(null);
+  const [buying, setBuying] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/credits/packs")
+      .then(r => r.ok ? r.json() : [])
+      .then((j: CreditPack[]) => setPacks(Array.isArray(j) ? j : []))
+      .catch(() => setPacks([]));
+  }, []);
+
+  const buy = async (slug: string) => {
+    setBuying(slug);
+    setError(null);
+    try {
+      const res = await fetch("/api/credits/purchase", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packSlug: slug }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const j = await res.json() as { checkoutUrl?: string; newBalance?: number };
+      if (j.checkoutUrl) {
+        window.location.href = j.checkoutUrl;
+      } else if (j.newBalance != null) {
+        alert(`Purchase complete (dev mode). New balance: ${j.newBalance.toLocaleString()} credits.`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Purchase failed");
+    } finally {
+      setBuying(null);
+    }
+  };
+
+  if (packs === null) return null;
+  if (packs.length === 0) return null;
+
+  return (
+    <section className="max-w-7xl mx-auto px-6 lg:px-10 py-12 border-t border-border/60">
+      <div className="mb-6">
+        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Pay as you go</div>
+        <h2 className="font-serif text-2xl sm:text-3xl tracking-tight">Buy credits — no subscription</h2>
+        <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+          Top up a credit balance and use it across assessments, research queries, and enrichment. Credits expire 1 year after purchase. Upgrade to a subscription tier any time for monthly allocations and team features.
+        </p>
+      </div>
+      {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {packs.map(p => {
+          const isHighlighted = p.highlight === "most-popular" || p.highlight === "best-value";
+          return (
+            <div
+              key={p.id}
+              className={`relative border ${isHighlighted ? "border-foreground" : "border-border"} bg-card p-5 flex flex-col`}
+            >
+              {p.highlight && (
+                <div className="absolute -top-3 left-4 px-2 py-0.5 bg-foreground text-background text-[10px] font-mono uppercase tracking-[0.18em]">
+                  {p.highlight === "most-popular" ? "Most popular" : p.highlight === "best-value" ? "Best value" : p.highlight}
+                </div>
+              )}
+              <div className="font-serif text-xl tracking-tight">{p.displayName}</div>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="font-mono text-3xl tabular-nums">${(p.priceCents / 100).toFixed(p.priceCents % 100 === 0 ? 0 : 2)}</span>
+                <span className="text-xs text-muted-foreground">one-time</span>
+              </div>
+              <div className="mt-1 font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                {p.creditAmount.toLocaleString()} credits
+              </div>
+              {p.description && (
+                <p className="text-xs text-muted-foreground mt-3 flex-1">{p.description}</p>
+              )}
+              <button
+                onClick={() => buy(p.slug)}
+                disabled={buying === p.slug}
+                className="mt-4 w-full bg-foreground text-background py-2 text-xs font-mono uppercase tracking-[0.18em] hover:opacity-90 disabled:opacity-60"
+              >
+                {buying === p.slug ? "Processing…" : "Buy now"}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-xs text-muted-foreground mt-4">
+        Credits are non-refundable and expire 1 year after purchase. Balance is non-transferable. Subscription tiers (Briefing, Console, Platform) include monthly credit allocations — see plans above.
+      </p>
+    </section>
   );
 }

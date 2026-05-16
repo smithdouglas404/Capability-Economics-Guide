@@ -13,6 +13,9 @@ import {
   FlagTriangleRight,
   Layers,
   Loader2,
+  FileText,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -527,8 +530,200 @@ export default function CapabilityDetailPage() {
         </Card>
       )}
 
+      {/* ─── SEC filings panel ─────────────────────────────────────────────── */}
+      {cap && <SecFilingsPanel capabilityId={id} capabilityName={cap.name} />}
+
+      {/* ─── Peer benchmark card ───────────────────────────────────────────── */}
+      {cap && <PeerBenchmarkCard capabilityId={id} industryId={cap.industryId} />}
+
       {/* ─── Analyst annotations widget ────────────────────────────────────── */}
       <CapabilityAnnotations capabilityId={id} />
     </div>
   );
 }
+
+interface FilingsResp {
+  filings: Array<{
+    id: number;
+    accessionNumber: string;
+    companyName: string;
+    ticker: string | null;
+    formType: string;
+    filingDate: string;
+    filingUrl: string;
+    excerpt: string | null;
+  }>;
+  cacheHit: boolean;
+  newFilingsAdded: number;
+}
+
+function SecFilingsPanel({ capabilityId, capabilityName }: { capabilityId: number; capabilityName: string }) {
+  const [data, setData] = useState<FilingsResp | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/filings?limit=10`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((j: FilingsResp) => { if (!cancelled) setData(j); })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId]);
+
+  return (
+    <Card className="rounded-none">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-serif text-xl tracking-tight">Public companies discussing this capability</h2>
+          <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+            SEC EDGAR
+          </Badge>
+          {data && (
+            <span className="ml-auto text-xs text-muted-foreground">
+              {data.cacheHit ? "from cache" : `freshly fetched — ${data.newFilingsAdded} new`}
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Filings (10-K, 10-Q, 8-K, proxies) mentioning <span className="font-medium text-foreground">{capabilityName}</span> in their disclosures, sourced directly from SEC EDGAR full-text search.
+        </p>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Searching SEC filings…
+          </div>
+        )}
+        {error && (
+          <p className="text-sm text-red-600">{error}</p>
+        )}
+        {data && !loading && data.filings.length === 0 && (
+          <p className="text-sm text-muted-foreground">No public filings mention this capability yet. As more companies file 10-K disclosures referencing it, they'll appear here automatically.</p>
+        )}
+        {data && data.filings.length > 0 && (
+          <ul className="divide-y divide-border">
+            {data.filings.map(f => (
+              <li key={f.id} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{f.companyName}</span>
+                      {f.ticker && (
+                        <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">{f.ticker}</Badge>
+                      )}
+                      <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{f.formType}</Badge>
+                    </div>
+                    {f.excerpt && (
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 italic">"{f.excerpt}"</p>
+                    )}
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                    <div>{new Date(f.filingDate).toLocaleDateString()}</div>
+                    <a href={f.filingUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-foreground hover:underline">
+                      View <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+interface PeerBenchmarkResp {
+  benchmark: {
+    nOrgs: number;
+    nRealOrgs: number;
+    nSyntheticOrgs: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p90: number;
+    minScore: number;
+    maxScore: number;
+    mean: number;
+    computedAt: string;
+  } | null;
+  suppressed: boolean;
+}
+
+function PeerBenchmarkCard({ capabilityId, industryId }: { capabilityId: number; industryId: number }) {
+  const [data, setData] = useState<PeerBenchmarkResp | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/peer-benchmark?industryId=${industryId}`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((j: PeerBenchmarkResp) => { if (!cancelled) setData(j); })
+      .catch(() => { /* swallow — show empty state */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId, industryId]);
+
+  return (
+    <Card className="rounded-none">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-serif text-xl tracking-tight">Peer benchmark</h2>
+          <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+            Industry cohort
+          </Badge>
+        </div>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading peer distribution…
+          </div>
+        )}
+        {!loading && data?.suppressed && (
+          <p className="text-sm text-muted-foreground">Insufficient peer data yet — at least 5 contributing organizations are required before a peer benchmark cell is published for privacy reasons.</p>
+        )}
+        {!loading && data?.benchmark && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {[
+                { label: "P25", value: data.benchmark.p25 },
+                { label: "Median", value: data.benchmark.p50 },
+                { label: "P75", value: data.benchmark.p75 },
+                { label: "P90", value: data.benchmark.p90 },
+                { label: "Mean", value: data.benchmark.mean },
+              ].map(s => (
+                <div key={s.label}>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{s.label}</div>
+                  <div className="font-mono text-xl tabular-nums">{s.value.toFixed(0)}</div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Range {data.benchmark.minScore.toFixed(0)}–{data.benchmark.maxScore.toFixed(0)} across {data.benchmark.nOrgs} orgs ({data.benchmark.nRealOrgs} real
+              {data.benchmark.nSyntheticOrgs > 0 && (
+                <> + <span className="text-amber-700">{data.benchmark.nSyntheticOrgs} synthetic agent{data.benchmark.nSyntheticOrgs > 1 ? "s" : ""}</span></>
+              )}
+              ). Computed {new Date(data.benchmark.computedAt).toLocaleString()}.
+            </div>
+            {data.benchmark.nSyntheticOrgs > 0 && (
+              <p className="text-xs text-amber-700 italic">
+                This benchmark includes data from synthetic agents (persona-typed bots that exercise the platform). Real-customer-only cells will appear as the customer cohort grows.
+              </p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
