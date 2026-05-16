@@ -21,6 +21,7 @@ import { listPersonas } from "../services/bots/personas";
 import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budget";
 import { triggerBotTickNow } from "../services/agent/scheduler";
 import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
+import { replayHistoricalCEI } from "../services/cei-historical/replay";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -350,6 +351,21 @@ router.patch("/admin/bots/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "update failed" });
+  }
+});
+
+router.post("/admin/cei/replay-history", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const fromDate = typeof body.fromDate === "string" ? new Date(body.fromDate) : undefined;
+    const toDate = typeof body.toDate === "string" ? new Date(body.toDate) : undefined;
+    const intervalDays = typeof body.intervalDays === "number" ? body.intervalDays : undefined;
+    const dedupWindowHours = typeof body.dedupWindowHours === "number" ? body.dedupWindowHours : undefined;
+    const dryRun = body.dryRun === true;
+    const r = await replayHistoricalCEI({ fromDate, toDate, intervalDays, dedupWindowHours, dryRun });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "replay failed" });
   }
 });
 
