@@ -143,7 +143,15 @@
       "Bash(curl -fsS -m 10 -o /dev/null -w \"letta.innume.com /v1/health/ → %{http_code}\\\\n\" https://letta.innume.com/v1/health/)",
       "Bash(curl -sS -m 10 -o /tmp/letta-health.json -w \"letta.innume.com /v1/health → %{http_code} \\(%{size_download}B\\)\\\\n\" https://letta.innume.com/v1/health)",
       "Bash(git log *)",
-      "Read(//home/runner/**)"
+      "Read(//home/runner/**)",
+      "Bash(git remote *)",
+      "Skill(update-config)",
+      "Bash(chmod +x /home/runner/workspace/.claude/preflight.sh)",
+      "Bash(bash /home/runner/workspace/.claude/preflight.sh)",
+      "Bash(echo \"--- exit=$? ---\")",
+      "Bash(echo \"--- jq exit=$? ---\")",
+      "Bash(curl *)",
+      "Bash(unset GITHUB_TOKEN)"
     ]
   }
 }
