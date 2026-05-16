@@ -52,3 +52,10 @@ Thumbs.db
 .secrets/
 *.env
 *.env.local
+
+
+# Claude Code local config — contains the user's command allowlist which
+# has historically included Bash one-liners with literal API tokens inline.
+# Scrubbed from history Oct 2026 after a Palantir Foundry JWT was caught
+# by GitHub push protection. Never re-track.
+.claude/settings.local.json
