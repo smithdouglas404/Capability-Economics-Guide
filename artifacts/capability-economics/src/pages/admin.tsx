@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity, Users, DollarSign, Brain, RefreshCw, Play,
@@ -736,6 +738,7 @@ export default function AdminDashboard() {
         {/* ─────────────────────── System tab ─────────────────────── */}
         <TabsContent value="system" className="space-y-6">
           <ApiVolumePanel />
+          <RuntimeTuningPanel />
           <FoundrySyncPanel />
           <AuditLogViewer />
           <Card>
@@ -807,3 +810,154 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+type TuningResponse = {
+  tuning: {
+    routineIntervalHours: number;
+    detailBackfillLimit: number;
+    agentPerplexityCap: number;
+    updatedAt: string;
+    updatedBy: string | null;
+  };
+  defaults: {
+    routineIntervalHours: number;
+    detailBackfillLimit: number;
+    agentPerplexityCap: number;
+  };
+};
+
+function RuntimeTuningPanel() {
+  const { data, loading, refetch } = useApi<TuningResponse>("/admin/agent-tuning");
+  const [draft, setDraft] = useState<{ routineIntervalHours: string; detailBackfillLimit: string; agentPerplexityCap: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data?.tuning && draft == null) {
+      setDraft({
+        routineIntervalHours: String(data.tuning.routineIntervalHours),
+        detailBackfillLimit: String(data.tuning.detailBackfillLimit),
+        agentPerplexityCap: String(data.tuning.agentPerplexityCap),
+      });
+    }
+  }, [data, draft]);
+
+  const handleSave = async () => {
+    if (!draft) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const body = {
+        routineIntervalHours: Number(draft.routineIntervalHours),
+        detailBackfillLimit: Number(draft.detailBackfillLimit),
+        agentPerplexityCap: Number(draft.agentPerplexityCap),
+      };
+      const res = await fetch(`${API_BASE}/admin/agent-tuning`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setDraft(null);
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const reset = () => {
+    if (!data?.tuning) return;
+    setDraft({
+      routineIntervalHours: String(data.tuning.routineIntervalHours),
+      detailBackfillLimit: String(data.tuning.detailBackfillLimit),
+      agentPerplexityCap: String(data.tuning.agentPerplexityCap),
+    });
+    setError(null);
+  };
+
+  const restoreDefaults = () => {
+    if (!data?.defaults) return;
+    setDraft({
+      routineIntervalHours: String(data.defaults.routineIntervalHours),
+      detailBackfillLimit: String(data.defaults.detailBackfillLimit),
+      agentPerplexityCap: String(data.defaults.agentPerplexityCap),
+    });
+    setError(null);
+  };
+
+  const dirty = !!(data?.tuning && draft && (
+    Number(draft.routineIntervalHours) !== data.tuning.routineIntervalHours ||
+    Number(draft.detailBackfillLimit) !== data.tuning.detailBackfillLimit ||
+    Number(draft.agentPerplexityCap) !== data.tuning.agentPerplexityCap
+  ));
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Settings className="w-5 h-5" /> Runtime Tuning
+          <span className="text-sm font-normal text-muted-foreground ml-2">
+            {data?.tuning?.updatedAt ? `Last changed ${timeAgo(data.tuning.updatedAt)}${data.tuning.updatedBy ? ` by ${data.tuning.updatedBy}` : ""}` : "Using code defaults"}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading && !data ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : !draft ? (
+          <p className="text-sm text-muted-foreground">Initializing…</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label htmlFor="routineIntervalHours" className="text-xs">Routine cycle interval (hours)</Label>
+                <Input id="routineIntervalHours" type="number" step="0.25" min="0.25" max="720"
+                  value={draft.routineIntervalHours}
+                  onChange={(e) => setDraft({ ...draft, routineIntervalHours: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Default {data?.defaults.routineIntervalHours}h. Range 0.25–720h.</p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="detailBackfillLimit" className="text-xs">Detail-backfill caps per cycle</Label>
+                <Input id="detailBackfillLimit" type="number" step="1" min="0" max="500"
+                  value={draft.detailBackfillLimit}
+                  onChange={(e) => setDraft({ ...draft, detailBackfillLimit: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Default {data?.defaults.detailBackfillLimit}. Each cap ≈ $0.06. 0 disables the sweep.</p>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="agentPerplexityCap" className="text-xs">Perplexity calls per agent run</Label>
+                <Input id="agentPerplexityCap" type="number" step="1" min="0" max="100"
+                  value={draft.agentPerplexityCap}
+                  onChange={(e) => setDraft({ ...draft, agentPerplexityCap: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Default {data?.defaults.agentPerplexityCap}. Runaway-loop circuit breaker.</p>
+              </div>
+            </div>
+            {error && (
+              <p className="text-sm text-red-600">{error}</p>
+            )}
+            <div className="flex items-center gap-2">
+              <Button onClick={handleSave} disabled={saving || !dirty}>
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
+              <Button variant="outline" onClick={reset} disabled={saving || !dirty}>
+                Reset
+              </Button>
+              <Button variant="ghost" onClick={restoreDefaults} disabled={saving}>
+                Restore defaults
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+

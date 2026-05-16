@@ -7,11 +7,14 @@ import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { runDigestSweep } from "../digest";
 import { runDetailEnrichment } from "../alpha/enrich";
+import { getTuning } from "../agent-tuning";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
 
-const ROUTINE_INTERVAL_MS = 96 * 60 * 60 * 1000;
+// Routine cadence is read from agent_tuning each tick — the only fixed
+// constant here is how often we *check* whether it's time to run.
+const ROUTINE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const WATCHDOG_INTERVAL_MS = 5 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
@@ -92,17 +95,16 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     // run_economic_detail when alpha succeeded and sibling caps already have
     // detail rows — same skip pattern documented in commit b261198 for the
     // per-cap rerun path. Without this sweep, capability_economics rows can
-    // sit with null summaryNarrative / aiExposureScore indefinitely (the
-    // generatedAt timestamp bumps on alpha-only writes, so the row looks
-    // "fresh" but the detail page renders "awaiting economic enrichment").
-    // Cap at 15 per cycle: keeps a routine cycle under ~5min and bounds
-    // LLM cost ($0.06/cap × 15 × ~7.5 routine cycles/month ≈ $7/month at
-    // the current 96h cadence; if the backlog is empty the call returns
-    // immediately so cost falls to $0).
+    // sit with null summaryNarrative / aiExposureScore indefinitely. Per-cap
+    // cost ≈ $0.06 (1 Perplexity + 1 Sonnet). Limit is admin-tunable via
+    // agent_tuning.detail_backfill_limit; if 0, the sweep is skipped entirely.
     try {
-      const detailRes = await runDetailEnrichment({ limit: 15 });
-      if (detailRes.enriched > 0 || detailRes.errors.length > 0) {
-        console.log(`[Agent] Detail backfill (${trigger}): enriched=${detailRes.enriched} errors=${detailRes.errors.length} durationMs=${detailRes.durationMs}`);
+      const tuning = await getTuning();
+      if (tuning.detailBackfillLimit > 0) {
+        const detailRes = await runDetailEnrichment({ limit: tuning.detailBackfillLimit });
+        if (detailRes.enriched > 0 || detailRes.errors.length > 0) {
+          console.log(`[Agent] Detail backfill (${trigger}, limit=${tuning.detailBackfillLimit}): enriched=${detailRes.enriched} errors=${detailRes.errors.length} durationMs=${detailRes.durationMs}`);
+        }
       }
     } catch (detailErr) {
       console.warn("[Agent] Detail backfill failed (non-fatal):", detailErr);
@@ -239,23 +241,44 @@ async function executeRotation(trigger: string): Promise<void> {
   }
 }
 
+/**
+ * Routine cycle check: read the admin-tunable routine interval and run
+ * executeRun("routine") if enough time has elapsed since lastRunAt. Called
+ * every ROUTINE_CHECK_INTERVAL_MS — moving away from a fixed setInterval
+ * means admins can change the cadence without a deploy and the new value
+ * takes effect on the next check tick.
+ */
+async function routineCheck(): Promise<void> {
+  if (isRunning) return;
+  try {
+    const tuning = await getTuning();
+    const intervalMs = tuning.routineIntervalHours * 60 * 60 * 1000;
+    const elapsed = lastRunAt ? Date.now() - lastRunAt.getTime() : Infinity;
+    if (elapsed >= intervalMs) {
+      await executeRun("routine");
+    }
+  } catch (err) {
+    console.warn("[Agent] routineCheck failed (will retry next tick):", err);
+  }
+}
+
 export function startScheduler(): void {
   if (routineTimer) {
     console.log("[Agent] Autonomous monitoring already active");
     return;
   }
 
-  const routineHours = ROUTINE_INTERVAL_MS / (60 * 60 * 1000);
+  const checkMinutes = ROUTINE_CHECK_INTERVAL_MS / (60 * 1000);
   const watchdogMinutes = WATCHDOG_INTERVAL_MS / (60 * 1000);
-  console.log(`[Agent] Autonomous monitoring started — routine cycle every ${routineHours}h, urgency watchdog every ${watchdogMinutes}min`);
+  console.log(`[Agent] Autonomous monitoring started — routine cadence read from agent_tuning every ${checkMinutes}min, urgency watchdog every ${watchdogMinutes}min`);
 
-  routineTimer = setInterval(() => executeRun("routine"), ROUTINE_INTERVAL_MS);
+  routineTimer = setInterval(() => routineCheck(), ROUTINE_CHECK_INTERVAL_MS);
   watchdogTimer = setInterval(() => watchdogCheck(), WATCHDOG_INTERVAL_MS);
   rotationTimer = setInterval(() => executeRotation("daily"), ROTATION_INTERVAL_MS);
   worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
   digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
 
-  emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_INTERVAL_MS / 60000 });
+  emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
   startConsolidator();
   startMarketplaceAutoArchive();
@@ -350,7 +373,10 @@ export function getSchedulerStatus(): {
   return {
     active: routineTimer !== null,
     isRunning,
-    intervalMinutes: ROUTINE_INTERVAL_MS / 60000,
+    // intervalMinutes here reports the check-tick frequency. The actual
+    // routine cadence (what admins set in agent_tuning) is exposed via the
+    // /admin/agent-tuning endpoint, not the status payload.
+    intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000,
     lastRunAt: lastRunAt?.toISOString() ?? null,
     lastRunResult,
     worldScan: {

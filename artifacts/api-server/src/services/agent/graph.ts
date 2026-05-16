@@ -15,6 +15,7 @@ import {
   type AgentMemory,
 } from "./memory";
 import { emitAgentEvent } from "./events";
+import { getTuning } from "../agent-tuning";
 import { lettaUpdateBlock, lettaArchivalInsert } from "./letta";
 import { reflectOnFindings, type ResearchFinding } from "./reflect";
 import {
@@ -71,7 +72,9 @@ type AgentStateType = typeof AgentState.State;
 const STALE_THRESHOLD_DAYS = 7;
 const HIGH_VOLATILITY_THRESHOLD = 0.1;
 const LOW_CONFIDENCE_THRESHOLD = 0.5;
-const MAX_RESEARCH_PER_RUN = 6;
+// Default Perplexity-call cap per agent run; overridden by admin-tunable
+// agent_tuning.agent_perplexity_cap (read at the top of decideNode below).
+const DEFAULT_MAX_RESEARCH_PER_RUN = 6;
 
 async function evaluateNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   emitAgentEvent({ type: "phase", phase: "evaluating", message: "Scanning industries and capabilities..." });
@@ -151,19 +154,30 @@ async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType
 async function decideNode(state: AgentStateType): Promise<Partial<AgentStateType>> {
   emitAgentEvent({ type: "phase", phase: "deciding", message: `Evaluating ${state.targets.length} capabilities against ${state.recalledMemories.length} recalled memories...` });
 
+  // Read the admin-tunable Perplexity cap once per run. Fall back to the
+  // code default if the tuning row / DB is unavailable so the agent still
+  // makes progress in degraded conditions.
+  let maxResearchPerRun = DEFAULT_MAX_RESEARCH_PER_RUN;
+  try {
+    const tuning = await getTuning();
+    maxResearchPerRun = tuning.agentPerplexityCap;
+  } catch (err) {
+    console.warn("[Agent.decide] failed to read agent_tuning, using default Perplexity cap:", err);
+  }
+
   const decisions: AgentDecision[] = [];
   let researchCount = 0;
   let memoriesUsed = 0;
 
   for (const target of state.targets) {
-    if (researchCount >= MAX_RESEARCH_PER_RUN) {
+    if (researchCount >= maxResearchPerRun) {
       decisions.push({
         capabilityId: target.capabilityId,
         industryId: target.industryId,
         industryName: target.industryName,
         capabilityName: target.capabilityName,
         action: "skip",
-        reason: `Max research limit (${MAX_RESEARCH_PER_RUN}) reached for this run`,
+        reason: `Max research limit (${maxResearchPerRun}) reached for this run`,
         timestamp: new Date().toISOString(),
       });
       continue;

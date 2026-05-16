@@ -15,6 +15,7 @@ import {
 import { desc, count, gte, sql, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { backfillAiNarratives } from "../services/alpha/enrich";
+import { getTuning, saveTuning, TUNING_DEFAULTS } from "../services/agent-tuning";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -236,6 +237,31 @@ router.get("/admin/models", (_req, res) => {
     { task: "Industry leaderboard", model: "anthropic/claude-haiku-4.5", reason: "Bulk extraction, speed over depth" },
     { task: "White papers", model: "anthropic/claude-haiku-4.5", reason: "Citation-style output, runs every 15 days" },
   ]);
+});
+
+router.get("/admin/agent-tuning", async (_req, res) => {
+  try {
+    const tuning = await getTuning({ fresh: true });
+    res.json({ tuning, defaults: TUNING_DEFAULTS });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to read tuning" });
+  }
+});
+
+router.patch("/admin/agent-tuning", async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const patch = {
+      routineIntervalHours: typeof body.routineIntervalHours === "number" ? body.routineIntervalHours : undefined,
+      detailBackfillLimit: typeof body.detailBackfillLimit === "number" ? body.detailBackfillLimit : undefined,
+      agentPerplexityCap: typeof body.agentPerplexityCap === "number" ? body.agentPerplexityCap : undefined,
+      updatedBy: typeof body.updatedBy === "string" ? body.updatedBy : null,
+    };
+    const tuning = await saveTuning(patch);
+    res.json({ tuning, defaults: TUNING_DEFAULTS });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "failed to save tuning" });
+  }
 });
 
 export default router;
