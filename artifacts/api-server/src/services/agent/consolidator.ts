@@ -2,7 +2,8 @@ import { db } from "@workspace/db";
 import { agentMemoriesTable, consolidationRunsTable } from "@workspace/db";
 import { sql, desc, eq, and } from "drizzle-orm";
 import { storeMemory, deleteMemory } from "./memory";
-import { lettaArchivalInsert, lettaUpdateBlock, lettaReadBlock } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8.
+import { appendAgentArchive, putAgentPriorBlock, getAgentPriorBlock } from "./store";
 import { getGraphStats } from "./graphMemory";
 import { emitAgentEvent } from "./events";
 
@@ -239,8 +240,13 @@ export async function runConsolidation(): Promise<{
         );
         patternsConsolidated++;
 
-        // Insert into Letta archival memory for long-term reasoning
-        const ok = await lettaArchivalInsert(`[validated_pattern] ${consolidationContent}`);
+        // Insert into the agent's archival namespace (PostgresStore) for
+        // long-term reasoning. Same kind/runId metadata pattern as the
+        // cycle_summary append from graph.ts:memorizeNode.
+        const ok = await appendAgentArchive(
+          `[validated_pattern] ${consolidationContent}`,
+          { kind: "validated_pattern", groupKey: key, patternsInGroup: items.length },
+        );
         if (ok) archivalInserted++;
 
         // Delete redundant raw observations (only those tied to Mem0, older than 7d)
@@ -258,19 +264,21 @@ export async function runConsolidation(): Promise<{
       }
     }
 
-    // 3. Update Letta industry_priors block with a top-of-mind summary derived from graph
+    // 3. Append a top-of-mind graph summary into the agent's
+    //    research_strategy block (PostgresStore). Same "replace anything
+    //    after the [graph] marker" behavior as the old Letta version.
     try {
       const graph = await getGraphStats();
       if (graph.topRelations.length > 0) {
         const summary =
           `Top observed capability relationships (graph layer): ` +
           graph.topRelations.slice(0, 8).map(r => `${r.from}→${r.to} [${r.kind}, w=${r.weight.toFixed(2)}, n=${r.observedCount}]`).join("; ");
-        const current = (await lettaReadBlock("research_strategy")) || "";
+        const current = (await getAgentPriorBlock("research_strategy")) || "";
         const merged = current.split("\n\n[graph]").slice(0, 1).join("") + `\n\n[graph] ${summary}`;
-        await lettaUpdateBlock("research_strategy", merged);
+        await putAgentPriorBlock("research_strategy", merged, { updatedReason: "consolidator_graph_summary" });
       }
     } catch (err) {
-      console.log("[Consolidator] graph→Letta update skipped:", err instanceof Error ? err.message : err);
+      console.log("[Consolidator] graph→store update skipped:", err instanceof Error ? err.message : err);
     }
 
   } catch (err) {

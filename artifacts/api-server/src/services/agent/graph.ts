@@ -16,7 +16,13 @@ import {
 } from "./memory";
 import { emitAgentEvent } from "./events";
 import { getTuning } from "../agent-tuning";
-import { lettaUpdateBlock, lettaArchivalInsert, lettaArchivalSearch, lettaSendMessage } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8. The
+// store-backed helpers mirror the Letta shape 1:1 so the call sites
+// below changed only by symbol name. lettaSendMessage (the feedback-
+// loop autonomous-rewrite call) is replaced by a direct ChatAnthropic
+// invocation; see memorizeNode below.
+import { putAgentPriorBlock, appendAgentArchive, searchAgentArchive } from "./store";
+import { ChatAnthropic } from "@langchain/anthropic";
 import { reflectOnFindings, type ResearchFinding } from "./reflect";
 import {
   perplexityResearchTool,
@@ -164,7 +170,7 @@ async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType
   const archivalSnippets: string[] = [];
   try {
     const topQueries = state.targets.slice(0, 5).map(t => `${t.industryName} ${t.capabilityName}`);
-    const archivals = await Promise.all(topQueries.map(q => lettaArchivalSearch(q, 2)));
+    const archivals = await Promise.all(topQueries.map(q => searchAgentArchive(q, 2)));
     for (const list of archivals) for (const p of list) if (p.text) archivalSnippets.push(p.text);
   } catch { /* non-fatal — archival is supplementary */ }
 
@@ -179,7 +185,7 @@ async function recallNode(state: AgentStateType): Promise<Partial<AgentStateType
   // Update Letta current_focus block with the upcoming cycle's intent
   try {
     const top = state.targets.slice(0, 8).map(t => `${t.industryName}/${t.capabilityName} (p=${t.priority.toFixed(1)})`).join(", ");
-    await lettaUpdateBlock("current_focus", `Run #${state.runId} (${state.trigger}). Top targets: ${top}.`);
+    await putAgentPriorBlock("current_focus", `Run #${state.runId} (${state.trigger}). Top targets: ${top}.`);
   } catch { /* non-fatal */ }
 
   return { recalledMemories: deduped, lettaArchivalSnippets: archivalSnippets };
@@ -418,29 +424,46 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
 
     // Also push the cycle summary into Letta archival memory for long-term reasoning
     try {
-      await lettaArchivalInsert(`[cycle #${state.runId}] ${cycleSummary}`);
+      await appendAgentArchive(`[cycle #${state.runId}] ${cycleSummary}`, { runId: state.runId, kind: "cycle_summary" });
     } catch { /* non-fatal */ }
 
     // Close the Letta feedback loop: when contradictions surface, prompt
     // the stateful agent to refine its `industry_priors` core block. Without
-    // this, core memory stays pinned to its seed text forever — the agent
-    // never actually "updates beliefs on contradiction" despite the persona
-    // claiming to. Letta's base tools include core_memory_replace so it can
-    // execute the rewrite autonomously when the prompt invites it to.
+    // Without Letta there's no agent on the other end to autonomously
+    // rewrite the priors block — we do it explicitly here: read the
+    // current block from the shared store, ask Haiku to refine given the
+    // contradictions, write back. Same outcome as the old lettaSendMessage
+    // pattern but transparent and synchronous.
     const contradictionCount = state.reflection?.contradictions ?? 0;
     const refinedCount = state.reflection?.updated ?? 0;
     if (contradictionCount > 0 || refinedCount >= 3) {
       try {
         const touchedIndustries = industries.slice(0, 4).join(", ") || "none specified";
+        const { getAgentPriorBlock } = await import("./store");
+        const currentPriors = (await getAgentPriorBlock("industry_priors")) ?? "(no priors recorded yet)";
         const prompt =
           `Cycle #${state.runId} just finished. Reflection found ` +
           `${contradictionCount} contradiction${contradictionCount === 1 ? "" : "s"} and ` +
-          `${refinedCount} refinement${refinedCount === 1 ? "" : "s"} across: ${touchedIndustries}. ` +
-          `If any of these meaningfully change what you believe about an industry's capability dynamics, ` +
-          `revise your industry_priors core memory block now using core_memory_replace. Keep it concise — ` +
-          `priors should be principles, not transcript. If nothing material changed, reply "no update" and skip.`;
-        await lettaSendMessage(prompt);
-      } catch { /* non-fatal — agent shouldn't fail a cycle on Letta hiccup */ }
+          `${refinedCount} refinement${refinedCount === 1 ? "" : "s"} across: ${touchedIndustries}.\n\n` +
+          `CURRENT industry_priors:\n${currentPriors}\n\n` +
+          `If any of the findings above meaningfully change what you believe about an industry's ` +
+          `capability dynamics, return the FULL revised industry_priors text (principles, not transcript). ` +
+          `If nothing material changed, return EXACTLY the string "no update" and nothing else. ` +
+          `Be concise — total length under 6000 chars.`;
+        const llm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", temperature: 0.2, maxTokens: 2000 });
+        const res = await llm.invoke(prompt);
+        const raw = res.content;
+        const text = Array.isArray(raw)
+          ? raw.map(p => (typeof p === "string" ? p : "text" in p && typeof p.text === "string" ? p.text : "")).join("")
+          : String(raw);
+        const trimmed = text.trim();
+        if (trimmed && trimmed.toLowerCase() !== "no update") {
+          await putAgentPriorBlock("industry_priors", trimmed, {
+            updatedReason: "memorize_node_contradiction_feedback",
+            sourceRunId: state.runId,
+          });
+        }
+      } catch { /* non-fatal — agent shouldn't fail a cycle on rewrite hiccup */ }
     }
   }
 

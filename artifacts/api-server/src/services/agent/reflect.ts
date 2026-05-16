@@ -1,7 +1,8 @@
 import { recallMemories, storeMemory } from "./memory";
 import { inferTopic } from "./topics";
 import { extractEntitiesFromText, upsertEntity, recordRelation } from "./graphMemory";
-import { lettaReadBlock, lettaUpdateBlock } from "./letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8.
+import { getAgentPriorBlock, putAgentPriorBlock } from "./store";
 import { emitAgentEvent } from "./events";
 
 export interface ResearchFinding {
@@ -152,17 +153,22 @@ export async function reflectOnFindings(
     }
   }
 
-  // Promote validated_pattern findings into Letta industry_priors block
+  // Promote validated_pattern findings into the agent's industry_priors
+  // block (PostgresStore). Keeps the same rolling-60-lines window pattern.
   let priorsUpdated = false;
   const validated = findings.filter(f => f.confidence >= HIGH_CONFIDENCE);
   if (validated.length > 0) {
     try {
-      const current = (await lettaReadBlock("industry_priors")) || "";
+      const current = (await getAgentPriorBlock("industry_priors")) || "";
       const newLines = validated.map(f =>
         `- [${new Date().toISOString().slice(0, 10)}] ${f.industryName} :: ${f.capabilityName} → score ${f.newScore.toFixed(1)} (conf ${f.confidence.toFixed(2)})`
       );
       const merged = (current + "\n" + newLines.join("\n")).split("\n").filter(l => l.trim()).slice(-60).join("\n");
-      priorsUpdated = await lettaUpdateBlock("industry_priors", merged);
+      priorsUpdated = await putAgentPriorBlock("industry_priors", merged, {
+        updatedReason: "reflect_validated_findings",
+        sourceRunId: runId,
+        addedLines: newLines.length,
+      });
     } catch (err) {
       console.log("[reflect] industry_priors update failed:", err instanceof Error ? err.message : err);
     }
