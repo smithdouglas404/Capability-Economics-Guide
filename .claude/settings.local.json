@@ -151,7 +151,8 @@
       "Bash(echo \"--- exit=$? ---\")",
       "Bash(echo \"--- jq exit=$? ---\")",
       "Bash(curl *)",
-      "Bash(unset GITHUB_TOKEN)"
+      "Bash(unset GITHUB_TOKEN)",
+      "Bash(timeout 10 railway login --browserless)"
     ]
   }
 }
