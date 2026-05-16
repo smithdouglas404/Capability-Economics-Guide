@@ -211,6 +211,25 @@ export async function storeMemory(
     expiresAt,
   }).returning();
 
+  // Fire-and-forget entity extraction so the custom graph layer
+  // (memory_entities / memory_relations) gains coverage on every
+  // store call, not just the reflect.ts path. Previously only
+  // reflect-node memories registered entities, leaving observations
+  // from tools.ts and consolidator.ts invisible to graph traversal.
+  // Dynamic import avoids the circular memory ↔ graphMemory cycle.
+  void (async () => {
+    try {
+      const { extractEntitiesFromText, upsertEntity } = await import("./graphMemory");
+      const entities = await extractEntitiesFromText(content);
+      for (const e of entities) {
+        await upsertEntity(e, { lastStoreCategory: category ?? type, lastRunId: runId ?? null });
+      }
+    } catch (err) {
+      // Non-fatal: graph enrichment is supplementary to vector recall.
+      console.debug("[storeMemory] entity extraction failed:", err instanceof Error ? err.message : err);
+    }
+  })();
+
   return {
     id: mem0Id || row.id,
     memoryType: type,
