@@ -3,6 +3,7 @@ import { eq, sql, and, desc } from "drizzle-orm";
 import { runBrowseAction } from "./actions/browse";
 import { runAssessmentAction, isAssessmentDue } from "./actions/assessment";
 import { runReflectionAction, isReflectionDue } from "./actions/reflection";
+import { runCommentAction, isCommentDue } from "./actions/comment";
 import { getBotBudgetStatus } from "./budget";
 import { getPersona } from "./personas";
 import { logger } from "../../lib/logger";
@@ -87,7 +88,24 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
     }
   }
 
-  // 3. Decide how many browses are due today based on cadence
+  // 3. Run a comment if due (one per tick max — Sonnet, ~$0.005 each)
+  if (await isCommentDue(bot)) {
+    const budget = await getBotBudgetStatus(bot.id);
+    if (budget.overBudget) {
+      result.actionsSkippedBudget++;
+      await logBudgetSkip(bot.id, "comment", budget.mtdCents, budget.capCents);
+    } else {
+      const r = await runCommentAction(bot);
+      if (r.ok) {
+        result.actionsRun++;
+        result.totalCostCents += r.costCents;
+      } else if (r.error) {
+        result.errors.push(`comment: ${r.error}`);
+      }
+    }
+  }
+
+  // 4. Decide how many browses are due today based on cadence
   const browsesToday = await countTodayActions(bot.id, "browse");
   const browsesDesired = persona.biases.capabilityBrowsesPerDay;
   const browsesNeeded = Math.max(0, browsesDesired - browsesToday);

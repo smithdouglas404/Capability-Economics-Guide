@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser, useAuth } from "@clerk/react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
+import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
 
 const API_BASE = "/api";
 const EDIT_WINDOW_MS = 10 * 60 * 1000;
@@ -358,6 +359,9 @@ export function CapabilityAnnotations({ capabilityId, targetSourceTriangulationI
                         {a.status}
                       </Badge>
                       <span className="text-sm font-medium truncate">{a.userDisplayName ?? a.userEmail ?? a.userId.slice(0, 12)}</span>
+                      {isSyntheticAgent(a.userId) && (
+                        <SyntheticAgentBadge personaDisplay={personaDisplayForClerkId(a.userId)} size="sm" />
+                      )}
                       <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                         {relativeTime(a.createdAt)}
                       </span>
@@ -432,6 +436,9 @@ export function CapabilityAnnotations({ capabilityId, targetSourceTriangulationI
                           <div key={r.id} className="space-y-1">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="text-sm font-medium">{r.userDisplayName ?? r.userEmail ?? r.userId.slice(0, 12)}</span>
+                              {isSyntheticAgent(r.userId) && (
+                                <SyntheticAgentBadge personaDisplay={personaDisplayForClerkId(r.userId)} size="sm" />
+                              )}
                               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
                                 {relativeTime(r.createdAt)}
                               </span>
