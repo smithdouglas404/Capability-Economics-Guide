@@ -107,6 +107,24 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
 
+### Session auth state (Replit CLI)
+
+Each new Claude Code session on Replit starts a fresh shell — only env vars set as **Replit Secrets** survive across sessions. CLI auth state stored under `~/` (`~/.config/gh/`, `~/.config/railway/`) does **not** persist on this Replit. Re-establish on every session start. The `.claude/preflight.sh` SessionStart hook surfaces which CLIs need re-auth — read its output before chasing symptoms.
+
+| Tool | What's persistent | What breaks each session | Fix |
+|---|---|---|---|
+| `git push/pull` | `GITHUB_TOKEN` (Replit Secret) → used by git credential helper. **Works out of the box.** | — | — |
+| `gh` CLI | Nothing | `gh auth status` → not logged in. Affects PR creation, issue queries, `gh api`. | Set `GH_TOKEN` as a Replit Secret (same value as `GITHUB_TOKEN` works for most ops) **or** `gh auth login` in a Shell tab. |
+| `railway` CLI | Nothing | `railway whoami` → Unauthorized. Affects env var changes, log fetching, redeploys. | Set `RAILWAY_TOKEN` (project-scoped) or `RAILWAY_API_TOKEN` (account-scoped) as a Replit Secret. Browserless login (`railway login --browserless`) works for one session but doesn't persist. |
+
+**Working around missing CLI auth.** Most diagnostics don't need the CLIs:
+- Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services`
+- Direct Letta queries: `LETTA_BASE_URL` + `LETTA_API_KEY` are in env
+- Direct Mem0 queries: `MEM0_BASE_URL` + `MEM0_API_KEY` are in env (header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below)
+- Prod env var truth: Railway service variables in the Railway dashboard (the user can paste); the health endpoint above reports which keys are missing as `not_configured`.
+
+Only reach for the railway/gh CLIs when you actually need to mutate state (push a var, trigger a redeploy, create a PR) — for reads, the routes above are faster and don't require auth.
+
 ### Deploying to Railway
 
 Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built capability-economics SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
