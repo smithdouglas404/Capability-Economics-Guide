@@ -1,4 +1,4 @@
-import { db, sourceTriangulationsTable, industriesTable, capabilitiesTable, industryGdpWeightsTable, ceiSnapshotsTable } from "@workspace/db";
+import { db, sourceTriangulationsTable, industriesTable, capabilitiesTable, industryGdpWeightsTable, ceiSnapshotsTable, ceiCapabilityHistoryTable } from "@workspace/db";
 import { eq, lte, sql, and, gte, asc } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
@@ -206,6 +206,29 @@ export async function replayHistoricalCEI(opts: ReplayOptions = {}): Promise<Rep
           snapshotAt: asOf,
         });
         inserted++;
+
+        // Also bank per-capability reconstructed rows so the per-cap
+        // sparkline has reconstructed history alongside the industry
+        // rollup. Same as-of weighted score, written per (cap, industry).
+        // ConflictDoNothing guards against re-runs hitting the unique
+        // (cap, industry, snapshotAt) constraint.
+        const capRows = Array.from(capScores.values()).map(cs => ({
+          capabilityId: cs.capabilityId,
+          industryId: cs.industryId,
+          consensusScore: cs.weightTotal > 0 ? cs.weightedSum / cs.weightTotal : 0,
+          confidence: 0.5, // reconstructed — no posterior, mid-confidence sentinel
+          velocity: 0,
+          posteriorVariance: null,
+          methodologyVersion: "reconstructed-1.0",
+          snapshotAt: asOf,
+        }));
+        if (capRows.length > 0) {
+          try {
+            await db.insert(ceiCapabilityHistoryTable).values(capRows).onConflictDoNothing();
+          } catch (capErr) {
+            logger.warn({ capErr, asOf }, "[cei-replay] per-cap insert failed (non-fatal)");
+          }
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

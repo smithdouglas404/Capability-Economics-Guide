@@ -550,6 +550,7 @@ interface CeiHistoryResp {
   industryId: number;
   capabilityId: number;
   days: number;
+  granularity?: "per-capability" | "industry-rollup";
   series: Array<{ at: string; value: number; reconstructed: boolean }>;
   liveCount: number;
   reconstructedCount: number;
@@ -607,7 +608,7 @@ function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
           <TrendingUp className="w-4 h-4 text-muted-foreground" />
           <h2 className="font-serif text-xl tracking-tight">CEI trend</h2>
           <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
-            Industry index
+            {data?.granularity === "per-capability" ? "Per-capability" : "Industry index"}
           </Badge>
           <div className="ml-auto flex items-center gap-1">
             {[30, 90, 180].map(d => (
@@ -666,6 +667,9 @@ function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
               {data.liveCount} live snapshot{data.liveCount === 1 ? "" : "s"}
               {data.reconstructedCount > 0 && (
                 <> + <span className="text-muted-foreground/70">{data.reconstructedCount} reconstructed</span> (filled from historical source-triangulation data — small dots; methodology available on request)</>
+              )}
+              {data.granularity === "industry-rollup" && (
+                <> · Per-capability history not yet banked — showing industry index as proxy.</>
               )}
             </div>
           </>
