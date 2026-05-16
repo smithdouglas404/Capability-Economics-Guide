@@ -327,6 +327,14 @@ export default function AdminDashboard() {
                   <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Source quality audit</span>
                   <span className="text-xs text-muted-foreground">Stale / single-source / no consulting</span>
                 </Link>
+                <Link href="/admin/agent/proposals" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
+                  <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-violet-600" /> Agent proposal queue</span>
+                  <span className="text-xs text-muted-foreground">Review &amp; approve agent actions</span>
+                </Link>
+                <Link href="/admin/economic-rules" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
+                  <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-600" /> Economic rules</span>
+                  <span className="text-xs text-muted-foreground">Tune CVI/DVX thresholds</span>
+                </Link>
               </CardContent>
             </Card>
 
