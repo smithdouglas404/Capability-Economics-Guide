@@ -16,6 +16,7 @@ import {
   FileText,
   Users,
   ExternalLink,
+  TrendingUp,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -530,6 +531,9 @@ export default function CapabilityDetailPage() {
         </Card>
       )}
 
+      {/* ─── CEI trend sparkline ───────────────────────────────────────────── */}
+      {cap && <CeiHistoryCard capabilityId={id} />}
+
       {/* ─── SEC filings panel ─────────────────────────────────────────────── */}
       {cap && <SecFilingsPanel capabilityId={id} capabilityName={cap.name} />}
 
@@ -539,6 +543,135 @@ export default function CapabilityDetailPage() {
       {/* ─── Analyst annotations widget ────────────────────────────────────── */}
       <CapabilityAnnotations capabilityId={id} />
     </div>
+  );
+}
+
+interface CeiHistoryResp {
+  industryId: number;
+  capabilityId: number;
+  days: number;
+  series: Array<{ at: string; value: number; reconstructed: boolean }>;
+  liveCount: number;
+  reconstructedCount: number;
+}
+
+function CeiHistoryCard({ capabilityId }: { capabilityId: number }) {
+  const [data, setData] = useState<CeiHistoryResp | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [windowDays, setWindowDays] = useState<30 | 90 | 180>(90);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/cei-history?days=${windowDays}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((j: CeiHistoryResp | null) => { if (!cancelled) setData(j); })
+      .catch(() => { /* show empty state */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId, windowDays]);
+
+  const stats = useMemo(() => {
+    if (!data || data.series.length < 2) return null;
+    const series = data.series;
+    const first = series[0].value;
+    const last = series[series.length - 1].value;
+    const min = Math.min(...series.map(p => p.value));
+    const max = Math.max(...series.map(p => p.value));
+    const delta = last - first;
+    return { first, last, min, max, delta };
+  }, [data]);
+
+  const sparklinePath = useMemo(() => {
+    if (!data || data.series.length < 2) return null;
+    const w = 600;
+    const h = 80;
+    const padding = 4;
+    const min = Math.min(...data.series.map(p => p.value));
+    const max = Math.max(...data.series.map(p => p.value));
+    const range = Math.max(0.01, max - min);
+    const pts = data.series.map((p, i) => {
+      const x = padding + (i / (data.series.length - 1)) * (w - 2 * padding);
+      const y = h - padding - ((p.value - min) / range) * (h - 2 * padding);
+      return { x, y, reconstructed: p.reconstructed };
+    });
+    // Split into live + reconstructed segments for dashed styling.
+    const livePath = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+    return { w, h, pts, livePath, min, max };
+  }, [data]);
+
+  return (
+    <Card className="rounded-none">
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-serif text-xl tracking-tight">CEI trend</h2>
+          <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+            Industry index
+          </Badge>
+          <div className="ml-auto flex items-center gap-1">
+            {[30, 90, 180].map(d => (
+              <button
+                key={d}
+                onClick={() => setWindowDays(d as 30 | 90 | 180)}
+                className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] border ${windowDays === d ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Loading CEI history…
+          </div>
+        )}
+        {!loading && (!data || data.series.length < 2) && (
+          <p className="text-sm text-muted-foreground">
+            Not enough history yet. Snapshots accumulate over time; once {windowDays} days of data exist, the trend appears here.
+            {data && data.series.length > 0 && (
+              <> (Currently {data.series.length} data point{data.series.length === 1 ? "" : "s"} in the window.)</>
+            )}
+          </p>
+        )}
+        {!loading && data && stats && sparklinePath && (
+          <>
+            <div className="grid grid-cols-4 gap-3">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Latest</div>
+                <div className="font-mono text-2xl tabular-nums">{stats.last.toFixed(1)}</div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{windowDays}-day Δ</div>
+                <div className={`font-mono text-2xl tabular-nums ${stats.delta > 0 ? "text-emerald-600" : stats.delta < 0 ? "text-red-600" : ""}`}>
+                  {stats.delta > 0 ? "+" : ""}{stats.delta.toFixed(1)}
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Range</div>
+                <div className="font-mono text-sm tabular-nums">{stats.min.toFixed(0)}–{stats.max.toFixed(0)}</div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Points</div>
+                <div className="font-mono text-sm tabular-nums">{data.series.length}</div>
+              </div>
+            </div>
+            <svg viewBox={`0 0 ${sparklinePath.w} ${sparklinePath.h}`} className="w-full h-20 border border-border/40">
+              <path d={sparklinePath.livePath} fill="none" stroke="currentColor" strokeWidth="1.5" />
+              {sparklinePath.pts.map((p, i) => (
+                <circle key={i} cx={p.x} cy={p.y} r={p.reconstructed ? 1 : 2} className={p.reconstructed ? "fill-muted-foreground/40" : "fill-foreground"} />
+              ))}
+            </svg>
+            <div className="text-xs text-muted-foreground">
+              {data.liveCount} live snapshot{data.liveCount === 1 ? "" : "s"}
+              {data.reconstructedCount > 0 && (
+                <> + <span className="text-muted-foreground/70">{data.reconstructedCount} reconstructed</span> (filled from historical source-triangulation data — small dots; methodology available on request)</>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

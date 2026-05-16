@@ -13,6 +13,9 @@ import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api
 import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
 import { getPeerBenchmark } from "../services/peer-benchmarks/aggregator";
+import { db as dbConn } from "@workspace/db";
+import { ceiSnapshotsTable } from "@workspace/db";
+import { gte, desc as descOrder } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -153,6 +156,61 @@ router.get("/capabilities/:id/peer-benchmark", async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch peer benchmark" });
+  }
+});
+
+/**
+ * Per-capability CEI history. Derives the industry index series from
+ * cei_snapshots.industryBreakdowns over the requested window. Marks
+ * each point as live or reconstructed via methodologyVersion so the
+ * frontend can render reconstructed segments differently (dashed line,
+ * methodology disclosure).
+ *
+ * The capability's industry is resolved from the capability row; the
+ * series is the industry index, not a per-capability index (that
+ * granularity needs a separate per-cap snapshot table — future work).
+ */
+router.get("/capabilities/:id/cei-history", async (req, res) => {
+  const idRaw = req.params.id;
+  const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
+  if (!Number.isFinite(capId)) { res.status(400).json({ error: "Invalid capability id" }); return; }
+  try {
+    const days = Math.min(365, Math.max(7, Number(req.query.days) || 90));
+    const [cap] = await dbConn.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId)).limit(1);
+    if (!cap) { res.status(404).json({ error: "Capability not found" }); return; }
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const snapshots = await dbConn
+      .select()
+      .from(ceiSnapshotsTable)
+      .where(gte(ceiSnapshotsTable.snapshotAt, since))
+      .orderBy(descOrder(ceiSnapshotsTable.snapshotAt));
+
+    const industryKey = String(cap.industryId);
+    const series = snapshots
+      .map(snap => {
+        const breakdown = (snap.industryBreakdowns as Record<string, { indexValue?: number }> | null)?.[industryKey];
+        if (!breakdown || typeof breakdown.indexValue !== "number") return null;
+        return {
+          at: snap.snapshotAt.toISOString(),
+          value: breakdown.indexValue,
+          reconstructed: (snap.methodologyVersion ?? "").startsWith("reconstructed"),
+        };
+      })
+      .filter((p): p is { at: string; value: number; reconstructed: boolean } => p !== null)
+      .reverse(); // chronological for chart
+
+    const liveCount = series.filter(p => !p.reconstructed).length;
+    const reconstructedCount = series.length - liveCount;
+    res.json({
+      industryId: cap.industryId,
+      capabilityId: capId,
+      days,
+      series,
+      liveCount,
+      reconstructedCount,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch CEI history" });
   }
 });
 
