@@ -12,6 +12,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
 import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
+import { getPeerBenchmark } from "../services/peer-benchmarks/aggregator";
 
 const router: IRouter = Router();
 
@@ -131,6 +132,30 @@ router.get("/roles", async (_req, res) => {
  * later drive a "viewed 10+ times → queue 3-year historical backfill"
  * trigger (Task #2 phase 2).
  */
+/**
+ * Peer benchmarks for a capability, scoped to the requesting industry.
+ * Requires ?industryId=N because the benchmark is per-industry. Returns
+ * null + suppressed=true when the cell has fewer than 5 contributors.
+ *
+ * Composition disclosure: nRealOrgs vs nSyntheticOrgs lets the UI label
+ * cells that include synthetic-agent (bot) data honestly.
+ */
+router.get("/capabilities/:id/peer-benchmark", async (req, res) => {
+  const idRaw = req.params.id;
+  const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
+  const industryId = Number(req.query.industryId);
+  if (!Number.isFinite(capId) || !Number.isFinite(industryId)) {
+    res.status(400).json({ error: "Invalid capability id or missing industryId query param" });
+    return;
+  }
+  try {
+    const result = await getPeerBenchmark(industryId, capId);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch peer benchmark" });
+  }
+});
+
 router.get("/capabilities/:id/filings", async (req, res) => {
   const idRaw = req.params.id;
   const id = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);

@@ -20,6 +20,7 @@ import { provisionBot, disableBot, setBotStatus, setBotBudget, listBots, listAva
 import { listPersonas } from "../services/bots/personas";
 import { getBotBudgetStatus, getSystemBudgetStatus } from "../services/bots/budget";
 import { triggerBotTickNow } from "../services/agent/scheduler";
+import { rebuildPeerBenchmarks } from "../services/peer-benchmarks/aggregator";
 import { logger as log } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -349,6 +350,15 @@ router.patch("/admin/bots/:id", async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "update failed" });
+  }
+});
+
+router.post("/admin/peer-benchmarks/rebuild", async (_req, res) => {
+  try {
+    const r = await rebuildPeerBenchmarks();
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "rebuild failed" });
   }
 });
 

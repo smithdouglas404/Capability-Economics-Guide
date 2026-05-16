@@ -10,6 +10,7 @@ import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
 import { runCreditExpirySweep } from "../credit-expiry";
+import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { db } from "@workspace/db";
 import { ceiComponentsTable, ceiSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
@@ -27,6 +28,10 @@ const BOT_LOOP_INTERVAL_MS = 60 * 60 * 1000;
 // Credit expiry sweep runs daily. Pulls every credit_purchases row whose
 // expires_at <= NOW and debits the unused portion of the batch.
 const CREDIT_EXPIRY_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Peer benchmarks rebuild runs daily. Reaggregates percentile distributions
+// over organization_capabilities for every (industry, capability) cell with
+// at least 5 contributing organizations.
+const PEER_BENCHMARKS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -47,12 +52,14 @@ let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
+let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
 let isDigesting = false;
 let isBotTicking = false;
 let isExpiring = false;
+let isAggregatingBenchmarks = false;
 let lastRunAt: Date | null = null;
 let lastRotationAt: Date | null = null;
 let lastWorldScanAt: Date | null = null;
@@ -286,6 +293,23 @@ async function creditExpiryTick(): Promise<void> {
 }
 
 /**
+ * Daily peer-benchmarks aggregator. Recomputes percentile distributions
+ * over organization_capabilities for every (industry, capability) cell.
+ * Cells with <5 contributors are suppressed (privacy + statistical floor).
+ */
+async function peerBenchmarksTick(): Promise<void> {
+  if (isAggregatingBenchmarks) return;
+  isAggregatingBenchmarks = true;
+  try {
+    await rebuildPeerBenchmarks();
+  } catch (err) {
+    console.warn("[PeerBenchmarks] rebuild failed:", err);
+  } finally {
+    isAggregatingBenchmarks = false;
+  }
+}
+
+/**
  * Bot loop tick: wake all active bots, run any actions due per persona
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
@@ -362,6 +386,7 @@ export function startScheduler(): void {
   digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
   botLoopTimer = setInterval(() => botLoopTick(), BOT_LOOP_INTERVAL_MS);
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
+  peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
@@ -380,6 +405,9 @@ export function startScheduler(): void {
   // Run credit expiry once at startup (staggered) so post-deploy any newly-
   // arrived expirations get processed without waiting 24h.
   setTimeout(() => creditExpiryTick(), 120_000);
+  // Same for peer-benchmarks aggregator — staggered 3 min post-boot so it
+  // doesn't compete with the bot tick and credit expiry for resources.
+  setTimeout(() => peerBenchmarksTick(), 180_000);
 }
 
 /**
@@ -401,6 +429,7 @@ export function stopScheduler(): void {
   if (digestTimer) { clearInterval(digestTimer); digestTimer = null; }
   if (botLoopTimer) { clearInterval(botLoopTimer); botLoopTimer = null; }
   if (creditExpiryTimer) { clearInterval(creditExpiryTimer); creditExpiryTimer = null; }
+  if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
