@@ -6,8 +6,20 @@ import { emitAgentEvent } from "./events";
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
 const LETTA_ENABLED = Boolean(LETTA_API_KEY || process.env.LETTA_BASE_URL);
-const LETTA_AGENT_NAME = "cei-autonomous-agent";
-const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-3.7-sonnet";
+// Renamed during the Inflexcvi cutover. If an agent already exists under the
+// old "cei-autonomous-agent" name on the Letta service, it stays alive but
+// orphaned — findOrCreate matches by name, so the old one is ignored and a
+// fresh "cvi-autonomous-agent" gets seeded with core blocks. Rename it in
+// the Letta admin UI if you want to preserve its accumulated memory.
+const LETTA_AGENT_NAME = "cvi-autonomous-agent";
+// Letta model handle format: "<provider>/<openrouter-model-id>".
+// We default to Sonnet 4.6 via OpenRouter (matches the rest of the platform
+// after the Phase 0 cutover); operator can override via LETTA_MODEL env.
+// IMPORTANT: this handle won't exist in Letta's registry until the Letta
+// service has OPENROUTER_API_KEY set in its Railway env — Letta only
+// catalogs handles for providers whose keys are configured. Without that,
+// agent runs fail with "Handle ... not found, must be one of []".
+const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-sonnet-4.6";
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 

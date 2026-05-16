@@ -2,7 +2,11 @@ import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
 import { desc, sql, and, eq } from "drizzle-orm";
 
-const MEM0_AGENT_ID = "cei-autonomous-agent";
+// Cutover note: was "cei-autonomous-agent" before the Inflexcvi rebrand.
+// Memories created under the old ID stay readable via mem0 search regardless
+// of agent_id (mem0 filters but doesn't gatekeep historical content), so no
+// data is lost — they just stop appearing in the default agent-scoped list.
+const MEM0_AGENT_ID = "cvi-autonomous-agent";
 
 export type MemoryType = "pattern" | "observation" | "insight" | "decision_context";
 export type MemoryCategory =
@@ -77,6 +81,25 @@ async function mem0Fetch(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    // Surface the most-common operator misconfigs with actionable hints
+    // instead of just dumping the raw 5xx. Mem0 self-hosted uses LiteLLM
+    // under the hood, which calls an OpenAI-compatible endpoint. We route
+    // those calls through OpenRouter (cost + single key surface), so the
+    // Mem0 service's "OPENAI_API_KEY" var must hold an OpenRouter key and
+    // OPENAI_BASE_URL must point at https://openrouter.ai/api/v1.
+    if (res.status === 502 && text.includes("provider_auth_failed")) {
+      throw new Error(
+        `Mem0 ${method} ${path} → 502 provider_auth_failed: the Mem0 service's upstream LLM call failed auth. ` +
+        `Fix in Railway on the Mem0 service: set OPENAI_API_KEY to a valid OpenRouter key and OPENAI_BASE_URL=https://openrouter.ai/api/v1. ` +
+        `Raw: ${text.slice(0, 200)}`,
+      );
+    }
+    if (res.status === 401) {
+      throw new Error(
+        `Mem0 ${method} ${path} → 401: api-server's MEM0_API_KEY does not match the Mem0 service's ADMIN_API_KEY. ` +
+        `Sent via X-API-Key (NOT Authorization: Bearer). Verify both env vars match in Railway. Raw: ${text.slice(0, 200)}`,
+      );
+    }
     throw new Error(`Mem0 ${method} ${path} → ${res.status}: ${text}`);
   }
   return res.json();
