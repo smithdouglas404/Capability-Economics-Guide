@@ -22,6 +22,7 @@ export * from "./bots";
 export * from "./credit-packs";
 export * from "./sec-filings";
 export * from "./peer-benchmarks";
+export * from "./cei-capability-history";
 export * from "./system-secrets";
 export * from "./audit-chain";
 export * from "./membership";

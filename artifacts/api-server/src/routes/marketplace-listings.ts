@@ -31,6 +31,7 @@ router.get("/marketplace/listings", async (_req, res) => {
       sellerId: marketplaceListingsTable.sellerId,
       sellerName: marketplaceSellersTable.displayName,
       sellerTier: marketplaceSellersTable.tier,
+      sellerUserId: marketplaceSellersTable.userId,
       type: marketplaceListingsTable.type,
       title: marketplaceListingsTable.title,
       description: marketplaceListingsTable.description,

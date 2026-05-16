@@ -4,6 +4,7 @@ import { runBrowseAction } from "./actions/browse";
 import { runAssessmentAction, isAssessmentDue } from "./actions/assessment";
 import { runReflectionAction, isReflectionDue } from "./actions/reflection";
 import { runCommentAction, isCommentDue } from "./actions/comment";
+import { runMarketplaceListAction, isListingDue } from "./actions/marketplace";
 import { getBotBudgetStatus } from "./budget";
 import { getPersona } from "./personas";
 import { logger } from "../../lib/logger";
@@ -105,7 +106,24 @@ export async function runBotTick(bot: Bot): Promise<BotTickResult> {
     }
   }
 
-  // 4. Decide how many browses are due today based on cadence
+  // 4. Run a marketplace listing if due (Sonnet, ~$0.04 each, ~1/wk)
+  if (await isListingDue(bot)) {
+    const budget = await getBotBudgetStatus(bot.id);
+    if (budget.overBudget) {
+      result.actionsSkippedBudget++;
+      await logBudgetSkip(bot.id, "marketplace_list", budget.mtdCents, budget.capCents);
+    } else {
+      const r = await runMarketplaceListAction(bot);
+      if (r.ok) {
+        result.actionsRun++;
+        result.totalCostCents += r.costCents;
+      } else if (r.error) {
+        result.errors.push(`marketplace_list: ${r.error}`);
+      }
+    }
+  }
+
+  // 5. Decide how many browses are due today based on cadence
   const browsesToday = await countTodayActions(bot.id, "browse");
   const browsesDesired = persona.biases.capabilityBrowsesPerDay;
   const browsesNeeded = Math.max(0, browsesDesired - browsesToday);

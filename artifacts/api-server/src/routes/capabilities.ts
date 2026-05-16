@@ -14,8 +14,8 @@ import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
 import { getPeerBenchmark } from "../services/peer-benchmarks/aggregator";
 import { db as dbConn } from "@workspace/db";
-import { ceiSnapshotsTable } from "@workspace/db";
-import { gte, desc as descOrder } from "drizzle-orm";
+import { ceiSnapshotsTable, ceiCapabilityHistoryTable } from "@workspace/db";
+import { gte, desc as descOrder, asc } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -179,25 +179,48 @@ router.get("/capabilities/:id/cei-history", async (req, res) => {
     const [cap] = await dbConn.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, capId)).limit(1);
     if (!cap) { res.status(404).json({ error: "Capability not found" }); return; }
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const snapshots = await dbConn
-      .select()
-      .from(ceiSnapshotsTable)
-      .where(gte(ceiSnapshotsTable.snapshotAt, since))
-      .orderBy(descOrder(ceiSnapshotsTable.snapshotAt));
 
-    const industryKey = String(cap.industryId);
-    const series = snapshots
-      .map(snap => {
-        const breakdown = (snap.industryBreakdowns as Record<string, { indexValue?: number }> | null)?.[industryKey];
-        if (!breakdown || typeof breakdown.indexValue !== "number") return null;
-        return {
-          at: snap.snapshotAt.toISOString(),
-          value: breakdown.indexValue,
-          reconstructed: (snap.methodologyVersion ?? "").startsWith("reconstructed"),
-        };
-      })
-      .filter((p): p is { at: string; value: number; reconstructed: boolean } => p !== null)
-      .reverse(); // chronological for chart
+    // Prefer per-capability history (cei_capability_history) when available
+    // — it's the high-fidelity per-cap series. Falls back to industry-level
+    // rollup from cei_snapshots when the per-cap table is empty (early
+    // post-deploy state, before the engine has banked enough capability
+    // history rows).
+    const capHistory = await dbConn
+      .select()
+      .from(ceiCapabilityHistoryTable)
+      .where(and(eq(ceiCapabilityHistoryTable.capabilityId, capId), gte(ceiCapabilityHistoryTable.snapshotAt, since)))
+      .orderBy(asc(ceiCapabilityHistoryTable.snapshotAt));
+
+    let series: Array<{ at: string; value: number; reconstructed: boolean }>;
+    let granularity: "per-capability" | "industry-rollup";
+    if (capHistory.length > 0) {
+      granularity = "per-capability";
+      series = capHistory.map(h => ({
+        at: h.snapshotAt.toISOString(),
+        value: h.consensusScore,
+        reconstructed: (h.methodologyVersion ?? "").startsWith("reconstructed"),
+      }));
+    } else {
+      granularity = "industry-rollup";
+      const snapshots = await dbConn
+        .select()
+        .from(ceiSnapshotsTable)
+        .where(gte(ceiSnapshotsTable.snapshotAt, since))
+        .orderBy(descOrder(ceiSnapshotsTable.snapshotAt));
+      const industryKey = String(cap.industryId);
+      series = snapshots
+        .map(snap => {
+          const breakdown = (snap.industryBreakdowns as Record<string, { indexValue?: number }> | null)?.[industryKey];
+          if (!breakdown || typeof breakdown.indexValue !== "number") return null;
+          return {
+            at: snap.snapshotAt.toISOString(),
+            value: breakdown.indexValue,
+            reconstructed: (snap.methodologyVersion ?? "").startsWith("reconstructed"),
+          };
+        })
+        .filter((p): p is { at: string; value: number; reconstructed: boolean } => p !== null)
+        .reverse();
+    }
 
     const liveCount = series.filter(p => !p.reconstructed).length;
     const reconstructedCount = series.length - liveCount;
@@ -205,6 +228,7 @@ router.get("/capabilities/:id/cei-history", async (req, res) => {
       industryId: cap.industryId,
       capabilityId: capId,
       days,
+      granularity,
       series,
       liveCount,
       reconstructedCount,

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, ShoppingCart, Sparkles, BadgeCheck, Star, Store, Globe } from "lucide-react";
+import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
 
 const API_BASE = "/api";
 
@@ -24,6 +25,7 @@ type Listing = {
 };
 
 type Seller = {
+  userId?: string | null;
   displayName: string | null;
   email: string | null;
   tier: SellerTier | null;
@@ -108,6 +110,9 @@ export default function MarketplaceListingPage() {
           {seller?.displayName && (
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground mt-1">
               <span>by {seller.displayName}</span>
+              {isSyntheticAgent(seller.userId) && (
+                <SyntheticAgentBadge personaDisplay={personaDisplayForClerkId(seller.userId)} size="sm" />
+              )}
               {seller.tier && seller.tier !== "open" && (() => {
                 const TIcon = TIER_ICON[seller.tier];
                 return (

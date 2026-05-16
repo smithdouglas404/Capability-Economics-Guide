@@ -446,6 +446,33 @@ export async function computeCEI(opts: ComputeCEIOptions = {}): Promise<CEIResul
       }).returning())[0].snapshotAt
     : new Date();
 
+  // Bank per-capability history rows in parallel to the industry-level
+  // snapshot. Lets the capability-detail sparkline show per-cap trend
+  // instead of just industry rollup. captureMap exists only when called
+  // with capturePerCap:true; otherwise we pull current ceiComponents rows.
+  if (persist) {
+    try {
+      const components = await db.select().from(ceiComponentsTable);
+      if (components.length > 0) {
+        const { ceiCapabilityHistoryTable } = await import("@workspace/db");
+        await db.insert(ceiCapabilityHistoryTable).values(
+          components.map(c => ({
+            capabilityId: c.capabilityId,
+            industryId: c.industryId,
+            consensusScore: c.consensusScore,
+            confidence: c.confidence,
+            velocity: c.velocity,
+            posteriorVariance: c.posteriorVariance,
+            methodologyVersion: "1.1",
+            snapshotAt,
+          }))
+        ).onConflictDoNothing();
+      }
+    } catch (err) {
+      console.warn("[CEI] per-capability history insert failed (non-fatal):", err);
+    }
+  }
+
   // Fire subscription evaluation hooks against the just-persisted state.
   // Wrapped in try/catch — alerts must never break the CEI run.
   if (persist && prevCapStates) {

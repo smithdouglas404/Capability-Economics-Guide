@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Store, Sparkles, BadgeCheck, Star } from "lucide-react";
 import { MarketplaceNav } from "@/components/marketplace-nav";
+import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
 
 const API_BASE = "/api";
 
@@ -15,6 +16,7 @@ type Listing = {
   sellerId: number;
   sellerName: string | null;
   sellerTier: SellerTier | null;
+  sellerUserId: string | null;
   type: "report" | "dataset" | "template" | "service";
   title: string;
   description: string;
@@ -191,6 +193,9 @@ export default function MarketplacePage() {
                     <div className="mt-4 pt-3 border-t flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs text-muted-foreground truncate">{l.sellerName ?? "Author"}</span>
+                        {isSyntheticAgent(l.sellerUserId) && (
+                          <SyntheticAgentBadge personaDisplay={personaDisplayForClerkId(l.sellerUserId)} size="sm" />
+                        )}
                         {tier !== "open" && (
                           <Badge variant="outline" className={`rounded-none text-[10px] uppercase tracking-wider inline-flex items-center gap-1 ${TIER_TONE[tier]}`}>
                             <TierIcon className="w-3 h-3" />
