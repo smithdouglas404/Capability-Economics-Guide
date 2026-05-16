@@ -13,6 +13,7 @@ import {
   LayoutDashboard, ShieldCheck, Gift, CreditCard, BookMarked, BookOpenCheck,
   Settings, Store, ShieldAlert,
 } from "lucide-react";
+import { SyntheticAgentBadge } from "@/components/synthetic-agent-badge";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
 import EnrichmentAdmin from "@/components/enrichment-admin";
@@ -739,6 +740,7 @@ export default function AdminDashboard() {
         <TabsContent value="system" className="space-y-6">
           <ApiVolumePanel />
           <RuntimeTuningPanel />
+          <SyntheticAgentsPanel />
           <FoundrySyncPanel />
           <AuditLogViewer />
           <Card>
@@ -968,6 +970,256 @@ function RuntimeTuningPanel() {
               <Button variant="ghost" onClick={restoreDefaults} disabled={saving}>
                 Restore defaults
               </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── Synthetic Agents Panel (bot roster) ────────────────────────────────
+
+type BotsResponse = {
+  bots: Array<{
+    id: number;
+    personaKey: string;
+    displayName: string;
+    email: string;
+    title: string | null;
+    status: "active" | "paused" | "disabled";
+    clerkUserId: string;
+    monthlyBudgetUsdCap: number;
+    lastActedAt: string | null;
+    addressLine1: string | null;
+    city: string | null;
+    region: string | null;
+    country: string | null;
+  }>;
+  availablePersonas: Array<{ key: string; displayName: string; title: string; entityName: string }>;
+  allPersonas: Array<{ key: string; displayName: string }>;
+  systemBudget: {
+    capCents: number;
+    mtdCents: number;
+    remainingCents: number;
+    perBot: Array<{ botId: number; capCents: number; mtdCents: number; pctUsed: number; overBudget: boolean }>;
+  };
+};
+
+function SyntheticAgentsPanel() {
+  const { data, loading, refetch } = useApi<BotsResponse>("/admin/bots");
+  const [provisioning, setProvisioning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [editingBudgetForId, setEditingBudgetForId] = useState<number | null>(null);
+  const [budgetDraft, setBudgetDraft] = useState<string>("");
+
+  const provision = async (personaKey: string) => {
+    setProvisioning(personaKey);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bots/provision`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personaKey }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Provision failed");
+    } finally {
+      setProvisioning(null);
+    }
+  };
+
+  const patchStatus = async (botId: number, status: "active" | "paused" | "disabled") => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bots/${botId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Status change failed");
+    }
+  };
+
+  const saveBudget = async (botId: number) => {
+    setError(null);
+    try {
+      const n = Number(budgetDraft);
+      if (!(n >= 0 && n <= 10000)) throw new Error("Budget must be 0–10000 USD");
+      const res = await fetch(`${API_BASE}/admin/bots/${botId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ monthlyBudgetUsdCap: n }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setEditingBudgetForId(null);
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Budget save failed");
+    }
+  };
+
+  const triggerTick = async () => {
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bots/tick`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Tick failed");
+    }
+  };
+
+  const budgetMapById = new Map((data?.systemBudget?.perBot ?? []).map(b => [b.botId, b]));
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Brain className="w-5 h-5" /> Synthetic Agents
+          {data && (
+            <span className="text-sm font-normal text-muted-foreground ml-2">
+              {data.bots.filter(b => b.status === "active").length} active / {data.bots.length} total · system MTD ${(data.systemBudget.mtdCents / 100).toFixed(2)} / ${(data.systemBudget.capCents / 100).toFixed(2)}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading && !data ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            {data && data.bots.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No bots yet. Spawn one below to start populating the platform with persona-driven activity.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <th className="px-3 py-2 text-left">Persona</th>
+                      <th className="px-3 py-2 text-left">Identity</th>
+                      <th className="px-3 py-2 text-left">Status</th>
+                      <th className="px-3 py-2 text-left">MTD spend</th>
+                      <th className="px-3 py-2 text-left">Last active</th>
+                      <th className="px-3 py-2 text-left">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.bots ?? []).map(bot => {
+                      const budget = budgetMapById.get(bot.id);
+                      const pct = budget ? Math.min(100, Math.round(budget.pctUsed * 100)) : 0;
+                      const barColor = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-amber-500" : "bg-emerald-500";
+                      return (
+                        <tr key={bot.id} className="border-b border-border/50 hover:bg-muted/20">
+                          <td className="px-3 py-3">
+                            <div className="font-medium">{bot.displayName}</div>
+                            <div className="text-xs text-muted-foreground">{bot.title}</div>
+                            <div className="mt-1"><SyntheticAgentBadge personaDisplay={bot.personaKey.replace(/_/g, " ")} size="sm" /></div>
+                          </td>
+                          <td className="px-3 py-3 text-xs">
+                            <div className="text-muted-foreground">{bot.email}</div>
+                            <div className="text-muted-foreground">{bot.city}{bot.region ? `, ${bot.region}` : ""} {bot.country}</div>
+                            <div className="font-mono text-[10px] text-muted-foreground/70">{bot.clerkUserId}</div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              bot.status === "active" ? "bg-green-500/10 text-green-600" :
+                              bot.status === "paused" ? "bg-amber-500/10 text-amber-600" :
+                              "bg-muted text-muted-foreground"
+                            }`}>{bot.status}</span>
+                          </td>
+                          <td className="px-3 py-3 text-xs">
+                            {editingBudgetForId === bot.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input type="number" min="0" max="10000" step="1" className="w-20 h-7 text-xs"
+                                  value={budgetDraft}
+                                  onChange={(e) => setBudgetDraft(e.target.value)}
+                                />
+                                <Button size="sm" onClick={() => saveBudget(bot.id)} className="h-7">Save</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingBudgetForId(null)} className="h-7">×</Button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="text-foreground">${(budget?.mtdCents ?? 0) / 100} <span className="text-muted-foreground">/ ${bot.monthlyBudgetUsdCap}</span></div>
+                                <div className="w-full bg-muted h-1 mt-1 rounded">
+                                  <div className={`h-1 rounded ${barColor}`} style={{ width: `${pct}%` }} />
+                                </div>
+                                <button
+                                  className="text-[10px] text-muted-foreground hover:underline mt-1"
+                                  onClick={() => { setEditingBudgetForId(bot.id); setBudgetDraft(String(bot.monthlyBudgetUsdCap)); }}
+                                >Edit cap</button>
+                              </>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-xs text-muted-foreground">{timeAgo(bot.lastActedAt)}</td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-1">
+                              {bot.status === "active" && (
+                                <Button size="sm" variant="outline" onClick={() => patchStatus(bot.id, "paused")} className="h-7 text-xs">Pause</Button>
+                              )}
+                              {bot.status === "paused" && (
+                                <Button size="sm" variant="outline" onClick={() => patchStatus(bot.id, "active")} className="h-7 text-xs">Resume</Button>
+                              )}
+                              {bot.status !== "disabled" && (
+                                <Button size="sm" variant="ghost" onClick={() => patchStatus(bot.id, "disabled")} className="h-7 text-xs text-red-600">Disable</Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {data && data.availablePersonas.length > 0 && (
+              <div className="border-t border-border pt-4">
+                <div className="text-xs uppercase text-muted-foreground mb-2">Add new bot</div>
+                <div className="flex flex-wrap gap-2">
+                  {data.availablePersonas.map(p => (
+                    <Button
+                      key={p.key}
+                      size="sm"
+                      variant="outline"
+                      disabled={provisioning === p.key}
+                      onClick={() => provision(p.key)}
+                      className="text-xs"
+                    >
+                      {provisioning === p.key ? `Provisioning ${p.displayName}…` : `+ ${p.displayName} (${p.title})`}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 pt-2">
+              <Button size="sm" variant="ghost" onClick={triggerTick} className="text-xs">Fire tick now</Button>
+              <Button size="sm" variant="ghost" onClick={() => refetch()} className="text-xs">Refresh</Button>
             </div>
           </>
         )}
