@@ -1,6 +1,7 @@
 import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
+import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
