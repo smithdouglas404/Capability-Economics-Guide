@@ -63,8 +63,8 @@ async function messagesCreate(params: MessagesCreateParams): Promise<MessagesCre
     headers: {
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "https://capabilityeconomics.com",
-      "X-Title": "Capability Economics",
+      "HTTP-Referer": "https://inflexcvi.ai",
+      "X-Title": "Inflexcvi",
     },
     body: JSON.stringify({
       model: params.model,

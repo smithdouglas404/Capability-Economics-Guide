@@ -241,7 +241,7 @@ router.get("/admin/models", (_req, res) => {
     { task: "Assessment full analysis", model: "anthropic/claude-sonnet-4.6 (8192 tokens)", reason: "Deepest reasoning — roadmap, gaps, competitor scoring (premium feature)" },
     { task: "Investment thesis memo", model: "anthropic/claude-sonnet-4.6", reason: "Premium feature — credit-deducted output" },
     { task: "Dynamic industry generation", model: "anthropic/claude-sonnet-4.6", reason: "One-time discovery, sharper capability decomposition" },
-    { task: "VCE (Value Chain Economics) synthesis", model: "anthropic/claude-sonnet-4.6", reason: "Premium feature — capability-economics analysis depth" },
+    { task: "VCE (Value Chain Economics) synthesis", model: "anthropic/claude-sonnet-4.6", reason: "Premium feature — capability-value analysis depth" },
     { task: "Capability insights + alerts", model: "anthropic/claude-haiku-4.5", reason: "Per-capability alerts, runs frequently — speed + cost over depth" },
     { task: "Industry leaderboard", model: "anthropic/claude-haiku-4.5", reason: "Bulk extraction, speed over depth" },
     { task: "White papers", model: "anthropic/claude-haiku-4.5", reason: "Citation-style output, runs every 15 days" },

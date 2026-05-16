@@ -65,9 +65,9 @@ app.use("/api", router);
 // limiter (see middlewares/requireApiKey.ts) and skips the /api tier limiter.
 app.use("/v1", v1Router);
 
-// Serve the built capability-economics SPA when a frontend bundle is available.
+// Serve the built inflexcvi SPA when a frontend bundle is available.
 // FRONTEND_DIST_PATH lets ops override the location; otherwise we try the
-// monorepo layout (../capability-economics/dist/public) resolved from the
+// monorepo layout (../inflexcvi/dist/public) resolved from the
 // running bundle's dirname. When no bundle exists (backend-only deploys,
 // local API-only dev) static serving is silently skipped.
 function resolveFrontendDist(): string | null {
@@ -75,7 +75,7 @@ function resolveFrontendDist(): string | null {
   const candidates = [
     override,
     path.resolve(process.cwd(), "artifacts/inflexcvi/dist/public"),
-    path.resolve(__dirname, "../../capability-economics/dist/public"),
+    path.resolve(__dirname, "../../inflexcvi/dist/public"),
   ].filter((p): p is string => typeof p === "string" && p.length > 0);
 
   for (const candidate of candidates) {

@@ -49,7 +49,7 @@ The architecture solves four distinct hard problems simultaneously:
 workspace/                          # pnpm monorepo root (pnpm@10.26.1)
 ├── artifacts/
 │   ├── api-server/                 # Express 5 API + autonomous agent runtime
-│   └── capability-economics/       # React 19 + Vite 7 SPA
+│   └── inflexcvi/       # React 19 + Vite 7 SPA
 ├── lib/
 │   ├── db/                         # Drizzle ORM schema (source of truth) + push scripts
 │   ├── api-spec/                   # OpenAPI 3.1 specification (YAML) — contract authority
@@ -677,11 +677,11 @@ The Assessment is the flagship conversion mechanism. It implements a 3-step wiza
 ```
 Replit workspace
 ├── Workflow: api-server       → PORT=8080, serves /api + static SPA
-├── Workflow: capability-economics → PORT=20020, HMR dev server
+├── Workflow: inflexcvi → PORT=20020, HMR dev server
 └── Workflow: mockup-sandbox   → PORT=20021, isolated component preview
 ```
 
-Path-based routing via Replit's proxy: `/capability-economics` routes to the frontend dev server; `/api` routes to the API server. In development, CORS is permissive.
+Path-based routing via Replit's proxy: `/inflexcvi` routes to the frontend dev server; `/api` routes to the API server. In development, CORS is permissive.
 
 ### 9.2 Production (Railway)
 

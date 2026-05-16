@@ -43,7 +43,7 @@ const EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000;
 // CVI signal detector runs daily — sweeps the per-cap history table for
 // moves >= threshold within the configured window. Cheap (in-memory pair
 // comparison after one DB pull).
-const CEI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -130,7 +130,7 @@ async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof ru
     lastRunResult = result;
 
     // Deterministic CVI snapshot at the end of every routine cycle. The
-    // agent may or may not have invoked the compute_cei tool — we don't
+    // agent may or may not have invoked the compute_cvi tool — we don't
     // trust Sonnet's tool-selection to bank the time-series moat. Banking
     // a snapshot per cycle is the cheapest, most defensible way to convert
     // system age into competitive history (Task #3 tactic 1).
@@ -395,7 +395,7 @@ async function botLoopTick(): Promise<void> {
     }
 
     // If any bot action mutated assessment state (assessments specifically —
-    // browses don't change capability-economics), bank a CVI snapshot so
+    // browses don't change inflexcvi rollup), bank a CVI snapshot so
     // the time-series records the moment. Cheap when bots are idle (no
     // assessments → no snapshot triggered).
     const assessmentRan = results.some(r => r.actionsRun > 0);
@@ -453,7 +453,7 @@ export function startScheduler(): void {
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
-  ceiSignalsTimer = setInterval(() => ceiSignalsTick(), CEI_SIGNALS_INTERVAL_MS);
+  ceiSignalsTimer = setInterval(() => ceiSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
 
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 

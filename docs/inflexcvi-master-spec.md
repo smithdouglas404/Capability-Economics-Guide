@@ -645,7 +645,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 - Admin surfaces: overview, content, assessments, agent runs, payments, review queue, foundry admin, case-study admin, educational content
 - Health & observability: `/api/health`, `/api/health/services`, structured pino logging
 - Hedera HCS audit anchoring for purchases + security violations (asynchronous, non-blocking)
-- Multi-frontend artifacts: capability-economics (main SPA), ce-pitch-deck, mockup-sandbox
+- Multi-frontend artifacts: inflexcvi (main SPA), ce-pitch-deck, mockup-sandbox
 
 ### 15.2 Out of Scope (current release; tracked separately)
 
@@ -1550,7 +1550,7 @@ A full-stack intelligence platform that autonomously researches, scores, and adv
                           │       "Inflexcvi"        │
                           ├─────────────────────────────────────┤
                           │                                     │
-   Browser ◄───HTTPS─────►│  capabilityeconomics (api-server)   │
+   Browser ◄───HTTPS─────►│  inflexcvi (api-server)   │
                           │  ├─ Express 5 (port: $PORT)         │
                           │  ├─ Static SPA fallback             │
                           │  ├─ LangGraph agent (in-process)    │
@@ -1602,7 +1602,7 @@ A full-stack intelligence platform that autonomously researches, scores, and adv
 workspace/                         # pnpm monorepo root (pnpm@10.26.1)
 ├── artifacts/
 │   ├── api-server/                # Express 5 API + agent runtime
-│   ├── capability-economics/      # React 19 + Vite SPA (main product)
+│   ├── inflexcvi/      # React 19 + Vite SPA (main product)
 │   ├── ce-pitch-deck/             # pitch deck frontend
 │   └── mockup-sandbox/            # component preview
 ├── lib/
@@ -1655,7 +1655,7 @@ The root `tsconfig.json` is a **solution file** with project references to the f
 |---|---|
 | `pnpm run typecheck` | tsc --build for libs + per-artifact tsc --noEmit |
 | `pnpm run build` | typecheck + `pnpm -r run build` (all packages) |
-| `pnpm run build:deploy` | libs + capability-economics + api-server only (Railway build) |
+| `pnpm run build:deploy` | libs + inflexcvi + api-server only (Railway build) |
 | `pnpm run start` | runs api-server (which also serves built SPA) |
 | `pnpm --filter @workspace/api-server run dev` | NODE_ENV=development, build + start |
 | `pnpm --filter @workspace/api-server run build` | esbuild → `artifacts/api-server/dist/index.mjs` |
@@ -1722,7 +1722,7 @@ pnpm run build:deploy
 2. Builds the Express app via `src/app.ts`.
 3. `app.use("/api", router)` mounts all routes under `/api`.
 4. When a built frontend bundle is resolvable, mounts it statically with a non-`/api` SPA fallback.
-   - Resolution order: `FRONTEND_DIST_PATH` env → `$cwd/artifacts/inflexcvi/dist/public` → `__dirname/../../capability-economics/dist/public`.
+   - Resolution order: `FRONTEND_DIST_PATH` env → `$cwd/artifacts/inflexcvi/dist/public` → `__dirname/../../inflexcvi/dist/public`.
    - Missing bundle is non-fatal: server logs a warning and runs API-only.
 5. `app.listen(PORT, callback)` — callback invokes `startScheduler()`.
 6. Scheduler runs `executeRun("startup")` immediately, then schedules routine (every 30 min) + urgency watchdog (every 5 min).
@@ -2310,7 +2310,7 @@ Several tables (thresholds, leaderboard, white-papers) carry a `sourceIds` JSONB
 
 ### 37.2 Vite Configuration
 
-Both Vite configs (capability-economics and pitch-deck) default `PORT=5173/5174` and `BASE_PATH="/"` when unset — safe to `pnpm run build` with no env setup.
+Both Vite configs (inflexcvi and pitch-deck) default `PORT=5173/5174` and `BASE_PATH="/"` when unset — safe to `pnpm run build` with no env setup.
 
 - `PORT` affects dev/preview server only.
 - `BASE_PATH` becomes the `<base href>` of the built bundle. Must be `/` for root deploys (otherwise SPA fallback breaks).
@@ -2489,7 +2489,7 @@ Single Railway project ("Inflexcvi") with these services:
 
 | Service | Source | Purpose |
 |---|---|---|
-| `capabilityeconomics` | this repo (`main`) | api-server + static SPA |
+| `inflexcvi` | this repo (`main`) | api-server + static SPA |
 | `letta-2EOT` | `letta/Dockerfile` | Stateful memory blocks |
 | `Mem0` | `mem0/Dockerfile` | Semantic memory (uvicorn) |
 | `Postgres` | Railway plugin | Primary OLTP store |
@@ -2502,7 +2502,7 @@ Service IDs and project IDs are documented in `CLAUDE.md` for fast lookup via Ra
 
 - `railway.json` + `nixpacks.toml` configure the build.
 - Railway runs: `pnpm install --frozen-lockfile && pnpm run build:deploy`, then `pnpm run start`.
-- api-server both exposes `/api/*` and serves the built capability-economics SPA with a client-routing fallback.
+- api-server both exposes `/api/*` and serves the built inflexcvi SPA with a client-routing fallback.
 - `PORT` injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
 
 ### 39.3 Schema Push at Deploy
@@ -2515,7 +2515,7 @@ api-server resolves the SPA bundle in this order:
 
 1. `FRONTEND_DIST_PATH` env override
 2. `$cwd/artifacts/inflexcvi/dist/public`
-3. `__dirname/../../capability-economics/dist/public` (monorepo layout)
+3. `__dirname/../../inflexcvi/dist/public` (monorepo layout)
 
 Missing bundle is non-fatal — the server logs a warning and runs API-only.
 

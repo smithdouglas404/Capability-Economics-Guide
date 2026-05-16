@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   console.log(`✓ Hedera topic created on ${network}: ${topicId}`);
   console.log("");
   console.log("Next step:");
-  console.log(`  Railway → capabilityeconomics → Variables`);
+  console.log(`  Railway → inflexcvi (or inflexcvi, pre-Railway-rename) → Variables`);
   console.log(`  Add HEDERA_AUDIT_TOPIC_ID=${topicId}`);
   console.log(`  Add HEDERA_NETWORK=${network} (if not already set)`);
   console.log(`  Save → service redeploys → /admin/audit-chain shows live receipts.`);

@@ -205,7 +205,7 @@ async function callPerplexity(cap: CapSeed): Promise<{ parsed: PerplexityFields;
     `  "consensus_confidence": number,                  // 0-1\n` +
     `  "consensus_summary": string,                     // 2 sentences of street consensus\n` +
     `  "rationale": string,                             // 2-3 sentences economics reasoning\n` +
-    `  "ce_quadrant": "hot"|"emerging"|"cooling"|"table_stakes",  // capability-economics quadrant placement\n` +
+    `  "ce_quadrant": "hot"|"emerging"|"cooling"|"table_stakes",  // CVI quadrant placement\n` +
     `  "economic_impact_score": number,                 // 0-100 dollar-impact magnitude\n` +
     `  "adoption_momentum_score": number,               // 0-100 industry adoption momentum\n` +
     `  "disruption_intensity": number,                  // 0-100 disruption / change rate\n` +

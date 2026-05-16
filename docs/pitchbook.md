@@ -83,13 +83,13 @@ The platform addresses a single underlying market failure — the absence of qua
 > *"We acquired this company for $2.8B. Eighteen months later we discovered the underwriting capability was a decade behind peers. That wasn't in the data room. Our QofE looked clean; the operational reality was not."*
 > — Operating Partner, Top-10 PE Firm
 
-**Pain in dollars:** PwC's 2024 M&A Report attributes ~$340M of average value destruction in failed deals to overestimation of operational capability — a category that capability-economics intelligence directly addresses pre-LOI and during the 100-day plan.
+**Pain in dollars:** PwC's 2024 M&A Report attributes ~$340M of average value destruction in failed deals to overestimation of operational capability — a category that inflexcvi intelligence directly addresses pre-LOI and during the 100-day plan.
 
 ### The Capital Allocator (VC Partner / Thesis Investor)
 > *"We're building a thesis on industrial AI. We know the categories. We don't have a structured way to compare which incumbents have the underlying data and process capabilities to absorb AI displacement vs. which will be erased by it. We're triangulating off podcasts."*
 > — Partner, Top-Quartile Venture Fund
 
-**Pain in dollars:** Thesis-driven funds underwrite portfolio construction over a 7–10 year window. A capability-economics view changes which incumbents look like wedge customers vs. which look like soon-to-be-disrupted distribution.
+**Pain in dollars:** Thesis-driven funds underwrite portfolio construction over a 7–10 year window. A inflexcvi view changes which incumbents look like wedge customers vs. which look like soon-to-be-disrupted distribution.
 
 **All three buyers. Same product. Same data. Three different entry points.** And — crucially — the same back-end research engine, which means each new vertical, each new buyer cohort, contributes data into the same proprietary corpus.
 
@@ -130,7 +130,7 @@ This section walks an investor through what they would see if they logged into t
 
 ### 5.1 The CE Alpha Analytical Surface — Ten Tabs of Capability-Level Intelligence
 
-The CE Alpha page (`pages/alpha.tsx`) is the analytical heart of the product. It exposes ten tabs, each computing a different lens on the same underlying capability-economics dataset. Each tab is one-click reachable; each has a defined formula documented in the in-product Traceability dialog; each row carries source provenance (Perplexity citation URLs and GLM-rationale text) accessible via an info popover.
+The CE Alpha page (`pages/alpha.tsx`) is the analytical heart of the product. It exposes ten tabs, each computing a different lens on the same underlying inflexcvi dataset. Each tab is one-click reachable; each has a defined formula documented in the in-product Traceability dialog; each row carries source provenance (Perplexity citation URLs and GLM-rationale text) accessible via an info popover.
 
 | # | Tab | One-line value proposition | What it answers |
 |---|-----|---------------------------|------------------|
@@ -606,7 +606,7 @@ workspace/
 │   │           ├── agent/          # LangGraph autonomous agent
 │   │           ├── vce/            # Virtual Capability Engineer
 │   │           └── enrichment/     # Drop-in interface to alpha pipeline
-│   ├── capability-economics/       # React 19 + Vite 7 SPA (17 pages)
+│   ├── inflexcvi/       # React 19 + Vite 7 SPA (17 pages)
 │   ├── ce-pitch-deck/              # Static deck artifact
 │   └── mockup-sandbox/             # Component preview server
 ├── lib/
@@ -779,12 +779,12 @@ PE is a primary buyer cohort. Below are five concrete scenarios mapped to specif
 **Workflow.**
 
 1. Operating partner runs an organization-level assessment (`/organization`, `/dashboard`) for the portfolio company, inputting current self-assessed capability scores.
-2. The dashboard returns a gap-analysis radar against the Manufacturing industry benchmark, with each gap quantified in capability-economics units.
+2. The dashboard returns a gap-analysis radar against the Manufacturing industry benchmark, with each gap quantified in inflexcvi units.
 3. The Cascade tab shows which capability investments produce the largest downstream impact — for example, investing in Production Scheduling capability cascades to On-Time Delivery, Working Capital Efficiency, and Customer Retention; investing in Field Service Routing cascades only to one downstream capability.
 4. The Flows tab shows where industry capital is currently being deployed — confirming the operational hypothesis or contradicting it.
 5. The 100-day plan is built around the three capabilities with the largest dependency-weighted economic impact, with each justified by a Cascade-tab dollar-impact estimate.
 
-**Why this matters.** PE 100-day plans are too often a list of cost-out actions chosen by anchoring to comparable portfolio interventions. The platform replaces anchoring with capability-economics math.
+**Why this matters.** PE 100-day plans are too often a list of cost-out actions chosen by anchoring to comparable portfolio interventions. The platform replaces anchoring with inflexcvi math.
 
 ### A2.3 Portfolio-Wide Capability Benchmarking
 

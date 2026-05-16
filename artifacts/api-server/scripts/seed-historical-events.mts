@@ -1,5 +1,5 @@
 /**
- * Seed the curated historical-event catalog used by the CEI backtesting harness.
+ * Seed the curated historical-event catalog used by the CVI backtesting harness.
  *
  * Each event encodes the model's primary classification (`sentimentDirection`)
  * AND the analyst's per-capability ground-truth verdict (`expectedDirection`).

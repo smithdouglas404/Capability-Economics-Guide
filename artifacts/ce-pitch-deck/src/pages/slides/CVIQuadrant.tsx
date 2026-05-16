@@ -1,4 +1,4 @@
-export default function CEIQuadrant() {
+export default function CVIQuadrant() {
   return (
     <div className="w-screen h-screen overflow-hidden relative" style={{ background: "linear-gradient(180deg, #0a0a0f 0%, #0f1018 100%)" }}>
       <div className="absolute top-[5vh] left-[6vw]">

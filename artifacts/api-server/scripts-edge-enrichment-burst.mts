@@ -59,7 +59,7 @@ async function perplexity(query: string): Promise<PerplexityResult> {
           {
             role: "system",
             content:
-              "You are a capability-economics analyst. Reply ONLY with strict JSON (no prose, no markdown fences). " +
+              "You are a capability strategy analyst. Reply ONLY with strict JSON (no prose, no markdown fences). " +
               "All numeric fields must be plain numbers. Cite real companies, regulators, or 10-K disclosures from 2023-2026.",
           },
           { role: "user", content: query },

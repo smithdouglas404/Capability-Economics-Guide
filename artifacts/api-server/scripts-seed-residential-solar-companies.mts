@@ -99,7 +99,7 @@ async function callPerplexity(
   const slugList = capCatalog.map((c) => `${c.slug} (${c.name})`).join("\n  - ");
 
   const system =
-    "You are a capability-economics research analyst covering U.S. residential solar. " +
+    "You are a capability strategy research analyst covering U.S. residential solar. " +
     "Reply ONLY with a single strict JSON object, no prose, no markdown fences. " +
     "All numeric scores must be real numbers in [0,1]. Use citations from 10-K filings, " +
     "earnings calls, SEIA / Wood Mackenzie / EIA reports.";

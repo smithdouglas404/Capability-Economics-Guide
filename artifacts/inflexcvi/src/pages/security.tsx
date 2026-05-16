@@ -128,7 +128,7 @@ export default function SecurityPage() {
                 <strong>On-premise / customer VPC</strong>
               </div>
               <p className="text-xs text-muted-foreground">
-                Deploy into your AWS / Azure / GCP VPC, behind your VPN. The api-server, capability-economics SPA,
+                Deploy into your AWS / Azure / GCP VPC, behind your VPN. The api-server, inflexcvi SPA,
                 and the optional Mem0 / Letta sidecars all ship as Docker images. You provide Postgres and Redis;
                 we provide an admin runbook and signed support agreement. Available for regulated industries
                 (financial services, healthcare, defense, public sector) under signed MSA.

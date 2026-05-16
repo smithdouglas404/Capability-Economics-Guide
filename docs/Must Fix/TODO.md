@@ -61,7 +61,7 @@ Canonical task list. All implementation work is committed and pushed to `main`. 
 ## Phase 5 — Verification ✅ PASSED LOCALLY, PENDING PROD
 
 - [x] `pnpm run typecheck` — passes (all 5 packages).
-- [x] `pnpm run build` — passes (capability-economics frontend builds clean).
+- [x] `pnpm run build` — passes (inflexcvi frontend builds clean).
 - [x] Repo grep `WireDrop|Atlas Copper|Adam Patel|Sarah Chen|illustrative|TICKER_ITEMS|SUGGESTED_EVENTS|SAMPLE_BRIEF|FIXTURE` against `artifacts/inflexcvi/src` — zero non-comment matches.
 - [ ] **Pending:** manual browser walkthrough after next Railway deploy. Watch the 4 routes that changed most: `/`, `/cei`, `/alpha`, `/workbench/example`.
 - [ ] **Pending:** curl each new endpoint against prod after deploy:

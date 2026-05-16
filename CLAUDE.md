@@ -148,7 +148,7 @@ curl -s -X POST https://backboard.railway.com/graphql/v2 \
 Inflexcvi project IDs (verify via discovery query before relying on them — services get renamed):
 - projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
 - production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
-- service `capabilityeconomics` (api-server, rename to `inflexcvi` pending in Railway dashboard): `f4585a12-c207-4faa-9171-5362997768ec`
+- service `inflexcvi` (api-server, formerly `capabilityeconomics` in Railway dashboard — id stays the same across rename): `f4585a12-c207-4faa-9171-5362997768ec`
 - service `letta-2EOT`: `b6b84d74-984e-4792-8218-3e97bcc2831c`
 - service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`

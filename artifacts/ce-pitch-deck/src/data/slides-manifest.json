@@ -34,7 +34,7 @@
   {
     "id": "e5f6a7b8-c9d0-1234-efab-345678901234",
     "position": 5,
-    "filepath": "src/pages/slides/CEIQuadrant.tsx",
+    "filepath": "src/pages/slides/CVIQuadrant.tsx",
     "title": "CVI Quadrant xRay",
     "description": "Bubble chart with capabilities plotted by economic impact and adoption momentum",
     "speakerNotes": ""

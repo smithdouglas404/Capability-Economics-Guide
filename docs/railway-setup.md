@@ -12,32 +12,32 @@ The platform runs as **six Railway services** in one project:
 
 | Service | Image / Source | What it does |
 |---|---|---|
-| `capabilityeconomics` | This repo, root `Dockerfile`, branch `main` | Express api-server + serves the built SPA |
+| `inflexcvi` | This repo, root `Dockerfile`, branch `main` | Express api-server + serves the built SPA |
 | `Postgres` | `ghcr.io/railwayapp-templates/postgres-ssl:18` | App database (capabilities, orgs, sessions, etc.) |
 | `Mem0` | This repo, root `mem0/`, our `Dockerfile` | Self-hosted memory layer for the autonomous agent (libpq5 patched, clones mem0ai/mem0) |
 | `pgvector` | `pgvector/pgvector:pg18` | Vector store backing Mem0's embeddings |
 | `letta-2EOT` | `letta/letta:latest` Docker image | Stateful agent runtime |
 | `Neo4j Graph Database (Metal-Ready)` | `neo4j:5.26-community-bullseye` | Graph store (future capability graph use) |
 
-The api-server (`capabilityeconomics`) is the only public-internet-facing service. The others communicate over Railway's private network at `<service-name>.railway.internal`.
+The api-server (`inflexcvi`) is the only public-internet-facing service. The others communicate over Railway's private network at `<service-name>.railway.internal`.
 
 ---
 
 ## Service-by-service
 
-### 1. `capabilityeconomics` — the api-server
+### 1. `inflexcvi` — the api-server
 
 - **Source:** This repo, branch `main`, builder is the root `Dockerfile`
 - **Public:** Yes — `inflexcvi-staging.up.railway.app`
 - **Required env:** `DATABASE_URL`, `PORT` (Railway injects), `ADMIN_API_KEY`, plus consumer keys for any integration it should talk to (see env reference below)
 - **Build:** `pnpm install --frozen-lockfile && pnpm run build:deploy` → `pnpm run start`
 
-This service does *not* host Mem0/Letta/Postgres — it only consumes them. It also serves the built `capability-economics` SPA as static files (`artifacts/inflexcvi/dist/public`).
+This service does *not* host Mem0/Letta/Postgres — it only consumes them. It also serves the built `inflexcvi` SPA as static files (`artifacts/inflexcvi/dist/public`).
 
 ### 2. `Postgres` — app database
 
 - Standard Railway Postgres template (SSL-enabled image)
-- `DATABASE_URL` auto-wired into `capabilityeconomics`
+- `DATABASE_URL` auto-wired into `inflexcvi`
 - Schema managed via `drizzle-kit push` (no migration files — see CLAUDE.md)
 
 ### 3. `Mem0` — the part that bit us repeatedly
@@ -81,9 +81,9 @@ This service does *not* host Mem0/Letta/Postgres — it only consumes them. It a
 
 ---
 
-## How `capabilityeconomics` is wired to its dependencies
+## How `inflexcvi` is wired to its dependencies
 
-In the **`capabilityeconomics` service Variables tab**, these need to be set:
+In the **`inflexcvi` service Variables tab**, these need to be set:
 
 ```env
 # App DB
@@ -156,12 +156,12 @@ Status flips `SUCCESS → CRASHED` within ~5s of boot, restart-loops, then api-s
 
 - The health probe just checks if Letta's HTTP responds. It does.
 - But if `OPENROUTER_API_KEY` (or another provider key) isn't set on the Letta service, Letta has zero registered LLM handles, and every agent run fails with `NOT_FOUND: Handle openrouter/anthropic/claude-3.7-sonnet not found, must be one of []`.
-- **The fix:** set `OPENROUTER_API_KEY` on the Letta service itself (not on `capabilityeconomics`).
+- **The fix:** set `OPENROUTER_API_KEY` on the Letta service itself (not on `inflexcvi`).
 
 ### 5. **Letta's internal port is 8080, not the default 8283**
 
 - The official `letta/letta:latest` image's internal port differs from the default documented elsewhere
-- `LETTA_BASE_URL` on `capabilityeconomics` must be `http://letta-2eot.railway.internal:8080`
+- `LETTA_BASE_URL` on `inflexcvi` must be `http://letta-2eot.railway.internal:8080`
 
 ### 6. **Replit Secrets only propagate to processes started *after* the secret is set**
 
@@ -202,10 +202,10 @@ Order matters — services that other services depend on must come up first.
    - Variables → `LETTA_SERVER_PASSWORD=<strong>`, `OPENROUTER_API_KEY=<your key>`
    - Note the internal hostname Railway assigns (Settings → Networking)
 
-6. **Add `capabilityeconomics`** (the api-server):
+6. **Add `inflexcvi`** (the api-server):
    - New Service → GitHub repo → this repo, branch `main`, root `/`
    - Railway auto-uses the root `Dockerfile`
-   - Variables — set everything listed in the "How `capabilityeconomics` is wired" section above
+   - Variables — set everything listed in the "How `inflexcvi` is wired" section above
    - Generate a public domain (Settings → Networking → Generate Domain)
 
 7. **Push schema to the new Postgres**:

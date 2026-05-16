@@ -424,7 +424,7 @@ export default function Methodology() {
               </p>
               <div className="mt-6">
                 <a
-                  href="https://github.com/replit/capability-economics"
+                  href="https://github.com/replit/inflexcvi"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"

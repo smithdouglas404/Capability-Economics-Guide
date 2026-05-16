@@ -21,7 +21,7 @@ All six services are deployed on Railway in the **Inflexcvi** project (project I
 
 | Service | Railway service ID | Status | Source | Notes |
 |---|---|---|---|---|
-| `capabilityeconomics` | `f4585a12-c207-4faa-9171-5362997768ec` | SUCCESS | this repo, root `/`, builder Dockerfile | api-server + serves SPA |
+| `inflexcvi` | `f4585a12-c207-4faa-9171-5362997768ec` | SUCCESS | this repo, root `/`, builder Dockerfile | api-server + serves SPA |
 | `Mem0` | `8b75626c-40ba-49b1-a416-d145b4591711` | SUCCESS | this repo, root `mem0`, builder Dockerfile | libpq5-patched, clones mem0ai/mem0 v2.0.2 |
 | `letta-2EOT` | `b6b84d74-984e-4792-8218-3e97bcc2831c` | SUCCESS | `letta/letta:latest` Docker image | listens on internal port 8080 |
 | `pgvector` | `ff32eab9-53dc-46de-b23a-b8d3e0be834c` | SUCCESS | `pgvector/pgvector:pg18` | Mem0's vector store |
@@ -30,13 +30,13 @@ All six services are deployed on Railway in the **Inflexcvi** project (project I
 
 **Replit coupling check:** the only references to Replit env vars in the codebase are three `vite.config.ts` files that gate on `process.env.REPL_ID !== undefined`. They no-op when REPL_ID is absent (i.e. on Railway). Safe to leave; no action needed.
 
-**`REDIS_URL`** on `capabilityeconomics` points at `redis-16296.c275.us-east-1-4.ec2.cloud.redislabs.com:16296` — that's Redis Cloud (third-party), not Replit-managed. Intentional.
+**`REDIS_URL`** on `inflexcvi` points at `redis-16296.c275.us-east-1-4.ec2.cloud.redislabs.com:16296` — that's Redis Cloud (third-party), not Replit-managed. Intentional.
 
 ---
 
 ## 2. Environment variable audit
 
-### 2.1 Already set on `capabilityeconomics` (verified)
+### 2.1 Already set on `inflexcvi` (verified)
 
 ```
 DATABASE_URL, PORT
@@ -52,13 +52,13 @@ REDIS_URL
 MARKETPLACE_STORAGE_DIR
 ```
 
-Plus all `RAILWAY_*` (auto-injected) and the `RAILWAY_VOLUME_*` set (a volume is mounted to `capabilityeconomics`).
+Plus all `RAILWAY_*` (auto-injected) and the `RAILWAY_VOLUME_*` set (a volume is mounted to `inflexcvi`).
 
 ### 2.2 Missing — must add before prod
 
 | Env var | Where it's required | Action |
 |---|---|---|
-| **`ADMIN_API_KEY`** | `artifacts/api-server/src/middlewares/requireAdmin.ts:37` and `requireReviewer.ts:59` — every `/api/admin/*` route + the reviewer middleware | **Generate `openssl rand -base64 32` and set on `capabilityeconomics` service Variables tab.** Distinct from `MEM0_API_KEY` despite the name overlap. |
+| **`ADMIN_API_KEY`** | `artifacts/api-server/src/middlewares/requireAdmin.ts:37` and `requireReviewer.ts:59` — every `/api/admin/*` route + the reviewer middleware | **Generate `openssl rand -base64 32` and set on `inflexcvi` service Variables tab.** Distinct from `MEM0_API_KEY` despite the name overlap. |
 | **`DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID`** | New env var — read by `services/marketplace-seed.ts` and `scripts/src/seed-marketplace-listings.ts` after the cleanup commit | When set, seeds populate demo marketplace listings under that real test Connect account. When unset (live mode), seeds short-circuit and marketplace starts empty. See § 6.B for the one-time Stripe-Dashboard setup. |
 | **`DIDIT_WEBHOOK_SECRET`** | `artifacts/api-server/src/services/didit.ts:26` — rejects KYC webhooks if absent | Optional now (only matters when Didit webhooks fire). Add when KYC flow goes live. |
 
@@ -112,7 +112,7 @@ If the env var is unset, both seeds short-circuit at the top and insert nothing 
 
 | File | Email | Status |
 |---|---|---|
-| `scripts/src/seed-marketplace-listings.ts:7` | `research@capability-economics.local` (invalid TLD) | Changed to `research@inflexcvi.ai` |
+| `scripts/src/seed-marketplace-listings.ts:7` | `research@inflexcvi.local` (invalid TLD) | Changed to `research@inflexcvi.ai` |
 | `services/marketplace-seed.ts:309` | `research@inflexcvi.ai` | Already valid — no change |
 | `routes/sec.ts`, `assess.ts` | `research@inflexcvi.ai` | User-Agent header on Perplexity calls, not user-facing — fine |
 
@@ -184,14 +184,14 @@ The `"Patterns not yet seeded. Run POST /api/admin/patterns/seed with admin auth
 ### 6.A Railway dashboard (no code) — **must do before prod**
 
 1. **Generate `ADMIN_API_KEY`** with `openssl rand -base64 32`.
-2. On `capabilityeconomics` service → Variables → add `ADMIN_API_KEY=<generated>`. Without this, every `/api/admin/*` route returns 401.
+2. On `inflexcvi` service → Variables → add `ADMIN_API_KEY=<generated>`. Without this, every `/api/admin/*` route returns 401.
 
 ### 6.B One-time Stripe setup (when demo marketplace is desired)
 
 1. Stripe Dashboard (test mode) → Connected accounts → **Create test Express account** with email `research@inflexcvi.ai`, country US.
 2. Complete the test-mode Express onboarding (Stripe accepts dummy SSN / bank routing numbers in test mode — onboarding completes in ~30 s and flips `charges_enabled: true`).
 3. Copy the resulting `acct_xxx` ID.
-4. Railway → `capabilityeconomics` service → Variables → add `DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID=acct_xxx`. Save → service redeploys → next deploy populates the demo listings.
+4. Railway → `inflexcvi` service → Variables → add `DEMO_MARKETPLACE_SELLER_STRIPE_ACCOUNT_ID=acct_xxx`. Save → service redeploys → next deploy populates the demo listings.
 
 If you skip this step, the marketplace simply starts empty in production until real sellers onboard.
 

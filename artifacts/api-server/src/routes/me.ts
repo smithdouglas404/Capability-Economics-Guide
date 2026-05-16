@@ -46,7 +46,7 @@ router.get("/me/export", async (req, res) => {
   };
 
   res.setHeader("Content-Type", "application/json");
-  res.setHeader("Content-Disposition", `attachment; filename="capability-economics-data-${auth.userId}.json"`);
+  res.setHeader("Content-Disposition", `attachment; filename="inflexcvi-data-${auth.userId}.json"`);
   res.send(JSON.stringify(payload, null, 2));
 });
 
