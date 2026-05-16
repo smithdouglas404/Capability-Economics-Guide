@@ -17,6 +17,8 @@ import {
   Users,
   ExternalLink,
   TrendingUp,
+  Zap,
+  Target,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -534,6 +536,9 @@ export default function CapabilityDetailPage() {
       {/* ─── CVI trend sparkline ───────────────────────────────────────────── */}
       {cap && <CviHistoryCard capabilityId={id} />}
 
+      {/* ─── DVX zone (Disruption Velocity Index) ─────────────────────────── */}
+      {cap && <DvxZoneCard capabilityId={id} capabilityName={cap.name} />}
+
       {/* ─── SEC filings panel ─────────────────────────────────────────────── */}
       {cap && <SecFilingsPanel capabilityId={id} capabilityName={cap.name} />}
 
@@ -864,3 +869,213 @@ function PeerBenchmarkCard({ capabilityId, industryId }: { capabilityId: number;
   );
 }
 
+
+
+interface DvxResp {
+  capabilityId?: number;
+  industryId?: number;
+  disruptionScore: number | null;
+  velocity?: number;
+  monthsToDisplacement?: number | null;
+  topDisruptors?: string[];
+  matchedPatternSlug?: string | null;
+  factorBreakdown?: { velocityDivergence: number; dependencyFragility: number; patternMatchConfidence: number };
+  rationale?: string;
+  matchedPattern?: { slug: string; title: string; headline: string; disruptorCompany: string } | null;
+  message?: string;
+}
+
+function DvxZoneCard({ capabilityId, capabilityName }: { capabilityId: number; capabilityName: string }) {
+  const [data, setData] = useState<DvxResp | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/dvx`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((j: DvxResp) => { if (!cancelled) setData(j); })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load DVX'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId]);
+
+  const score = data?.disruptionScore ?? null;
+  const tone = score == null ? 'neutral' : score >= 70 ? 'red' : score >= 30 ? 'amber' : 'green';
+  const toneClass = tone === 'red'
+    ? 'bg-rose-500/5 border-rose-500/40'
+    : tone === 'amber'
+    ? 'bg-amber-500/5 border-amber-500/40'
+    : tone === 'green'
+    ? 'bg-emerald-500/5 border-emerald-500/40'
+    : '';
+  const scoreColor = tone === 'red' ? 'text-rose-600' : tone === 'amber' ? 'text-amber-600' : tone === 'green' ? 'text-emerald-600' : 'text-foreground';
+
+  return (
+    <Card className={`rounded-none border-2 ${toneClass}`}>
+      <CardContent className="pt-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Zap className={`w-5 h-5 ${scoreColor}`} />
+          <h2 className="font-serif text-xl tracking-tight">DVX — Disruption Velocity Index</h2>
+          <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+            How fast will this be displaced
+          </Badge>
+        </div>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Computing disruption profile…
+          </div>
+        )}
+        {error && (
+          <p className="text-sm text-red-600">{error}</p>
+        )}
+        {!loading && data && score == null && (
+          <p className="text-sm text-muted-foreground">
+            {data.message ?? 'DVX score not yet computed for this capability. Wait for the next agent cycle (typically every few hours).'}
+          </p>
+        )}
+        {!loading && data && score != null && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Disruption score</div>
+                <div className={`font-mono text-4xl tabular-nums ${scoreColor}`}>{score.toFixed(0)}<span className="text-base text-muted-foreground">/100</span></div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Months to displacement</div>
+                <div className="font-mono text-2xl tabular-nums">{data.monthsToDisplacement ?? '—'}</div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Velocity</div>
+                <div className="font-mono text-2xl tabular-nums">{data.velocity != null ? (data.velocity > 0 ? '+' : '') + data.velocity.toFixed(1) : '—'}</div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Pattern match</div>
+                <div className="text-sm font-medium">{data.matchedPattern ? data.matchedPattern.title.split(' — ')[0] : '—'}</div>
+              </div>
+            </div>
+            {data.factorBreakdown && (
+              <div className="border-t border-border pt-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">Factor breakdown</div>
+                <div className="grid grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <span className="text-muted-foreground">Velocity divergence</span> (40%) <span className="font-mono tabular-nums">{data.factorBreakdown.velocityDivergence.toFixed(0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Dependency fragility</span> (30%) <span className="font-mono tabular-nums">{data.factorBreakdown.dependencyFragility.toFixed(0)}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Pattern confidence</span> (30%) <span className="font-mono tabular-nums">{data.factorBreakdown.patternMatchConfidence.toFixed(0)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            {data.rationale && (
+              <p className="text-sm text-muted-foreground italic">{data.rationale}</p>
+            )}
+            {data.topDisruptors && data.topDisruptors.length > 0 && (
+              <div className="border-t border-border pt-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2 flex items-center gap-1">
+                  <Target className="w-3 h-3" /> Top disruptors threatening {capabilityName}
+                </div>
+                <ul className="divide-y divide-border/60">
+                  {data.topDisruptors.map((d, i) => (
+                    <li key={i}>
+                      <Link href={`/innovation/${capabilityId}/disruptor/${encodeURIComponent(d.toLowerCase().replace(/[^a-z0-9]+/g, '-'))}`} className="flex items-center justify-between py-2 hover:bg-muted/20 px-1 -mx-1">
+                        <span className="text-sm font-medium">{d}</span>
+                        <ArrowUp className="w-3 h-3 rotate-45 text-muted-foreground" />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {data.matchedPattern && (
+              <div className="text-xs text-muted-foreground border-t border-border pt-3">
+                <span className="font-medium">Matches pattern:</span> <span className="font-mono">{data.matchedPattern.slug}</span> — {data.matchedPattern.headline}
+              </div>
+            )}
+            <AgentRecommendationCard capabilityId={capabilityId} />
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const CSUITE_PERSONAS = [
+  { slug: "ceo", label: "CEO" },
+  { slug: "cfo", label: "CFO" },
+  { slug: "coo", label: "COO" },
+  { slug: "cto", label: "CTO" },
+  { slug: "chro", label: "CHRO" },
+] as const;
+
+interface RecResp {
+  capabilityId: number;
+  persona: string;
+  body: string;
+  headline: string | null;
+  cached: boolean;
+}
+
+function AgentRecommendationCard({ capabilityId }: { capabilityId: number }) {
+  const [persona, setPersona] = useState<typeof CSUITE_PERSONAS[number]["slug"]>("ceo");
+  const [rec, setRec] = useState<RecResp | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/recommendations?persona=${persona}`)
+      .then(async r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((j: RecResp) => { if (!cancelled) setRec(j); })
+      .catch(e => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load recommendation"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId, persona]);
+
+  return (
+    <div className="border-t border-border pt-4 mt-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Agent recommendation — translated for</div>
+        <div className="flex gap-1">
+          {CSUITE_PERSONAS.map(p => (
+            <button
+              key={p.slug}
+              onClick={() => setPersona(p.slug)}
+              className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-[0.18em] border ${persona === p.slug ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {loading && !rec && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" /> Generating {persona.toUpperCase()} framing…
+        </div>
+      )}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      {rec && (
+        <div className="space-y-1">
+          {rec.headline && <div className="text-sm font-medium">{rec.headline}</div>}
+          <p className="text-sm leading-relaxed">{rec.body}</p>
+          {rec.cached === false && (
+            <div className="text-[10px] text-muted-foreground/70">Freshly generated for current DVX score.</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -91,6 +91,43 @@ router.get("/capabilities/:id/dvx-history", async (req, res) => {
   }
 });
 
+/**
+ * C-Suite recommendation for a capability, framed to a specific persona.
+ * Reads cached row if fresh; regenerates via LLM if stale (DVX moved
+ * ≥10pt OR row >30 days old) or forceFresh=1.
+ */
+router.get("/capabilities/:id/recommendations", async (req, res) => {
+  const idRaw = req.params.id;
+  const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
+  if (!Number.isFinite(capId)) { res.status(400).json({ error: "Invalid capability id" }); return; }
+  const personaRaw = String(req.query.persona ?? "ceo").toLowerCase();
+  if (!["cfo", "coo", "cto", "chro", "ceo"].includes(personaRaw)) {
+    res.status(400).json({ error: "persona must be one of cfo|coo|cto|chro|ceo" });
+    return;
+  }
+  try {
+    const { getOrGenerateCsuiteRecommendation } = await import("../services/recommendations/csuite-translator");
+    const result = await getOrGenerateCsuiteRecommendation(capId, personaRaw as "cfo" | "coo" | "cto" | "chro" | "ceo", {
+      forceFresh: req.query.forceFresh === "1",
+    });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch recommendation" });
+  }
+});
+
+/** Admin: regenerate top-N DVX capabilities' recs across all personas. */
+router.post("/admin/dvx/refresh-recommendations", requireAdmin, async (req, res) => {
+  try {
+    const { refreshTopDvxRecommendations } = await import("../services/recommendations/csuite-translator");
+    const topN = typeof req.body?.topN === "number" ? req.body.topN : undefined;
+    const r = await refreshTopDvxRecommendations({ topN });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Refresh failed" });
+  }
+});
+
 /** Admin manual recompute trigger. */
 router.post("/admin/dvx/recompute", requireAdmin, async (_req, res) => {
   try {

@@ -55,6 +55,7 @@ import Methodology from "@/pages/methodology";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
+import InnovationWedgePage from "@/pages/innovation-wedge";
 import ComparePage from "@/pages/compare";
 import WhatIfPage from "@/pages/whatif";
 import SearchPage from "@/pages/search";
@@ -132,6 +133,7 @@ function Router() {
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />
+      <Route path="/innovation/:capabilityId/disruptor/:disruptorSlug" component={InnovationWedgePage} />
       <Route path="/compare" component={ComparePage} />
       <Route path="/whatif" component={WhatIfPage} />
       <Route path="/search" component={SearchPage} />
