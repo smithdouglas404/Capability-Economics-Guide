@@ -12,6 +12,7 @@
 
 import { Router, type IRouter } from "express";
 import { requireTier } from "../middlewares/requireTier";
+import { requireTierOrCredits } from "../middlewares/requireTierOrCredits";
 import { logAdminAction } from "../services/audit-log";
 import { buildCsvExport, buildParquetExport, listDatasets, DATASETS, type DatasetId } from "../services/exports";
 import { logger } from "../lib/logger";
@@ -26,7 +27,7 @@ function isDatasetId(s: string): s is DatasetId {
   return Object.prototype.hasOwnProperty.call(DATASETS, s);
 }
 
-router.get("/exports/:dataset.csv", requireTier("briefing"), async (req, res) => {
+router.get("/exports/:dataset.csv", requireTierOrCredits("briefing", "RESEARCH_QUERY"), async (req, res) => {
   const id = String(req.params.dataset);
   if (!isDatasetId(id)) { res.status(404).json({ error: "Unknown dataset" }); return; }
   try {
