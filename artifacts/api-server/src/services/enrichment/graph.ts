@@ -27,7 +27,12 @@ import {
 import { eq, sql } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 import { emitAgentEvent } from "../agent/events";
-import { lettaArchivalInsert, lettaUpdateBlock } from "../agent/letta";
+// Letta replaced by PostgresStore helpers per Phase 1.8. Enrichment
+// runs under a separate agent name so its priors and archives don't
+// commingle with the CVI autonomous agent's.
+import { appendAgentArchive, putAgentPriorBlock } from "../agent/store";
+
+const ENRICHMENT_AGENT_NAME = "enrichment-agent";
 import { toolSchemas, toolExecutors } from "./tools";
 import { fireFoundrySync } from "../foundry/sync";
 
@@ -351,8 +356,17 @@ async function finalizeNode(state: State): Promise<Partial<State>> {
   try {
     const summary = state.finishSummary
       ?? `Run #${state.runId} (${state.trigger}): ${state.toolCalls} tool calls, ${state.toolErrors.length} errors`;
-    await lettaUpdateBlock("research_strategy", `Last enrichment run #${state.runId}: ${summary.slice(0, 1500)}`);
-    await lettaArchivalInsert(`Enrichment cycle ${state.runId}: ${summary.slice(0, 1500)}`);
+    await putAgentPriorBlock(
+      "research_strategy",
+      `Last enrichment run #${state.runId}: ${summary.slice(0, 1500)}`,
+      { sourceRunId: state.runId },
+      ENRICHMENT_AGENT_NAME,
+    );
+    await appendAgentArchive(
+      `Enrichment cycle ${state.runId}: ${summary.slice(0, 1500)}`,
+      { runId: state.runId, kind: "enrichment_cycle" },
+      ENRICHMENT_AGENT_NAME,
+    );
   } catch { /* non-fatal */ }
 
   emit("finalize.complete", state.runId, {

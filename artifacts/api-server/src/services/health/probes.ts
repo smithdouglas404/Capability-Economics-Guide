@@ -16,6 +16,7 @@
 
 import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing } from "../agent/letta";
+import { storePing } from "../agent/store";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
 import { organizationsTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
@@ -348,9 +349,26 @@ const probeDemoReadiness: Probe = async () => {
   }
 };
 
+// Forward-path probe for the LangMem-equivalent shared store. Cheap
+// DB ping via storePing(). Same latency-threshold treatment as the
+// mem0/letta probes — degraded above 2000ms.
+const probeAgentStore: Probe = async () => {
+  try {
+    const { latencyMs } = await timed(() => withTimeout(storePing(), PROBE_TIMEOUT_MS, "agent-store"));
+    if (latencyMs > 2000) {
+      return { status: "degraded", latencyMs, lastError: `High latency: ${latencyMs}ms` };
+    }
+    return { status: "ok", latencyMs, lastError: null };
+  } catch (err) {
+    const msg = describeError(err);
+    return { status: "down", latencyMs: null, lastError: msg.slice(0, 240) };
+  }
+};
+
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
+  agent_store: probeAgentStore,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,
   perplexity: probePerplexity,
