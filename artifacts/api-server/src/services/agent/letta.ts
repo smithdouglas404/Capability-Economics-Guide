@@ -282,9 +282,13 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
       // `archival_memory_search` (one of Letta's base tools, attached via
       // include_base_tools: true). Cap core_memory_replace at 2 per turn so
       // a hallucinating agent can't rewrite its own persona block repeatedly.
-      // Both rule types are typed in the SDK at @letta-ai/letta-client v1.11.
+      //
+      // Wire-format type discriminators (verified from
+      // @letta-ai/letta-client@1.11 resources/agents/agents.d.ts):
+      //   InitToolRule.type            = 'run_first'    (NOT 'init')
+      //   MaxCountPerStepToolRule.type = 'max_count_per_step'
       const toolRules = [
-        { type: "init", tool_name: "archival_memory_search" },
+        { type: "run_first", tool_name: "archival_memory_search" },
         { type: "max_count_per_step", tool_name: "core_memory_replace", max_count_limit: 2 },
       ];
 
@@ -312,20 +316,28 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
     }
 
     // Attach an archive to this agent so archival memory ops work.
+    //
+    // FILTER PARAM NAME: ArchiveListParams.agent_id (snake_case) — verified
+    // from @letta-ai/letta-client@1.11 resources/archives/archives.d.ts.
+    // Sending camelCase `{ agentId }` causes Letta's API to IGNORE the
+    // filter and return ALL archives org-wide. Without this fix, all 7
+    // agents in AGENT_REGISTRY share one archive because the first archive
+    // ever created in the org gets reused for every subsequent agent.
     let archiveId: string | null = null;
     try {
       const lc = lettaClient as unknown as {
         archives: {
-          list: (query: { agentId: string }) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>>;
+          list: (query: { agent_id: string }) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>>;
           create: (body: { name: string }) => Promise<{ id: string }>;
         };
         agents: { archives: { attach: (archiveId: string, params: { agent_id: string }) => Promise<unknown> } };
       };
-      const page = await lc.archives.list({ agentId });
-      const attached: Array<{ id: string }> = [];
-      for await (const a of page as AsyncIterable<{ id: string }>) attached.push(a);
+      const page = await lc.archives.list({ agent_id: agentId });
+      const attached: Array<{ id: string; name?: string }> = [];
+      for await (const a of page as AsyncIterable<{ id: string; name?: string }>) attached.push(a);
       if (attached.length > 0) {
         archiveId = attached[0]!.id;
+        console.log(`[Letta] Archive reused for "${entry.lettaAgentName}" (archive=${archiveId} name="${attached[0]!.name ?? "(unnamed)"}")`);
       } else {
         const created = await lc.archives.create({ name: `${entry.lettaAgentName}-archive` });
         await lc.agents.archives.attach(created.id, { agent_id: agentId });
