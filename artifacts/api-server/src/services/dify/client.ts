@@ -252,21 +252,36 @@ export async function retrieve(
   query: string,
   options: { top_k?: number; score_threshold?: number } = {},
 ): Promise<DifyRetrievalRecord[]> {
-  const body = {
+  const buildBody = (search_method: "hybrid_search" | "keyword_search") => ({
     query,
     retrieval_model: {
-      search_method: "hybrid_search" as const,
+      search_method,
       reranking_enable: false,
       top_k: options.top_k ?? 8,
       score_threshold_enabled: typeof options.score_threshold === "number",
       score_threshold: options.score_threshold ?? 0.4,
     },
-  };
-  const res = await difyJson<{ records: DifyRetrievalRecord[] }>(
-    `/datasets/${datasetId}/retrieve`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
-  return res.records ?? [];
+  });
+  // Try hybrid_search first (best quality when an embedding model is
+  // configured). If Dify returns the "Default model not found for
+  // text-embedding" 400 — which happens on economy-indexed KBs or when no
+  // embedding provider is installed — fall back to keyword_search (BM25)
+  // so search still works.
+  try {
+    const res = await difyJson<{ records: DifyRetrievalRecord[] }>(
+      `/datasets/${datasetId}/retrieve`,
+      { method: "POST", body: JSON.stringify(buildBody("hybrid_search")) },
+    );
+    return res.records ?? [];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/Default model not found for text-embedding/i.test(msg)) throw err;
+    const res = await difyJson<{ records: DifyRetrievalRecord[] }>(
+      `/datasets/${datasetId}/retrieve`,
+      { method: "POST", body: JSON.stringify(buildBody("keyword_search")) },
+    );
+    return res.records ?? [];
+  }
 }
 
 // ── Health ────────────────────────────────────────────────────────────────
