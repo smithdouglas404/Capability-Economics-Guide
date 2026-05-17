@@ -23,9 +23,12 @@ import {
   getMemoryStats,
   getAllMemories,
   allTools,
+  getLettaStatus,
   getGraphStats,
   getLastConsolidation,
   runConsolidation,
+  lettaReadBlock,
+  lettaReadAllBlocks,
   getAllAgentPriorBlocks,
 } from "../services/agent";
 import { consolidationRunsTable } from "@workspace/db";
@@ -247,7 +250,7 @@ router.get("/agent/tools", (_req, res) => {
       langchain: { version: "core", tools: allTools.length },
       langgraph: { nodes: ["evaluate", "recall", "decide", "research", "compute", "reflect", "memorize", "generateContent", "finalize"] },
       perplexity: { connected: !!process.env.PERPLEXITY_API_KEY },
-      sharedStore: { provider: "postgres-store", note: "Letta replaced by PostgresStore in Phase 1.9 Step 6" },
+      letta: getLettaStatus(),
     },
   });
 });
@@ -259,8 +262,10 @@ router.get("/agent/memory/stats", async (_req, res) => {
       getGraphStats(),
       getLastConsolidation(),
     ]);
-    // Read agent priors from the PostgresStore. The legacy Letta
-    // dual-read was removed in Phase 1.9 Step 6 alongside Letta itself.
+    // Forward path: read agent priors from PostgresStore.
+    // The legacy Letta block read is retained below so we report both
+    // sources while Phase 1.8 migration is in flight. Once Letta is
+    // deleted in Step 6 the lettaBlocks branch goes away.
     let storeBlocks: Record<string, { length: number; preview: string } | null> = {};
     try {
       const labels = ["persona", "industry_priors", "research_strategy", "current_focus", "economic_rules", "project_focus", "market_context"];
@@ -269,8 +274,21 @@ router.get("/agent/memory/stats", async (_req, res) => {
         storeBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
       }
     } catch {
-      // storePing in /api/health/services covers the failure case;
-      // if the store is down here we just return empty blocks.
+      // storePing in /api/health/services covers the failure case; if
+      // the store is down here we just return empty blocks.
+    }
+
+    let lettaBlocks: Record<string, { length: number; preview: string } | null> = {};
+    const lettaStatus = getLettaStatus();
+    if (lettaStatus.connected) {
+      try {
+        const all = await lettaReadAllBlocks();
+        for (const [label, v] of Object.entries(all)) {
+          lettaBlocks[label] = v ? { length: v.length, preview: v.slice(0, 240) } : null;
+        }
+      } catch {
+        // helper already swallows individual failures
+      }
     }
     res.json({
       memory: memStats,
@@ -285,6 +303,7 @@ router.get("/agent/memory/stats", async (_req, res) => {
         archivalInserted: lastConsolidation.archivalInserted,
         errorMessage: lastConsolidation.errorMessage,
       } : null,
+      letta: { ...lettaStatus, blocks: lettaBlocks },
       sharedStore: { blocks: storeBlocks },
     });
   } catch (err) {

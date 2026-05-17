@@ -1,234 +1,246 @@
 /**
- * Shared agent store — the TypeScript answer to LangMem's BaseStore +
- * AsyncPostgresStore. Backed by the existing DATABASE_URL Postgres so
- * no new service is required.
+ * Shared agent store — **Letta-backed adapter**.
  *
- * Why this matters: LangMem (the Python library) gives agents a
- * namespaced shared blackboard so a discovery one agent makes can be
- * read by every other agent. We've been doing that ad-hoc by writing
- * into agent_memories and reading it back, but namespaces give a
- * cleaner contract — each agent knows where to look and what to publish.
+ * History: this module was originally a `@langchain/langgraph-checkpoint-postgres`
+ * PostgresStore wrapper (the "LangMem-equivalent" introduced in Phase 1.8/1.9
+ * when Letta was wrongly deleted). The user did not accept that substitution
+ * and Letta has been restored. To avoid touching every call site (the 6 agents
+ * and several agent-orchestration files all use this module's API), the
+ * surface stays the same — but every call now delegates to Letta Cloud via
+ * `./letta.ts`.
  *
- * Architecture rule (per CLAUDE.md): NO LangGraph supervisor. Agents
- * coordinate through this store, not through a routing node.
+ * Mapping:
+ *   - Core block labels (industry_priors / current_focus / research_strategy /
+ *     economic_rules / market_context / persona / project_focus) →
+ *     lettaReadBlock / lettaUpdateBlock
+ *   - Anything else (the namespace-style pub/sub the specialized agents use:
+ *     macro_events, disruption_risks, peer_benchmarks, etc.) → Letta archival
+ *     memory with a `[NS:<namespace>|<key>] <json>` prefix convention. Search
+ *     by prefix.
  *
- * Namespace conventions live in the NS object below. Always go through
- * NS.* to construct namespaces — never inline string arrays.
+ * NS object unchanged so callers don't need to change.
+ *
+ * Graceful-degrade: if Letta is unreachable, reads return null/[] and writes
+ * are no-ops with a warning log — same shape as the prior PostgresStore
+ * implementation's failure mode.
  */
-// PostgresStore is exported from the /store subpath, not the package
-// root. The root only exports PostgresSaver (for run checkpointing).
-import { PostgresStore } from "@langchain/langgraph-checkpoint-postgres/store";
+import { logger } from "../../lib/logger";
+import {
+  lettaReadBlock,
+  lettaUpdateBlock,
+  lettaArchivalInsert,
+  lettaArchivalSearch,
+  lettaPing,
+  type CoreBlockLabel,
+} from "./letta";
 
-let _store: PostgresStore | null = null;
-let _setupPromise: Promise<void> | null = null;
+// Core block labels Letta knows about natively. Anything else goes to archive.
+const CORE_BLOCK_LABELS: Set<string> = new Set([
+  "persona",
+  "industry_priors",
+  "research_strategy",
+  "current_focus",
+  "economic_rules",
+  "project_focus",
+  "market_context",
+]);
 
-/**
- * Lazy singleton — instantiated on first call so the constructor's
- * connection setup doesn't block module load. setup() runs once and
- * is awaited by every getSharedStore() call until it resolves.
- *
- * Constructor takes PostgresStoreConfig.connectionOptions which can be
- * a connection string OR a pg.PoolConfig object — we use the string
- * form since DATABASE_URL is what every other service in this repo
- * uses.
- */
-export function getSharedStore(): PostgresStore {
-  if (_store) return _store;
-  const connString = process.env.DATABASE_URL;
-  if (!connString) throw new Error("DATABASE_URL is required for the shared agent store");
-  _store = new PostgresStore({ connectionOptions: connString });
-  _setupPromise = _store.setup();
-  return _store;
+function isCoreBlock(label: string): label is CoreBlockLabel {
+  return CORE_BLOCK_LABELS.has(label);
 }
 
-/**
- * Await this before the first put/get/search call to ensure the
- * underlying tables exist. Idempotent: setup() creates tables only
- * when missing. Subsequent calls reuse the cached promise.
- */
-export async function ensureSharedStoreReady(): Promise<void> {
-  if (!_store) getSharedStore();
-  if (_setupPromise) await _setupPromise;
-}
-
-/**
- * Namespace constants — keep all callers using the same shape. Adding a
- * new namespace? Add a helper here and document it in CLAUDE.md.
- */
+// ── Namespace helper (unchanged from the PostgresStore-era API) ───────
 export const NS = {
-  // Shared knowledge: written by one agent, read by all others.
   industryPatterns: (industryName: string): string[] => ["shared", "industry_patterns", industryName],
   macroEvents:      (): string[] => ["shared", "macro_events"],
   disruptionRisks:  (): string[] => ["shared", "disruption_risks"],
   peerBenchmarks:   (): string[] => ["shared", "peer_benchmarks"],
-  // Generic shared knowledge namespace — for cross-cutting writes that
-  // don't fit a more specific helper above.
   sharedKnowledge:  (topic: string): string[] => ["shared", topic],
-
-  // Per-agent private instructions — the forward-path replacement for
-  // Letta core blocks. Optimizer rewrites these weekly per-agent.
   agentPriors:      (agentName: string): string[] => ["agent_priors", agentName],
-
-  // Per-agent run/archive log — replaces lettaArchivalInsert. Each
-  // entry gets a generated key (timestamp-based) so writes are
-  // additive.
   agentRuns:        (agentName: string): string[] => ["agent_runs", agentName],
-
-  // Per-client / per-tenant memory — VCR-style multi-client surfaces.
   clientKnowledge:  (clientId: string): string[] => ["client", clientId],
-} as const;
+};
 
-// ---------------------------------------------------------------------------
-// LANGMEM-EQUIVALENT HELPERS — 1:1 mechanical replacements for the most-
-// common Letta call sites. Adopt these so consumer files migrate with
-// minimal edits and the underlying transport can swap without rewrites.
-//
-// Per CLAUDE.md "Letta Migration": these are the forward path. Letta's
-// own helpers (lettaReadBlock/lettaUpdateBlock/lettaArchivalInsert/
-// lettaArchivalSearch) remain available from services/agent/letta.ts
-// until Step 6 of the migration (when letta.ts itself is deleted).
-// ---------------------------------------------------------------------------
-
-const DEFAULT_AGENT_NAME = "cvi-autonomous-agent";
+function nsToPrefix(namespace: string[]): string {
+  return `[NS:${namespace.join("/")}]`;
+}
 
 /**
- * Read a single named block from an agent's priors namespace.
- * Returns null if absent or store unavailable. Mirrors lettaReadBlock.
+ * Letta-backed store object exposing put/search/get methods compatible with
+ * the prior PostgresStore interface. Specialized agents (macro-event,
+ * disruption, peer-coop, stack-optimizer, ontology) use this to publish and
+ * read namespaced digests.
+ */
+export interface LettaBackedStore {
+  put(namespace: string[], key: string, value: unknown): Promise<void>;
+  get(namespace: string[], key: string): Promise<unknown | null>;
+  search(namespace: string[], opts?: { limit?: number }): Promise<Array<{ key: string; value: unknown }>>;
+  delete(namespace: string[], key: string): Promise<void>;
+}
+
+let _store: LettaBackedStore | null = null;
+
+function buildLettaBackedStore(): LettaBackedStore {
+  return {
+    async put(namespace: string[], key: string, value: unknown): Promise<void> {
+      try {
+        const prefix = nsToPrefix(namespace);
+        const text = `${prefix}|${key} ${JSON.stringify(value)}`;
+        await lettaArchivalInsert(text);
+      } catch (err) {
+        logger.warn({ err: err instanceof Error ? err.message : String(err), namespace, key }, "[store→letta] put failed");
+      }
+    },
+    async get(namespace: string[], key: string): Promise<unknown | null> {
+      try {
+        const prefix = nsToPrefix(namespace);
+        const results = await lettaArchivalSearch(`${prefix}|${key}`, 1);
+        if (results.length === 0) return null;
+        const text = results[0]!.text;
+        const jsonStart = text.indexOf(" ");
+        if (jsonStart === -1) return null;
+        try { return JSON.parse(text.slice(jsonStart + 1)); } catch { return null; }
+      } catch (err) {
+        logger.warn({ err: err instanceof Error ? err.message : String(err), namespace, key }, "[store→letta] get failed");
+        return null;
+      }
+    },
+    async search(namespace: string[], opts: { limit?: number } = {}): Promise<Array<{ key: string; value: unknown }>> {
+      try {
+        const prefix = nsToPrefix(namespace);
+        const limit = opts.limit ?? 10;
+        const results = await lettaArchivalSearch(prefix, limit);
+        return results.map((r) => {
+          const text = r.text;
+          const pipeIdx = text.indexOf("|");
+          const spaceIdx = text.indexOf(" ", pipeIdx);
+          if (pipeIdx === -1 || spaceIdx === -1) return { key: "", value: null };
+          const key = text.slice(pipeIdx + 1, spaceIdx);
+          let value: unknown = null;
+          try { value = JSON.parse(text.slice(spaceIdx + 1)); } catch {}
+          return { key, value };
+        });
+      } catch (err) {
+        logger.warn({ err: err instanceof Error ? err.message : String(err), namespace }, "[store→letta] search failed");
+        return [];
+      }
+    },
+    async delete(_namespace: string[], _key: string): Promise<void> {
+      // Letta archival doesn't expose delete-by-text. Soft-deprecation: log
+      // and no-op. Old entries will be filtered by recency in practice.
+      logger.debug("[store→letta] delete is a no-op; Letta archival is append-only");
+    },
+  };
+}
+
+/**
+ * Lazy singleton — first call constructs the Letta-backed store.
+ */
+export function getSharedStore(): LettaBackedStore {
+  if (!_store) _store = buildLettaBackedStore();
+  return _store;
+}
+
+/**
+ * Was a slow PostgresStore setup; now a no-op. Letta client init happens
+ * lazily inside letta.ts on first call. Kept as a function so existing
+ * callsites don't need editing.
+ */
+export async function ensureSharedStoreReady(): Promise<void> {
+  return;
+}
+
+/**
+ * Per-agent prior block (compatibility shim).
  */
 export async function getAgentPriorBlock(
   label: string,
-  agentName: string = DEFAULT_AGENT_NAME,
+  agentName: string = "cvi-autonomous-agent",
 ): Promise<string | null> {
   try {
-    await ensureSharedStoreReady();
-    const item = await getSharedStore().get(NS.agentPriors(agentName), label);
-    if (!item) return null;
-    const v = item.value;
-    if (typeof v === "string") return v;
-    if (v && typeof v === "object" && typeof (v as { value?: unknown }).value === "string") {
-      return (v as { value: string }).value;
+    if (isCoreBlock(label)) {
+      return await lettaReadBlock(label);
     }
-    return null;
+    const prefix = `[AGENT_PRIOR:${agentName}|${label}]`;
+    const results = await lettaArchivalSearch(prefix, 1);
+    if (results.length === 0) return null;
+    const text = results[0]!.text;
+    const jsonStart = text.indexOf(" ");
+    return jsonStart === -1 ? text : text.slice(jsonStart + 1);
   } catch (err) {
-    console.warn(`[store] getAgentPriorBlock(${label}) failed:`, err instanceof Error ? err.message : err);
+    logger.warn({ err: err instanceof Error ? err.message : String(err), label, agentName }, "[store→letta] getAgentPriorBlock failed");
     return null;
   }
 }
 
-/**
- * Write a single named block to an agent's priors namespace.
- * Stores `{ value, updatedAt, ...metadata }`. Mirrors lettaUpdateBlock.
- * Returns true on success, false on store failure (non-fatal).
- */
 export async function putAgentPriorBlock(
   label: string,
   value: string,
-  metadata: Record<string, unknown> = {},
-  agentName: string = DEFAULT_AGENT_NAME,
+  _metadata: Record<string, unknown> = {},
+  agentName: string = "cvi-autonomous-agent",
 ): Promise<boolean> {
   try {
-    await ensureSharedStoreReady();
-    await getSharedStore().put(NS.agentPriors(agentName), label, {
-      value,
-      updatedAt: new Date().toISOString(),
-      ...metadata,
-    });
-    return true;
+    if (isCoreBlock(label)) {
+      return await lettaUpdateBlock(label, value);
+    }
+    const prefix = `[AGENT_PRIOR:${agentName}|${label}]`;
+    return await lettaArchivalInsert(`${prefix} ${value}`);
   } catch (err) {
-    console.warn(`[store] putAgentPriorBlock(${label}) failed:`, err instanceof Error ? err.message : err);
+    logger.warn({ err: err instanceof Error ? err.message : String(err), label, agentName }, "[store→letta] putAgentPriorBlock failed");
     return false;
   }
 }
 
-/**
- * Read every block in an agent's priors namespace in one parallel pass.
- * Mirrors lettaReadAllBlocks. `labels` enumerates the labels of interest
- * (we don't list-all because the store may carry additional non-block
- * keys in the same namespace).
- */
 export async function getAllAgentPriorBlocks(
   labels: string[],
-  agentName: string = DEFAULT_AGENT_NAME,
+  agentName: string = "cvi-autonomous-agent",
 ): Promise<Record<string, string | null>> {
   const out: Record<string, string | null> = {};
-  for (const label of labels) out[label] = null;
-  try {
-    const results = await Promise.all(
-      labels.map(label => getAgentPriorBlock(label, agentName)),
-    );
-    labels.forEach((label, i) => { out[label] = results[i] ?? null; });
-  } catch {
-    // Already swallowed per-block above; defensive.
+  for (const label of labels) {
+    out[label] = await getAgentPriorBlock(label, agentName);
   }
   return out;
 }
 
 /**
- * Append a free-text record to an agent's archival namespace. Key is
- * monotonic by ISO timestamp + random suffix so concurrent appends
- * don't collide. Mirrors lettaArchivalInsert.
+ * Append a free-text record to the agent's archive. Letta-backed → goes to
+ * archival memory. Metadata is encoded into the text since Letta's archival
+ * API doesn't have a separate metadata channel.
  */
 export async function appendAgentArchive(
   text: string,
   metadata: Record<string, unknown> = {},
-  agentName: string = DEFAULT_AGENT_NAME,
+  agentName: string = "cvi-autonomous-agent",
 ): Promise<boolean> {
   try {
-    await ensureSharedStoreReady();
-    const key = `${new Date().toISOString()}-${Math.random().toString(36).slice(2, 8)}`;
-    await getSharedStore().put(NS.agentRuns(agentName), key, {
-      text,
-      createdAt: new Date().toISOString(),
-      ...metadata,
-    });
-    return true;
+    const tag = `[ARCHIVE:${agentName}]`;
+    const meta = Object.keys(metadata).length > 0 ? ` ${JSON.stringify(metadata)}` : "";
+    return await lettaArchivalInsert(`${tag} ${text}${meta}`);
   } catch (err) {
-    console.warn("[store] appendAgentArchive failed:", err instanceof Error ? err.message : err);
+    logger.warn({ err: err instanceof Error ? err.message : String(err), agentName }, "[store→letta] appendAgentArchive failed");
     return false;
   }
 }
 
-/**
- * Search an agent's archival namespace. Mirrors lettaArchivalSearch but
- * the search backend is the PostgresStore's filter+pagination (NOT
- * vector semantic search — the store can do vector search only if
- * embeddings are configured, which we have not done).
- *
- * Behavior: if `query` is provided AND embeddings are configured at the
- * store level, the underlying PostgresStore will do hybrid retrieval.
- * Otherwise it falls back to newest-first listing. Either way returns
- * `{ text, score? }[]`.
- */
 export async function searchAgentArchive(
   query: string,
   limit: number = 5,
-  agentName: string = DEFAULT_AGENT_NAME,
+  agentName: string = "cvi-autonomous-agent",
 ): Promise<Array<{ text: string; score?: number }>> {
   try {
-    await ensureSharedStoreReady();
-    const items = await getSharedStore().search(NS.agentRuns(agentName), {
-      query: query || undefined,
-      limit,
-    });
-    return items
-      .map(item => {
-        const v = item.value as { text?: string };
-        return { text: v?.text ?? "", score: item.score };
-      })
-      .filter(p => p.text);
+    const scoped = `[ARCHIVE:${agentName}] ${query}`;
+    return await lettaArchivalSearch(scoped, limit);
   } catch (err) {
-    console.warn("[store] searchAgentArchive failed:", err instanceof Error ? err.message : err);
+    logger.warn({ err: err instanceof Error ? err.message : String(err), agentName }, "[store→letta] searchAgentArchive failed");
     return [];
   }
 }
 
 /**
- * Cheap connectivity probe — used by health/probes.ts to replace
- * lettaPing. List up to 1 item in the shared root namespace; success
- * means the underlying Postgres is reachable and the store tables
- * exist.
+ * Liveness probe. Backed by Letta's ping. Returns the underlying Letta
+ * health shape so callers (health probes, admin diagnostics) can render
+ * configured vs unreachable distinctly.
  */
-export async function storePing(): Promise<void> {
-  await ensureSharedStoreReady();
-  await getSharedStore().search(["shared"], { limit: 1 });
+export async function storePing(): Promise<{ configured: boolean; ok: boolean; error: string | null }> {
+  return await lettaPing();
 }

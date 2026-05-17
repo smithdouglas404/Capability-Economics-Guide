@@ -41,21 +41,49 @@ export interface StoreOptions {
 }
 
 // ---------------------------------------------------------------------------
-// Mem0 REST client — talks to the self-hosted server via MEM0_BASE_URL
+// Mem0 REST client — supports BOTH the self-hosted server AND Mem0 Cloud.
+// Mode is auto-detected from MEM0_BASE_URL hostname:
+//   - api.mem0.ai (or any *.mem0.ai host) → cloud platform
+//     Auth header: Authorization: Token <m0-...>
+//   - Anything else (Railway internal hostname, localhost, etc.)
+//     → self-hosted v2.x server. Auth header: X-API-Key: <ADMIN_API_KEY>
+// One env-var flip in Railway switches modes — no code redeploy.
 // ---------------------------------------------------------------------------
 
-function getMem0Config(): { baseUrl: string; apiKey: string } | null {
-  const baseUrl = process.env.MEM0_BASE_URL;
+interface Mem0Config {
+  baseUrl: string;
+  apiKey: string;
+  /** true when talking to api.mem0.ai (cloud); false for self-hosted. */
+  isCloud: boolean;
+}
+
+function getMem0Config(): Mem0Config | null {
+  const rawBaseUrl = process.env.MEM0_BASE_URL;
   const apiKey = process.env.MEM0_API_KEY;
-  if (!baseUrl || !apiKey) {
-    if (!baseUrl && !apiKey) {
+  if (!rawBaseUrl || !apiKey) {
+    if (!rawBaseUrl && !apiKey) {
       console.warn("[Mem0] MEM0_BASE_URL and MEM0_API_KEY not set — using local DB only");
     } else {
       console.warn("[Mem0] Both MEM0_BASE_URL and MEM0_API_KEY must be set — using local DB only");
     }
     return null;
   }
-  return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey };
+  const baseUrl = rawBaseUrl.replace(/\/$/, "");
+  // Cloud detection: hostname contains "mem0.ai" (api.mem0.ai or future
+  // regional variants). Defensive — handle bare hostname, full URL, etc.
+  const isCloud = /(^|\/\/|\.)mem0\.ai(\/|$|:)/i.test(baseUrl);
+  return { baseUrl, apiKey, isCloud };
+}
+
+function buildAuthHeaders(cfg: Mem0Config): Record<string, string> {
+  if (cfg.isCloud) {
+    // Mem0 Platform (cloud) uses the legacy "Token" scheme, not Bearer.
+    // The platform API key starts with m0-...
+    return { Authorization: `Token ${cfg.apiKey}` };
+  }
+  // Self-hosted v2.x: X-API-Key (NOT Authorization: Bearer — that path
+  // tries to verify the value as a JWT and rejects ADMIN_API_KEY).
+  return { "X-API-Key": cfg.apiKey };
 }
 
 async function mem0Fetch(
@@ -69,13 +97,7 @@ async function mem0Fetch(
     method,
     headers: {
       "Content-Type": "application/json",
-      // Mem0 self-hosted v2.x distinguishes auth schemes:
-      //   - X-API-Key       → admin api key (what ADMIN_API_KEY actually is)
-      //   - Authorization   → JWT token (issued via /auth/login)
-      // The Mem0 Railway template doc says to use `Bearer <ADMIN_API_KEY>`,
-      // but the upstream server rejects that with 401 because it tries to
-      // verify ADMIN_API_KEY as a JWT. Always use X-API-Key.
-      "X-API-Key": cfg.apiKey,
+      ...buildAuthHeaders(cfg),
     },
     ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });

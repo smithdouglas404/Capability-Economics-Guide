@@ -110,19 +110,33 @@ Implementation files:
 
 If you need agents to coordinate, **use the shared store as the communication channel** — do NOT add a LangGraph supervisor node.
 
-### Letta — DECOMMISSIONED
+### Letta — RESTORED (via Letta Cloud, 2026-05-17)
 
-**Letta was removed in Phase 1.9 Step 6 (commit history searchable for "PostgresStore migration").** The `@letta-ai/letta-client` dep is gone, `services/agent/letta.ts` and `services/agent/letta-tools.ts` are deleted, the Railway Letta service has been (or should be) deleted via the dashboard. Do **NOT** re-add a Letta dependency without an architectural review.
+**Letta is back.** The PostgresStore "LangMem-equivalent" replacement introduced in Phase 1.9 Step 6 was rejected by the user. `@letta-ai/letta-client` is re-added to `artifacts/api-server/package.json`. `services/agent/letta.ts` and `services/agent/letta-tools.ts` are restored from git history (commit `b3261fc~1`, 463 + 290 lines verbatim, no recreation).
 
-What replaced each Letta surface:
-- Core blocks (persona / industry_priors / current_focus / research_strategy / economic_rules / project_focus / market_context) → `getAgentPriorBlock` / `putAgentPriorBlock` on PostgresStore under `NS.agentPriors(agentName)`
-- Archival memory (`lettaArchivalInsert` / `lettaArchivalSearch`) → `appendAgentArchive` / `searchAgentArchive` under `NS.agentRuns(agentName)`
-- Autonomous `core_memory_replace` (the chat-puppet sending Letta messages to rewrite its own blocks) → explicit `ChatAnthropic.invoke()` call in `graph.ts:memorizeNode` that reads → asks → writes
-- Letta sleep-time agent → the existing `consolidator.ts` 24h cron (now writes to PostgresStore)
-- Letta-side custom Python tools → inline `tool()` definitions inside each of the 5 specialized agents (`services/disruption-agent.ts` etc.) and `langchain`'s `createAgent` (v1 ReactAgent)
-- `lettaPing` health probe → `storePing` (PostgresStore liveness check) at `/api/health/services`
+Configuration model: **Letta Cloud** (managed service at `app.letta.com`), NOT self-hosted on Railway. Env vars go on the **api-server service**:
 
-If you see legacy comments referencing `lettaXxx` symbols in commits / state-field names (e.g. `state.lettaArchivalSnippets`, `syncEconomicRulesToLetta`), those are historical names kept for diff continuity — they read from / write to PostgresStore now.
+```env
+LETTA_BASE_URL=https://api.letta.com         # Letta Cloud endpoint
+LETTA_API_KEY=<cloud token from app.letta.com>
+LETTA_MODEL=openrouter/anthropic/claude-sonnet-4.6   # optional override
+LETTA_EMBEDDING=letta/letta-free                      # optional override
+```
+
+If using Letta Cloud tool callbacks, also set on the api-server:
+- `INFLEXCVI_AGENT_TOOL_KEY` — shared secret for the tool-callback HMAC
+- `INFLEXCVI_API_BASE` — public callback URL (the api-server's public Railway URL)
+
+**`services/agent/store.ts` is now a Letta-backed adapter.** Same API surface (`getSharedStore`, `NS`, `getAgentPriorBlock`, `putAgentPriorBlock`, `appendAgentArchive`, `searchAgentArchive`, `storePing`) so the 5 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology) work unchanged. The adapter maps:
+- Core block labels → `lettaReadBlock` / `lettaUpdateBlock`
+- Namespaced put/search (the agents' digest pub/sub) → Letta archival memory with `[NS:<ns>|<key>]` prefix convention
+- `storePing` → `lettaPing` (used by `/api/health/services`)
+
+**`services/agent/optimizer.ts` was DELETED.** That was the weekly LangMem-equivalent prompt rewriter the user explicitly rejected ("the learning code I needed wasn't this"). Letta's own sleeptime + core_memory_replace pattern handles autonomous learning natively.
+
+**Health probe**: `/api/health/services` reports a `letta` field with `configured / ok / error` shape. Look for `status: "ok"` after a Letta Cloud token is configured.
+
+**If Letta Cloud is not configured** (`LETTA_API_KEY` / `LETTA_BASE_URL` unset): all `letta*()` calls return safely (no throw), `storePing` reports `configured: false`, agents continue to operate using their Mem0 layer for short-term recall. Graceful-degrade matches the original Letta wiring.
 
 ### Frontend (`artifacts/inflexcvi`)
 

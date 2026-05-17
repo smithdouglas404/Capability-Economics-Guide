@@ -118,9 +118,9 @@ importers:
       '@langchain/langgraph':
         specifier: ^1.2.8
         version: 1.2.8(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(zod@3.25.76)
-      '@langchain/langgraph-checkpoint-postgres':
-        specifier: ^1.0.1
-        version: 1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))(@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76))))
+      '@letta-ai/letta-client':
+        specifier: ^1.10.2
+        version: 1.11.0
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
@@ -1189,13 +1189,6 @@ packages:
     resolution: {integrity: sha512-DP9c7TREy6iA7HnywstmUAsNyJNYTFpRg2yBfQ+6H0l1HnvQzei9GsQ36GeOLxgRaD3vm9K8urCcawSC7yQpCw==}
     engines: {node: '>=20'}
 
-  '@langchain/langgraph-checkpoint-postgres@1.0.1':
-    resolution: {integrity: sha512-cRXOLYZc0egMjyAQfBblWXdoBS+WKwEbCEuE+/f88XHJ1bq5jVz7aycbpjF/7F5EykG7xmybQOz5eUdg3neRzg==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      '@langchain/core': ^1.0.1
-      '@langchain/langgraph-checkpoint': ^1.0.0
-
   '@langchain/langgraph-checkpoint@1.0.1':
     resolution: {integrity: sha512-HM0cJLRpIsSlWBQ/xuDC67l52SqZ62Bh2Y61DX+Xorqwoh5e1KxYvfCD7GnSTbWWhjBOutvnR0vPhu4orFkZfw==}
     engines: {node: '>=18'}
@@ -1232,6 +1225,9 @@ packages:
     peerDependenciesMeta:
       zod-to-json-schema:
         optional: true
+
+  '@letta-ai/letta-client@1.11.0':
+    resolution: {integrity: sha512-LdWnBHdknkmYYri40KdkOyw8JKZCi0deufHyBm352tiLtPddQej7Nu34FPhFheX+jEUlPhxj3RvzJdvgJbkkkg==}
 
   '@noble/curves@1.8.1':
     resolution: {integrity: sha512-warwspo+UYUPep0Q+vtdVB4Ugn8GGQj8iyB3gnRWsztmUHTI3S1nhdiWNsPUGL0vud7JlRRk1XEu7Lq1KGTnMQ==}
@@ -5582,14 +5578,6 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/langgraph-checkpoint-postgres@1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))(@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76))))':
-    dependencies:
-      '@langchain/core': 1.1.39(openai@4.104.0(zod@3.25.76))
-      '@langchain/langgraph-checkpoint': 1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))
-      pg: 8.20.0
-    transitivePeerDependencies:
-      - pg-native
-
   '@langchain/langgraph-checkpoint@1.0.1(@langchain/core@1.1.39(openai@4.104.0(zod@3.25.76)))':
     dependencies:
       '@langchain/core': 1.1.39(openai@4.104.0(zod@3.25.76))
@@ -5633,6 +5621,8 @@ snapshots:
       - react-dom
       - svelte
       - vue
+
+  '@letta-ai/letta-client@1.11.0': {}
 
   '@noble/curves@1.8.1':
     dependencies:

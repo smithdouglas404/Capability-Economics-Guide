@@ -5,7 +5,6 @@ import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
 import { ensureSharedStoreReady } from "./store";
-import { optimizeAgentInstructions, learnFromHumanOverrides } from "./optimizer";
 import { runMacroEventAgent } from "../macro-event-agent";
 import { runDisruptionAgent } from "../disruption-agent";
 import { runPeerCoopAgent } from "../peer-coop-agent";
@@ -20,7 +19,6 @@ import { runDigestSweep } from "../digest";
 import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
-import { workflowSchedulerTick } from "../bots/workflows/scheduler";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
@@ -29,8 +27,6 @@ import { attributeSignalOutcomes } from "../cvi-signals/attribution";
 import { db } from "@workspace/db";
 import { cviComponentsTable, cviSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
-import { getFoundryTokenMeta } from "../foundry/auth";
-import { sendEmail } from "../email";
 
 // Routine cadence is read from agent_tuning each tick — the only fixed
 // constant here is how often we *check* whether it's time to run.
@@ -61,11 +57,6 @@ const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // passed. Without this, pgvector grows unbounded and stale observations
 // pollute semantic search. Runs daily.
 const MEM0_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
-// Per-agent prompt optimizer (LangMem-equivalent): reads recent
-// agent_runs, scores them, rewrites the agent's NS.agentPriors block.
-// Weekly cadence is plenty — instructions are stable directives, not
-// per-cycle state. Cheap (~1 Haiku call per agent per week).
-const OPTIMIZER_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // Macro Event Agent: polls EDGAR, summarizes active macro events,
 // publishes a digest to NS.macroEvents() for downstream agents.
 // 30-minute cadence aligns with the EDGAR RSS polling interval the
@@ -102,20 +93,16 @@ let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
-let botWorkflowTimer: ReturnType<typeof setInterval> | null = null;
-let isBotWorkflowTicking = false;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
-let optimizerTimer: ReturnType<typeof setInterval> | null = null;
 let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
 let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
 let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
 let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
 let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
-let foundryTokenCheckTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -434,21 +421,6 @@ async function ceiSignalsTick(): Promise<void> {
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
  */
-async function botWorkflowTick(): Promise<void> {
-  if (isBotWorkflowTicking) return;
-  isBotWorkflowTicking = true;
-  try {
-    const r = await workflowSchedulerTick();
-    if (r.dispatched > 0) {
-      console.log(`[wf-scheduler] dispatched ${r.dispatched} workflows (${r.workflowKeysDue.join(", ")}), skipped ${r.skipped}`);
-    }
-  } catch (err) {
-    console.warn("[wf-scheduler] tick failed:", err instanceof Error ? err.message : err);
-  } finally {
-    isBotWorkflowTicking = false;
-  }
-}
-
 async function botLoopTick(): Promise<void> {
   if (isBotTicking) {
     console.log("[Bots] Skipping tick — previous tick still in progress");
@@ -504,49 +476,6 @@ async function routineCheck(): Promise<void> {
   }
 }
 
-/**
- * Check whether the Foundry API token is approaching expiry.
- * Sends an email alert when the token is > 50 minutes old.
- * Palantir tokens typically expire after 60 minutes, so this gives
- * the admin a 10-minute window to rotate before the next sync fails.
- */
-async function foundryTokenExpiryCheck(): Promise<void> {
-  const meta = await getFoundryTokenMeta();
-  if (!meta || meta.source !== "db" || meta.ageMinutes === null) return;
-
-  const WARN_THRESHOLD_MINUTES = 50;
-  if (meta.ageMinutes < WARN_THRESHOLD_MINUTES) return;
-
-  const notifyEmail = meta.notifyEmail ?? process.env.ADMIN_NOTIFY_EMAIL;
-  if (!notifyEmail) {
-    console.warn(`[Agent] Foundry token is ${meta.ageMinutes}min old (>50min) — no notify email configured`);
-    return;
-  }
-
-  const subject = `⚠️ Foundry token expiry warning — ${meta.ageMinutes} minutes old`;
-  const text = [
-    `Your Palantir Foundry API token was last rotated ${meta.ageMinutes} minutes ago.`,
-    `Palantir tokens expire after ~60 minutes. Please rotate the token now via the admin panel`,
-    `to prevent the next Foundry sync from failing with a 401 error.`,
-    ``,
-    `Last rotated by: ${meta.rotatedByUserId ?? "unknown"}`,
-    `Rotated at: ${meta.rotatedAt?.toISOString() ?? "unknown"}`,
-  ].join("\n");
-
-  const sent = await sendEmail({
-    to: notifyEmail,
-    subject,
-    text,
-    html: `<p>${text.replace(/\n/g, "<br>")}</p>`,
-  });
-
-  if (sent) {
-    console.log(`[Agent] Foundry token expiry alert sent to ${notifyEmail} (token age: ${meta.ageMinutes}min)`);
-  } else {
-    console.warn(`[Agent] Foundry token expiry alert FAILED to send (Resend not configured?)`);
-  }
-}
-
 export function startScheduler(): void {
   if (routineTimer) {
     console.log("[Agent] Autonomous monitoring already active");
@@ -563,10 +492,6 @@ export function startScheduler(): void {
   worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
   digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
   botLoopTimer = setInterval(() => botLoopTick(), BOT_LOOP_INTERVAL_MS);
-  // Bot workflow scheduler — dispatches multi-step LangGraph workflows
-  // (per-persona weekly cycles, cross-bot system workflows) when their
-  // cadence window has elapsed. Distinct from the bot action loop above.
-  botWorkflowTimer = setInterval(() => botWorkflowTick(), 30 * 60 * 1000);
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
@@ -574,33 +499,9 @@ export function startScheduler(): void {
   mem0PruneTimer = setInterval(() => {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
-  optimizerTimer = setInterval(() => {
-    // Run BOTH per-agent optimization passes weekly: (1) rewrite
-    // standing instructions based on run outcomes; (2) rewrite
-    // decision_priors based on human override rejections. Same
-    // cadence, same cost discipline. Each is independently no-op if
-    // there's nothing new to learn.
-    const agents = [
-      "cvi-autonomous-agent",
-      "macro-event-agent",
-      "disruption-agent",
-      "peer-coop-agent",
-      "stack-optimizer-agent",
-      "ontology-agent",
-    ];
-    for (const name of agents) {
-      optimizeAgentInstructions(name)
-        .then(r => r.optimized
-          ? console.log(`[Agent] Optimizer rewrote ${name} instructions from ${r.basedOnRuns} runs`)
-          : console.log(`[Agent] Optimizer skipped ${name}: ${r.reason ?? "no change"}`))
-        .catch(err => console.warn(`[Agent] Optimizer ${name} failed:`, err instanceof Error ? err.message : err));
-      learnFromHumanOverrides(name)
-        .then(r => r.rewritten
-          ? console.log(`[Agent] Override-learn rewrote ${name} decision_priors from ${r.basedOnRejections} rejections`)
-          : console.log(`[Agent] Override-learn skipped ${name}: ${r.reason ?? "no change"}`))
-        .catch(err => console.warn(`[Agent] Override-learn ${name} failed:`, err instanceof Error ? err.message : err));
-    }
-  }, OPTIMIZER_INTERVAL_MS);
+  // (Weekly prompt optimizer removed — was the LangMem-equivalent learning
+  // code the user explicitly rejected when Letta was restored. Letta's own
+  // sleeptime + core_memory_replace pattern handles learning autonomously.)
   macroEventAgentTimer = setInterval(() => {
     runMacroEventAgent()
       .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
@@ -671,16 +572,6 @@ export function startScheduler(): void {
   setTimeout(() => edgarRssTick(), 240_000);
   // CVI signals detector — 5 min stagger, then daily.
   setTimeout(() => ceiSignalsTick(), 300_000);
-
-  // Foundry token expiry check — every 30 minutes.
-  // Sends an email alert when the token is > 50 minutes old so the admin
-  // has time to rotate before the 60-minute Palantir expiry window.
-  const FOUNDRY_TOKEN_CHECK_MS = 30 * 60 * 1000;
-  foundryTokenCheckTimer = setInterval(() => {
-    foundryTokenExpiryCheck().catch(err =>
-      console.warn("[Agent] Foundry token expiry check failed:", err instanceof Error ? err.message : err),
-    );
-  }, FOUNDRY_TOKEN_CHECK_MS);
 }
 
 /**
@@ -706,7 +597,7 @@ export function stopScheduler(): void {
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
-  if (optimizerTimer) { clearInterval(optimizerTimer); optimizerTimer = null; }
+  // optimizerTimer removed with the optimizer module
   if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }
   if (disruptionAgentTimer) { clearInterval(disruptionAgentTimer); disruptionAgentTimer = null; }
   if (peerCoopAgentTimer) { clearInterval(peerCoopAgentTimer); peerCoopAgentTimer = null; }
