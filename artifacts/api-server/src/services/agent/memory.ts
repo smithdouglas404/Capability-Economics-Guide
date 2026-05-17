@@ -198,6 +198,63 @@ export function isMem0Available(): boolean {
 }
 
 /**
+ * One-time best-effort config of Mem0 Cloud project settings:
+ *
+ *   - `custom_categories`: tell Mem0's server-side fact-extraction prompt
+ *     about our 11-string MemoryCategory union so extracted memories get
+ *     tagged with one of our canonical category names rather than Mem0's
+ *     generic defaults (eg. "preference", "fact").
+ *
+ *   - Graph mode is enabled per-request via `version: "v2"` on the store
+ *     call (handled in storeMemory), not here.
+ *
+ * Cloud-only. The exact endpoint shape is documented at
+ * https://docs.mem0.ai but the surface varies across plans — we try a
+ * couple known shapes and log a warning if none work. Non-fatal on any
+ * failure; memories continue to flow with Mem0's default categorization.
+ */
+export async function configureMem0CustomCategories(): Promise<void> {
+  const cfg = getMem0Config();
+  if (!cfg || !cfg.isCloud) return;
+
+  const categories = [
+    { name: "capability_signal",      description: "Observed change in a capability's economics, maturity, or competitive position." },
+    { name: "industry_trend",         description: "A pattern across multiple capabilities in one industry — supply, demand, or regulation." },
+    { name: "validated_pattern",      description: "A prior recommendation or hypothesis that was confirmed by subsequent CVI movement." },
+    { name: "contradiction",          description: "A prior recommendation or hypothesis that was contradicted by subsequent outcomes." },
+    { name: "decision",               description: "A choice the agent made (research vs skip, store vs discard) and the rationale." },
+    { name: "observation",            description: "A raw factual observation from research, not yet promoted to a pattern." },
+    { name: "pattern",                description: "A repeating regularity observed across multiple research cycles." },
+    { name: "agent_run_summary",      description: "Post-cycle summary of what an agent did this run, written by its own pipeline." },
+    { name: "recommendation_outcome", description: "The 60-day CVI delta following a build/buy/outsource recommendation." },
+    { name: "temporal_shift",         description: "A capability-pair relationship weight changing materially over 30 days." },
+    { name: "synthesis",              description: "Cross-agent insight produced by the Synthesis Agent from multiple inputs." },
+  ];
+
+  const candidates = [
+    { path: "/v1/configure/", body: { custom_categories: categories } },
+    { path: "/v1/projects/configure/", body: { custom_categories: categories } },
+  ];
+
+  for (const { path, body } of candidates) {
+    try {
+      await mem0Fetch(path, "POST", body);
+      console.log(`[Mem0] custom_categories configured via ${path} (${categories.length} categories)`);
+      return;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // 404 means the endpoint shape was wrong; try the next candidate.
+      // Any other error is a real problem but still non-fatal.
+      if (!/404/.test(msg)) {
+        console.log(`[Mem0] custom_categories ${path} failed (non-fatal): ${msg.slice(0, 160)}`);
+        return;
+      }
+    }
+  }
+  console.log("[Mem0] custom_categories: no known endpoint shape matched (categories stay as default). Mem0 still functions; this only affects server-side categorization quality.");
+}
+
+/**
  * Lightweight liveness probe — used by `/api/health/services`. Issues the
  * cheapest authenticated read available (list 1 memory) and throws on any
  * non-2xx so callers can classify the failure.
@@ -261,9 +318,16 @@ export async function storeMemory(
   if (isMem0Available()) {
     try {
       const messages = buildConversationalMessages(type, category, content, context, metadata);
+      // version: "v2" tells Mem0 Cloud to ALSO build a graph entity-relation
+      // index for this memory in addition to vector storage. The graph index
+      // is what powers Mem0's recall by relationship rather than embedding
+      // alone. Self-hosted Mem0 v2.x ignores the parameter, so it's safe to
+      // always send.
+      const cfgStore = getMem0Config();
       const result = await mem0Fetch("/memories", "POST", {
         messages,
         agent_id: resolvedAgentId,
+        ...(cfgStore?.isCloud ? { version: "v2" } : {}),
         ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
         metadata: {
           ...metadata,

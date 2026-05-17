@@ -4,7 +4,7 @@ import { startConsolidator, stopConsolidator } from "./consolidator";
 import { detectTemporalShifts, writeMemoryRelationSnapshots } from "./temporal-shift-detector";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
-import { mem0Prune } from "./memory";
+import { mem0Prune, configureMem0CustomCategories } from "./memory";
 import { ensureSharedStoreReady } from "./store";
 import { runMacroEventAgent } from "../macro-event-agent";
 import { runDisruptionAgent } from "../disruption-agent";
@@ -509,6 +509,12 @@ export function startScheduler(): void {
   mem0PruneTimer = setInterval(() => {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
+  // One-time best-effort: configure Mem0 Cloud with our custom_categories so
+  // server-side fact extraction tags memories with our 11-string MemoryCategory
+  // union instead of Mem0's defaults. Non-fatal if endpoint shape differs.
+  configureMem0CustomCategories().catch(err =>
+    console.warn("[Agent] Mem0 custom_categories config failed (non-fatal):", err instanceof Error ? err.message : err),
+  );
   // (Weekly prompt optimizer removed — was the LangMem-equivalent learning
   // code the user explicitly rejected when Letta was restored. Letta's own
   // sleeptime + core_memory_replace pattern handles learning autonomously.)
