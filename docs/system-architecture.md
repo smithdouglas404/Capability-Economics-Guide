@@ -23,7 +23,7 @@ pnpm workspace. Three tiers:
 | `artifacts/*` | Deployables: `api-server` (Express 5 backend, port 8080), `inflexcvi` (React 19 SPA, 68 pages), `ce-pitch-deck` (static), `mockup-sandbox` (component preview) |
 | `lib/*` | Shared packages: `db` (Drizzle schema, 85 tables), `api-spec` (OpenAPI 3.1), `api-client-react` (Orval-generated React Query hooks), `api-zod` (Orval-generated Zod validators), `integrations-anthropic-ai` (Replit AI Integrations proxy) |
 | `scripts/*` | One-off TS scripts: seeders, backfills, Foundry sync, deploy-migrate orchestrator |
-| `mem0/` | Self-hosted Mem0 Dockerfile (Railway-deployed) |
+| `mem0/` | Historical: self-hosted Mem0 Dockerfile. As of 2026-05-17 we run on **Mem0 Cloud** (`api.mem0.ai`); this Dockerfile is kept as a break-glass fallback path. The self-hosted Mem0 + pgvector Railway services were deleted in the same cutover. |
 
 There is no test runner anywhere. The contract layer + typecheck is the safety net.
 
@@ -35,9 +35,9 @@ There is no test runner anywhere. The contract layer + typecheck is the safety n
 |---|---|---|---|
 | **Postgres** | Source of truth for 85 tables | Everything (capabilities, dependencies, agents, bots, workflows, organizations, marketplace, audit, secrets, …) | Every reader unless flag below says otherwise |
 | **Neo4j 5.26-community** | Mirror, dual-write | `:Entity` nodes (from `memory_entities` / `memory_relations`), `:Capability` nodes + `:DEPENDS_ON` (from `capabilities` / `capability_dependencies`) | Agent memory recall (`graphMemory.ts`); opt-in capability cascade via `USE_NEO4J_CAPABILITY_GRAPH=1` |
-| **pgvector** | Postgres extension, on its own Railway service | Vector backing for Mem0 | Mem0 internal |
-| **Self-hosted Mem0** | Railway service (built from our `mem0/Dockerfile`, mem0ai/mem0 v2.1.0) | Semantic memory store for agent observations / patterns / insights / decision-context | Core CVI research agent (`memory.ts`) |
-| **PostgresStore** | Postgres table | Shared agent state (priors, current focus, market context, agent run archive) — replaces Letta | All 6 autonomous agents |
+| **Mem0 Cloud** | Managed SaaS at `api.mem0.ai` | Semantic memory store for agent observations / patterns / insights / decision-context. All 6 specialized agents now recall from Mem0 before acting (see [`ai-first-impact.md`](ai-first-impact.md)). | Core CVI agent (`memory.ts`); every specialized agent's system prompt; `generateInsightsTool`; `pickRecommendedAI` |
+| **Letta Cloud** | Managed SaaS at `api.letta.com` | Shared agent state (priors, current focus, market context, agent run archive) + per-agent "prior blocks" of accumulated beliefs. The `services/agent/store.ts` adapter preserves the original `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` API surface. | All 7 autonomous agents (6 specialized + Synthesis Agent) |
+| **`memory_relation_snapshots`** | Postgres table, written daily | Time-series of every memory_relations row's weight + observedCount. Backs the temporal-shift detector's real 30-day momentum computation. | `services/agent/temporal-shift-detector.ts` |
 | **Redis** | Railway managed | BullMQ job queue backing | `services/alpha/queue.ts` |
 | **Hedera Consensus Service** | External | Audit-chain anchor for admin actions + capability snapshots | `services/blockchain-audit.ts` |
 
@@ -54,8 +54,10 @@ This is the single most important table in the doc. **Pitchbook + architecture-s
 | Cascade tab math (other functions) | `services/disruption.ts` | Postgres |
 | Fragility tab math | `services/disruption.ts` | Postgres |
 | Explainability service | `services/explainability.ts` | Postgres |
-| Stack Optimizer agent + service | `services/stack-optimizer-agent.ts`, `services/stack-optimizer.ts` | Postgres |
-| `generateInsightsTool` (in agent tools) | `services/agent/tools.ts` | Postgres |
+| Stack Optimizer agent + service | `services/stack-optimizer-agent.ts`, `services/stack-optimizer.ts` | Postgres **+ Neo4j `findRelated()` for upstream blockers + Mem0 patterns** (as of `4ae6de9`) |
+| `generateInsightsTool` (in agent tools) | `services/agent/tools.ts` | Postgres **+ Neo4j `findCorrelations()` + Mem0 pattern recall** (as of `4ae6de9`) |
+| Synthesis Agent (daily) | `services/synthesis-agent.ts` | All 5 specialized-agent digests + Neo4j `findCorrelations()` + Mem0 patterns + cached temporal-shift report |
+| Temporal-shift detector (6h) | `services/agent/temporal-shift-detector.ts` | Postgres `memory_relations` + `memory_relation_snapshots` (30-day baseline) |
 | `/api/insights` route | `routes/insights.ts` | Postgres |
 | Business case analyzer | `services/business-cases/analyzer.ts` | Postgres |
 | Alpha tab API (`/api/alpha/*`) | `routes/alpha.ts` | Postgres |
@@ -64,13 +66,13 @@ This is the single most important table in the doc. **Pitchbook + architecture-s
 | Peer-Coop agent | `services/peer-coop-agent.ts` | Postgres |
 | Bot workflows (all 7) | `services/bots/workflows/*` | Postgres |
 
-**Net:** of 6 autonomous agents, only 2 use Neo4j (core + ontology). All customer-facing analytical tabs use Postgres. The capability dependency graph migration to Cypher is incremental — see §6.4 for the pattern and migration plan.
+**Net:** as of `4ae6de9`, **5 systems** read Neo4j: core agent (entity recall + findCorrelations + findRelated), ontology agent (writes), opt-in disruption cascade, the Stack Optimizer service (upstream-blocker reasoning), `generateInsightsTool` (industry-wide correlations), and the Synthesis Agent (cross-agent + graph). All customer-facing **analytical tabs** still query Postgres; the AI-first writers/readers that influence what those tabs show are the new graph consumers. See [`ai-first-impact.md`](ai-first-impact.md) for the full causal chain from graph reads to user-visible output.
 
 ---
 
-## 3. The autonomous agent system — 6 agents on a shared store
+## 3. The autonomous agent system — 7 agents on a shared store
 
-The system runs **6 LangGraph autonomous agents** every 30 min on a shared `PostgresStore`:
+The system runs **7 autonomous agents** on the shared Letta Cloud store. Six on a 30-min cadence; one (Synthesis Agent) daily. See [`ai-first-impact.md`](ai-first-impact.md) for how their outputs compound.
 
 | Agent | File | Cadence | What it does |
 |---|---|---|---|
@@ -79,15 +81,19 @@ The system runs **6 LangGraph autonomous agents** every 30 min on a shared `Post
 | Disruption Agent | `services/disruption-agent.ts` | 30 min | Scans capability graph for ~1,000 new signal-event pairs/cycle, classifies by quadrant pressure, queues high-confidence ones for HITL. |
 | Ontology Agent | `services/ontology-agent.ts` | 30 min | Proposes new capability nodes + edges from external research; submits to `pending_review`. Writes to Neo4j `:Entity`. |
 | Peer-Coop Agent | `services/peer-coop-agent.ts` | 30 min | Maintains peer-benchmark cohorts; tracks valid comparators per industry+size+region. |
-| Stack Optimizer Agent | `services/stack-optimizer-agent.ts` | 30 min | Observes which LLM model/route succeeded per task; writes recommendations to `agent_tuning`. |
+| Stack Optimizer Agent | `services/stack-optimizer-agent.ts` | 30 min | Observes which LLM model/route succeeded per task; writes recommendations to `agent_tuning`. As of `4ae6de9` the underlying `recommendStack` service reads Neo4j upstream blockers + Mem0 patterns + a single batched Haiku call for all capabilities in a request. |
+| **Synthesis Agent** | `services/synthesis-agent.ts` | 24h (daily) | Reads all 5 specialized-agent digests + Neo4j correlations + Mem0 patterns + cached temporal-shift report, synthesises a daily strategic brief using Claude Sonnet, writes the brief to `NS.sharedKnowledge("synthesis_brief")`. Every other agent prepends this brief to its system prompt. |
 
-All 6 register run records to `agent_runs` and use shared state via `services/agent/store.ts` (`NS.agentPriors`, `NS.agentRuns`, `NS.macroEvents`, `NS.disruptionRisks`).
+All 7 register run records to `agent_runs` and use shared state via `services/agent/store.ts` (`NS.agentPriors`, `NS.agentRuns`, `NS.macroEvents`, `NS.disruptionRisks`, `NS.sharedKnowledge`).
 
-**Weekly Claude prompt optimizer** (`services/agent/optimizer.ts`) reads each agent's `agent_runs` history + the HITL queue's accept/reject patterns and proposes prompt revisions per agent. Runs once a week.
+**Out-of-band cadences** (added 2026-05-17):
+- **Temporal-shift detector** runs every 6h, compares current `memory_relations` weights against `memory_relation_snapshots` from ~30 days ago, writes accelerating/reversing memories to Mem0.
+- **Memory-relation snapshot writer** runs daily, appends one row per relation per calendar day to `memory_relation_snapshots`.
+- **Recommendation feedback loop** evaluates insights > 60 days old against actual CVI trajectory, writes validated/contradicted patterns to Mem0. Dormant until the first cohort ages in.
 
-### 3.1 Letta is decommissioned
+### 3.1 Letta — restored via Letta Cloud (2026-05-17)
 
-Letta was the prior shared-state service. Removed in Phase 1.9 Step 6 (commit history searchable for "PostgresStore migration"). The `@letta-ai/letta-client` dependency is gone; `services/agent/letta.ts` and `letta-tools.ts` are deleted. Any comment in code still referencing `lettaXxx` symbol names (e.g. `state.lettaArchivalSnippets`, `syncEconomicRulesToLetta`) is historical — those now read/write PostgresStore.
+The PostgresStore replacement introduced in Phase 1.9 Step 6 was rejected and reverted. As of commit `7e37e49`, Letta runs on **Letta Cloud** (`api.letta.com`) and `services/agent/store.ts` is a Letta-backed adapter that preserves the original `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface. The self-hosted Letta Railway service was deleted; all `lettaXxx` symbols are live again, not historical.
 
 ---
 

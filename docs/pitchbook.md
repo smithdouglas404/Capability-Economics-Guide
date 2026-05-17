@@ -249,7 +249,7 @@ Investors rightly ask: *what stops a well-funded competitor from cloning this?* 
 
 Every research cycle writes durable rows into `capability_alpha`, `capability_dependencies`, `dependency_edge_scores`, and `vcr_research_items`. Each row carries cited provenance (Perplexity URLs, LLM rationale, confidence scores). Twelve months of three-times-daily research compounds into:
 
-- **~3,000 agent memories** in self-hosted Mem0 (on Railway) across observation/pattern/insight/decision-context types — recalled at every agent decide-phase
+- **~3,000 agent memories** in Mem0 Cloud (`api.mem0.ai`) across observation/pattern/insight/decision-context types — recalled at every agent decide-phase and now injected as context into every specialized-agent system prompt (see [`ai-first-impact.md`](ai-first-impact.md))
 - **~4,000 source triangulations** in `source_triangulations`, each carrying methodology + sourceUrl + rationale
 - **~500 CVI snapshots** time-series across 6 industries
 - **~10,000+ CVI signal events per month** auto-detected by the disruption-agent across 10,000+ capability-pair comparisons every 30 min
@@ -263,13 +263,13 @@ The single largest attack vector for a competitor is to undercut on speed by ski
 
 We have institutionalized the opposite tradeoff. The HITL review queue, the `reviewStatus='approved'` filter at the public catalog query layer, the `revisionGuidance` re-enrichment loop, and the `submittedBy='discovery_agent'` provenance tagging together create a governance perimeter that institutional buyers (PE firms, F500 strategy desks, regulated industries) require as a precondition for procurement. This is not a feature; it is a market-access prerequisite, and it ships today.
 
-In addition, a **weekly Claude-driven prompt optimizer** runs across all 6 autonomous agents, mining the HITL queue's accept/reject patterns and feeding distilled guidance back into each agent's system prompt — turning every rejection into a measurable improvement in the next cycle.
+In addition, **Letta Cloud's sleeptime + core_memory_replace pattern** handles autonomous learning natively — each agent's accumulated beliefs ("agent prior blocks") are continuously refined as the agent observes outcomes, without a separate prompt-optimizer cron. The HITL queue's accept/reject decisions feed directly into the prior blocks each agent reads at the start of every cycle.
 
 ### 6.3 Institutional Memory — Recalled, Not Decorative
 
-Memory is two-layered: **self-hosted Mem0** (running in our Railway project, not the Mem0 Cloud SaaS) for semantic recall, plus **PostgresStore** for structured shared agent state (industry priors, current focus, research strategy, market context). The core CVI research agent's `decide` phase issues a semantic similarity query at the start of every cycle and injects the top-K relevant memories into the LangGraph state. This means each research cycle is informed by every prior cycle without explicit key-value lookup — the agent's behavior continually improves as the corpus grows.
+Memory is two-layered: **Mem0 Cloud** (`api.mem0.ai`) for semantic recall, plus **Letta Cloud** (`api.letta.com`) for structured shared agent state (industry priors, current focus, research strategy, market context, plus per-agent "prior blocks" of accumulated beliefs). The core CVI research agent's `decide` phase issues a semantic similarity query at the start of every cycle and injects the top-K relevant memories into the LangGraph state. This means each research cycle is informed by every prior cycle without explicit key-value lookup — the agent's behavior continually improves as the corpus grows.
 
-PostgresStore replaced Letta entirely in Phase 1.9 Step 6 (May 2026). The architectural reason: a single Postgres table with namespaced reads/writes (`NS.agentPriors(agentName)`, `NS.agentRuns(agentName)`) eliminated a second statefulness boundary (Letta as a separate service) and made all six agents reach a shared state store through the same primitives.
+Both services moved from self-hosted Railway deployments to their managed clouds on 2026-05-17 (commits `ba0de9c` + `bfaeb46` for Mem0; `7e37e49` for Letta). The api-server auto-detects cloud vs self-hosted by hostname, so the cutover was an env-var flip rather than a code change. The shared-store API surface (`getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive`) is preserved so all six agents continued to work unchanged.
 
 A competitor without this memory architecture re-discovers the same patterns each cycle. Our agents do not.
 
@@ -285,7 +285,17 @@ Beyond the core CVI research agent, **five specialized autonomous agents** each 
 | **Peer-Coop Agent** | 30 min | Maintains the peer-benchmark cohorts and tracks which orgs are valid comparators per industry+size+region |
 | **Stack Optimizer Agent** | 30 min | Cost/latency optimizer for the LLM call graph — observes which model/route succeeded per task and writes recommendations into `agent_tuning` |
 
-Each agent has its own LangChain `createAgent` (ReactAgent v1) graph with inline `tool()` definitions, runs against the shared store, and has its system prompt evolved by the weekly optimizer above.
+Each agent has its own LangChain `createAgent` (ReactAgent v1) graph with inline `tool()` definitions, runs against the shared store, and **receives the daily Synthesis Agent brief + the top relevant Mem0 patterns injected into its system prompt before every cycle** — so each specialized agent starts from the cross-agent picture rather than reasoning in isolation.
+
+### 6.3c AI-First Reasoning Loop — Insights and Recommendations That Compound
+
+The architecture above is what makes the system *data-rich*. The AI-first upgrade that landed in May 2026 is what makes the system *intelligent in a way that compounds over time*.
+
+Briefly: insights now reason from **PostgreSQL CVI scores + Perplexity research + Mem0 historical patterns + Neo4j graph correlations + Synthesis Agent cross-agent brief**, not just the first two. Recommendations now traverse the dependency graph for **upstream blockers**, recall **validated and contradicted prior recommendations** from Mem0, and reflect a **daily synthesis** of what all five specialized agents found this cycle — not a static if/else lookup.
+
+A system running for six months with this architecture produces insights that are **qualitatively different** from what it produced on day one — not because the underlying models changed, but because the accumulated evidence base grew. That compounding is the core value proposition.
+
+**Full narrative + implementation status:** [`ai-first-impact.md`](ai-first-impact.md). Every component listed there is live in production as of 2026-05-17 (commits `4ae6de9` through the deferred-items follow-up).
 
 ### 6.4 The 10-Tab Analytical Toolkit Competitors Lack
 

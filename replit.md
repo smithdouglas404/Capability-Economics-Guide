@@ -68,10 +68,11 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
 ### Autonomous Agent
 - **Orchestration**: LangChain + LangGraph state machine.
 - **Nodes**: Evaluate, decide, research, compute, memorize, finalize.
-- **Memory**: Mem0 Cloud for persistent storage of observations and insights.
+- **Memory**: Mem0 Cloud (`api.mem0.ai`) for semantic recall; Letta Cloud (`api.letta.com`) for per-agent prior blocks and shared state.
 - **Decision Engine**: Evaluates data staleness, volatility, confidence, and memory patterns.
 - **Tools**: `perplexity_research`, `query_database`, `compute_cei`, `recall_memories`, `store_memory`.
-- **Scheduler**: Runs agent every 30 minutes.
+- **Scheduler**: Core agent every 30 min; 5 specialized agents every 30 min; Synthesis Agent daily; temporal-shift detector every 6h; memory-relation snapshot writer daily.
+- **AI-First Reasoning Loop**: Every insight + recommendation is grounded in Mem0 patterns + Neo4j correlations + the daily Synthesis Agent brief. See [`docs/ai-first-impact.md`](docs/ai-first-impact.md) for the causal chain from accumulated evidence to user-visible output.
 - **Real-time Events**: SSE for live agent activity.
 
 ### Capability Assessment (Enhanced)
@@ -88,8 +89,8 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
     - Perplexity API (for research, `PERPLEXITY_API_KEY`)
     - OpenRouter (chat-completions; `OPENROUTER_API_KEY`). Sonnet → Haiku → `z-ai/glm-5.1` fallback chain via `services/llm-fallback.ts`.
 - **Graph store**: Neo4j (wired into `services/agent/graphMemory.ts` with PostgreSQL fallback; `NEO4J_URI`/`NEO4J_USER`/`NEO4J_PASSWORD`)
-- **Memory**: Mem0 (self-hosted on Railway from `mem0/Dockerfile`; `MEM0_BASE_URL`/`MEM0_API_KEY`)
-- ~~**Stateful Agent Layer**: Letta~~ — DECOMMISSIONED in Phase 1.9 Step 6. Replaced by PostgresStore (shared agent store with namespaced reads/writes).
+- **Memory**: Mem0 Cloud at `api.mem0.ai` (`MEM0_BASE_URL=https://api.mem0.ai`, `MEM0_API_KEY=m0-…`). Self-hosted `mem0/Dockerfile` is kept as a break-glass fallback path; the Railway service was deleted 2026-05-17.
+- **Stateful Agent Layer**: Letta Cloud at `api.letta.com` (`LETTA_BASE_URL`, `LETTA_API_KEY`). Restored 2026-05-17 after the PostgresStore replacement was rejected. `services/agent/store.ts` is a Letta-backed adapter preserving the original namespace API.
 - **UI Frameworks/Libraries**:
     - `wouter` (client-side routing)
     - `framer-motion` (animations)
