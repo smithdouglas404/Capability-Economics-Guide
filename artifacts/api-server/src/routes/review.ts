@@ -11,6 +11,7 @@ import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
 import { decomposeCapability } from "../services/sub-capability-generator";
 import { logger } from "../lib/logger";
+import { runCapabilityReviewAssist } from "../services/dify/workflows";
 
 const router: IRouter = Router();
 
@@ -213,6 +214,25 @@ router.post("/review/:id/reject", async (req, res) => {
   }).where(and(eq(capabilitiesTable.id, id), eq(capabilitiesTable.reviewStatus, "pending_review")))
     .returning({ id: capabilitiesTable.id });
   if (updated.length === 0) { res.status(409).json({ error: "status changed concurrently" }); return; }
+
+  // Fire the Dify capability-review-assist workflow in parallel. Its callback
+  // writes structured revision_prompts to research_artifacts which the next
+  // fireDraftEnrichment pass picks up as guidance. Wrapped void so the
+  // response isn't blocked; legacy fireDraftEnrichment runs regardless.
+  void (async () => {
+    try {
+      const result = await runCapabilityReviewAssist({
+        capabilityId: id,
+        reviewerComment: comment,
+        currentDraft: JSON.stringify({ name: cap.name, description: cap.description, traditionalView: cap.traditionalView, economicView: cap.economicView }).slice(0, 8000),
+      });
+      if (result?.payload) {
+        logger.info({ capabilityId: id, confidence: result.payload.confidence }, "[review-assist] dify produced revision prompts");
+      }
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: id }, "[review-assist] dify failed");
+    }
+  })();
 
   fireDraftEnrichment(id, cap.industryId, comment);
 

@@ -224,3 +224,279 @@ export async function runListingModeration(
     rationale: o.rationale ?? "",
   };
 }
+
+// ── Tier Selector ────────────────────────────────────────────────────────
+
+export interface TierSelectorInput {
+  userId: string;
+  currentTier?: string | null;
+  query: string;
+  conversationId?: string;
+}
+
+export interface TierSelectorOutput {
+  answer: string;
+  conversationId: string;
+  recommendedTier?: "discovery" | "briefing" | "console" | "platform";
+  rationale?: string;
+}
+
+export async function runTierSelector(input: TierSelectorInput): Promise<TierSelectorOutput | null> {
+  const result = await runChatflow(
+    "tier-selector",
+    input.query,
+    { userId: input.userId, currentTier: input.currentTier ?? null },
+    { user: input.userId, conversationId: input.conversationId },
+  );
+  if (!result) return null;
+  const meta = (result.metadata ?? {}) as { tier?: TierSelectorOutput["recommendedTier"]; rationale?: string };
+  return { answer: result.answer, conversationId: result.conversation_id, recommendedTier: meta.tier, rationale: meta.rationale };
+}
+
+// ── Marketplace Search v2 ────────────────────────────────────────────────
+
+export interface MarketplaceSearchV2Input {
+  query: string;
+  userTier?: string;
+  filters?: Record<string, unknown>;
+  user: string;
+  conversationId?: string;
+}
+
+export interface MarketplaceSearchV2Output {
+  rankedListingIds: string[];
+  summary: string;
+  conversationId: string;
+}
+
+export async function runMarketplaceSearchV2(input: MarketplaceSearchV2Input): Promise<MarketplaceSearchV2Output | null> {
+  const result = await runChatflow(
+    "marketplace-search-v2",
+    input.query,
+    { query: input.query, userTier: input.userTier ?? null, filters: input.filters ?? {} },
+    { user: input.user, conversationId: input.conversationId },
+  );
+  if (!result) return null;
+  // The chatflow's final answer node emits a JSON block — parse it tolerantly.
+  let rankedListingIds: string[] = [];
+  let summary = result.answer;
+  try {
+    const m = result.answer.match(/\{[\s\S]*\}/);
+    if (m) {
+      const parsed = JSON.parse(m[0]) as { rankedListingIds?: string[]; summary?: string };
+      if (Array.isArray(parsed.rankedListingIds)) rankedListingIds = parsed.rankedListingIds.map(String);
+      if (typeof parsed.summary === "string") summary = parsed.summary;
+    }
+  } catch {
+    // Keep defaults — caller falls back to legacy retrieve() when ids are empty.
+  }
+  return { rankedListingIds, summary, conversationId: result.conversation_id };
+}
+
+// ── KYC Failure Counselor ────────────────────────────────────────────────
+
+export interface KycFailureCounselorInput {
+  verificationId: string;
+  declineReason: string;
+  kycLevel?: string;
+  query: string;
+  conversationId?: string;
+}
+
+export interface KycFailureCounselorOutput {
+  answer: string;
+  conversationId: string;
+  appealSubmitted?: boolean;
+}
+
+export async function runKycFailureCounselor(input: KycFailureCounselorInput): Promise<KycFailureCounselorOutput | null> {
+  const result = await runChatflow(
+    "kyc-failure-counselor",
+    input.query,
+    { verificationId: input.verificationId, declineReason: input.declineReason, kycLevel: input.kycLevel ?? null },
+    { user: `kyc-${input.verificationId}`, conversationId: input.conversationId },
+  );
+  if (!result) return null;
+  const meta = (result.metadata ?? {}) as { appealSubmitted?: boolean };
+  return { answer: result.answer, conversationId: result.conversation_id, appealSubmitted: meta.appealSubmitted };
+}
+
+// ── Payment Recovery ─────────────────────────────────────────────────────
+
+export interface PaymentRecoveryInput {
+  userId: string;
+  subscriptionId: string;
+  failureCode?: string;
+  query: string;
+  conversationId?: string;
+}
+
+export interface PaymentRecoveryOutput {
+  answer: string;
+  conversationId: string;
+  chosenAction?: "update_card" | "switch_method" | "downgrade" | "pause_1m" | "escalate";
+}
+
+export async function runPaymentRecovery(input: PaymentRecoveryInput): Promise<PaymentRecoveryOutput | null> {
+  const result = await runChatflow(
+    "payment-recovery",
+    input.query,
+    { userId: input.userId, subscriptionId: input.subscriptionId, failureCode: input.failureCode ?? null },
+    { user: input.userId, conversationId: input.conversationId },
+  );
+  if (!result) return null;
+  const meta = (result.metadata ?? {}) as { chosenAction?: PaymentRecoveryOutput["chosenAction"] };
+  return { answer: result.answer, conversationId: result.conversation_id, chosenAction: meta.chosenAction };
+}
+
+// ── Generic workflow wrappers ────────────────────────────────────────────
+// The remaining workflows are non-chat and emit a single `payload` object
+// that the route handler just relays. One generic helper keeps the per-
+// workflow wrappers tight.
+
+interface GenericWorkflowOutput<T = Record<string, unknown>> {
+  status: "ok" | "degraded" | "succeeded" | "failed";
+  payload: T;
+  raw: unknown;
+}
+
+async function runGenericWorkflow<T = Record<string, unknown>>(
+  slug: string,
+  inputs: Record<string, unknown>,
+  user: string,
+): Promise<GenericWorkflowOutput<T> | null> {
+  const result = await runWorkflow(slug, inputs, { user });
+  if (!result) return null;
+  if (result.data.status !== "succeeded" || !result.data.outputs) return null;
+  const out = result.data.outputs as { payload?: T; status?: GenericWorkflowOutput["status"] };
+  return {
+    status: out.status ?? "succeeded",
+    payload: (out.payload ?? {}) as T,
+    raw: result.data.outputs,
+  };
+}
+
+export interface CapabilityReviewAssistInput {
+  capabilityId: number;
+  reviewerComment: string;
+  currentDraft: string;
+}
+
+export interface CapabilityReviewAssistPayload {
+  summary?: string;
+  prompts?: { perplexityFollowup?: string | null; narrativeRevisions?: string[]; metricRevisions?: string[] };
+  confidence?: number;
+}
+
+export async function runCapabilityReviewAssist(input: CapabilityReviewAssistInput): Promise<GenericWorkflowOutput<CapabilityReviewAssistPayload> | null> {
+  return runGenericWorkflow<CapabilityReviewAssistPayload>("capability-review-assist", input as unknown as Record<string, unknown>, `cap-${input.capabilityId}`);
+}
+
+export interface ResearchPipelineInput {
+  capabilityId?: number;
+  kind: "quadrant" | "alpha" | "value_chain" | "generic";
+  prompt: string;
+}
+
+export async function runResearchPipeline(input: ResearchPipelineInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "research-pipeline",
+    input as unknown as Record<string, unknown>,
+    input.capabilityId != null ? `cap-${input.capabilityId}` : "research",
+  );
+}
+
+export async function runSynthesisBriefComposer(): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow("synthesis-brief-composer", {}, "synthesis-cron");
+}
+
+export interface AssessmentAnalyzerInput {
+  sessionId: string;
+  phase: "start" | "analyze";
+  industryName: string;
+  orgContext?: Record<string, unknown>;
+  responses?: Record<string, unknown>;
+}
+
+export async function runAssessmentAnalyzer(input: AssessmentAnalyzerInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "assessment-analyzer",
+    {
+      sessionId: input.sessionId,
+      phase: input.phase,
+      industryName: input.industryName,
+      orgContext: JSON.stringify(input.orgContext ?? {}),
+      responses: JSON.stringify(input.responses ?? {}),
+    },
+    `assess-${input.sessionId}`,
+  );
+}
+
+export interface IndustryBootstrapInput {
+  industryName: string;
+  seedPrompt?: string;
+}
+
+export async function runIndustryBootstrap(input: IndustryBootstrapInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "industry-bootstrap",
+    { industryName: input.industryName, seedPrompt: input.seedPrompt ?? "" },
+    `industry-bootstrap-${input.industryName}`,
+  );
+}
+
+export interface CaseStudyGeneratorInput {
+  caseStudyId: number;
+  industryName: string;
+  currentText: string;
+}
+
+export async function runCaseStudyGenerator(input: CaseStudyGeneratorInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "case-study-generator",
+    input as unknown as Record<string, unknown>,
+    `case-study-${input.caseStudyId}`,
+  );
+}
+
+export interface CapabilityEnrichmentRetryInput {
+  capabilityId: number;
+  currentDraft: string;
+  lastError?: string;
+  attempt?: number;
+}
+
+export async function runCapabilityEnrichmentRetry(input: CapabilityEnrichmentRetryInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "capability-enrichment-retry",
+    {
+      capabilityId: input.capabilityId,
+      currentDraft: input.currentDraft,
+      lastError: input.lastError ?? "",
+      attempt: input.attempt ?? 1,
+    },
+    `cap-${input.capabilityId}-retry`,
+  );
+}
+
+export interface AdminConfigProposerInput {
+  configArea: "economic_rules" | "agent_tuning" | "enrichment_config" | "source_quality" | "bot_config";
+  currentValues: Record<string, unknown>;
+  recentOutcomes: Record<string, unknown>;
+  targetKey?: string;
+  triggeredBy: string;
+}
+
+export async function runAdminConfigProposer(input: AdminConfigProposerInput): Promise<GenericWorkflowOutput | null> {
+  return runGenericWorkflow(
+    "admin-config-proposer",
+    {
+      configArea: input.configArea,
+      currentValues: JSON.stringify(input.currentValues),
+      recentOutcomes: JSON.stringify(input.recentOutcomes),
+      targetKey: input.targetKey ?? "",
+      triggeredBy: input.triggeredBy,
+    },
+    `admin-${input.triggeredBy}`,
+  );
+}

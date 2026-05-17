@@ -12,8 +12,21 @@ import {
 } from "@workspace/db";
 import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
+import { runResearchPipeline } from "../dify/workflows";
 
 interface PerplexityResult { content: string; sources: string[]; }
+
+/**
+ * Delegate to the Dify research-pipeline workflow when
+ * DIFY_RESEARCH_PIPELINE_ENABLED=1. Returns null on workflow failure so the
+ * caller falls back to the inline Perplexity + Sonnet path. Each runner here
+ * can short-circuit at the top of its function with this helper.
+ */
+async function tryDifyAlphaResearch(capabilityId: number, prompt: string): Promise<Record<string, unknown> | null> {
+  const result = await runResearchPipeline({ capabilityId, kind: "alpha", prompt }).catch(() => null);
+  if (!result || result.status === "degraded") return null;
+  return result.payload as Record<string, unknown>;
+}
 
 async function perplexity(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;

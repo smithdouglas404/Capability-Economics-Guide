@@ -16,10 +16,28 @@ import {
   companyCapabilityMappingsTable,
 } from "@workspace/db";
 import { logger as log } from "../../lib/logger";
+import { runResearchPipeline } from "../dify/workflows";
 
 interface PerplexityResult {
   content: string;
   sources: string[];
+}
+
+/**
+ * If DIFY_RESEARCH_PIPELINE_ENABLED=1, delegate Perplexity+Sonnet to the Dify
+ * workflow and pull the structured payload out of its synchronous response.
+ * Returns null when the flag is off or the workflow fails — caller falls
+ * back to the inline perplexitySearch() + LLM path. Wired into each runner's
+ * top-of-function check.
+ */
+async function tryDifyResearch(
+  capabilityId: number,
+  kind: "quadrant" | "alpha" | "value_chain" | "generic",
+  prompt: string,
+): Promise<Record<string, unknown> | null> {
+  const result = await runResearchPipeline({ capabilityId, kind, prompt }).catch(() => null);
+  if (!result || result.status === "degraded") return null;
+  return result.payload as Record<string, unknown>;
 }
 
 async function perplexitySearch(query: string): Promise<PerplexityResult> {

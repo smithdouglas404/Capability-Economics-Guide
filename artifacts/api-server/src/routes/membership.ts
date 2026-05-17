@@ -16,6 +16,7 @@ import { createInvoice as createNowPaymentsInvoice, isNowPaymentsConfigured } fr
 import { checkKycForTier } from "../middlewares/requireTier";
 import { logAdminAction } from "../services/audit-log";
 import { getClerkUserSummaries, getClerkUserSummary } from "../services/clerk-user";
+import { runTierSelector, runPaymentRecovery } from "../services/dify/workflows";
 import {
   sendWelcomeEmail,
   sendApprovalEmail,
@@ -292,6 +293,77 @@ router.get("/me/membership", async (req, res) => {
   const m = rows[0]!;
   const [tier] = await db.select().from(membershipTiersTable).where(eq(membershipTiersTable.id, m.tierId));
   res.json({ membership: m, tier: tier ?? null });
+});
+
+/**
+ * Conversational tier-recommendation endpoint backed by the Dify
+ * `tier-selector` chatflow. Gated on DIFY_TIER_SELECTOR_ENABLED=1 — if the
+ * workflow is off, returns 503 so the frontend can fall back to the static
+ * tier cards. Threads on conversationId so multi-turn dialogue works.
+ */
+const TierSelectorBody = z.object({
+  query: z.string().min(1).max(2000),
+  conversationId: z.string().optional(),
+});
+router.post("/me/membership/concierge", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const parsed = TierSelectorBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [current] = await db
+    .select({ slug: membershipTiersTable.slug })
+    .from(userMembershipsTable)
+    .leftJoin(membershipTiersTable, eq(membershipTiersTable.id, userMembershipsTable.tierId))
+    .where(and(eq(userMembershipsTable.userId, auth.userId), eq(userMembershipsTable.status, "active")))
+    .limit(1);
+
+  const result = await runTierSelector({
+    userId: auth.userId,
+    currentTier: current?.slug ?? null,
+    query: parsed.data.query,
+    conversationId: parsed.data.conversationId,
+  });
+  if (!result) { res.status(503).json({ error: "Tier selector workflow unavailable" }); return; }
+  res.json(result);
+});
+
+/**
+ * Conversational payment-recovery endpoint. Frontend opens this when a user
+ * lands with a past_due / unpaid subscription. Stripe webhook handles the
+ * dunning email + past_due flag separately — this just helps the user pick
+ * a rescue path. Gated on DIFY_PAYMENT_RECOVERY_ENABLED=1.
+ */
+const PaymentRecoveryBody = z.object({
+  query: z.string().min(1).max(2000),
+  conversationId: z.string().optional(),
+});
+router.post("/me/payment-recovery", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const parsed = PaymentRecoveryBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+
+  const [past] = await db
+    .select({ subId: userMembershipsTable.stripeSubscriptionId, paymentStatus: userMembershipsTable.paymentStatus })
+    .from(userMembershipsTable)
+    .where(and(eq(userMembershipsTable.userId, auth.userId), eq(userMembershipsTable.status, "active")))
+    .orderBy(desc(userMembershipsTable.requestedAt))
+    .limit(1);
+  if (!past?.subId) { res.status(404).json({ error: "No active subscription" }); return; }
+  if (past.paymentStatus !== "past_due" && past.paymentStatus !== "unpaid") {
+    res.status(409).json({ error: `Payment recovery only available for past_due/unpaid (current: ${past.paymentStatus})` });
+    return;
+  }
+
+  const result = await runPaymentRecovery({
+    userId: auth.userId,
+    subscriptionId: past.subId,
+    query: parsed.data.query,
+    conversationId: parsed.data.conversationId,
+  });
+  if (!result) { res.status(503).json({ error: "Payment recovery workflow unavailable" }); return; }
+  res.json(result);
 });
 
 router.post("/me/membership/request", async (req, res) => {

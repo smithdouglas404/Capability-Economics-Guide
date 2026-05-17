@@ -4,6 +4,7 @@ import { kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { runKycFailureCounselor } from "../services/dify/workflows";
 import {
   sendEmailOtp,
   verifyEmailOtp,
@@ -78,6 +79,43 @@ router.get("/kyc/status", async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// ── KYC Failure Counselor (Dify-backed) ──
+//
+// The frontend shows a "Talk to the counselor" CTA on any declined-KYC screen.
+// This route proxies to the kyc-failure-counselor Dify chatflow. The
+// counselor captures a structured appeal — it does NOT override the decline.
+// Disabled by default; flip DIFY_KYC_FAILURE_COUNSELOR_ENABLED=1 to turn on.
+router.post("/kyc/:verificationId/counselor", async (req, res) => {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) { res.status(401).json({ error: "Authentication required" }); return; }
+  const verificationId = req.params.verificationId;
+  const query = typeof req.body?.query === "string" ? req.body.query.trim() : "";
+  if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+  const [verification] = await db
+    .select()
+    .from(kycVerificationsTable)
+    .where(and(eq(kycVerificationsTable.id, Number(verificationId)), eq(kycVerificationsTable.userId, userId)))
+    .limit(1);
+  if (!verification) { res.status(404).json({ error: "Verification not found" }); return; }
+  if (verification.status !== "declined") {
+    res.status(409).json({ error: `Counselor only available for declined verifications (current: ${verification.status})` });
+    return;
+  }
+
+  const declineReason = (verification.declineReasons ?? [])[0] ?? "unspecified";
+  const result = await runKycFailureCounselor({
+    verificationId: String(verification.id),
+    declineReason,
+    kycLevel: verification.kycLevel ?? undefined,
+    query,
+    conversationId: typeof req.body?.conversationId === "string" ? req.body.conversationId : undefined,
+  });
+  if (!result) { res.status(503).json({ error: "KYC counselor unavailable" }); return; }
+  res.json(result);
 });
 
 // ── Start KYC for a tier ──

@@ -12,6 +12,7 @@ import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/
 import { getClerkUserSummary } from "../services/clerk-user";
 import { upsertMarketplaceListingToDify, removeMarketplaceListingFromDify } from "../services/dify/sync";
 import { retrieve as difyRetrieve, isDifyAvailable, getMarketplaceDatasetId } from "../services/dify/client";
+import { runMarketplaceSearchV2, runListingModeration } from "../services/dify/workflows";
 
 const router: IRouter = Router();
 
@@ -103,6 +104,32 @@ router.get("/marketplace/listings/search", async (req, res) => {
     featuredUntil: marketplaceListingsTable.featuredUntil,
     approvedAt: marketplaceListingsTable.approvedAt,
   };
+
+  // Dify Chatflow v2 path — intent parse + KB retrieve + Haiku rerank. Gated
+  // on DIFY_MARKETPLACE_SEARCH_V2_ENABLED=1. Falls through to direct retrieve
+  // below if disabled or returns no ids (legacy path is the safe fallback).
+  const auth = getAuth(req);
+  const userTag = auth?.userId ?? `anon-${req.ip ?? "unknown"}`;
+  const v2 = await runMarketplaceSearchV2({ query: q, user: userTag }).catch(() => null);
+  if (v2 && v2.rankedListingIds.length > 0) {
+    const numericIds = v2.rankedListingIds.map((s) => Number(s)).filter((n) => Number.isFinite(n));
+    if (numericIds.length > 0) {
+      const rows = await db
+        .select(baseSelect)
+        .from(marketplaceListingsTable)
+        .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+        .where(and(
+          eq(marketplaceListingsTable.status, "approved"),
+          inArray(marketplaceListingsTable.id, numericIds),
+          or(isNull(marketplaceListingsTable.expiresAt), gt(marketplaceListingsTable.expiresAt, sql`now()`)),
+        ));
+      // Preserve Dify's rerank order.
+      const orderIndex = new Map(numericIds.map((id, idx) => [id, idx]));
+      const sorted = rows.sort((a, b) => (orderIndex.get(a.id) ?? 99) - (orderIndex.get(b.id) ?? 99));
+      res.json({ listings: sorted, source: "dify-v2", query: q, summary: v2.summary });
+      return;
+    }
+  }
 
   // Dify RAG path — semantic search via the marketplace-listings KB.
   const datasetId = getMarketplaceDatasetId();
@@ -358,6 +385,28 @@ router.post("/marketplace/listings/:id/submit", async (req, res) => {
     rejectionReason: null,
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id)).returning();
+
+  // Fire the listing-moderation Dify workflow in parallel — its callback
+  // writes `moderation_hints` JSONB on the listing for the manual reviewer's
+  // dashboard. Advisory only; the human queue stays authoritative. Wrapped
+  // in a void-promise so it doesn't block the response.
+  void (async () => {
+    try {
+      const result = await runListingModeration({
+        listingId: id,
+        title: existing.title,
+        description: existing.description ?? "",
+        sellerHistory: undefined, // TODO: enrich with seller history if useful
+        pdfText: undefined,       // TODO: pipe extracted PDF text when available
+      });
+      if (result) {
+        logger.info({ listingId: id, verdict: result.verdict, confidence: result.confidence }, "[marketplace] dify moderation verdict");
+      }
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: id }, "[marketplace] dify moderation failed");
+    }
+  })();
+
   res.json({ listing: updated });
 });
 

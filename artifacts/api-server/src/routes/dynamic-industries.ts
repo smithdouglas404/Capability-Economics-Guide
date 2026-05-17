@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { runIndustryBootstrap } from "../services/dify/workflows";
 
 const router: IRouter = Router();
 
@@ -113,14 +114,27 @@ router.post("/industries", requireAdmin, async (req, res) => {
     return;
   }
 
+  // Dify path — delegate Perplexity+Sonnet to the industry-bootstrap workflow.
+  // Returns a structured payload directly (the workflow's callback writes to
+  // research_artifacts AND emits the payload as a workflow output, so we get
+  // a synchronous shape we can shove into the existing insert path).
   let research: { content: string; citations: string[] };
-  try {
-    research = await callPerplexity(
-      `What are the 6-8 most economically critical capabilities for the ${name} industry in 2025-2026? For each capability, give: a short name (2-4 words), a one-sentence description, the typical maturity benchmark on a 0-100 scale (cite analyst sources), and the traditional vs economic view. Reply with sources.`,
-    );
-  } catch (err) {
-    res.status(502).json({ error: "Research call failed", details: String(err) });
-    return;
+  const difyBootstrap = await runIndustryBootstrap({ industryName: name }).catch(() => null);
+  if (difyBootstrap?.payload && (difyBootstrap.payload as { capabilities?: unknown }).capabilities) {
+    const p = difyBootstrap.payload as { capabilities: Array<Record<string, unknown>>; citations?: Array<{ url: string; title?: string }> };
+    research = {
+      content: JSON.stringify(p.capabilities),
+      citations: (p.citations ?? []).map(c => c.url).filter(Boolean),
+    };
+  } else {
+    try {
+      research = await callPerplexity(
+        `What are the 6-8 most economically critical capabilities for the ${name} industry in 2025-2026? For each capability, give: a short name (2-4 words), a one-sentence description, the typical maturity benchmark on a 0-100 scale (cite analyst sources), and the traditional vs economic view. Reply with sources.`,
+      );
+    } catch (err) {
+      res.status(502).json({ error: "Research call failed", details: String(err) });
+      return;
+    }
   }
 
   const prompt = `Based on the research below, produce a JSON array of 6-8 capabilities for the ${name} industry.

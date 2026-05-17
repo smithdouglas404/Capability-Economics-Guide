@@ -26,6 +26,8 @@ import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-signals/detector";
 import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
+import { runCapabilityEnrichmentRetry, runAdminConfigProposer } from "../services/dify/workflows";
+import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -227,6 +229,68 @@ router.post("/admin/backfill-ai-narratives", async (req, res) => {
 
 router.get("/admin/backfill-ai-narratives/status", (_req, res) => {
   res.json(aiBackfillState);
+});
+
+/**
+ * Dify-backed surgical retry for a single capability whose enrichment has
+ * been failing. Routes through the capability-enrichment-retry workflow
+ * which has per-step retries + schema validation + an explicit "degraded"
+ * branch so the caller knows when to fall back. Gated on
+ * DIFY_CAPABILITY_ENRICHMENT_RETRY_ENABLED=1.
+ */
+router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res) => {
+  const id = Number(req.params.capabilityId);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "bad capabilityId" }); return; }
+  const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.id, id));
+  if (!cap) { res.status(404).json({ error: "capability not found" }); return; }
+
+  const draft = JSON.stringify({
+    name: cap.name,
+    description: cap.description,
+    traditionalView: cap.traditionalView,
+    economicView: cap.economicView,
+  });
+
+  const result = await runCapabilityEnrichmentRetry({
+    capabilityId: id,
+    currentDraft: draft,
+    lastError: cap.enrichmentError ?? undefined,
+    attempt: 1,
+  }).catch(() => null);
+
+  if (!result) { res.status(503).json({ error: "Dify enrichment-retry workflow unavailable" }); return; }
+  res.json({ status: result.status, payload: result.payload });
+});
+
+/**
+ * Dify-backed admin config proposer. Takes the current values for a config
+ * area (economic_rules / agent_tuning / enrichment_config / source_quality /
+ * bot_config) and recent outcomes, asks the LLM to propose adjustments, and
+ * routes proposals through the existing /admin/agent/proposals HITL queue.
+ * Gated on DIFY_ADMIN_CONFIG_PROPOSER_ENABLED=1.
+ */
+router.post("/admin/config-propose", async (req, res) => {
+  const body = (req.body ?? {}) as {
+    configArea?: "economic_rules" | "agent_tuning" | "enrichment_config" | "source_quality" | "bot_config";
+    currentValues?: Record<string, unknown>;
+    recentOutcomes?: Record<string, unknown>;
+    targetKey?: string;
+    triggeredBy?: string;
+  };
+  if (!body.configArea) { res.status(400).json({ error: "configArea required" }); return; }
+  if (!body.currentValues) { res.status(400).json({ error: "currentValues required" }); return; }
+  if (!body.recentOutcomes) { res.status(400).json({ error: "recentOutcomes required" }); return; }
+
+  const result = await runAdminConfigProposer({
+    configArea: body.configArea,
+    currentValues: body.currentValues,
+    recentOutcomes: body.recentOutcomes,
+    targetKey: body.targetKey,
+    triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
+  }).catch(() => null);
+
+  if (!result) { res.status(503).json({ error: "Dify admin-config-proposer workflow unavailable" }); return; }
+  res.json({ status: result.status, payload: result.payload });
 });
 
 router.get("/admin/models", (_req, res) => {
