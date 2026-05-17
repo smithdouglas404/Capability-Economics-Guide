@@ -20,6 +20,7 @@ import { runDigestSweep } from "../digest";
 import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
+import { workflowSchedulerTick } from "../bots/workflows/scheduler";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
@@ -101,6 +102,8 @@ let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
+let botWorkflowTimer: ReturnType<typeof setInterval> | null = null;
+let isBotWorkflowTicking = false;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
@@ -431,6 +434,21 @@ async function ceiSignalsTick(): Promise<void> {
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
  */
+async function botWorkflowTick(): Promise<void> {
+  if (isBotWorkflowTicking) return;
+  isBotWorkflowTicking = true;
+  try {
+    const r = await workflowSchedulerTick();
+    if (r.dispatched > 0) {
+      console.log(`[wf-scheduler] dispatched ${r.dispatched} workflows (${r.workflowKeysDue.join(", ")}), skipped ${r.skipped}`);
+    }
+  } catch (err) {
+    console.warn("[wf-scheduler] tick failed:", err instanceof Error ? err.message : err);
+  } finally {
+    isBotWorkflowTicking = false;
+  }
+}
+
 async function botLoopTick(): Promise<void> {
   if (isBotTicking) {
     console.log("[Bots] Skipping tick — previous tick still in progress");
@@ -545,6 +563,10 @@ export function startScheduler(): void {
   worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
   digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
   botLoopTimer = setInterval(() => botLoopTick(), BOT_LOOP_INTERVAL_MS);
+  // Bot workflow scheduler — dispatches multi-step LangGraph workflows
+  // (per-persona weekly cycles, cross-bot system workflows) when their
+  // cadence window has elapsed. Distinct from the bot action loop above.
+  botWorkflowTimer = setInterval(() => botWorkflowTick(), 30 * 60 * 1000);
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);

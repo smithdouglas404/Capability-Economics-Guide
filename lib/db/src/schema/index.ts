@@ -20,6 +20,7 @@ export * from "./alpha";
 export * from "./alpha-config";
 export * from "./agent-tuning";
 export * from "./bots";
+export * from "./bot-workflows";
 export * from "./credit-packs";
 export * from "./sec-filings";
 export * from "./peer-benchmarks";

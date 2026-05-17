@@ -502,4 +502,69 @@ router.get("/admin/bots/:id/budget", async (req, res) => {
   }
 });
 
+// ── Bot workflow admin routes ──────────────────────────────────────────
+
+router.get("/admin/bot-workflows", async (_req, res) => {
+  try {
+    const { getRegistry } = await import("../services/bots/workflows/registry");
+    const reg = getRegistry();
+    const definitions = Array.from(reg.values()).map((w) => ({
+      key: w.key,
+      label: w.label,
+      cadence: w.cadence,
+      scope: w.scope,
+      appliesToPersonas: w.appliesToPersonas,
+      description: w.description,
+      estimatedCostCents: w.estimatedCostCents,
+    }));
+    // Recent runs (limit 50).
+    const { db } = await import("@workspace/db");
+    const { botWorkflowRunsTable } = await import("@workspace/db");
+    const { desc } = await import("drizzle-orm");
+    const recent = await db.select().from(botWorkflowRunsTable).orderBy(desc(botWorkflowRunsTable.startedAt)).limit(50);
+    res.json({ definitions, recentRuns: recent });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to list workflows" });
+  }
+});
+
+router.post("/admin/bot-workflows/trigger", async (req, res) => {
+  try {
+    const workflowKey: unknown = req.body?.workflowKey;
+    const botId: unknown = req.body?.botId;
+    if (typeof workflowKey !== "string") {
+      res.status(400).json({ error: "workflowKey required" });
+      return;
+    }
+    const resolvedBotId = typeof botId === "number" ? botId : null;
+    const { manuallyTriggerWorkflow } = await import("../services/bots/workflows/scheduler");
+    const result = await manuallyTriggerWorkflow(workflowKey, resolvedBotId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "failed to trigger workflow" });
+  }
+});
+
+router.get("/admin/bot-workflows/:runId", async (req, res) => {
+  try {
+    const runId = Number(req.params.runId);
+    if (!Number.isFinite(runId)) {
+      res.status(400).json({ error: "invalid run id" });
+      return;
+    }
+    const { db } = await import("@workspace/db");
+    const { botWorkflowRunsTable, botWorkflowStepsTable } = await import("@workspace/db");
+    const { eq, asc } = await import("drizzle-orm");
+    const [run] = await db.select().from(botWorkflowRunsTable).where(eq(botWorkflowRunsTable.id, runId));
+    if (!run) {
+      res.status(404).json({ error: "run not found" });
+      return;
+    }
+    const steps = await db.select().from(botWorkflowStepsTable).where(eq(botWorkflowStepsTable.runId, runId)).orderBy(asc(botWorkflowStepsTable.stepIndex));
+    res.json({ run, steps });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "failed to fetch run" });
+  }
+});
+
 export default router;
