@@ -109,9 +109,15 @@ export async function detectTemporalShifts(industryId?: number): Promise<Tempora
     const ageInMs = now.getTime() - rel.firstObservedAt.getTime();
     const ageInDays = Math.max(1, ageInMs / (1000 * 60 * 60 * 24));
 
-    // Estimate initial weight: assume weight grew linearly from 0.1 (minimum seed)
-    // to current weight over the observation period.
-    // This is a heuristic — in a fully instrumented system you'd store snapshots.
+    // SAFETY: The "baseline weight 30 days ago" below is a FICTIONAL value.
+    // We assume the weight grew linearly from a hardcoded 0.1 to its current
+    // value over the relationship's lifetime, then project backwards. Real
+    // historical snapshots of relation weight are NOT stored anywhere — the
+    // next step toward an honest momentum signal is recording a
+    // (relation_id, weight, snapshot_at) timeseries in a new table and
+    // computing momentum from that. Until then, treat the momentum output
+    // here as a directional hint, not as a quantitative claim. See plan file
+    // for full discussion (item #11 in the code review).
     const initialWeight = 0.1;
     const weightVelocityPerDay = (rel.weight - initialWeight) / ageInDays;
 

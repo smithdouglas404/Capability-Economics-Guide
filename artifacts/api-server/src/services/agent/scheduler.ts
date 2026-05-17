@@ -111,7 +111,6 @@ let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
 let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
 let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
 let synthesisAgentTimer: ReturnType<typeof setInterval> | null = null;
-let foundryTokenCheckTimer: ReturnType<typeof setInterval> | null = null;
 let temporalShiftTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
@@ -593,13 +592,12 @@ export function startScheduler(): void {
   setTimeout(() => edgarRssTick(), 240_000);
   // CVI signals detector — 5 min stagger, then daily.
   setTimeout(() => ceiSignalsTick(), 300_000);
-  // Foundry token expiry check — every 30 minutes.
-  const FOUNDRY_TOKEN_CHECK_MS = 30 * 60 * 1000;
-  foundryTokenCheckTimer = setInterval(() => {
-    foundryTokenExpiryCheck().catch(err =>
-      console.warn("[Agent] Foundry token expiry check failed:", err instanceof Error ? err.message : err),
-    );
-  }, FOUNDRY_TOKEN_CHECK_MS);
+  // Foundry token expiry check: scheduler hook reserved. The
+  // `foundryTokenExpiryCheck` helper that this block tried to call was never
+  // implemented or imported — wiring it would require building the helper
+  // against `system_secrets` + `ADMIN_NOTIFY_EMAIL` per CLAUDE.md's Foundry
+  // token rotation contract. Removed so the api-server typechecks; re-add the
+  // setInterval when the helper exists.
   // Temporal shift detection — every 6 hours.
   // Detects accelerating/reversing capability relationships by comparing
   // current graph weights against 30-day baselines. High-signal shifts are
@@ -647,7 +645,6 @@ export function stopScheduler(): void {
   if (stackOptimizerAgentTimer) { clearInterval(stackOptimizerAgentTimer); stackOptimizerAgentTimer = null; }
   if (ontologyAgentTimer) { clearInterval(ontologyAgentTimer); ontologyAgentTimer = null; }
   if (synthesisAgentTimer) { clearInterval(synthesisAgentTimer); synthesisAgentTimer = null; }
-  if (foundryTokenCheckTimer) { clearInterval(foundryTokenCheckTimer); foundryTokenCheckTimer = null; }
   if (temporalShiftTimer) { clearInterval(temporalShiftTimer); temporalShiftTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();

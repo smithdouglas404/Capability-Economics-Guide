@@ -79,10 +79,10 @@ Key files:
 - `graph.ts` — LangGraph nodes, state transitions
 - `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cvi, recall_memories, store_memory)
 - `memory.ts` — Mem0 Cloud client with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking cloud ↔ local rows; `getAllMemories` dedupes on that.
-- `store.ts` — PostgresStore (LangMem-equivalent) singleton + namespace helpers (`NS.*`) + agent-prior helpers (`getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive`). **Forward path for everything Letta used to do** — replaced in Phase 1.9.
+- `store.ts` — **Letta Cloud-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the 5 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology) work unchanged. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — RESTORED (via Letta Cloud)` below for the full story.
 - `events.ts` — in-process pub/sub for SSE.
 
-Both integrations (Mem0, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `PERPLEXITY_API_KEY`. **Letta has been removed** — see the `### Letta — DECOMMISSIONED` section below for history; do not re-add a Letta dependency.
+All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `LETTA_API_KEY` / `PERPLEXITY_API_KEY`. **Letta is on Letta Cloud, not removed** — see `### Letta — RESTORED (via Letta Cloud)` below.
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
@@ -155,7 +155,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 ### Required environment variables
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
-- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer + the 5 specialized agents — cron silently skips if missing). `LETTA_*` env vars are no longer used (Letta was decommissioned in Phase 1.9 Step 6).
+- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (cloud at `https://api.mem0.ai`), `LETTA_BASE_URL` + `LETTA_API_KEY` (cloud at `https://api.letta.com`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
 
@@ -194,37 +194,39 @@ Both honor `DRY_RUN=1`, skip if `NEO4J_URI` is unset.
 - `gh` and `railway` CLI **cannot be authenticated from within a Claude Code session** without user-supplied tokens. If a task requires either, ask the user to either (a) paste a fresh token as `export RAILWAY_API_TOKEN=…` / `export GH_TOKEN=…` in the same shell, or (b) move the work to desktop Claude Code.
 
 **Working around missing CLI auth — diagnostics that don't need it:**
-- Prod health: `curl https://inflexcvi-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`).
-- ~~Direct Letta queries~~ — Letta was decommissioned in Phase 1.9 Step 6. Any `LETTA_*` env vars left in `/run/replit/env/latest` are dead.
-- Direct Mem0 queries: same caveat. Header is `X-API-Key`, not `Authorization: Bearer` — see Mem0 section below.
+- Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`). The Railway service is named `capabilityeconomics`, not `inflexcvi` — older notes have the wrong subdomain.
+- Direct Letta queries: `curl https://api.letta.com/... -H "Authorization: Bearer <LETTA_API_KEY>"` works against Letta Cloud. Local `LETTA_*` values in `/run/replit/env/latest` are stale (they point at the now-deleted self-hosted Letta service) — use the Railway `capabilityeconomics` service variables as the truth.
+- Direct Mem0 queries: `curl https://api.mem0.ai/v1/memories/ -H "Authorization: Token <m0-…>"`. Cloud uses the legacy `Token` scheme, NOT `Bearer`. Local `MEM0_BASE_URL` in `/run/replit/env/latest` is also stale (points at the self-hosted service).
 
 When the user says "you have access to Railway," verify before agreeing — `railway whoami` is the only honest signal.
 
-**Railway access from a Claude shell — use GraphQL, not the CLI.** Ask the user for a project-scoped token (Railway dashboard → project Settings → Tokens, UUID format). Send as header `Project-Access-Token: <uuid>` (NOT `Authorization: Bearer`; the account-scoped `RAILWAY_API_TOKEN` does not work on this endpoint). Endpoint: `https://backboard.railway.com/graphql/v2`.
+**Railway access from a Claude shell — use GraphQL, not the CLI.** Ask the user for a project-scoped token (Railway dashboard → project Settings → Tokens, UUID format). Send as header `Project-Access-Token: <uuid>` (NOT `Authorization: Bearer`; the account-scoped `RAILWAY_API_TOKEN` does not work on this endpoint). Endpoint: `https://backboard.railway.app/graphql/v2` — note the `.app` TLD; `.com` returns "Project Token not found" even with a valid token.
+
+Alternative: the Railway CLI works once `RAILWAY_TOKEN=<uuid>` is exported (project-token mode bypasses the interactive login that `--browserless` requires). `railway status` confirms project/environment immediately; `railway variables --service <name>` lists a service's vars. Useful when GraphQL feels heavy.
 
 Discovery query (returns projectId, environmentId, and all services with IDs):
 ```bash
-curl -s -X POST https://backboard.railway.com/graphql/v2 \
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
   -H "Project-Access-Token: $TOKEN" -H "Content-Type: application/json" \
   -d '{"query":"query { projectToken { projectId environmentId project { name services { edges { node { id name } } } } } }"}'
 ```
 
 List a service's variables (returns `{KEY: VALUE}` — strip values before logging):
 ```bash
-curl -s -X POST https://backboard.railway.com/graphql/v2 \
+curl -s -X POST https://backboard.railway.app/graphql/v2 \
   -H "Project-Access-Token: $TOKEN" -H "Content-Type: application/json" \
   -d '{"query":"query Vars($p:String!,$e:String!,$s:String!){variables(projectId:$p,environmentId:$e,serviceId:$s)}","variables":{"p":"<projectId>","e":"<envId>","s":"<serviceId>"}}'
 ```
 
-Inflexcvi project IDs (verify via discovery query before relying on them — services get renamed):
+Project IDs (verify via discovery query before relying on them — services get renamed; project itself is named **"Capability Economics"** in Railway, not "Inflexcvi"):
 - projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
 - production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
-- service `inflexcvi` (api-server, formerly `capabilityeconomics` in Railway dashboard — id stays the same across rename): `f4585a12-c207-4faa-9171-5362997768ec`
-- service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
+- service `capabilityeconomics` (the api-server — name was NOT renamed to `inflexcvi` as earlier notes implied): `f4585a12-c207-4faa-9171-5362997768ec`
+- service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711` — **self-hosted, now unused** since the cloud cutover (2026-05-17). Safe to delete; the api-server points at `https://api.mem0.ai` and the local-DB fallback in `services/agent/memory.ts` handles any old residual reference paths. The paired `pgvector` service backed only this Mem0 deployment and is also delete-safe.
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
-- service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c`
-- service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199` — **now wired** into `graphMemory.ts` as the primary graph traversal engine. Set `NEO4J_URI=bolt://neo4j.railway.internal:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD` on the api-server service to activate. Falls back to PostgreSQL automatically when env vars are absent.
-- ~~service `letta-2EOT`~~ — DECOMMISSIONED in Phase 1.9 Step 6. Delete from Railway dashboard if it's still around.
+- service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c` — only used by the (now-unused) self-hosted Mem0 service. Delete together with Mem0.
+- service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199` — **wired** into `graphMemory.ts` as the primary graph traversal engine. Set `NEO4J_URI=bolt://neo4j.railway.internal:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD` on the api-server service to activate. Falls back to PostgreSQL automatically when env vars are absent.
+- Letta service: already deleted from Railway (Letta now runs on Letta Cloud — see `### Letta — RESTORED (via Letta Cloud)` below).
 
 Never reuse a token from memory or a prior session — always ask for a fresh one. The CLI's `railway login --browserless` fails from a non-TTY Claude shell ("Cannot login in non-interactive mode") — GraphQL is the only path that works.
 
@@ -232,14 +234,27 @@ Never reuse a token from memory or a prior session — always ask for a fresh on
 
 Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built inflexcvi SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
 
-### Mem0 on Railway
+### Mem0 — RESTORED (via Mem0 Cloud, 2026-05-17)
 
-**Mem0** — Built from `mem0/Dockerfile` in this repo (Railway → New Service → root directory `mem0`). The Dockerfile installs `libpq5` (which mem0ai/mem0's `server/Dockerfile` *forgets* — the upstream image crashes on import with `ImportError: no pq wrapper available … libpq library not found`), then clones mem0ai/mem0 at a pinned release tag (`MEM0_VERSION=v2.1.0` for the v1.0.0+ enhanced filters + multi-signal retrieval), installs Python deps, and runs uvicorn. Set `OPENAI_API_KEY` (or — preferred — OpenRouter creds: `OPENAI_API_KEY` = the OpenRouter key + `OPENAI_BASE_URL=https://openrouter.ai/api/v1`), `JWT_SECRET`, `ADMIN_API_KEY`, plus the `POSTGRES_*` set pointing at a pgvector service in the same Railway project. **Do not point this service at the Docker Hub `mem0/mem0-api-server` image** — it's arm64-only and won't run on Railway's amd64 infra. Pair it with a `pgvector/pgvector:pg18` service for vector storage.
+**Mem0 now runs on Mem0 Cloud** (`api.mem0.ai`), NOT self-hosted on Railway. The cutover landed in `ba0de9c` (auth auto-detect + local→cloud migration script) and `bfaeb46` (cloud `/v1/memories/` path mapping). Same pattern as Letta moving to Letta Cloud.
 
-**api-server service** wires to Mem0:
-- `MEM0_BASE_URL=http://<mem0-service-name>.railway.internal:8000` — the internal hostname Railway assigned to the Mem0 service (visible under that service's Settings → Networking)
-- `MEM0_API_KEY=<ADMIN_API_KEY value from the Mem0 service>` — the api-server sends it as `X-API-Key: <key>`. The Mem0 Railway template doc incorrectly recommends `Authorization: Bearer`; the upstream v2.x server rejects that with `401 Invalid or expired token` because it tries to verify the value as a JWT (which it isn't). Always `X-API-Key`.
+Configuration model — env vars on the **api-server service**:
 
-Verify with `GET /api/health/services` — `mem0` and `agent_store` should both report `status: "ok"`.
+```env
+MEM0_BASE_URL=https://api.mem0.ai
+MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
+```
 
-**Letta is gone** — see `### Letta — DECOMMISSIONED` above. The Letta Railway service should be deleted; its agent functionality moved to PostgresStore in the existing api-server DATABASE_URL.
+`services/agent/memory.ts` auto-detects cloud vs self-hosted from the hostname (`/(^|\/\/|\.)mem0\.ai(\/|$|:)/`):
+- Cloud → `Authorization: Token <m0-…>` (NOT `Bearer` — Mem0 Platform uses the legacy Token scheme), `/v1/memories/` paths (trailing slash matters)
+- Self-hosted → `X-API-Key: <ADMIN_API_KEY>`, `/memories` paths
+
+**Verify**: `GET /api/health/services` should show `mem0` and `agent_store` both `status: "ok"`. Cloud probe latency is typically 200–400 ms (internet round-trip); much faster suggests something's still pointing at an internal endpoint.
+
+**Local memory mirror**: `agent_memories` table mirrors cloud writes via `metadata.cloudMem0Id` for idempotent re-runs and as the fallback when `MEM0_API_KEY` is unset. The local DB is authoritative for the "have we already stored this?" check.
+
+**If Mem0 Cloud is not configured** (`MEM0_API_KEY` / `MEM0_BASE_URL` unset): `services/agent/memory.ts` graceful-degrades to local-DB-only storage. Never throws on missing keys. Matches the original Mem0 wiring.
+
+**Historical: self-hosted Mem0** — `mem0/Dockerfile` in this repo and the paired `pgvector` Railway service are the legacy self-hosted deployment. **Both Railway services are now unused and safe to delete** (service IDs `8b75626c-…` and `ff32eab9-…`). Keep the Dockerfile in-repo for now as a fallback path — if Mem0 Cloud ever has an outage we can flip `MEM0_BASE_URL` back to the internal hostname without redeploying. If you ever rebuild the Dockerfile path, note: `MEM0_VERSION=v2.1.0` is pinned but **does not exist** on upstream (highest tag is `v2.0.2`), and our CMD only runs `uvicorn` — it never runs `alembic upgrade head`, so the `users`/`api_keys`/`request_logs`/`settings`/`refresh_token_jtis` tables won't exist. Fix is to change CMD to `sh -c "alembic upgrade head && uvicorn …"` and either ensure the `mem0_app` database exists on pgvector or set `APP_DB_NAME` to an existing DB.
+
+**Letta** — see `### Letta — RESTORED (via Letta Cloud)` above. Letta Cloud runs at `https://api.letta.com`; the self-hosted Letta Railway service was already deleted.

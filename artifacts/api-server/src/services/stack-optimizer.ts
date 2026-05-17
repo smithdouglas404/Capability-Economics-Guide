@@ -141,9 +141,9 @@ async function pickRecommendedAI(args: {
       .filter(r => r.weight > 0.4)
       .slice(0, 4)
       .map(r => ({
-        capabilityId: r.entityId,
-        capabilityName: r.label,
-        relationType: r.relationType,
+        capabilityId: r.entity.id,
+        capabilityName: r.entity.name,
+        relationType: r.relation,
         weight: r.weight,
       }));
   } catch {

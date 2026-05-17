@@ -93,7 +93,8 @@ async function buildMemoryContext(
 
   // 2. Agent's own prior block
   try {
-    const priorBlock = await getAgentPriorBlock(agentName, "industry_priors");
+    // Signature: getAgentPriorBlock(label, agentName) — args were reversed in 4ae6de9.
+    const priorBlock = await getAgentPriorBlock("industry_priors", agentName);
     if (priorBlock && typeof priorBlock === "string" && priorBlock.length > 20) {
       contextParts.push(`YOUR ACCUMULATED BELIEFS (from past cycles):\n${priorBlock.substring(0, 800)}`);
     }

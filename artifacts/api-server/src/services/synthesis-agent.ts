@@ -21,6 +21,8 @@
  */
 import { tool } from "langchain";
 import { z } from "zod/v4";
+import { ilike } from "drizzle-orm";
+import { db, industriesTable } from "@workspace/db";
 import { runReactAgent, type AgentRunResult } from "./agent/base-agent";
 import { ensureSharedStoreReady, getSharedStore, NS, putAgentPriorBlock } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
@@ -58,15 +60,26 @@ const readAllDigestsTool = tool(
 
 const readGraphCorrelationsTool = tool(
   async ({ industry }) => {
-    const correlations = await findCorrelations(industry, 10);
+    // findCorrelations is keyed on integer industryId — resolve the name first.
+    // ILIKE is intentionally fuzzy so "Healthcare" matches "Healthcare & Life Sciences" etc.
+    const [match] = await db
+      .select({ id: industriesTable.id, name: industriesTable.name })
+      .from(industriesTable)
+      .where(ilike(industriesTable.name, `%${industry}%`))
+      .limit(1);
+    if (!match) {
+      return `No industry matching "${industry}" found. Try a more specific or canonical industry name.`;
+    }
+    // capabilityId=0 widens the predicate to industry-only matches in findCorrelations.
+    const correlations = await findCorrelations(match.id, 0, 2);
     if (correlations.length === 0) {
-      return "No graph correlations available yet. The graph is still being populated by the OntologyAgent.";
+      return `No graph correlations available yet for ${match.name}. The graph is still being populated by the OntologyAgent.`;
     }
     return JSON.stringify(
-      correlations.map(c => ({
-        from: c.fromEntity,
-        to: c.toEntity,
-        relation: c.relationType,
+      correlations.slice(0, 10).map(c => ({
+        from: c.fromName,
+        to: c.toName,
+        relation: c.kind,
         strength: `${(c.weight * 100).toFixed(0)}%`,
         observations: c.observedCount,
       }))
@@ -87,7 +100,7 @@ const recallRelevantPatternsTool = tool(
     if (memories.length === 0) {
       return "No relevant patterns found in memory for this query.";
     }
-    return memories.map(m => `[${m.confidence ? `confidence: ${(m.confidence * 100).toFixed(0)}%` : "unscored"}] ${m.content}`).join("\n\n");
+    return memories.map(m => `[${m.relevanceScore ? `confidence: ${(m.relevanceScore * 100).toFixed(0)}%` : "unscored"}] ${m.content}`).join("\n\n");
   },
   {
     name: "recall_relevant_patterns",
@@ -148,8 +161,9 @@ const publishSynthesisBriefTool = tool(
     );
 
     // Also update the synthesis agent's prior block so future runs
-    // start with context about what the last synthesis concluded
-    await putAgentPriorBlock(SYNTHESIS_AGENT_NAME, "last_synthesis_brief", brief);
+    // start with context about what the last synthesis concluded.
+    // Signature: putAgentPriorBlock(label, value, metadata, agentName).
+    await putAgentPriorBlock("last_synthesis_brief", brief, {}, SYNTHESIS_AGENT_NAME);
 
     // Write each cross-agent insight to Mem0 as a high-confidence pattern
     for (const insight of crossAgentInsights.slice(0, 5)) {

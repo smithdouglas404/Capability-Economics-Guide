@@ -621,7 +621,7 @@ export const generateInsightsTool = tool(
       if (allPatterns.length > 0) {
         mem0PatternContext = `\nINSTITUTIONAL MEMORY (${allPatterns.length} validated patterns from prior research cycles):\n` +
           allPatterns.map(m =>
-            `- [${m.category ?? m.type}] ${m.content}` +
+            `- [${m.category ?? m.memoryType}] ${m.content}` +
             (m.relevanceScore ? ` (confidence: ${(m.relevanceScore * 100).toFixed(0)}%)` : "")
           ).join("\n");
       }
@@ -649,7 +649,7 @@ export const generateInsightsTool = tool(
       if (allCorrelations.length > 0) {
         graphCorrelationContext = `\nGRAPH INTELLIGENCE (capability co-occurrence patterns from ${allCorrelations.length} observed relationships):\n` +
           allCorrelations.map(r =>
-            `- ${r.fromLabel} ↔ ${r.toLabel}: observed ${r.observedCount}x, relationship strength ${(r.weight * 100).toFixed(0)}% [${r.relationType}]`
+            `- ${r.fromName} ↔ ${r.toName}: observed ${r.observedCount}x, relationship strength ${(r.weight * 100).toFixed(0)}% [${r.kind}]`
           ).join("\n");
       }
     } catch (graphErr) {

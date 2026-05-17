@@ -15,7 +15,12 @@ export type MemoryCategory =
   | "contradiction"
   | "validated_pattern"
   | "decision"
-  | "observation";
+  | "observation"
+  | "pattern"
+  | "agent_run_summary"
+  | "recommendation_outcome"
+  | "temporal_shift"
+  | "synthesis";
 
 export interface AgentMemory {
   id: string | number;
