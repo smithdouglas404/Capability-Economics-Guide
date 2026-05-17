@@ -7,6 +7,7 @@
  */
 
 import { FOUNDRY } from "./config";
+import { getFoundryToken } from "./auth";
 
 export async function foundryFetch(
   path: string,
@@ -14,7 +15,15 @@ export async function foundryFetch(
 ): Promise<Response> {
   const url = path.startsWith("http") ? path : `${FOUNDRY.baseUrl}${path}`;
   const headers = new Headers(init.headers ?? {});
-  headers.set("Authorization", `Bearer ${FOUNDRY.token}`);
+  // Use the async token resolver: in-memory cache → system_secrets DB row
+  // → env-var fallback → OAuth client-credentials mint (FOUNDRY_CLIENT_ID +
+  // FOUNDRY_CLIENT_SECRET). This is the path that actually has the OAuth
+  // mint added in 4549a0a. FOUNDRY.token (sync getter) only reads env.
+  const token = await getFoundryToken();
+  if (!token) {
+    throw new Error("Foundry token not available — no system_secrets row, no env var, and OAuth mint failed. Check FOUNDRY_BASE_URL + FOUNDRY_CLIENT_ID + FOUNDRY_CLIENT_SECRET.");
+  }
+  headers.set("Authorization", `Bearer ${token}`);
   if (init.body && !headers.has("Content-Type") && typeof init.body === "string") {
     headers.set("Content-Type", "application/json");
   }
@@ -59,9 +68,13 @@ export async function uploadFile(
   contentType = "text/csv",
 ): Promise<void> {
   const url = `${FOUNDRY.baseUrl}/api/v2/datasets/${datasetRid}/files/${encodeURIComponent(path)}/upload?transactionRid=${transactionRid}&preview=true`;
+  const token = await getFoundryToken();
+  if (!token) {
+    throw new Error("Foundry token not available for upload — see foundryFetch error message for full diagnosis.");
+  }
   const resp = await fetch(url, {
     method: "POST",
-    headers: { Authorization: `Bearer ${FOUNDRY.token}`, "Content-Type": contentType },
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
     body,
   });
   if (!resp.ok) {

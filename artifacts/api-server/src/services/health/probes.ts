@@ -249,7 +249,16 @@ const probeFoundry: Probe = async () => {
   let token: string;
   try {
     baseUrl = FOUNDRY.baseUrl;
-    token = FOUNDRY.token;
+    // Use the async token resolver so the probe exercises the same path the
+    // actual sync uses (system_secrets → env → OAuth mint). Reading
+    // FOUNDRY.token directly was an env-var-only check that bypassed the
+    // OAuth fallback added in 4549a0a.
+    const { getFoundryToken } = await import("../foundry/auth");
+    const resolved = await getFoundryToken();
+    if (!resolved) {
+      return { status: "not_configured", latencyMs: null, lastError: "No Foundry token available (system_secrets row empty, no env var, OAuth mint did not succeed). Check FOUNDRY_BASE_URL + FOUNDRY_CLIENT_ID + FOUNDRY_CLIENT_SECRET." };
+    }
+    token = resolved;
   } catch (err) {
     return { status: "not_configured", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
