@@ -53,3 +53,4 @@ export * from "./capability-annotations";
 export * from "./workbench";
 export * from "./disruption-patterns";
 export * from "./digests";
+export * from "./dify";

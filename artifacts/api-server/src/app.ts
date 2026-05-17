@@ -12,6 +12,7 @@ import v1Router from "./routes/v1";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
 import nowpaymentsWebhookRouter from "./routes/nowpayments-webhook";
+import difyCallbacksRouter from "./routes/dify-callbacks";
 import { logger } from "./lib/logger";
 import { buildFrameAncestorsCsp } from "./lib/embed-csp";
 
@@ -39,10 +40,12 @@ app.use(
   }),
 );
 app.use(cors());
-// Stripe, Didit (KYC) & NOWPayments (crypto) webhooks must read the raw body for signature verification — mount BEFORE express.json().
+// Stripe, Didit (KYC), NOWPayments (crypto), and Dify callback routes all
+// read the raw body for signature verification — mount BEFORE express.json().
 app.use("/api", stripeWebhookRouter);
 app.use("/api", kycWebhookRouter);
 app.use("/api", nowpaymentsWebhookRouter);
+app.use("/api", difyCallbacksRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/csv" }));
