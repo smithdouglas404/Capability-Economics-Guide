@@ -15,14 +15,19 @@ const STATUS_TONES: Record<ServiceStatus, string> = {
 };
 
 const SERVICE_DESCRIPTIONS: Record<string, string> = {
-  mem0: "Long-term agent memory (durable observations, validated patterns).",
-  letta: "Stateful agent memory blocks and archival recall.",
+  mem0: "Long-term agent memory — Mem0 Cloud at api.mem0.ai (durable observations, validated patterns; per-agent agent_id namespacing).",
+  letta: "Stateful agent memory blocks — Letta Cloud at api.letta.com (persona / current_focus / industry_priors blocks + archival recall for all 7 agents).",
+  agent_store: "Shared agent store — Letta Cloud-backed adapter exposing NS.* namespaces for cross-agent digests + per-agent prior blocks.",
+  agent_registry: "Registration state of the 7 platform agents in Letta Cloud (each agent + its attached archive + tool_rules + sleeptime).",
+  synthesis_agent: "Daily cross-agent strategic brief — reads all 5 specialized-agent digests + Neo4j correlations + Mem0 patterns + temporal shifts.",
+  temporal_shifts: "6-hour temporal-shift detector — accelerating / reversing capability relationships derived from 30-day memory_relation_snapshots.",
   openrouter: "LLM routing for the autonomous agent and enrichment runners.",
   anthropic: "Direct Claude access for reasoning-heavy assessment + VCR.",
   perplexity: "Cited web search for triangulation and signal enrichment.",
   foundry: "Palantir Foundry sync — capability dataset reads + writes.",
   stripe: "Subscription billing, invoices, marketplace payouts.",
   clerk: "Authentication, sessions, organization membership.",
+  demo_readiness: "Internal smoke test — confirms the demo dataset (industries, capabilities, CVI scores) is loaded and queryable.",
 };
 
 function fmtLatency(ms: number | null): string {

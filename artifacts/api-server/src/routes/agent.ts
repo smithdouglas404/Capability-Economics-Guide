@@ -245,7 +245,13 @@ router.get("/agent/tools", (_req, res) => {
     integrations: {
       mem0: {
         connected: !!(process.env.MEM0_BASE_URL && process.env.MEM0_API_KEY),
-        provider: "mem0-oss-self-hosted",
+        // Derive cloud vs self-hosted from the MEM0_BASE_URL hostname rather
+        // than hardcoding — same regex memory.ts uses for auth-scheme
+        // selection. After the 2026-05-17 cutover, prod is Mem0 Cloud.
+        provider: /(^|\/\/|\.)mem0\.ai(\/|$|:)/i.test(process.env.MEM0_BASE_URL ?? "")
+          ? "mem0-cloud"
+          : "mem0-self-hosted",
+        host: process.env.MEM0_BASE_URL ?? null,
       },
       langchain: { version: "core", tools: allTools.length },
       langgraph: { nodes: ["evaluate", "recall", "decide", "research", "compute", "reflect", "memorize", "generateContent", "finalize"] },

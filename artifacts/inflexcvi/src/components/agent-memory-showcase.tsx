@@ -167,11 +167,11 @@ export default function AgentMemoryShowcase() {
               </p>
             </div>
 
-            {/* Integration status */}
+            {/* Integration status — all three are cloud-backed since the 2026-05-17 cutover. */}
             <div className="flex items-center gap-2 flex-wrap">
               <IntegrationPill label="Mem0 Cloud" connected={mem0Connected} />
+              <IntegrationPill label="Letta Cloud" connected={lettaConnected} />
               <IntegrationPill label="Perplexity" connected={perplexityConnected} />
-              <IntegrationPill label="Letta" connected={lettaConnected} />
             </div>
           </div>
 
