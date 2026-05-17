@@ -109,35 +109,77 @@ async function importYaml(
   if (!resp.ok) {
     throw new Error(`import ${appName} failed ${resp.status}: ${await resp.text()}`);
   }
-  const body = (await resp.json()) as { id?: string; app_id?: string; app?: { id?: string } };
-  const id = body.app?.id ?? body.app_id ?? body.id;
+  const body = (await resp.json()) as { id?: string; app_id?: string; app?: { id?: string }; status?: string; error?: string };
+  if (body.status === "failed") {
+    throw new Error(`import ${appName} returned status=failed: ${body.error ?? JSON.stringify(body)}`);
+  }
+  const id = body.app_id ?? body.app?.id ?? body.id;
   if (!id) throw new Error(`import ${appName} returned no app id: ${JSON.stringify(body)}`);
   return { appId: id };
 }
 
 /**
  * Update an existing Dify app's graph in place — preserves the app id (which
- * the registry already points at) and avoids orphaning prior versions. Uses
- * the Console API's DSL endpoint that the Web UI's "Edit DSL → Save" button
- * calls under the hood.
+ * the registry already points at) and avoids orphaning prior versions. The
+ * Console API's `/apps/imports` endpoint accepts an `app_id` field that
+ * routes the import as an in-place update against the existing app's draft
+ * (matches what the Web UI's "Edit DSL → Save" button does under the hood).
  */
 async function updateDsl(
   session: DifySession,
   appId: string,
   yamlText: string,
 ): Promise<void> {
-  const resp = await fetch(`${session.baseUrl}/console/api/apps/${appId}/dsl`, {
+  const resp = await fetch(`${session.baseUrl}/console/api/apps/imports`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Cookie: session.cookies,
       "X-CSRF-Token": session.csrfToken,
     },
-    body: JSON.stringify({ data: yamlText }),
+    body: JSON.stringify({ mode: "yaml-content", yaml_content: yamlText, app_id: appId }),
   });
   if (!resp.ok) {
     throw new Error(`update ${appId} failed ${resp.status}: ${await resp.text()}`);
   }
+  const body = (await resp.json()) as { status?: string; error?: string };
+  if (body.status === "failed") {
+    throw new Error(`update ${appId} returned status=failed: ${body.error ?? JSON.stringify(body)}`);
+  }
+}
+
+/**
+ * Reuse an existing Service API key for the app if one was previously
+ * minted, otherwise mint a fresh one. Returns the `app-...` bearer token.
+ */
+async function ensureServiceApiKey(
+  session: DifySession,
+  appId: string,
+): Promise<string> {
+  const listResp = await fetch(`${session.baseUrl}/console/api/apps/${appId}/api-keys`, {
+    headers: { Cookie: session.cookies, "X-CSRF-Token": session.csrfToken },
+  });
+  if (listResp.ok) {
+    const listed = (await listResp.json().catch(() => ({}))) as { data?: Array<{ token?: string }> };
+    const existing = listed.data?.[0]?.token;
+    if (existing) return existing;
+  }
+  const createResp = await fetch(`${session.baseUrl}/console/api/apps/${appId}/api-keys`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: session.cookies,
+      "X-CSRF-Token": session.csrfToken,
+    },
+    body: JSON.stringify({}),
+  });
+  if (!createResp.ok) {
+    throw new Error(`mint api-key ${appId} failed ${createResp.status}: ${await createResp.text()}`);
+  }
+  const created = (await createResp.json()) as { token?: string; api_key?: string };
+  const token = created.token ?? created.api_key;
+  if (!token) throw new Error(`mint api-key ${appId} returned no token: ${JSON.stringify(created)}`);
+  return token;
 }
 
 async function listYamls(): Promise<Array<{ slug: string; text: string; hash: string }>> {
@@ -195,11 +237,14 @@ async function main() {
       // that specific app) continue to work.
       console.log(`  ${y.slug}: updating in place (app=${existing.difyAppId})...`);
       await updateDsl(session, existing.difyAppId, y.text);
+      // Also backfill the Service API key if the registry row doesn't have
+      // one yet (covers slugs imported before the api_key column existed).
+      const apiKey = existing.apiKey ?? (await ensureServiceApiKey(session, existing.difyAppId));
       await db
         .update(difyWorkflowRegistry)
-        .set({ versionHash: y.hash, importedAt: new Date() })
+        .set({ versionHash: y.hash, apiKey, importedAt: new Date() })
         .where(eq(difyWorkflowRegistry.slug, y.slug));
-      console.log(`  ${y.slug}: updated`);
+      console.log(`  ${y.slug}: updated${existing.apiKey ? "" : " + key backfilled"}`);
       continue;
     }
 
@@ -211,14 +256,21 @@ async function main() {
       continue;
     }
 
+    // Fresh import: create the Dify app, mint its Service API key, write
+    // the row with enabled=false (operator flips this via the admin UI or
+    // SQL once they're ready for the workflow to serve traffic).
     console.log(`  ${y.slug}: importing...`);
     const { appId } = await importYaml(session, y.text, y.slug);
+    console.log(`  ${y.slug}: imported as ${appId}, minting key...`);
+    const apiKey = await ensureServiceApiKey(session, appId);
     await db.insert(difyWorkflowRegistry).values({
       slug: y.slug,
       difyAppId: appId,
       versionHash: y.hash,
+      apiKey,
+      enabled: false,
     });
-    console.log(`  ${y.slug}: imported as ${appId}`);
+    console.log(`  ${y.slug}: imported + key minted (registered, enabled=false — flip in DB when ready)`);
   }
 
   console.log("[dify-import] done");

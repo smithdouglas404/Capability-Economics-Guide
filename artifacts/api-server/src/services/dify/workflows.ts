@@ -63,15 +63,78 @@ export const WORKFLOWS: Record<string, WorkflowDescriptor> = {
   "admin-config-proposer": descriptor("admin-config-proposer", "workflow"),
 };
 
-export function isWorkflowEnabled(slug: string): boolean {
+/**
+ * Cached registry lookup. The dify_workflow_registry table is the source of
+ * truth for `dify_app_id`, `api_key`, and `enabled` per slug. We cache rows
+ * for 30s to avoid one DB hit per workflow invocation. Cache is process-
+ * local; multi-instance Railway deployments may see up to 30s of staleness
+ * after a registry update — acceptable for feature-flag flips.
+ */
+interface RegistryEntry {
+  difyAppId: string;
+  apiKey: string | null;
+  enabled: boolean;
+}
+const registryCache = new Map<string, { entry: RegistryEntry | null; expiresAt: number }>();
+const REGISTRY_CACHE_TTL_MS = 30_000;
+
+async function getRegistryEntry(slug: string): Promise<RegistryEntry | null> {
+  const now = Date.now();
+  const cached = registryCache.get(slug);
+  if (cached && cached.expiresAt > now) return cached.entry;
+  let entry: RegistryEntry | null = null;
+  try {
+    const [row] = await db
+      .select({
+        difyAppId: difyWorkflowRegistry.difyAppId,
+        apiKey: difyWorkflowRegistry.apiKey,
+        enabled: difyWorkflowRegistry.enabled,
+      })
+      .from(difyWorkflowRegistry)
+      .where(eq(difyWorkflowRegistry.slug, slug))
+      .limit(1);
+    if (row) entry = { difyAppId: row.difyAppId, apiKey: row.apiKey ?? null, enabled: row.enabled };
+  } catch {
+    // DB unreachable — leave entry null and fall back to env vars below.
+  }
+  registryCache.set(slug, { entry, expiresAt: now + REGISTRY_CACHE_TTL_MS });
+  return entry;
+}
+
+/**
+ * Invalidate the cached registry entry for a slug. Call after an admin
+ * action that flips `enabled` or rotates `api_key` so the change takes
+ * effect immediately instead of waiting up to 30s.
+ */
+export function invalidateRegistryCache(slug?: string): void {
+  if (slug) registryCache.delete(slug);
+  else registryCache.clear();
+}
+
+/**
+ * Is the workflow allowed to run? Reads `enabled` from the registry row;
+ * falls back to the env-var flag (`DIFY_<SLUG>_ENABLED=1`) when the row
+ * has no value yet. The fallback exists so the originally-pasted Railway
+ * env vars keep working during the migration to DB-driven flags.
+ */
+export async function isWorkflowEnabled(slug: string): Promise<boolean> {
   const d = WORKFLOWS[slug];
   if (!d) return false;
+  const entry = await getRegistryEntry(slug);
+  if (entry?.enabled) return true;
   return process.env[d.enabledFlagEnvVar] === "1";
 }
 
-function getApiKey(slug: string): string | null {
+/**
+ * Resolve the Service API bearer key for a workflow. Reads `api_key` from
+ * the registry first; falls back to `DIFY_APIKEY_<SLUG>` env var when the
+ * row hasn't been backfilled yet.
+ */
+async function getApiKey(slug: string): Promise<string | null> {
   const d = WORKFLOWS[slug];
   if (!d) return null;
+  const entry = await getRegistryEntry(slug);
+  if (entry?.apiKey) return entry.apiKey;
   return process.env[d.apiKeyEnvVar] || null;
 }
 
@@ -81,16 +144,8 @@ function getApiKey(slug: string): string | null {
  * treats that as "Dify not ready, fall back to legacy."
  */
 export async function resolveAppId(slug: string): Promise<string | null> {
-  try {
-    const [row] = await db
-      .select({ id: difyWorkflowRegistry.difyAppId })
-      .from(difyWorkflowRegistry)
-      .where(eq(difyWorkflowRegistry.slug, slug))
-      .limit(1);
-    return row?.id ?? null;
-  } catch {
-    return null;
-  }
+  const entry = await getRegistryEntry(slug);
+  return entry?.difyAppId ?? null;
 }
 
 interface RunOptions {
@@ -110,8 +165,8 @@ export async function runChatflow(
   inputs: Record<string, unknown>,
   opts: RunOptions,
 ): Promise<ChatflowResult | null> {
-  if (!isWorkflowEnabled(slug)) return null;
-  const key = getApiKey(slug);
+  if (!(await isWorkflowEnabled(slug))) return null;
+  const key = await getApiKey(slug);
   if (!key) return null;
   // Service API uses the app key directly — no app-id lookup needed for
   // chat-messages. resolveAppId is still useful for admin/health checks.
@@ -128,8 +183,8 @@ export async function runWorkflow(
   inputs: Record<string, unknown>,
   opts: RunOptions,
 ): Promise<WorkflowRunResult | null> {
-  if (!isWorkflowEnabled(slug)) return null;
-  const key = getApiKey(slug);
+  if (!(await isWorkflowEnabled(slug))) return null;
+  const key = await getApiKey(slug);
   if (!key) return null;
   return await triggerWorkflow(key, inputs, opts.user);
 }

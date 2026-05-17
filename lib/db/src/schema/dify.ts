@@ -6,6 +6,7 @@ import {
   jsonb,
   timestamp,
   uniqueIndex,
+  boolean,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -17,12 +18,26 @@ import {
  *
  * `versionHash` is the SHA-256 of the YAML at import time; the import
  * script skips re-importing identical versions.
+ *
+ * `apiKey` is the Dify Service API bearer token for this app. The importer
+ * mints it via `POST /console/api/apps/{id}/api-keys` on first creation so
+ * adding a new workflow is pure git-driven — no Railway env-var paste step.
+ * Tokens look like `app-XxxxYyyyZzzz`.
+ *
+ * `enabled` is the feature flag the wrappers in `services/dify/workflows.ts`
+ * use to decide whether to delegate to Dify or fall through to legacy code.
+ * Defaults to false so newly-imported workflows are dormant until a
+ * deliberate flip — same safety contract as the previous env-var-based
+ * `DIFY_<SLUG>_ENABLED=1` flag (which is still honored as a fallback for
+ * the originally-pasted env vars).
  */
 export const difyWorkflowRegistry = pgTable("dify_workflow_registry", {
   id: serial("id").primaryKey(),
   slug: text("slug").notNull().unique(),
   difyAppId: text("dify_app_id").notNull(),
   versionHash: text("version_hash").notNull(),
+  apiKey: text("api_key"),
+  enabled: boolean("enabled").notNull().default(false),
   importedAt: timestamp("imported_at").notNull().defaultNow(),
 });
 
