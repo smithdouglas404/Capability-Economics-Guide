@@ -86,6 +86,44 @@ function buildAuthHeaders(cfg: Mem0Config): Record<string, string> {
   return { "X-API-Key": cfg.apiKey };
 }
 
+/**
+ * Map a self-hosted-style path to the cloud-style path when in cloud mode.
+ *
+ *   Self-hosted v2.x          → Cloud v1
+ *   /memories                 → /v1/memories/
+ *   /memories?qs=...          → /v1/memories/?qs=...
+ *   /memories/{id}            → /v1/memories/{id}/
+ *   /memories/{id}?qs=...     → /v1/memories/{id}/?qs=...
+ *   /memories/{id}/history    → /v1/memories/{id}/history/
+ *   /search                   → /v1/memories/search/
+ *
+ * The cloud's OpenAPI requires the `/v1` prefix AND trailing slashes on
+ * collection / resource endpoints. Both differences are encapsulated here
+ * so call sites never branch on isCloud.
+ */
+function mapPath(path: string, isCloud: boolean): string {
+  if (!isCloud) return path;
+  // Split off any query string so we can normalize the path part alone.
+  const [base, qs] = path.split("?");
+  let mapped: string;
+  if (base === "/search") {
+    mapped = "/v1/memories/search/";
+  } else if (base.startsWith("/memories")) {
+    // /memories                → /v1/memories/
+    // /memories/{id}           → /v1/memories/{id}/
+    // /memories/{id}/history   → /v1/memories/{id}/history/
+    const rest = base.slice("/memories".length); // "" | "/{id}" | "/{id}/history"
+    mapped = rest.length === 0
+      ? "/v1/memories/"
+      : (rest.endsWith("/") ? `/v1/memories${rest}` : `/v1/memories${rest}/`);
+  } else {
+    // Unknown path — leave alone but warn so we don't silently mis-route.
+    console.warn(`[Mem0] cloud path map: unknown path "${base}" — leaving as-is`);
+    return path;
+  }
+  return qs ? `${mapped}?${qs}` : mapped;
+}
+
 async function mem0Fetch(
   path: string,
   method: string,
@@ -93,7 +131,8 @@ async function mem0Fetch(
 ): Promise<unknown> {
   const cfg = getMem0Config();
   if (!cfg) throw new Error("Mem0 not configured");
-  const res = await fetch(`${cfg.baseUrl}${path}`, {
+  const effectivePath = mapPath(path, cfg.isCloud);
+  const res = await fetch(`${cfg.baseUrl}${effectivePath}`, {
     method,
     headers: {
       "Content-Type": "application/json",
