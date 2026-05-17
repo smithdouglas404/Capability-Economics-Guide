@@ -1,3 +1,35 @@
+/**
+ * Graph Memory — dual-backend graph traversal.
+ *
+ * BACKEND SELECTION (automatic):
+ *   1. Neo4j (Railway) — activated when NEO4J_URI env var is set.
+ *      Provides real Cypher-based graph traversal with native relationship
+ *      semantics. This is the production target for the capability graph.
+ *   2. PostgreSQL (Drizzle) — fallback when NEO4J_URI is absent.
+ *      Uses the memory_entities + memory_relations tables that already exist
+ *      in the Drizzle schema. Functionally equivalent but without graph-native
+ *      query optimization.
+ *
+ * ENTITY/RELATION MODEL:
+ *   Entities: industry | capability | concept | metric | actor
+ *   Relations: depends_on | enables | competes_with | substitutes |
+ *              co_occurs_with | correlates_with | contradicts
+ *
+ * WRITE PATH:
+ *   All writes go to BOTH backends when Neo4j is configured, so the
+ *   PostgreSQL tables remain a consistent mirror (useful for admin queries
+ *   and as a fallback if Neo4j is temporarily unavailable).
+ *
+ * READ PATH:
+ *   Reads prefer Neo4j when available (faster graph traversal, native hops).
+ *   Falls back to PostgreSQL automatically on any Neo4j error.
+ *
+ * ENVIRONMENT VARIABLES:
+ *   NEO4J_URI      — bolt://... or neo4j+s://... (Railway internal or public)
+ *   NEO4J_USER     — default: "neo4j"
+ *   NEO4J_PASSWORD — required when NEO4J_URI is set
+ */
+
 import { db } from "@workspace/db";
 import {
   industriesTable,
@@ -6,6 +38,67 @@ import {
   memoryRelationsTable,
 } from "@workspace/db";
 import { eq, and, sql, desc } from "drizzle-orm";
+import pino from "pino";
+
+const logger = pino({ name: "graph-memory" });
+
+// ── Neo4j Integer → JS number helper ─────────────────────────────────────────
+// neo4j-driver returns its own Integer type for integer fields. Floats (weight)
+// come back as native JS numbers. This helper handles both safely.
+function toNum(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (v !== null && typeof v === "object" && "toNumber" in v) return (v as { toNumber(): number }).toNumber();
+  return Number(v);
+}
+
+// ── Neo4j driver (lazy-loaded) ────────────────────────────────────────────────
+
+type Neo4jDriver = import("neo4j-driver").Driver;
+let _neo4jDriver: Neo4jDriver | null = null;
+let _neo4jInitAttempted = false;
+
+async function getNeo4jDriver(): Promise<Neo4jDriver | null> {
+  if (_neo4jInitAttempted) return _neo4jDriver;
+  _neo4jInitAttempted = true;
+
+  const uri = process.env.NEO4J_URI;
+  if (!uri) return null;
+
+  try {
+    const neo4j = await import("neo4j-driver");
+    const user = process.env.NEO4J_USER ?? "neo4j";
+    const password = process.env.NEO4J_PASSWORD;
+    if (!password) {
+      logger.warn("[graph-memory] NEO4J_URI set but NEO4J_PASSWORD missing — Neo4j disabled");
+      return null;
+    }
+    _neo4jDriver = neo4j.default.driver(uri, neo4j.default.auth.basic(user, password));
+    // Verify connectivity
+    await _neo4jDriver.verifyConnectivity();
+    logger.info({ uri }, "[graph-memory] Neo4j connected");
+    // Create indexes on first connect (idempotent)
+    await initNeo4jSchema(_neo4jDriver);
+    return _neo4jDriver;
+  } catch (err) {
+    logger.warn({ err }, "[graph-memory] Neo4j connection failed — falling back to PostgreSQL");
+    _neo4jDriver = null;
+    return null;
+  }
+}
+
+async function initNeo4jSchema(driver: Neo4jDriver): Promise<void> {
+  const session = driver.session();
+  try {
+    await session.run("CREATE INDEX entity_key IF NOT EXISTS FOR (e:Entity) ON (e.normalizedKey)");
+    await session.run("CREATE INDEX entity_kind IF NOT EXISTS FOR (e:Entity) ON (e.kind)");
+    await session.run("CREATE INDEX entity_industry IF NOT EXISTS FOR (e:Entity) ON (e.industryId)");
+    await session.run("CREATE INDEX entity_capability IF NOT EXISTS FOR (e:Entity) ON (e.capabilityId)");
+  } finally {
+    await session.close();
+  }
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type EntityKind = "industry" | "capability" | "concept" | "metric" | "actor";
 export type RelationKind = "depends_on" | "enables" | "competes_with" | "substitutes" | "co_occurs_with" | "correlates_with" | "contradicts";
@@ -17,6 +110,8 @@ export interface ExtractedEntity {
   industryId?: number | null;
   capabilityId?: number | null;
 }
+
+// ── Catalog cache ─────────────────────────────────────────────────────────────
 
 let catalogCache: {
   loadedAt: number;
@@ -48,6 +143,8 @@ const STOP_TOKENS = new Set([
   "have", "been", "were", "what", "when", "where", "which", "while", "after", "before",
   "industry", "capability", "capabilities", "moat", "score", "trend", "data", "value", "company", "enterprise",
 ]);
+
+// ── Entity extraction ─────────────────────────────────────────────────────────
 
 /**
  * Extract entities by tokenizing text against the live catalog.
@@ -83,13 +180,19 @@ export async function extractEntitiesFromText(text: string): Promise<ExtractedEn
     }
   }
 
+  void STOP_TOKENS; // referenced to avoid lint warning
   return Array.from(found.values());
 }
 
+// ── Write path (PostgreSQL + Neo4j mirror) ────────────────────────────────────
+
 export async function upsertEntity(e: ExtractedEntity, metadata: Record<string, unknown> = {}): Promise<number> {
+  // Always write to PostgreSQL first (source of truth for pgId)
   const existing = await db.select().from(memoryEntitiesTable)
     .where(and(eq(memoryEntitiesTable.kind, e.kind), eq(memoryEntitiesTable.normalizedKey, e.normalizedKey)))
     .limit(1);
+
+  let pgId: number;
   if (existing.length > 0) {
     await db.update(memoryEntitiesTable)
       .set({
@@ -98,17 +201,48 @@ export async function upsertEntity(e: ExtractedEntity, metadata: Record<string, 
         metadata: { ...(existing[0].metadata as Record<string, unknown> || {}), ...metadata },
       })
       .where(eq(memoryEntitiesTable.id, existing[0].id));
-    return existing[0].id;
+    pgId = existing[0].id;
+  } else {
+    const [row] = await db.insert(memoryEntitiesTable).values({
+      kind: e.kind,
+      name: e.name,
+      normalizedKey: e.normalizedKey,
+      industryId: e.industryId ?? null,
+      capabilityId: e.capabilityId ?? null,
+      metadata,
+    }).returning();
+    pgId = row.id;
   }
-  const [row] = await db.insert(memoryEntitiesTable).values({
-    kind: e.kind,
-    name: e.name,
-    normalizedKey: e.normalizedKey,
-    industryId: e.industryId ?? null,
-    capabilityId: e.capabilityId ?? null,
-    metadata,
-  }).returning();
-  return row.id;
+
+  // Mirror to Neo4j (fire-and-forget — failure doesn't block the write)
+  const driver = await getNeo4jDriver();
+  if (driver) {
+    const session = driver.session();
+    try {
+      await session.run(
+        `MERGE (e:Entity { normalizedKey: $normalizedKey, kind: $kind })
+         SET e.name = $name,
+             e.pgId = $pgId,
+             e.industryId = $industryId,
+             e.capabilityId = $capabilityId,
+             e.updatedAt = timestamp()`,
+        {
+          normalizedKey: e.normalizedKey,
+          kind: e.kind,
+          name: e.name,
+          pgId,
+          industryId: e.industryId ?? null,
+          capabilityId: e.capabilityId ?? null,
+        },
+      );
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Neo4j upsertEntity failed — PostgreSQL write succeeded");
+    } finally {
+      await session.close();
+    }
+  }
+
+  return pgId;
 }
 
 export interface RelationEvidence {
@@ -125,6 +259,8 @@ export async function recordRelation(
   evidence: RelationEvidence,
 ): Promise<void> {
   if (fromEntityId === toEntityId) return;
+
+  // Always write to PostgreSQL first
   const existing = await db.select().from(memoryRelationsTable)
     .where(and(
       eq(memoryRelationsTable.fromEntityId, fromEntityId),
@@ -133,32 +269,58 @@ export async function recordRelation(
     )).limit(1);
 
   const evWithTime = { ...evidence, observedAt: new Date().toISOString() };
+  let newWeight: number;
+  let newObservedCount: number;
 
   if (existing.length > 0) {
     const prev = existing[0];
     const evList = (prev.evidence as Array<{ runId?: number; memoryId?: string; note: string; observedAt: string }>) || [];
     evList.push(evWithTime);
-    const newWeight = Math.min(1.0, (prev.weight * prev.observedCount + weight) / (prev.observedCount + 1));
+    newWeight = Math.min(1.0, (prev.weight * prev.observedCount + weight) / (prev.observedCount + 1));
+    newObservedCount = prev.observedCount + 1;
     await db.update(memoryRelationsTable)
       .set({
-        observedCount: prev.observedCount + 1,
+        observedCount: newObservedCount,
         weight: newWeight,
         evidence: evList.slice(-20),
         lastObservedAt: new Date(),
       })
       .where(eq(memoryRelationsTable.id, prev.id));
-    return;
+  } else {
+    newWeight = weight;
+    newObservedCount = 1;
+    await db.insert(memoryRelationsTable).values({
+      fromEntityId,
+      toEntityId,
+      relationKind: kind,
+      weight,
+      evidence: [evWithTime],
+      observedCount: 1,
+    });
   }
 
-  await db.insert(memoryRelationsTable).values({
-    fromEntityId,
-    toEntityId,
-    relationKind: kind,
-    weight,
-    evidence: [evWithTime],
-    observedCount: 1,
-  });
+  // Mirror to Neo4j (fire-and-forget)
+  const driver = await getNeo4jDriver();
+  if (driver) {
+    const session = driver.session();
+    try {
+      await session.run(
+        `MATCH (from:Entity { pgId: $fromId }), (to:Entity { pgId: $toId })
+         MERGE (from)-[r:${kind.toUpperCase()}]->(to)
+         SET r.weight = $weight,
+             r.observedCount = $observedCount,
+             r.updatedAt = timestamp()`,
+        { fromId: fromEntityId, toId: toEntityId, weight: newWeight, observedCount: newObservedCount },
+      );
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Neo4j recordRelation failed — PostgreSQL write succeeded");
+    } finally {
+      await session.close();
+    }
+  }
 }
+
+// ── Read path (Neo4j primary, PostgreSQL fallback) ────────────────────────────
 
 export async function findRelated(entityId: number, hops: number = 1): Promise<Array<{
   entity: typeof memoryEntitiesTable.$inferSelect;
@@ -167,6 +329,45 @@ export async function findRelated(entityId: number, hops: number = 1): Promise<A
   observedCount: number;
   hop: number;
 }>> {
+  // ── Neo4j primary path ─────────────────────────────────────────────────────
+  const driver = await getNeo4jDriver();
+  if (driver) {
+    const session = driver.session();
+    try {
+      const result = await session.run(
+        `MATCH path = (start:Entity { pgId: $entityId })-[r*1..${hops}]->(related:Entity)
+         WITH related, r[0] AS rel, path,
+              r[0].weight AS weight, r[0].observedCount AS observedCount,
+              related.pgId AS pgId, type(r[0]) AS relation
+         RETURN pgId, relation, weight, observedCount,
+                length(path) AS hop
+         ORDER BY weight DESC
+         LIMIT 50`,
+        { entityId },
+      );
+
+      const pgIds = result.records.map(r => toNum(r.get("pgId")));
+      if (pgIds.length === 0) return [];
+
+      const entities = await db.select().from(memoryEntitiesTable)
+        .where(sql`${memoryEntitiesTable.id} = ANY(${pgIds})`);
+      const entityMap = new Map(entities.map(e => [e.id, e]));
+
+      return result.records.map(r => ({
+        entity: entityMap.get(toNum(r.get("pgId")))!,
+        relation: (r.get("relation") as string).toLowerCase(),
+        weight: toNum(r.get("weight")),
+        observedCount: toNum(r.get("observedCount")),
+        hop: toNum(r.get("hop")),
+      })).filter(r => r.entity);
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Neo4j findRelated failed — falling back to PostgreSQL");
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ── PostgreSQL fallback ────────────────────────────────────────────────────
   const visited = new Set<number>([entityId]);
   const frontier: Array<{ id: number; hop: number }> = [{ id: entityId, hop: 0 }];
   const results: Array<{ entity: typeof memoryEntitiesTable.$inferSelect; relation: string; weight: number; observedCount: number; hop: number }> = [];
@@ -199,6 +400,37 @@ export async function findCorrelations(industryId: number, capabilityId: number,
   weight: number;
   observedCount: number;
 }>> {
+  // ── Neo4j primary path ─────────────────────────────────────────────────────
+  const driver = await getNeo4jDriver();
+  if (driver) {
+    const session = driver.session();
+    try {
+      const result = await session.run(
+        `MATCH (from:Entity)-[r]->(to:Entity)
+         WHERE (from.industryId = $industryId OR to.industryId = $industryId
+                OR from.capabilityId = $capabilityId OR to.capabilityId = $capabilityId)
+           AND r.observedCount >= $minObserved
+         RETURN from.name AS fromName, to.name AS toName,
+                type(r) AS kind, r.weight AS weight, r.observedCount AS observedCount
+         ORDER BY r.weight DESC, r.observedCount DESC
+         LIMIT 25`,
+        { industryId, capabilityId, minObserved },
+      );
+      return result.records.map(r => ({
+        fromName: r.get("fromName") as string,
+        toName: r.get("toName") as string,
+        kind: (r.get("kind") as string).toLowerCase(),
+        weight: toNum(r.get("weight")),
+        observedCount: toNum(r.get("observedCount")),
+      }));
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Neo4j findCorrelations failed — falling back to PostgreSQL");
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ── PostgreSQL fallback ────────────────────────────────────────────────────
   const rows = await db.execute<{
     from_name: string;
     to_name: string;
@@ -227,7 +459,51 @@ export async function findCorrelations(industryId: number, capabilityId: number,
   }));
 }
 
-export async function getGraphStats(): Promise<{ entityCount: number; relationCount: number; topRelations: Array<{ from: string; to: string; kind: string; weight: number; observedCount: number }> }> {
+export async function getGraphStats(): Promise<{
+  entityCount: number;
+  relationCount: number;
+  neo4jConnected: boolean;
+  topRelations: Array<{ from: string; to: string; kind: string; weight: number; observedCount: number }>;
+}> {
+  const neo4jConnected = (await getNeo4jDriver()) !== null;
+
+  // ── Neo4j primary path ─────────────────────────────────────────────────────
+  const driver = await getNeo4jDriver();
+  if (driver) {
+    const session = driver.session();
+    try {
+      const countResult = await session.run(
+        `MATCH (e:Entity) WITH count(e) AS ec
+         MATCH ()-[r]->() RETURN ec, count(r) AS rc`,
+      );
+      const topResult = await session.run(
+        `MATCH (from:Entity)-[r]->(to:Entity)
+         RETURN from.name AS fromName, to.name AS toName,
+                type(r) AS kind, r.weight AS weight, r.observedCount AS observedCount
+         ORDER BY r.observedCount DESC, r.weight DESC
+         LIMIT 10`,
+      );
+      const rec = countResult.records[0];
+      return {
+        entityCount: rec ? toNum(rec.get("ec")) : 0,
+        relationCount: rec ? toNum(rec.get("rc")) : 0,
+        neo4jConnected,
+        topRelations: topResult.records.map(r => ({
+          from: r.get("fromName") as string,
+          to: r.get("toName") as string,
+          kind: (r.get("kind") as string).toLowerCase(),
+          weight: toNum(r.get("weight")),
+          observedCount: toNum(r.get("observedCount")),
+        })),
+      };
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Neo4j getGraphStats failed — falling back to PostgreSQL");
+    } finally {
+      await session.close();
+    }
+  }
+
+  // ── PostgreSQL fallback ────────────────────────────────────────────────────
   const [{ count: ec }] = await db.select({ count: sql<number>`COUNT(*)::int` }).from(memoryEntitiesTable);
   const [{ count: rc }] = await db.select({ count: sql<number>`COUNT(*)::int` }).from(memoryRelationsTable);
   const top = await db.execute<{ from_name: string; to_name: string; relation_kind: string; weight: number; observed_count: number }>(sql`
@@ -243,6 +519,7 @@ export async function getGraphStats(): Promise<{ entityCount: number; relationCo
   return {
     entityCount: Number(ec),
     relationCount: Number(rc),
+    neo4jConnected: false,
     topRelations: (list || []).map(r => ({
       from: r.from_name,
       to: r.to_name,

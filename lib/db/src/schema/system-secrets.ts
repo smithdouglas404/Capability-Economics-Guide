@@ -1,4 +1,4 @@
-import { pgTable, integer, text, timestamp, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, jsonb, boolean, integer } from "drizzle-orm/pg-core";
 
 /**
  * Server-side managed secrets that admins can rotate without a Railway env-var
@@ -10,7 +10,7 @@ import { pgTable, integer, text, timestamp, jsonb, boolean } from "drizzle-orm/p
  * pipe to a blockchain audit trail when that infra lands.
  */
 export const systemSecretsTable = pgTable("system_secrets", {
-  id: integer("id").primaryKey().default(1),
+  id: serial("id").primaryKey(),
   keyName: text("key_name").notNull().unique(),
   keyValue: text("key_value").notNull(),
   rotatedAt: timestamp("rotated_at").defaultNow().notNull(),

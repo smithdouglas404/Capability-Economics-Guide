@@ -1,8 +1,15 @@
-import { Router, type IRouter } from "express";
-import { db, foundrySyncLogTable } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import { Router, type IRouter, type Request, type Response } from "express";
+import { db, foundrySyncLogTable, systemSecretsTable } from "@workspace/db";
+import { desc, eq } from "drizzle-orm";
+import { getAuth } from "@clerk/express";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { getFoundryAlertState, runFoundrySyncAwait } from "../services/foundry/sync";
+import {
+  rotateFoundryToken,
+  getFoundryTokenMeta,
+  invalidateFoundryTokenCache,
+} from "../services/foundry/auth";
+import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
@@ -14,8 +21,7 @@ router.use("/admin/foundry", requireAdmin);
  * whether the env vars are even configured (so the panel can prompt the
  * admin to set them instead of showing "no data").
  */
-router.get("/admin/foundry/health", async (_req, res) => {
-  // One query, derive both "latest" and "last success" from the tail.
+router.get("/admin/foundry/health", async (_req: Request, res: Response) => {
   const recent = await db
     .select()
     .from(foundrySyncLogTable)
@@ -32,9 +38,14 @@ router.get("/admin/foundry/health", async (_req, res) => {
     process.env.FOUNDRY_TOKEN || process.env.PALANTIR_TOKEN || process.env.PALANTIR_FOUNDRY_TOKEN,
   );
 
+  const tokenMeta = await getFoundryTokenMeta();
+
   res.json({
     envConfigured,
-    tokenConfigured,
+    tokenConfigured: tokenConfigured || tokenMeta?.source === "db",
+    tokenSource: tokenMeta?.source ?? "none",
+    tokenRotatedAt: tokenMeta?.rotatedAt ?? null,
+    tokenAgeMinutes: tokenMeta?.ageMinutes ?? null,
     latest,
     lastSuccessAt: lastSuccess?.completedAt ?? null,
     alert,
@@ -42,9 +53,8 @@ router.get("/admin/foundry/health", async (_req, res) => {
 });
 
 /** Last 10 (or N up to 50) sync runs — drives the run-history table. */
-router.get("/admin/foundry/sync-log", async (req, res) => {
+router.get("/admin/foundry/sync-log", async (req: Request, res: Response) => {
   const raw = Number(req.query.limit ?? 10);
-  // Guard NaN / negative / zero / fractional — fall back to default 10, cap at 50.
   const limit = !Number.isFinite(raw) || raw < 1 ? 10 : Math.min(Math.floor(raw), 50);
   const rows = await db
     .select()
@@ -59,9 +69,80 @@ router.get("/admin/foundry/sync-log", async (req, res) => {
  * UI can show inline pass/fail without polling. A successful sync clears
  * the 401 alert (handled inside runFoundrySyncOnce).
  */
-router.post("/admin/foundry/recheck", async (_req, res) => {
+router.post("/admin/foundry/recheck", async (_req: Request, res: Response) => {
   const result = await runFoundrySyncAwait("admin recheck");
   res.json({ result, alert: getFoundryAlertState() });
+});
+
+/**
+ * POST /api/admin/foundry/rotate-token
+ *
+ * Store a new Foundry API token in the DB so it can be rotated without a
+ * Railway redeploy. Body: { token: string, reason?: string }
+ */
+router.post("/admin/foundry/rotate-token", async (req: Request, res: Response) => {
+  const auth = getAuth(req);
+  const rotatedByUserId = auth?.userId ?? "shared_key_holder";
+  const token = typeof req.body?.token === "string" ? req.body.token.trim() : null;
+  const reason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 240) : null;
+
+  if (!token) {
+    res.status(400).json({ error: "token is required" });
+    return;
+  }
+
+  try {
+    await rotateFoundryToken(token, rotatedByUserId, reason);
+    // Immediately trigger a recheck so the UI sees the new token is valid
+    const result = await runFoundrySyncAwait("post-rotation recheck");
+    res.json({ ok: true, rotatedAt: new Date().toISOString(), syncResult: result });
+  } catch (err) {
+    logger.error({ err: err instanceof Error ? err.message : String(err) }, "[foundry-admin] rotate-token failed");
+    res.status(500).json({ error: "Token rotation failed; see server logs" });
+  }
+});
+
+/**
+ * GET /api/admin/foundry/token-meta
+ *
+ * Returns token metadata (source, age, last rotated by) without revealing
+ * the token value. Used by the admin panel to show rotation status.
+ */
+router.get("/admin/foundry/token-meta", async (_req: Request, res: Response) => {
+  const meta = await getFoundryTokenMeta();
+  res.json(meta);
+});
+
+/**
+ * PATCH /api/admin/foundry/notify-email
+ *
+ * Update the email address that receives Foundry token expiry alerts.
+ * Body: { email: string | null }
+ */
+router.patch("/admin/foundry/notify-email", async (req: Request, res: Response) => {
+  const email = req.body?.email;
+  if (email !== null && (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    res.status(400).json({ error: "Invalid email address" });
+    return;
+  }
+
+  const [existing] = await db
+    .select()
+    .from(systemSecretsTable)
+    .where(eq(systemSecretsTable.keyName, "foundry_token"));
+
+  if (!existing) {
+    res.status(412).json({ error: "No foundry_token row in DB yet — rotate the token first" });
+    return;
+  }
+
+  await db
+    .update(systemSecretsTable)
+    .set({ notifyEmail: email ?? null })
+    .where(eq(systemSecretsTable.keyName, "foundry_token"));
+
+  invalidateFoundryTokenCache();
+  res.json({ ok: true, notifyEmail: email ?? null });
 });
 
 export default router;

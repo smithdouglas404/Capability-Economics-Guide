@@ -142,7 +142,9 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer + the 5 specialized agents — cron silently skips if missing). `LETTA_*` env vars are no longer used (Letta was decommissioned in Phase 1.9 Step 6).
-- **Multi-agent + tool callback secrets**: `INFLEXCVI_AGENT_TOOL_KEY` (shared between api-server + Letta service so Letta's autonomous-tool callbacks can authenticate), `INFLEXCVI_API_BASE` (set on Letta service: the api-server's internal Railway URL the tool callbacks hit, e.g. `http://intelligent-alignment.railway.internal:8080`)
+- **Neo4j graph engine** (graceful degrade to PostgreSQL if absent): `NEO4J_URI` (bolt://neo4j.railway.internal:7687 for the Railway-internal Neo4j service), `NEO4J_USER` (default: neo4j), `NEO4J_PASSWORD`. When set, `graphMemory.ts` uses Cypher queries for `findCorrelations()` and `findRelated()` — the primary read path for `generateInsightsTool`. Falls back to PostgreSQL automatically on any connection error.
+- **Foundry token rotation** (graceful degrade): `FOUNDRY_TOKEN` / `PALANTIR_TOKEN` / `PALANTIR_FOUNDRY_TOKEN` — still read as env-var fallback, but the preferred path is to store the token via `POST /api/admin/foundry/rotate-token` (admin UI) which writes to `system_secrets` table. `ADMIN_NOTIFY_EMAIL` — email address for the 30-min Foundry token expiry cron alert (also configurable per-token via `PATCH /api/admin/foundry/notify-email`).
+- **Multi-agent + tool callback secrets**: `INFLEXCVI_AGENT_TOOL_KEY` (shared between api-server and any external tool callback services)
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
 
@@ -191,7 +193,7 @@ Inflexcvi project IDs (verify via discovery query before relying on them — ser
 - service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711`
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
 - service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c`
-- service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199`
+- service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199` — **now wired** into `graphMemory.ts` as the primary graph traversal engine. Set `NEO4J_URI=bolt://neo4j.railway.internal:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD` on the api-server service to activate. Falls back to PostgreSQL automatically when env vars are absent.
 - ~~service `letta-2EOT`~~ — DECOMMISSIONED in Phase 1.9 Step 6. Delete from Railway dashboard if it's still around.
 
 Never reuse a token from memory or a prior session — always ask for a fresh one. The CLI's `railway login --browserless` fails from a non-TTY Claude shell ("Cannot login in non-interactive mode") — GraphQL is the only path that works.

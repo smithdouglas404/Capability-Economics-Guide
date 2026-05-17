@@ -28,6 +28,8 @@ import { attributeSignalOutcomes } from "../cvi-signals/attribution";
 import { db } from "@workspace/db";
 import { cviComponentsTable, cviSnapshotsTable } from "@workspace/db";
 import { desc } from "drizzle-orm";
+import { getFoundryTokenMeta } from "../foundry/auth";
+import { sendEmail } from "../email";
 
 // Routine cadence is read from agent_tuning each tick — the only fixed
 // constant here is how often we *check* whether it's time to run.
@@ -110,6 +112,7 @@ let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
 let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
 let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
 let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
+let foundryTokenCheckTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -483,6 +486,49 @@ async function routineCheck(): Promise<void> {
   }
 }
 
+/**
+ * Check whether the Foundry API token is approaching expiry.
+ * Sends an email alert when the token is > 50 minutes old.
+ * Palantir tokens typically expire after 60 minutes, so this gives
+ * the admin a 10-minute window to rotate before the next sync fails.
+ */
+async function foundryTokenExpiryCheck(): Promise<void> {
+  const meta = await getFoundryTokenMeta();
+  if (!meta || meta.source !== "db" || meta.ageMinutes === null) return;
+
+  const WARN_THRESHOLD_MINUTES = 50;
+  if (meta.ageMinutes < WARN_THRESHOLD_MINUTES) return;
+
+  const notifyEmail = meta.notifyEmail ?? process.env.ADMIN_NOTIFY_EMAIL;
+  if (!notifyEmail) {
+    console.warn(`[Agent] Foundry token is ${meta.ageMinutes}min old (>50min) — no notify email configured`);
+    return;
+  }
+
+  const subject = `⚠️ Foundry token expiry warning — ${meta.ageMinutes} minutes old`;
+  const text = [
+    `Your Palantir Foundry API token was last rotated ${meta.ageMinutes} minutes ago.`,
+    `Palantir tokens expire after ~60 minutes. Please rotate the token now via the admin panel`,
+    `to prevent the next Foundry sync from failing with a 401 error.`,
+    ``,
+    `Last rotated by: ${meta.rotatedByUserId ?? "unknown"}`,
+    `Rotated at: ${meta.rotatedAt?.toISOString() ?? "unknown"}`,
+  ].join("\n");
+
+  const sent = await sendEmail({
+    to: notifyEmail,
+    subject,
+    text,
+    html: `<p>${text.replace(/\n/g, "<br>")}</p>`,
+  });
+
+  if (sent) {
+    console.log(`[Agent] Foundry token expiry alert sent to ${notifyEmail} (token age: ${meta.ageMinutes}min)`);
+  } else {
+    console.warn(`[Agent] Foundry token expiry alert FAILED to send (Resend not configured?)`);
+  }
+}
+
 export function startScheduler(): void {
   if (routineTimer) {
     console.log("[Agent] Autonomous monitoring already active");
@@ -603,6 +649,16 @@ export function startScheduler(): void {
   setTimeout(() => edgarRssTick(), 240_000);
   // CVI signals detector — 5 min stagger, then daily.
   setTimeout(() => ceiSignalsTick(), 300_000);
+
+  // Foundry token expiry check — every 30 minutes.
+  // Sends an email alert when the token is > 50 minutes old so the admin
+  // has time to rotate before the 60-minute Palantir expiry window.
+  const FOUNDRY_TOKEN_CHECK_MS = 30 * 60 * 1000;
+  foundryTokenCheckTimer = setInterval(() => {
+    foundryTokenExpiryCheck().catch(err =>
+      console.warn("[Agent] Foundry token expiry check failed:", err instanceof Error ? err.message : err),
+    );
+  }, FOUNDRY_TOKEN_CHECK_MS);
 }
 
 /**

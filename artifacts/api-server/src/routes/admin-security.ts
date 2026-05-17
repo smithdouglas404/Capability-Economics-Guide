@@ -70,7 +70,6 @@ router.post("/admin/security/rotate-admin-key", requireAdmin, async (req: Reques
       // First rotation when no DB row exists yet: also previous = env var.
       const previousValueHash = process.env.ADMIN_API_KEY ? sha256(process.env.ADMIN_API_KEY) : null;
       await db.insert(systemSecretsTable).values({
-        id: 1,
         keyName: "admin_api_key",
         keyValue: newKey,
         rotatedAt: now,
