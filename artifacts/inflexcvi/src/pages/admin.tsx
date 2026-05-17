@@ -749,6 +749,7 @@ export default function AdminDashboard() {
           <ApiVolumePanel />
           <RuntimeTuningPanel />
           <SyntheticAgentsPanel />
+          <BotWorkflowsPanel />
           <FoundrySyncPanel />
           <AuditLogViewer />
           <Card>
@@ -1309,3 +1310,323 @@ function BotActivityFeed() {
   );
 }
 
+
+// ─────────────────────── Bot Workflows Panel ───────────────────────
+// Calls GET /admin/bot-workflows, POST /admin/bot-workflows/trigger,
+// GET /admin/bot-workflows/:runId. Surfaces the multi-step LangGraph
+// workflows that run alongside the per-action bot loop.
+
+interface WorkflowDef {
+  key: string;
+  label: string;
+  cadence: string;
+  scope: "per-bot" | "system-wide";
+  appliesToPersonas: string[];
+  description: string;
+  estimatedCostCents: number;
+}
+
+interface WorkflowRun {
+  id: number;
+  botId: number | null;
+  workflowKey: string;
+  trigger: string;
+  status: string;
+  costCents: number;
+  durationMs: number | null;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string | null;
+  artifactIds: Record<string, number[]>;
+}
+
+interface WorkflowsResp {
+  definitions: WorkflowDef[];
+  recentRuns: WorkflowRun[];
+}
+
+interface WorkflowStep {
+  id: number;
+  stepName: string;
+  stepIndex: number;
+  status: string;
+  costCents: number;
+  durationMs: number;
+  payload: Record<string, unknown>;
+  errorMessage: string | null;
+  startedAt: string;
+}
+
+interface RunDetailResp {
+  run: WorkflowRun & { state: Record<string, unknown> };
+  steps: WorkflowStep[];
+}
+
+function workflowStatusClass(status: string): string {
+  switch (status) {
+    case "completed":         return "bg-green-500/10 text-green-600";
+    case "in_progress":       return "bg-blue-500/10 text-blue-600";
+    case "pending":           return "bg-muted text-muted-foreground";
+    case "failed":            return "bg-red-500/10 text-red-600";
+    case "budget_exhausted":  return "bg-amber-500/10 text-amber-600";
+    case "no_op":             return "bg-muted text-muted-foreground";
+    default:                  return "bg-muted text-muted-foreground";
+  }
+}
+
+function BotWorkflowsPanel() {
+  const { data, loading, refetch } = useApi<WorkflowsResp>("/admin/bot-workflows");
+  const [triggering, setTriggering] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [expandedRunId, setExpandedRunId] = useState<number | null>(null);
+  const [runDetail, setRunDetail] = useState<RunDetailResp | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const triggerWorkflow = async (workflowKey: string, botId: number | null) => {
+    setTriggering(workflowKey);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bot-workflows/trigger`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ workflowKey, botId }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      await refetch();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Trigger failed");
+    } finally {
+      setTriggering(null);
+    }
+  };
+
+  const loadRunDetail = async (runId: number) => {
+    setLoadingDetail(true);
+    setRunDetail(null);
+    setExpandedRunId(runId);
+    try {
+      const res = await fetch(`${API_BASE}/admin/bot-workflows/${runId}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRunDetail(await res.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Load detail failed");
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const collapseDetail = () => {
+    setExpandedRunId(null);
+    setRunDetail(null);
+  };
+
+  const totalCostCents = (data?.recentRuns ?? []).reduce((a, r) => a + r.costCents, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <GitBranch className="w-5 h-5" /> Bot Workflows
+          {data && (
+            <span className="text-sm font-normal text-muted-foreground ml-2">
+              {data.definitions.length} registered · {data.recentRuns.length} recent runs · ${(totalCostCents / 100).toFixed(2)} total
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading && !data ? (
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        ) : (
+          <>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            {/* Registered workflows */}
+            <div>
+              <div className="text-xs uppercase text-muted-foreground font-mono tracking-[0.18em] mb-2">
+                Registered workflows
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                      <th className="px-3 py-2 text-left">Workflow</th>
+                      <th className="px-3 py-2 text-left">Scope</th>
+                      <th className="px-3 py-2 text-left">Cadence</th>
+                      <th className="px-3 py-2 text-left">Personas</th>
+                      <th className="px-3 py-2 text-left">Est. cost</th>
+                      <th className="px-3 py-2 text-left">Trigger</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.definitions ?? []).map((d) => (
+                      <tr key={d.key} className="border-b border-border/50 hover:bg-muted/20 align-top">
+                        <td className="px-3 py-3">
+                          <div className="font-medium">{d.label}</div>
+                          <div className="text-xs text-muted-foreground font-mono mt-1">{d.key}</div>
+                          <div className="text-xs text-muted-foreground mt-1 max-w-md">{d.description}</div>
+                        </td>
+                        <td className="px-3 py-3 text-xs">
+                          <span className={`px-2 py-0.5 rounded text-xs ${d.scope === "system-wide" ? "bg-purple-500/10 text-purple-600" : "bg-blue-500/10 text-blue-600"}`}>
+                            {d.scope}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 text-xs font-mono">{d.cadence}</td>
+                        <td className="px-3 py-3 text-xs">
+                          {d.scope === "system-wide" ? (
+                            <span className="text-muted-foreground italic">all</span>
+                          ) : (
+                            <span className="text-xs">{d.appliesToPersonas.join(", ")}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-xs font-mono">${(d.estimatedCostCents / 100).toFixed(2)}</td>
+                        <td className="px-3 py-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={triggering === d.key || d.scope === "per-bot"}
+                            onClick={() => triggerWorkflow(d.key, null)}
+                            className="h-7 text-xs"
+                            title={d.scope === "per-bot" ? "Per-bot workflows fire on scheduler tick; use the Synthetic Agents panel to manage bot state" : "Trigger this system workflow now"}
+                          >
+                            {triggering === d.key ? "Triggering…" : "Trigger now"}
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Recent runs */}
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs uppercase text-muted-foreground font-mono tracking-[0.18em]">
+                  Recent runs {data && `· last ${data.recentRuns.length}`}
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => refetch()} className="h-6 text-[10px]">Refresh</Button>
+              </div>
+              {(data?.recentRuns ?? []).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No workflow runs yet. They will start appearing once the scheduler's 30-min tick fires due workflows.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                        <th className="px-3 py-2 text-left">Run</th>
+                        <th className="px-3 py-2 text-left">Workflow</th>
+                        <th className="px-3 py-2 text-left">Trigger</th>
+                        <th className="px-3 py-2 text-left">Status</th>
+                        <th className="px-3 py-2 text-left">Cost</th>
+                        <th className="px-3 py-2 text-left">Duration</th>
+                        <th className="px-3 py-2 text-left">Artifacts</th>
+                        <th className="px-3 py-2 text-left">Started</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(data?.recentRuns ?? []).map((r) => {
+                        const artifactCount = Object.values(r.artifactIds ?? {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0);
+                        const isExpanded = expandedRunId === r.id;
+                        return (
+                          <>
+                            <tr key={r.id} className="border-b border-border/50 hover:bg-muted/20">
+                              <td className="px-3 py-3 text-xs font-mono">#{r.id}</td>
+                              <td className="px-3 py-3 text-xs">
+                                <div>{r.workflowKey}</div>
+                                {r.botId !== null && <div className="text-muted-foreground">bot #{r.botId}</div>}
+                              </td>
+                              <td className="px-3 py-3 text-xs font-mono">{r.trigger}</td>
+                              <td className="px-3 py-3">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${workflowStatusClass(r.status)}`}>
+                                  {r.status}
+                                </span>
+                              </td>
+                              <td className="px-3 py-3 text-xs font-mono">${(r.costCents / 100).toFixed(2)}</td>
+                              <td className="px-3 py-3 text-xs font-mono">{r.durationMs !== null ? `${(r.durationMs / 1000).toFixed(1)}s` : "—"}</td>
+                              <td className="px-3 py-3 text-xs">{artifactCount}</td>
+                              <td className="px-3 py-3 text-xs text-muted-foreground">{timeAgo(r.startedAt)}</td>
+                            </tr>
+                            <tr key={`${r.id}-actions`} className="border-b border-border/30">
+                              <td colSpan={8} className="px-3 py-1 text-right">
+                                {isExpanded ? (
+                                  <Button size="sm" variant="ghost" onClick={collapseDetail} className="h-6 text-[10px]">
+                                    Hide trace
+                                  </Button>
+                                ) : (
+                                  <Button size="sm" variant="ghost" onClick={() => loadRunDetail(r.id)} className="h-6 text-[10px]">
+                                    Show step trace
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                            {isExpanded && (
+                              <tr key={`${r.id}-detail`}>
+                                <td colSpan={8} className="px-3 py-3 bg-muted/30">
+                                  {loadingDetail ? (
+                                    <p className="text-xs text-muted-foreground">Loading trace…</p>
+                                  ) : runDetail && runDetail.run.id === r.id ? (
+                                    <div className="space-y-3">
+                                      {runDetail.run.errorMessage && (
+                                        <div className="text-xs text-red-600 font-mono">Error: {runDetail.run.errorMessage}</div>
+                                      )}
+                                      <div className="text-xs uppercase text-muted-foreground font-mono tracking-[0.15em]">
+                                        Step trace ({runDetail.steps.length} steps)
+                                      </div>
+                                      <table className="w-full text-xs">
+                                        <thead>
+                                          <tr className="text-[10px] uppercase text-muted-foreground border-b border-border/50">
+                                            <th className="px-2 py-1 text-left">#</th>
+                                            <th className="px-2 py-1 text-left">Step</th>
+                                            <th className="px-2 py-1 text-left">Status</th>
+                                            <th className="px-2 py-1 text-left">Cost</th>
+                                            <th className="px-2 py-1 text-left">Duration</th>
+                                            <th className="px-2 py-1 text-left">Payload</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody>
+                                          {runDetail.steps.map((s) => (
+                                            <tr key={s.id} className="border-b border-border/30 align-top">
+                                              <td className="px-2 py-2 font-mono">{s.stepIndex}</td>
+                                              <td className="px-2 py-2 font-mono">{s.stepName}</td>
+                                              <td className="px-2 py-2">
+                                                <span className={`px-1.5 py-0.5 rounded text-[10px] ${workflowStatusClass(s.status === "ok" ? "completed" : s.status)}`}>
+                                                  {s.status}
+                                                </span>
+                                              </td>
+                                              <td className="px-2 py-2 font-mono">${(s.costCents / 100).toFixed(2)}</td>
+                                              <td className="px-2 py-2 font-mono">{s.durationMs}ms</td>
+                                              <td className="px-2 py-2 font-mono text-[10px] text-muted-foreground max-w-md">
+                                                {Object.keys(s.payload).length > 0 ? (
+                                                  <pre className="whitespace-pre-wrap break-words">{JSON.stringify(s.payload, null, 2)}</pre>
+                                                ) : "—"}
+                                              </td>
+                                            </tr>
+                                          ))}
+                                        </tbody>
+                                      </table>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">No detail loaded.</p>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
