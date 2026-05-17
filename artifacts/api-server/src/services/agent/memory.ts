@@ -117,8 +117,16 @@ async function mem0Fetch(
       );
     }
     if (res.status === 401) {
+      const cfg401 = getMem0Config();
+      if (cfg401?.isCloud) {
+        throw new Error(
+          `Mem0 ${method} ${path} → 401: Mem0 Cloud rejected the API key. ` +
+          `Check MEM0_API_KEY starts with "m0-" and is valid at app.mem0.ai. ` +
+          `Header sent: Authorization: Token <key> (NOT Bearer). Raw: ${text.slice(0, 200)}`,
+        );
+      }
       throw new Error(
-        `Mem0 ${method} ${path} → 401: api-server's MEM0_API_KEY does not match the Mem0 service's ADMIN_API_KEY. ` +
+        `Mem0 ${method} ${path} → 401: api-server's MEM0_API_KEY does not match the self-hosted Mem0 service's ADMIN_API_KEY. ` +
         `Sent via X-API-Key (NOT Authorization: Bearer). Verify both env vars match in Railway. Raw: ${text.slice(0, 200)}`,
       );
     }
