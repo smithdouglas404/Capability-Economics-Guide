@@ -269,7 +269,7 @@ async function ensureAttachedArchive(): Promise<void> {
  * Failure is non-fatal — the agent just won't be available in the per-agent
  * map; the platform continues running on the shared cvi-autonomous-agent.
  */
-async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: AgentState[], identityId: string | null): Promise<AgentLettaState | null> {
+async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: AgentState[]): Promise<AgentLettaState | null> {
   if (!lettaClient) return null;
   try {
     const existing = existingAgents.find((a) => a.name === entry.lettaAgentName);
@@ -282,6 +282,7 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
       // `archival_memory_search` (one of Letta's base tools, attached via
       // include_base_tools: true). Cap core_memory_replace at 2 per turn so
       // a hallucinating agent can't rewrite its own persona block repeatedly.
+      // Both rule types are typed in the SDK at @letta-ai/letta-client v1.11.
       const toolRules = [
         { type: "init", tool_name: "archival_memory_search" },
         { type: "max_count_per_step", tool_name: "core_memory_replace", max_count_limit: 2 },
@@ -299,7 +300,6 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
         model: entry.lettaModel,
         embedding: LETTA_EMBEDDING,
         enable_sleeptime: entry.enableSleeptime,
-        ...(identityId ? { identity_ids: [identityId] } : {}),
         tool_rules: toolRules,
         memory_blocks: [
           { label: "persona", value: entry.persona, description: "Identity and reasoning style for this agent.", limit: 4000, read_only: true },
@@ -309,20 +309,6 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
       });
       agentId = newAgent.id;
       console.log(`[Letta] Created agent "${entry.lettaAgentName}" (${agentId}) with sleeptime=${entry.enableSleeptime}`);
-    }
-
-    // Best-effort: attach the inflexcvi-platform identity to a reused agent
-    // too. Skipped automatically when the agent was just created with
-    // identity_ids in its body. Safe to call repeatedly — Letta no-ops if
-    // the identity is already attached.
-    if (identityId && existing) {
-      try {
-        await (lettaClient as unknown as {
-          agents: { identities: { attach: (identityId: string, params: { agent_id: string }) => Promise<unknown> } };
-        }).agents.identities.attach(identityId, { agent_id: agentId });
-      } catch (err) {
-        console.log(`[Letta] Identity attach for reused "${entry.lettaAgentName}" failed (non-fatal): ${err instanceof Error ? err.message : err}`);
-      }
     }
 
     // Attach an archive to this agent so archival memory ops work.
@@ -363,80 +349,33 @@ async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: Age
  * Populates lettaAgentMap. Idempotent — safe to call on every boot.
  */
 /**
- * Best-effort find-or-create the "inflexcvi-platform" identity in Letta Cloud
- * so all 7 agents can be grouped under one organizational view in the
- * dashboard. The SDK at v1.11.0 only exposes attach/detach on agents.identities
- * (no top-level identities.create method), so we use a direct REST call. The
- * Letta Cloud REST surface for this is documented as `POST /v1/identities/`.
+ * Letta identities are DEPRECATED upstream. Every route in
+ * letta/server/rest_api/routers/v1/identities.py is marked
+ * `deprecated=True` (POST /v1/identities/, GET /v1/identities/, attach,
+ * detach, the entire surface). The TypeScript SDK v1.11.0 only exposes
+ * attach/detach (no create method) — consistent with Letta phasing the
+ * feature out.
  *
- * Returns the identity's id, or null on any failure (operator-friendly:
- * agents continue running ungrouped if this fails).
+ * Previously this file had a `ensurePlatformIdentity()` helper that did a
+ * direct fetch to /v1/identities/. That code was speculative against a
+ * deprecated endpoint and has been removed. Agent grouping in Letta's
+ * dashboard should be managed via the dashboard UI directly, not via
+ * deprecated API calls.
+ *
+ * If Letta ships a replacement for identities (likely under a new resource
+ * name in a later SDK version), wire it here.
  */
-async function ensurePlatformIdentity(): Promise<string | null> {
-  if (!lettaClient) return null;
-  const identifierKey = "inflexcvi-platform";
-  try {
-    // 1. List existing identities (filter by identifier_key)
-    const listRes = await fetch(`${LETTA_BASE_URL}/v1/identities/?identifier_key=${encodeURIComponent(identifierKey)}`, {
-      headers: {
-        "Authorization": `Bearer ${LETTA_API_KEY ?? ""}`,
-        "Content-Type": "application/json",
-      },
-    });
-    if (listRes.ok) {
-      const data = await listRes.json() as Array<{ id?: string; identifier_key?: string }> | { items?: Array<{ id?: string; identifier_key?: string }> };
-      const items: Array<{ id?: string; identifier_key?: string }> = Array.isArray(data) ? data : (data.items ?? []);
-      const match = items.find((i) => i.identifier_key === identifierKey) ?? (items.length === 1 ? items[0] : undefined);
-      if (match?.id) {
-        console.log(`[Letta] Reused identity "${identifierKey}" (${match.id})`);
-        return match.id;
-      }
-    }
-    // 2. Create the identity if none exists
-    const createRes = await fetch(`${LETTA_BASE_URL}/v1/identities/`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LETTA_API_KEY ?? ""}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        identifier_key: identifierKey,
-        name: "Inflexcvi Platform",
-        identity_type: "org",
-      }),
-    });
-    if (!createRes.ok) {
-      console.log(`[Letta] Identity create returned ${createRes.status} (non-fatal, agents will run ungrouped)`);
-      return null;
-    }
-    const created = await createRes.json() as { id?: string };
-    if (created.id) {
-      console.log(`[Letta] Created identity "${identifierKey}" (${created.id})`);
-      return created.id;
-    }
-    return null;
-  } catch (err) {
-    console.log(`[Letta] Identity setup failed (non-fatal): ${err instanceof Error ? err.message : err}`);
-    return null;
-  }
-}
-
 async function registerAllAgents(existingAgents: AgentState[]): Promise<void> {
   if (!lettaClient) return;
-  // Best-effort: create / reuse the inflexcvi-platform identity so all agents
-  // share an org-level view. If the call fails (Cloud REST shape differs),
-  // identityId stays null and agents are registered ungrouped.
-  const identityId = await ensurePlatformIdentity();
-
   let successes = 0;
   for (const entry of AGENT_REGISTRY) {
-    const state = await registerLettaAgent(entry, existingAgents, identityId);
+    const state = await registerLettaAgent(entry, existingAgents);
     if (state) {
       lettaAgentMap.set(entry.shortName, state);
       successes++;
     }
   }
-  console.log(`[Letta] Registered ${successes}/${AGENT_REGISTRY.length} agents from AGENT_REGISTRY${identityId ? ` (grouped under identity ${identityId})` : ""}`);
+  console.log(`[Letta] Registered ${successes}/${AGENT_REGISTRY.length} agents from AGENT_REGISTRY`);
 }
 
 async function doInit(): Promise<boolean> {
