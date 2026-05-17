@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
 import { desc, sql, and, eq } from "drizzle-orm";
 import { mem0AgentIdFor } from "./agent-registry";
+import { MemoryClient, type Memory as Mem0Memory } from "mem0ai";
 
 // Cutover note: was "cei-autonomous-agent" before the Inflexcvi rebrand.
 // Memories created under the old ID stay readable via mem0 search regardless
@@ -94,103 +95,50 @@ function getMem0Config(): Mem0Config | null {
   return { baseUrl, apiKey, isCloud };
 }
 
-function buildAuthHeaders(cfg: Mem0Config): Record<string, string> {
-  if (cfg.isCloud) {
-    // Mem0 Platform (cloud) uses the legacy "Token" scheme, not Bearer.
-    // The platform API key starts with m0-...
-    return { Authorization: `Token ${cfg.apiKey}` };
-  }
-  // Self-hosted v2.x: X-API-Key (NOT Authorization: Bearer — that path
-  // tries to verify the value as a JWT and rejects ADMIN_API_KEY).
-  return { "X-API-Key": cfg.apiKey };
+/**
+ * Lazy singleton MemoryClient from the official `mem0ai` npm SDK.
+ *
+ * Replaced the hand-rolled `mem0Fetch` + `mapPath` + `buildAuthHeaders` stack
+ * in the SDK-migration commit. The SDK handles:
+ *   - Cloud (`api.mem0.ai`) vs self-hosted host detection
+ *   - `Authorization: Token` (cloud) vs `Authorization: <api_key>` (self-hosted)
+ *     under the hood — we just pass apiKey + host
+ *   - Trailing-slash + /v1/ prefix path quirks
+ *   - Typed error classes (AuthenticationError, RateLimitError, NetworkError,
+ *     MemoryNotFoundError, MemoryQuotaExceededError, etc.) — see error
+ *     translation in describeMem0Error() below.
+ *   - `org_id` + `project_id` auto-population via .ping() so updateProject and
+ *     project-scoped reads work without manual env-var threading.
+ */
+let mem0ClientSingleton: MemoryClient | null = null;
+function getMem0Client(): MemoryClient | null {
+  if (mem0ClientSingleton) return mem0ClientSingleton;
+  const cfg = getMem0Config();
+  if (!cfg) return null;
+  mem0ClientSingleton = new MemoryClient({ apiKey: cfg.apiKey, host: cfg.baseUrl });
+  return mem0ClientSingleton;
 }
 
 /**
- * Map a self-hosted-style path to the cloud-style path when in cloud mode.
- *
- *   Self-hosted v2.x          → Cloud v1
- *   /memories                 → /v1/memories/
- *   /memories?qs=...          → /v1/memories/?qs=...
- *   /memories/{id}            → /v1/memories/{id}/
- *   /memories/{id}?qs=...     → /v1/memories/{id}/?qs=...
- *   /memories/{id}/history    → /v1/memories/{id}/history/
- *   /search                   → /v1/memories/search/
- *
- * The cloud's OpenAPI requires the `/v1` prefix AND trailing slashes on
- * collection / resource endpoints. Both differences are encapsulated here
- * so call sites never branch on isCloud.
+ * Translate the SDK's typed error classes into operator-friendly messages
+ * with concrete remediation. The SDK throws AuthenticationError, NetworkError,
+ * RateLimitError, MemoryNotFoundError, MemoryQuotaExceededError — we surface
+ * these with the same hints the old mem0Fetch wrapper used to emit.
  */
-function mapPath(path: string, isCloud: boolean): string {
-  if (!isCloud) return path;
-  // Split off any query string so we can normalize the path part alone.
-  const [base, qs] = path.split("?");
-  let mapped: string;
-  if (base === "/search") {
-    mapped = "/v1/memories/search/";
-  } else if (base.startsWith("/memories")) {
-    // /memories                → /v1/memories/
-    // /memories/{id}           → /v1/memories/{id}/
-    // /memories/{id}/history   → /v1/memories/{id}/history/
-    const rest = base.slice("/memories".length); // "" | "/{id}" | "/{id}/history"
-    mapped = rest.length === 0
-      ? "/v1/memories/"
-      : (rest.endsWith("/") ? `/v1/memories${rest}` : `/v1/memories${rest}/`);
-  } else {
-    // Unknown path — leave alone but warn so we don't silently mis-route.
-    console.warn(`[Mem0] cloud path map: unknown path "${base}" — leaving as-is`);
-    return path;
-  }
-  return qs ? `${mapped}?${qs}` : mapped;
-}
-
-async function mem0Fetch(
-  path: string,
-  method: string,
-  body?: unknown,
-): Promise<unknown> {
+function describeMem0Error(op: string, err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const name = err instanceof Error ? err.constructor.name : "Error";
   const cfg = getMem0Config();
-  if (!cfg) throw new Error("Mem0 not configured");
-  const effectivePath = mapPath(path, cfg.isCloud);
-  const res = await fetch(`${cfg.baseUrl}${effectivePath}`, {
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...buildAuthHeaders(cfg),
-    },
-    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    // Surface the most-common operator misconfigs with actionable hints
-    // instead of just dumping the raw 5xx. Mem0 self-hosted uses LiteLLM
-    // under the hood, which calls an OpenAI-compatible endpoint. We route
-    // those calls through OpenRouter (cost + single key surface), so the
-    // Mem0 service's "OPENAI_API_KEY" var must hold an OpenRouter key and
-    // OPENAI_BASE_URL must point at https://openrouter.ai/api/v1.
-    if (res.status === 502 && text.includes("provider_auth_failed")) {
-      throw new Error(
-        `Mem0 ${method} ${path} → 502 provider_auth_failed: the Mem0 service's upstream LLM call failed auth. ` +
-        `Fix in Railway on the Mem0 service: set OPENAI_API_KEY to a valid OpenRouter key and OPENAI_BASE_URL=https://openrouter.ai/api/v1. ` +
-        `Raw: ${text.slice(0, 200)}`,
-      );
+  if (name === "AuthenticationError" || /401|unauthor/i.test(msg)) {
+    if (cfg?.isCloud) {
+      return `Mem0 ${op} → 401: Mem0 Cloud rejected the API key. Verify MEM0_API_KEY starts with "m0-" and is valid at app.mem0.ai. Raw: ${msg.slice(0, 200)}`;
     }
-    if (res.status === 401) {
-      const cfg401 = getMem0Config();
-      if (cfg401?.isCloud) {
-        throw new Error(
-          `Mem0 ${method} ${path} → 401: Mem0 Cloud rejected the API key. ` +
-          `Check MEM0_API_KEY starts with "m0-" and is valid at app.mem0.ai. ` +
-          `Header sent: Authorization: Token <key> (NOT Bearer). Raw: ${text.slice(0, 200)}`,
-        );
-      }
-      throw new Error(
-        `Mem0 ${method} ${path} → 401: api-server's MEM0_API_KEY does not match the self-hosted Mem0 service's ADMIN_API_KEY. ` +
-        `Sent via X-API-Key (NOT Authorization: Bearer). Verify both env vars match in Railway. Raw: ${text.slice(0, 200)}`,
-      );
-    }
-    throw new Error(`Mem0 ${method} ${path} → ${res.status}: ${text}`);
+    return `Mem0 ${op} → 401: api-server's MEM0_API_KEY does not match the self-hosted Mem0 ADMIN_API_KEY. Verify both env vars match in Railway. Raw: ${msg.slice(0, 200)}`;
   }
-  return res.json();
+  if (/provider_auth_failed/i.test(msg)) {
+    return `Mem0 ${op} → upstream LLM auth failed (self-hosted only). Fix on the Mem0 service: set OPENAI_API_KEY to a valid OpenRouter key and OPENAI_BASE_URL=https://openrouter.ai/api/v1. Raw: ${msg.slice(0, 200)}`;
+  }
+  return `Mem0 ${op} (${name}): ${msg.slice(0, 240)}`;
 }
 
 export function isMem0Available(): boolean {
@@ -234,9 +182,9 @@ export async function configureMem0CustomCategories(): Promise<void> {
     { synthesis:              "Cross-agent insight produced by the Synthesis Agent from multiple inputs." },
   ];
 
+  const client = getMem0Client();
+  if (!client) return;
   try {
-    const { MemoryClient } = await import("mem0ai");
-    const client = new MemoryClient({ apiKey: cfg.apiKey, host: cfg.baseUrl });
     // ping() populates organizationId + projectId on the client; updateProject
     // requires both. The SDK throws a clear error if ping fails or if the
     // account isn't on an org/project plan tier.
@@ -244,8 +192,7 @@ export async function configureMem0CustomCategories(): Promise<void> {
     await client.updateProject({ customCategories });
     console.log(`[Mem0] custom_categories configured via SDK updateProject (${customCategories.length} categories)`);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.log(`[Mem0] custom_categories update via SDK failed (non-fatal — Mem0 keeps default categorization): ${msg.slice(0, 200)}`);
+    console.log(`[Mem0] ${describeMem0Error("updateProject", err)} (non-fatal — Mem0 keeps default categorization)`);
   }
 }
 
@@ -256,7 +203,16 @@ export async function configureMem0CustomCategories(): Promise<void> {
  */
 export async function mem0Ping(): Promise<void> {
   if (!isMem0Available()) throw new Error("Mem0 not configured");
-  await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=1`, "GET");
+  const client = getMem0Client();
+  if (!client) throw new Error("Mem0 client init failed");
+  // SDK's .ping() also populates organizationId + projectId on the client,
+  // which is what makes the subsequent updateProject + project-scoped reads
+  // work without manual env-var threading.
+  try {
+    await client.ping();
+  } catch (err) {
+    throw new Error(describeMem0Error("ping", err));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -310,18 +266,17 @@ export async function storeMemory(
   let mem0EventId: string | null = null;
   let mem0Status: string | null = null;
 
-  if (isMem0Available()) {
+  const client = getMem0Client();
+  if (client) {
     try {
       const messages = buildConversationalMessages(type, category, content, context, metadata);
-      // Mem0 Cloud graph mode is an account/plan-level setting, not a
-      // per-request parameter. Previously this block tried `version: "v2"` —
-      // that's not a documented graph toggle and was removed. To enable
-      // graph storage, upgrade the Mem0 plan tier and the toggle applies
-      // automatically server-side.
-      const result = await mem0Fetch("/memories", "POST", {
-        messages,
+      // enable_graph: true is the SDK's documented per-request flag for
+      // graph-store storage on Mem0 Cloud. Account/plan tier must support
+      // graph mode — if not, the server silently degrades to vector-only.
+      const result = await client.add(messages, {
         agent_id: resolvedAgentId,
         ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
+        enable_graph: true,
         metadata: {
           ...metadata,
           memoryType: type,
@@ -333,15 +288,15 @@ export async function storeMemory(
           // grows unbounded.
           expiresAt: expiresAt.toISOString(),
         },
-      }) as { results?: Array<{ id?: string; event_id?: string; event?: string }> };
+      });
 
-      const first = result?.results?.[0];
+      const first = result?.[0];
       mem0Id = first?.id ?? null;
-      mem0EventId = first?.event_id ?? null;
-      mem0Status = first?.event ?? null;
+      mem0EventId = (first as Mem0Memory & { event_id?: string })?.event_id ?? null;
+      mem0Status = typeof first?.event === "string" ? first.event : null;
       console.log(`[Mem0] stored ${type}/${category ?? "uncategorized"} id=${mem0Id?.slice(0, 8) ?? "n/a"}`);
     } catch (err) {
-      console.error("[Mem0] store failed:", err instanceof Error ? err.message : err);
+      console.error("[Mem0]", describeMem0Error("store", err));
     }
   }
 
@@ -396,46 +351,46 @@ export async function storeMemory(
 }
 
 export async function updateMemory(memoryId: string, newContent: string): Promise<boolean> {
-  if (!isMem0Available()) return false;
+  const client = getMem0Client();
+  if (!client) return false;
   try {
-    // Mem0 self-hosted v2.x PUT /memories/{id} model is MemoryUpdateRequest
-    // with field `data` (not `text`, which the hosted-cloud docs use). We
-    // were sending `text` and the server was silently accepting then no-op'ing,
-    // so refinement memories from reflectNode never actually persisted upstream.
-    // Send both to stay compatible if the operator bumps to a version that
-    // renames it; the server ignores unknown keys.
-    await mem0Fetch(`/memories/${memoryId}`, "PUT", { data: newContent, text: newContent });
+    // SDK's update() takes { text, metadata?, timestamp? }. The historical
+    // self-hosted-vs-cloud field-name divergence (`data` vs `text`) is
+    // handled inside the SDK — we just pass `text` and it routes correctly.
+    await client.update(memoryId, { text: newContent });
     await db.update(agentMemoriesTable)
       .set({ content: newContent })
       .where(eq(agentMemoriesTable.mem0Id, memoryId));
     console.log(`[Mem0] updated ${memoryId.slice(0, 8)}`);
     return true;
   } catch (err) {
-    console.error("[Mem0] update failed:", err instanceof Error ? err.message : err);
+    console.error("[Mem0]", describeMem0Error("update", err));
     return false;
   }
 }
 
 export async function deleteMemory(memoryId: string): Promise<boolean> {
-  if (!isMem0Available()) return false;
+  const client = getMem0Client();
+  if (!client) return false;
   try {
-    await mem0Fetch(`/memories/${memoryId}`, "DELETE");
+    await client.delete(memoryId);
     await db.delete(agentMemoriesTable).where(eq(agentMemoriesTable.mem0Id, memoryId));
     console.log(`[Mem0] deleted ${memoryId.slice(0, 8)}`);
     return true;
   } catch (err) {
-    console.error("[Mem0] delete failed:", err instanceof Error ? err.message : err);
+    console.error("[Mem0]", describeMem0Error("delete", err));
     return false;
   }
 }
 
 export async function getMemoryHistory(memoryId: string): Promise<unknown[]> {
-  if (!isMem0Available()) return [];
+  const client = getMem0Client();
+  if (!client) return [];
   try {
-    const result = await mem0Fetch(`/memories/${memoryId}/history`, "GET") as unknown[];
+    const result = await client.history(memoryId);
     return Array.isArray(result) ? result : [];
   } catch (err) {
-    console.error("[Mem0] history failed:", err instanceof Error ? err.message : err);
+    console.error("[Mem0]", describeMem0Error("history", err));
     return [];
   }
 }
@@ -467,79 +422,44 @@ export async function recallMemories(
   // Resolve the Mem0 agent_id for this recall. Falls back to the shared pool.
   const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
-  if (isMem0Available()) {
+  const client = getMem0Client();
+  if (client) {
     try {
-      // Mem0 Cloud (v1) and self-hosted Mem0 (v2.x) expect DIFFERENT search
-      // payload shapes. Cloud wants agent_id as a top-level field; self-hosted
-      // v2.x supports the nested AND/OR filter DSL. Branching on isCloud
-      // avoids the 400 "At least one of the filters: agent_id, user_id,
-      // app_id, run_id is required!" that Cloud throws when only a nested
-      // filters object is sent.
-      const cfgSearch = getMem0Config();
-      const isCloud = cfgSearch?.isCloud ?? false;
+      // SDK's search() takes a flat options object — agent_id at top level,
+      // metadata as a flat dict, enable_graph for graph-mode recall. The
+      // SDK normalises cloud-vs-self-hosted payload shape internally, so we
+      // don't need the AND-filter branching that the old mem0Fetch path had.
+      const meta: Record<string, unknown> = {};
+      if (type) meta.memoryType = type;
+      if (options.category) meta.category = options.category;
+      if (options.topic) meta.topic = options.topic;
+      const searchOpts: Record<string, unknown> = {
+        agent_id: resolvedAgentId,
+        limit,
+        enable_graph: true,
+        threshold: 0.35,
+      };
+      if (options.runId) searchOpts.run_id = `cycle-${options.runId}`;
+      if (Object.keys(meta).length > 0) searchOpts.metadata = meta;
+      if (options.criteria) searchOpts.criteria = options.criteria;
+      if (options.createdAfter) searchOpts.start_date = options.createdAfter.toISOString();
 
-      let res: { results?: Array<{ id?: string; memory?: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> };
+      const found = await client.search(query, searchOpts);
 
-      if (isCloud) {
-        // Cloud (v1) shape: top-level agent_id + optional metadata filter.
-        // Cloud's metadata filter is a flat dict (not an AND-array).
-        const cloudMeta: Record<string, unknown> = {};
-        if (type) cloudMeta.memoryType = type;
-        if (options.category) cloudMeta.category = options.category;
-        if (options.topic) cloudMeta.topic = options.topic;
-        const cloudBody: Record<string, unknown> = {
-          query,
-          agent_id: resolvedAgentId,
-          limit,
-          threshold: 0.35,
-        };
-        if (options.runId) cloudBody.run_id = `cycle-${options.runId}`;
-        if (Object.keys(cloudMeta).length > 0) cloudBody.metadata = cloudMeta;
-        // Mem0 Cloud `criteria` param — biases ranking. Optional.
-        if (options.criteria) cloudBody.criteria = options.criteria;
-        res = await mem0Fetch("/search", "POST", cloudBody) as typeof res;
-      } else {
-        // Self-hosted v2.x: nested AND filter DSL with metadata sub-filters.
-        const andClauses: Record<string, unknown>[] = [
-          { agent_id: resolvedAgentId },
-        ];
-        if (options.runId) andClauses.push({ run_id: `cycle-${options.runId}` });
-        if (type) andClauses.push({ metadata: { memoryType: type } });
-        if (options.category) andClauses.push({ metadata: { category: options.category } });
-        if (options.topic) andClauses.push({ metadata: { topic: options.topic } });
-        if (typeof options.minConfidence === "number") {
-          andClauses.push({ metadata: { confidence: { gte: options.minConfidence } } });
-        }
-        if (options.createdAfter) {
-          andClauses.push({ created_at: { gte: options.createdAfter.toISOString() } });
-        }
-        res = await mem0Fetch("/search", "POST", {
-          query,
-          filters: { AND: andClauses },
-          limit,
-          threshold: 0.35,
-        }) as typeof res;
-      }
-
-      for (const m of res?.results ?? []) {
-        const meta = m.metadata || {};
-        const memType = (meta.memoryType as string) || type || "observation";
-        const memCat = meta.category as string | undefined;
-        // Server-side filtering is best-effort; defensively re-check on
-        // older server versions that ignore `filters`.
+      for (const m of found) {
+        const mMeta = (m.metadata && typeof m.metadata === "object" ? m.metadata : {}) as Record<string, unknown>;
+        const memType = (mMeta.memoryType as string) || type || "observation";
+        const memCat = mMeta.category as string | undefined;
+        // Server-side filtering is best-effort; defensively re-check.
         if (type && memType !== type) continue;
         if (options.category && memCat !== options.category) continue;
         results.push({
           id: m.id || `mem0-${Date.now()}`,
           memoryType: memType,
           category: memCat ?? null,
-          runScope: (meta.runId as string) || null,
+          runScope: (mMeta.runId as string) || null,
           content: m.memory || "",
-          metadata: meta,
-          // Don't fabricate a score — downstream filterMemoriesForTarget
-          // and the decide gate at graph.ts:208 use this as a real signal.
-          // 0.8 inflated every result, making the "validated_pattern" gate
-          // trigger on memories the vector search wasn't confident in.
+          metadata: mMeta,
           relevanceScore: typeof m.score === "number" ? m.score : 0,
           accessCount: 0,
           createdAt: m.created_at ? new Date(m.created_at) : new Date(),
@@ -550,7 +470,7 @@ export async function recallMemories(
       console.log(`[Mem0] recalled ${results.length} for "${query.slice(0, 50)}"`);
       if (results.length >= limit) return results.slice(0, limit);
     } catch (err) {
-      console.error("[Mem0] search failed, falling back to local DB:", err instanceof Error ? err.message : err);
+      console.error("[Mem0] search failed, falling back to local DB:", describeMem0Error("search", err));
     }
   }
 
@@ -604,13 +524,13 @@ export async function recallMemories(
 export async function recallMemoriesBatch(type: MemoryType, limit: number = 100): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
 
-  if (isMem0Available()) {
+  const client = getMem0Client();
+  if (client) {
     try {
-      const res = await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=${limit}`, "GET") as
-        { results?: Array<{ id?: string; memory?: string; metadata?: Record<string, unknown>; created_at?: string }> };
-
-      for (const m of res?.results ?? []) {
-        const meta = m.metadata || {};
+      const found = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+      const list = Array.isArray(found) ? found : (found as { results?: Mem0Memory[] }).results ?? [];
+      for (const m of list) {
+        const meta = (m.metadata && typeof m.metadata === "object" ? m.metadata : {}) as Record<string, unknown>;
         const memType = (meta.memoryType as string) || "observation";
         if (memType !== type) continue;
         results.push({
@@ -630,7 +550,7 @@ export async function recallMemoriesBatch(type: MemoryType, limit: number = 100)
       console.log(`[Mem0] batch recalled ${results.length} ${type} memories`);
       if (results.length >= limit) return results;
     } catch (err) {
-      console.error("[Mem0] getAll failed:", err instanceof Error ? err.message : err);
+      console.error("[Mem0]", describeMem0Error("getAll", err));
     }
   }
 
@@ -691,13 +611,13 @@ export function filterMemoriesForTarget(
 export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
 
-  if (isMem0Available()) {
+  const clientAll = getMem0Client();
+  if (clientAll) {
     try {
-      const res = await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=${limit}`, "GET") as
-        { results?: Array<{ id?: string; memory?: string; metadata?: Record<string, unknown>; created_at?: string }> };
-
-      for (const m of res?.results ?? []) {
-        const meta = m.metadata || {};
+      const found = await clientAll.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+      const list = Array.isArray(found) ? found : (found as { results?: Mem0Memory[] }).results ?? [];
+      for (const m of list) {
+        const meta = (m.metadata && typeof m.metadata === "object" ? m.metadata : {}) as Record<string, unknown>;
         results.push({
           id: m.id || `mem0-${Date.now()}`,
           memoryType: (meta.memoryType as string) || "observation",
@@ -713,7 +633,7 @@ export async function getAllMemories(limit: number = 100): Promise<AgentMemory[]
         });
       }
     } catch (err) {
-      console.error("[Mem0] getAll failed:", err instanceof Error ? err.message : err);
+      console.error("[Mem0]", describeMem0Error("getAll", err));
     }
   }
 
@@ -751,11 +671,12 @@ export async function getMemoryStats(): Promise<{
   mem0Connected: boolean;
 }> {
   let mem0Count = 0;
-  if (isMem0Available()) {
+  const clientStats = getMem0Client();
+  if (clientStats) {
     try {
-      const res = await mem0Fetch(`/memories?agent_id=${MEM0_AGENT_ID}&limit=200`, "GET") as
-        { results?: unknown[] };
-      mem0Count = res?.results?.length ?? 0;
+      const found = await clientStats.getAll({ agent_id: MEM0_AGENT_ID, page_size: 200 });
+      const list = Array.isArray(found) ? found : (found as { results?: Mem0Memory[] }).results ?? [];
+      mem0Count = list.length;
     } catch { /* ignore */ }
   }
 
@@ -808,23 +729,16 @@ export async function mem0Prune(opts: { batchLimit?: number; dryRun?: boolean } 
   let scanned = 0;
   let deleted = 0;
   let failed = 0;
+  const clientPrune = getMem0Client();
+  if (!clientPrune) return { scanned: 0, deleted: 0, failed: 0, dryRun: !!opts.dryRun };
   try {
-    // Use a wildcard search to surface memories matching only the metadata
-    // filter; older Mem0 versions that require a non-empty query may need
-    // a string here, so we pass a single space which the server treats as
-    // a no-op match against the AND filters.
-    const res = await mem0Fetch("/search", "POST", {
-      query: " ",
-      filters: {
-        AND: [
-          { agent_id: MEM0_AGENT_ID },
-          { metadata: { expiresAt: { lt: nowIso } } },
-        ],
-      },
+    // Wildcard search via the SDK — pass a single space so older servers that
+    // require a non-empty query still match against the metadata filter.
+    const candidates = await clientPrune.search(" ", {
+      agent_id: MEM0_AGENT_ID,
+      metadata: { expiresAt: { lt: nowIso } },
       limit: batchLimit,
-    }) as { results?: Array<{ id?: string }> };
-
-    const candidates = res?.results ?? [];
+    });
     scanned = candidates.length;
     for (const m of candidates) {
       if (!m.id) continue;
@@ -833,7 +747,7 @@ export async function mem0Prune(opts: { batchLimit?: number; dryRun?: boolean } 
         continue;
       }
       try {
-        await mem0Fetch(`/memories/${m.id}`, "DELETE");
+        await clientPrune.delete(m.id);
         // Best-effort: also clear the foreign-key on the local mirror
         // so getAllMemories doesn't surface zombie pointers.
         await db.update(agentMemoriesTable).set({ mem0Id: null, mem0Status: "expired" }).where(eq(agentMemoriesTable.mem0Id, m.id));
