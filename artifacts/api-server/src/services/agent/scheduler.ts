@@ -1,7 +1,7 @@
 import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
-import { detectTemporalShifts } from "./temporal-shift-detector";
+import { detectTemporalShifts, writeMemoryRelationSnapshots } from "./temporal-shift-detector";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
@@ -112,6 +112,7 @@ let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
 let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
 let synthesisAgentTimer: ReturnType<typeof setInterval> | null = null;
 let temporalShiftTimer: ReturnType<typeof setInterval> | null = null;
+let memoryRelationSnapshotTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -613,6 +614,20 @@ export function startScheduler(): void {
       .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
       .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
   }, TEMPORAL_SHIFT_INTERVAL_MS);
+  // Memory-relation snapshot — daily. Idempotent per (relation_id, day).
+  // Once 30+ days of history accumulate, the temporal-shift detector uses
+  // these snapshots instead of the legacy fictional 0.1 baseline.
+  const MEMORY_REL_SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+  setTimeout(() => {
+    writeMemoryRelationSnapshots()
+      .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+      .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+  }, 180_000);
+  memoryRelationSnapshotTimer = setInterval(() => {
+    writeMemoryRelationSnapshots()
+      .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+      .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+  }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
 }
 
 /**
@@ -646,6 +661,7 @@ export function stopScheduler(): void {
   if (ontologyAgentTimer) { clearInterval(ontologyAgentTimer); ontologyAgentTimer = null; }
   if (synthesisAgentTimer) { clearInterval(synthesisAgentTimer); synthesisAgentTimer = null; }
   if (temporalShiftTimer) { clearInterval(temporalShiftTimer); temporalShiftTimer = null; }
+  if (memoryRelationSnapshotTimer) { clearInterval(memoryRelationSnapshotTimer); memoryRelationSnapshotTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");

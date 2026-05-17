@@ -27,7 +27,7 @@ import { runReactAgent, type AgentRunResult } from "./agent/base-agent";
 import { ensureSharedStoreReady, getSharedStore, NS, putAgentPriorBlock } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
 import { findCorrelations } from "./agent/graphMemory";
-import { detectTemporalShifts } from "./agent/temporal-shift-detector";
+import { detectTemporalShifts, getCachedTemporalShiftReport } from "./agent/temporal-shift-detector";
 
 export const SYNTHESIS_AGENT_NAME = "synthesis-agent";
 
@@ -113,7 +113,10 @@ const recallRelevantPatternsTool = tool(
 
 const readTemporalShiftsTool = tool(
   async () => {
-    const report = await detectTemporalShifts();
+    // Prefer the cache filled by the 6h scheduled cron. Falls back to a fresh
+    // compute only when the cache is empty/stale — avoids triggering a full
+    // memory_relations scan from inside the LLM tool-call loop.
+    const report = (await getCachedTemporalShiftReport()) ?? (await detectTemporalShifts());
     if (report.accelerating.length === 0 && report.reversing.length === 0) {
       return "No significant temporal shifts detected in the last 30 days.";
     }

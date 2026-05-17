@@ -105,16 +105,8 @@ function buildDifficulty(args: {
   return Math.min(1, depPenalty + vcPenalty + competitorPenalty + patentPenalty + 0.2);
 }
 
-/**
- * AI-FIRST: Graph-aware causal recommendation engine.
- *
- * Replaces the original static if/else rules engine with:
- * 1. Neo4j upstream blocker traversal
- * 2. Mem0 historical pattern recall
- * 3. Claude Haiku causal synthesis
- * 4. Heuristic fallback if AI is unavailable
- */
-async function pickRecommendedAI(args: {
+type UpstreamBlocker = { capabilityId: number; capabilityName: string; relationType: string; weight: number };
+type RecommendationArgs = {
   capabilityId: number;
   capabilityName: string;
   industryName: string;
@@ -124,129 +116,167 @@ async function pickRecommendedAI(args: {
   gap: number;
   depCount: number;
   lifecycleStage: string;
-}): Promise<{
-  approach: Approach;
-  rationale: string;
-  upstreamBlockers: Array<{ capabilityId: number; capabilityName: string; relationType: string; weight: number }>;
-  patternContext: string | null;
-}> {
-  // ── Step 1: Neo4j graph traversal for upstream blockers ─────────────────
-  // findRelated traverses 1 hop in the capability graph to surface
-  // co-dependent capabilities. Strong relationships (weight > 0.4) indicate
-  // capabilities that must move together — ignoring them leads to wasted spend.
-  let upstreamBlockers: Array<{ capabilityId: number; capabilityName: string; relationType: string; weight: number }> = [];
-  try {
-    const related = await findRelated(args.capabilityId, 1);
-    upstreamBlockers = related
-      .filter(r => r.weight > 0.4)
-      .slice(0, 4)
-      .map(r => ({
-        capabilityId: r.entity.id,
-        capabilityName: r.entity.name,
-        relationType: r.relation,
-        weight: r.weight,
-      }));
-  } catch {
-    // Non-fatal — proceed without graph context
-  }
+};
+type CapabilityContext = { upstreamBlockers: UpstreamBlocker[]; patternContext: string | null };
 
-  // ── Step 2: Mem0 historical pattern recall ──────────────────────────────
-  // Recall validated patterns about similar build/buy/outsource decisions
-  // for this capability and industry. These represent accumulated evidence
-  // from prior research cycles that should inform the current recommendation.
-  let patternContext: string | null = null;
-  try {
-    const patterns = await recallMemories(
+/**
+ * Per-capability prefetch (Neo4j + Mem0). No LLM call.
+ *
+ * recommendStack calls this in parallel via Promise.all so a 50-capability
+ * request triggers one fan-out, not 50 sequential per-capability prefetches.
+ */
+async function gatherCapabilityContext(args: { capabilityId: number; capabilityName: string; industryName: string }): Promise<CapabilityContext> {
+  const [related, patterns] = await Promise.all([
+    findRelated(args.capabilityId, 1).catch(() => [] as Awaited<ReturnType<typeof findRelated>>),
+    recallMemories(
       `${args.capabilityName} ${args.industryName} build buy outsource recommendation decision`,
       "pattern",
       4,
-    );
-    if (patterns.length > 0) {
-      patternContext = patterns.map(p => `- ${p.content}`).join("\n");
-    }
-  } catch {
-    // Non-fatal
-  }
+    ).catch(() => []),
+  ]);
 
-  // ── Step 3: Claude Haiku causal synthesis ───────────────────────────────
-  // Synthesize a recommendation that explains the causal chain:
-  // gap → dependency blockers → historical evidence → approach
+  const upstreamBlockers: UpstreamBlocker[] = related
+    .filter(r => r.weight > 0.4)
+    .slice(0, 4)
+    .map(r => ({
+      capabilityId: r.entity.id,
+      capabilityName: r.entity.name,
+      relationType: r.relation,
+      weight: r.weight,
+    }));
+
+  const patternContext = patterns.length > 0
+    ? patterns.map(p => `- ${p.content}`).join("\n")
+    : null;
+
+  return { upstreamBlockers, patternContext };
+}
+
+/**
+ * Heuristic recommender — safety net when the batched LLM call fails, returns
+ * unparseable output, or omits a capability. Same rules engine as before the
+ * AI-first upgrade, kept as a fallback rather than a primary path.
+ */
+function heuristicRecommend(args: RecommendationArgs): { approach: Approach; rationale: string } {
+  if (args.buyCandidates >= 1 && args.gap >= 15 && args.buildDifficulty > 0.6) {
+    return { approach: "buy", rationale: `Large gap (${args.gap.toFixed(1)} pts) and build difficulty is high — acquisition or talent raid is faster.` };
+  }
+  if (args.outsourceListings >= 1 && args.gap < 15) {
+    return { approach: "outsource", rationale: `Modest gap (${args.gap.toFixed(1)} pts) with marketplace coverage — outsource is the lowest-friction path.` };
+  }
+  if (args.buildDifficulty < 0.5) {
+    return { approach: "build", rationale: `Build difficulty is low (${args.buildDifficulty.toFixed(2)}) — in-house is cost-effective.` };
+  }
+  if (args.buyCandidates >= 1) {
+    return { approach: "buy", rationale: "Build is hard and buy candidates exist — acquisition recommended." };
+  }
+  return { approach: "build", rationale: "Default to build — no buy candidates and no outsource listings yet." };
+}
+
+/**
+ * AI-FIRST: Batched graph-aware causal recommendation.
+ *
+ * Bundles all capabilities in a recommendStack request into ONE Haiku call
+ * rather than one call per capability. For a typical agent-driven request of
+ * 5–15 capabilities this cuts Haiku invocations by 5–15× with no loss of
+ * per-capability reasoning — the prompt gives the model the full per-capability
+ * context (upstream blockers, historical patterns, metrics) for each item.
+ *
+ * Returns a Map keyed by capabilityId. Any capability that fails parsing or
+ * validation is filled in from heuristicRecommend() by the caller.
+ */
+async function batchHaikuRecommend(
+  items: Array<{ args: RecommendationArgs; context: CapabilityContext }>,
+): Promise<Map<number, { approach: Approach; rationale: string }>> {
+  const out = new Map<number, { approach: Approach; rationale: string }>();
+  if (items.length === 0) return out;
+
   try {
     const { anthropic } = await import("@workspace/integrations-anthropic-ai");
 
-    const blockerText = upstreamBlockers.length > 0
-      ? `Upstream capability dependencies (must address before this one):\n${upstreamBlockers.map(b =>
-          `  - ${b.capabilityName} (relationship: ${b.relationType}, strength: ${(b.weight * 100).toFixed(0)}%)`
-        ).join("\n")}`
-      : "No upstream blockers identified in the capability graph.";
-
-    const patternText = patternContext
-      ? `Historical patterns from prior research cycles:\n${patternContext}`
-      : "No historical patterns on file for this capability.";
-
-    const prompt = `You are a capability economics advisor making a build/buy/outsource recommendation.
-
-Capability: ${args.capabilityName}
-Industry: ${args.industryName}
-Lifecycle stage: ${args.lifecycleStage}
-Current gap to target: ${args.gap.toFixed(1)} points
-Build difficulty score: ${(args.buildDifficulty * 100).toFixed(0)}/100 (higher = harder to build in-house)
-Dependency count: ${args.depCount}
-Buy candidates available: ${args.buyCandidates}
-Outsource listings available: ${args.outsourceListings}
-
+    const capabilityBlocks = items.map(({ args, context }, idx) => {
+      const blockerText = context.upstreamBlockers.length > 0
+        ? `  Upstream blockers (must address before this one):\n${context.upstreamBlockers.map(b =>
+            `    - ${b.capabilityName} (${b.relationType}, ${(b.weight * 100).toFixed(0)}%)`
+          ).join("\n")}`
+        : "  No upstream blockers identified.";
+      const patternText = context.patternContext
+        ? `  Historical patterns:\n${context.patternContext.split("\n").map(l => "  " + l).join("\n")}`
+        : "  No historical patterns on file.";
+      return `[${idx + 1}] capabilityId=${args.capabilityId}, name=${args.capabilityName}, industry=${args.industryName}
+  Lifecycle: ${args.lifecycleStage} · Gap: ${args.gap.toFixed(1)}pts · Build difficulty: ${(args.buildDifficulty * 100).toFixed(0)}/100 · Deps: ${args.depCount}
+  Buy candidates: ${args.buyCandidates} · Outsource listings: ${args.outsourceListings}
 ${blockerText}
+${patternText}`;
+    }).join("\n\n");
 
-${patternText}
+    const prompt = `You are a capability economics advisor making build/buy/outsource recommendations for ${items.length} capabilities in one batch.
 
-Based on the gap, difficulty, dependency chain, and historical patterns, recommend ONE of: build, buy, or outsource.
+CAPABILITIES:
 
-Key reasoning rules:
-- If upstream blockers exist with strength > 60%, address those first before investing in this capability
-- If historical patterns show a prior recommendation was validated, weight it heavily
-- If historical patterns show a contradiction, explain why this situation differs
-- Large gap (>20pts) + high difficulty (>70) + buy candidates = buy
-- Small gap (<10pts) + outsource listings = outsource
-- Low difficulty (<50) = build regardless of gap
+${capabilityBlocks}
 
-Respond with ONLY valid JSON (no markdown):
-{
-  "approach": "build" | "buy" | "outsource",
-  "rationale": "2-3 sentences explaining the causal reasoning. Reference upstream blockers if they exist. Reference historical patterns if they confirm or contradict this recommendation."
-}`;
+For EACH capability, recommend ONE of: build, buy, or outsource.
+
+Reasoning rules per capability:
+- If upstream blockers with strength > 60% exist, the rationale should call out addressing those first.
+- If historical patterns validate a prior recommendation, weight it heavily.
+- If historical patterns contradict, explain why this situation differs.
+- Large gap (>20pts) + high difficulty (>70) + buy candidates → buy.
+- Small gap (<10pts) + outsource listings → outsource.
+- Low difficulty (<50) → build regardless of gap.
+
+Respond with ONLY a valid JSON array — one object per capability in the same order, no markdown:
+[
+  {
+    "capabilityId": <number, matching the capabilityId above>,
+    "approach": "build" | "buy" | "outsource",
+    "rationale": "2-3 sentences. Reference upstream blockers if any. Reference historical patterns if they confirm or contradict."
+  }
+]`;
 
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5",
-      max_tokens: 350,
+      max_tokens: Math.min(8000, 400 * items.length + 200),
       messages: [{ role: "user", content: prompt }],
     });
 
     const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]) as { approach: Approach; rationale: string };
-      if (["build", "buy", "outsource"].includes(parsed.approach)) {
-        return { approach: parsed.approach, rationale: parsed.rationale, upstreamBlockers, patternContext };
+    const arrayMatch = text.match(/\[[\s\S]*\]/);
+    if (!arrayMatch) return out;
+    const parsed = JSON.parse(arrayMatch[0]) as Array<{ capabilityId: number; approach: Approach; rationale: string }>;
+    for (const row of parsed) {
+      if (typeof row?.capabilityId === "number" && ["build", "buy", "outsource"].includes(row.approach) && typeof row.rationale === "string") {
+        out.set(row.capabilityId, { approach: row.approach, rationale: row.rationale });
       }
     }
   } catch {
-    // Fall through to heuristic fallback
+    // Non-fatal — caller falls back to heuristicRecommend for any missing IDs
   }
+  return out;
+}
 
-  // ── Fallback: original heuristic rules engine ───────────────────────────
-  if (args.buyCandidates >= 1 && args.gap >= 15 && args.buildDifficulty > 0.6) {
-    return { approach: "buy", rationale: `Large gap (${args.gap.toFixed(1)} pts) and build difficulty is high — acquisition or talent raid is faster.`, upstreamBlockers, patternContext };
-  }
-  if (args.outsourceListings >= 1 && args.gap < 15) {
-    return { approach: "outsource", rationale: `Modest gap (${args.gap.toFixed(1)} pts) with marketplace coverage — outsource is the lowest-friction path.`, upstreamBlockers, patternContext };
-  }
-  if (args.buildDifficulty < 0.5) {
-    return { approach: "build", rationale: `Build difficulty is low (${args.buildDifficulty.toFixed(2)}) — in-house is cost-effective.`, upstreamBlockers, patternContext };
-  }
-  if (args.buyCandidates >= 1) {
-    return { approach: "buy", rationale: "Build is hard and buy candidates exist — acquisition recommended.", upstreamBlockers, patternContext };
-  }
-  return { approach: "build", rationale: "Default to build — no buy candidates and no outsource listings yet.", upstreamBlockers, patternContext };
+/**
+ * Legacy single-capability wrapper preserved for callers that want a one-off
+ * recommendation. Internally delegates to gatherCapabilityContext +
+ * batchHaikuRecommend with a one-item array. Most usage should go through
+ * recommendStack(), which batches.
+ */
+async function pickRecommendedAI(args: RecommendationArgs): Promise<{
+  approach: Approach;
+  rationale: string;
+  upstreamBlockers: UpstreamBlocker[];
+  patternContext: string | null;
+}> {
+  const context = await gatherCapabilityContext({
+    capabilityId: args.capabilityId,
+    capabilityName: args.capabilityName,
+    industryName: args.industryName,
+  });
+  const llmResults = await batchHaikuRecommend([{ args, context }]);
+  const llm = llmResults.get(args.capabilityId);
+  const pick = llm ?? heuristicRecommend(args);
+  return { approach: pick.approach, rationale: pick.rationale, upstreamBlockers: context.upstreamBlockers, patternContext: context.patternContext };
 }
 
 export async function recommendStack(input: StackOptimizerInput): Promise<StackOptimizerResult> {
@@ -291,11 +321,20 @@ export async function recommendStack(input: StackOptimizerInput): Promise<StackO
 
   const orgsById = new Map(orgs.map(o => [o.id, o]));
 
-  const recommendations: CapabilityRecommendation[] = [];
-  let buildCount = 0, buyCount = 0, outsourceCount = 0;
+  // ── Phase 1: deterministic per-capability data (no LLM, no remote calls) ───
+  type CapPlan = {
+    cap: typeof caps[number];
+    args: RecommendationArgs;
+    buildOption: BuildOption;
+    buyOption: BuyOption;
+    outsourceOption: OutsourceOption;
+    current: number | null;
+    gap: number;
+    lifecycleStage: string;
+  };
+  const plans: CapPlan[] = [];
   let totalGap = 0;
 
-  // Process capabilities sequentially to avoid overwhelming AI services
   for (const cap of caps) {
     const comp = compByCap.get(cap.id);
     const current = input.currentCapabilityScores?.[cap.id]
@@ -367,38 +406,73 @@ export async function recommendStack(input: StackOptimizerInput): Promise<StackO
       benchmarkScore: cap.benchmarkScore,
     });
 
-    // ── AI-FIRST: Graph-aware causal recommendation ──────────────────────
-    const pick = await pickRecommendedAI({
-      capabilityId: cap.id,
-      capabilityName: cap.name,
-      industryName: indNameById.get(cap.industryId) ?? "Unknown",
-      buildDifficulty: difficulty,
-      buyCandidates: candidates.length,
-      outsourceListings: matchedListings.length,
+    plans.push({
+      cap,
+      args: {
+        capabilityId: cap.id,
+        capabilityName: cap.name,
+        industryName: indNameById.get(cap.industryId) ?? "Unknown",
+        buildDifficulty: difficulty,
+        buyCandidates: candidates.length,
+        outsourceListings: matchedListings.length,
+        gap,
+        depCount: depCountByCap.get(cap.id) ?? 0,
+        lifecycleStage,
+      },
+      buildOption,
+      buyOption,
+      outsourceOption,
+      current,
       gap,
-      depCount: depCountByCap.get(cap.id) ?? 0,
       lifecycleStage,
     });
+  }
+
+  // ── Phase 2: parallel context prefetch (Neo4j + Mem0) for every capability ─
+  const contexts = await Promise.all(
+    plans.map(p => gatherCapabilityContext({
+      capabilityId: p.args.capabilityId,
+      capabilityName: p.args.capabilityName,
+      industryName: p.args.industryName,
+    })),
+  );
+
+  // ── Phase 3: ONE batched Haiku call covering all capabilities ──────────────
+  // Replaces N per-capability Haiku invocations (was 1 LLM call per cap) with a
+  // single batched prompt — keeps the per-cap reasoning while cutting cost and
+  // latency by ~Nx for typical 5–15 cap agent requests.
+  const llmResults = await batchHaikuRecommend(
+    plans.map((p, i) => ({ args: p.args, context: contexts[i]! })),
+  );
+
+  // ── Phase 4: assemble final recommendations ────────────────────────────────
+  const recommendations: CapabilityRecommendation[] = [];
+  let buildCount = 0, buyCount = 0, outsourceCount = 0;
+
+  plans.forEach((p, i) => {
+    const context = contexts[i]!;
+    const llm = llmResults.get(p.args.capabilityId);
+    const pick = llm ?? heuristicRecommend(p.args);
 
     if (pick.approach === "build") buildCount += 1;
     else if (pick.approach === "buy") buyCount += 1;
     else outsourceCount += 1;
 
     recommendations.push({
-      capabilityId: cap.id,
-      capabilityName: cap.name,
-      industryName: indNameById.get(cap.industryId) ?? "Unknown",
-      lifecycleStage,
-      currentScore: current !== null ? Math.round(current * 100) / 100 : null,
+      capabilityId: p.cap.id,
+      capabilityName: p.cap.name,
+      industryName: indNameById.get(p.cap.industryId) ?? "Unknown",
+      lifecycleStage: p.lifecycleStage,
+      currentScore: p.current !== null ? Math.round(p.current * 100) / 100 : null,
       targetScore: target,
-      gap: Math.round(gap * 100) / 100,
+      gap: Math.round(p.gap * 100) / 100,
       recommended: pick.approach,
       rationale: pick.rationale,
-      upstreamBlockers: pick.upstreamBlockers,
-      patternContext: pick.patternContext,
-      options: { build: buildOption, buy: buyOption, outsource: outsourceOption },
+      upstreamBlockers: context.upstreamBlockers,
+      patternContext: context.patternContext,
+      options: { build: p.buildOption, buy: p.buyOption, outsource: p.outsourceOption },
     });
-  }
+  });
 
   recommendations.sort((a, b) => b.gap - a.gap);
 

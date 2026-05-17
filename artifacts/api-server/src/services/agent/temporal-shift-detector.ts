@@ -16,10 +16,90 @@
  * agents can recall them in future cycles.
  */
 import { db } from "@workspace/db";
-import { memoryRelationsTable, memoryEntitiesTable } from "@workspace/db";
+import { memoryRelationsTable, memoryEntitiesTable, memoryRelationSnapshotsTable } from "@workspace/db";
 import { cviSnapshotsTable, capabilitiesTable, industriesTable } from "@workspace/db";
 import { eq, and, gte, lt, desc, sql } from "drizzle-orm";
 import { storeMemory } from "./memory";
+import { ensureSharedStoreReady, getSharedStore, NS } from "./store";
+
+/**
+ * Daily writer: snapshot every memory_relations row's current weight + observedCount
+ * into memory_relation_snapshots. Idempotent per (relation_id, calendar day) via the
+ * uniqueIndex on the table — re-running on the same day is a no-op rather than an
+ * error. Wired into the daily cron in scheduler.ts.
+ *
+ * Backfills nothing. The first 30 days after deployment will have <30d of history,
+ * so detectTemporalShifts() falls back to the legacy fictional baseline. After
+ * day 30+ the detector uses real momentum.
+ */
+export async function writeMemoryRelationSnapshots(): Promise<{ written: number; skipped: number }> {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0); // normalise to UTC midnight so multiple cron firings collapse
+
+  const rows = await db
+    .select({ id: memoryRelationsTable.id, weight: memoryRelationsTable.weight, observedCount: memoryRelationsTable.observedCount })
+    .from(memoryRelationsTable);
+
+  if (rows.length === 0) return { written: 0, skipped: 0 };
+
+  let written = 0;
+  let skipped = 0;
+  // Batch in chunks of 500 to avoid statement-size issues.
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    try {
+      const result = await db
+        .insert(memoryRelationSnapshotsTable)
+        .values(chunk.map(r => ({
+          relationId: r.id,
+          weight: r.weight,
+          observedCount: r.observedCount,
+          snapshotAt: today,
+        })))
+        .onConflictDoNothing()
+        .returning({ id: memoryRelationSnapshotsTable.id });
+      written += result.length;
+      skipped += chunk.length - result.length;
+    } catch {
+      // Non-fatal — partial day's snapshot is acceptable; tomorrow will retry.
+      skipped += chunk.length;
+    }
+  }
+  return { written, skipped };
+}
+
+/**
+ * Look up the snapshot weight closest to (now - 30d) for a single relation.
+ * Returns null when no snapshot exists within the +/-7d acceptance window — the
+ * caller falls back to the legacy fictional baseline in that case.
+ */
+async function getBaselineWeightFromSnapshots(relationId: number, targetDate: Date): Promise<{ weight: number; observedCount: number } | null> {
+  const windowStart = new Date(targetDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const windowEnd = new Date(targetDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const [snap] = await db
+    .select({ weight: memoryRelationSnapshotsTable.weight, observedCount: memoryRelationSnapshotsTable.observedCount, snapshotAt: memoryRelationSnapshotsTable.snapshotAt })
+    .from(memoryRelationSnapshotsTable)
+    .where(and(
+      eq(memoryRelationSnapshotsTable.relationId, relationId),
+      gte(memoryRelationSnapshotsTable.snapshotAt, windowStart),
+      lt(memoryRelationSnapshotsTable.snapshotAt, windowEnd),
+    ))
+    .orderBy(sql`abs(extract(epoch from (snapshot_at - ${targetDate.toISOString()}::timestamp)))`)
+    .limit(1);
+
+  return snap ? { weight: snap.weight, observedCount: snap.observedCount } : null;
+}
+
+/**
+ * Synthesis-agent reads the latest temporal-shift report through this cache
+ * rather than re-running detectTemporalShifts() inside an LLM tool-call loop.
+ * Cache is filled by the 6h scheduled cron in scheduler.ts; TTL is 7h so a
+ * single missed cron tick still returns last-known-good rather than triggering
+ * a synchronous full memory_relations scan on the request path.
+ */
+const TEMPORAL_SHIFT_CACHE_TTL_MS = 7 * 60 * 60 * 1000;
 
 export interface TemporalShift {
   fromEntity: string;
@@ -103,28 +183,39 @@ export async function detectTemporalShifts(industryId?: number): Promise<Tempora
 
   const shifts: TemporalShift[] = [];
 
+  const thirtyDaysAgoForBaseline = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
   for (const rel of relations) {
     if (rel.observedCount < MIN_OBSERVATIONS_FOR_SIGNAL) continue;
 
     const ageInMs = now.getTime() - rel.firstObservedAt.getTime();
     const ageInDays = Math.max(1, ageInMs / (1000 * 60 * 60 * 24));
 
-    // SAFETY: The "baseline weight 30 days ago" below is a FICTIONAL value.
-    // We assume the weight grew linearly from a hardcoded 0.1 to its current
-    // value over the relationship's lifetime, then project backwards. Real
-    // historical snapshots of relation weight are NOT stored anywhere — the
-    // next step toward an honest momentum signal is recording a
-    // (relation_id, weight, snapshot_at) timeseries in a new table and
-    // computing momentum from that. Until then, treat the momentum output
-    // here as a directional hint, not as a quantitative claim. See plan file
-    // for full discussion (item #11 in the code review).
-    const initialWeight = 0.1;
-    const weightVelocityPerDay = (rel.weight - initialWeight) / ageInDays;
+    // Prefer a real snapshot from memory_relation_snapshots (written daily by
+    // scheduler.ts). The window is centered on (now - 30d) with +/-7d tolerance
+    // so a single missed daily snapshot doesn't break momentum computation.
+    const realBaseline = await getBaselineWeightFromSnapshots(rel.id, thirtyDaysAgoForBaseline);
 
-    // Project what weight was 30 days ago
-    const daysAgo30 = Math.min(30, ageInDays);
-    const baselineWeight = Math.max(0.1, rel.weight - weightVelocityPerDay * daysAgo30);
+    let baselineWeight: number;
+    let baselineSource: "snapshot" | "extrapolated";
+    if (realBaseline) {
+      baselineWeight = realBaseline.weight;
+      baselineSource = "snapshot";
+    } else {
+      // FALLBACK: no snapshot in window — likely a relation younger than 30d,
+      // or a fresh deployment where the daily snapshot cron hasn't accumulated
+      // 30d of history. Use the legacy linear extrapolation from a hardcoded
+      // initial weight of 0.1. Direction is reliable; magnitude is approximate.
+      // Once snapshots are 30+ days deep the snapshot path takes over and this
+      // fallback is no longer hit.
+      const initialWeight = 0.1;
+      const weightVelocityPerDay = (rel.weight - initialWeight) / ageInDays;
+      const daysAgo30 = Math.min(30, ageInDays);
+      baselineWeight = Math.max(0.1, rel.weight - weightVelocityPerDay * daysAgo30);
+      baselineSource = "extrapolated";
+    }
     const momentum = rel.weight - baselineWeight;
+    void baselineSource; // reserved for future telemetry / debug logging
 
     let trend: TemporalShift["trend"];
     if (momentum >= MOMENTUM_THRESHOLD_ACCELERATING) {
@@ -211,7 +302,7 @@ export async function detectTemporalShifts(industryId?: number): Promise<Tempora
     });
   }
 
-  return {
+  const report: TemporalShiftReport = {
     generatedAt: now.toISOString(),
     totalRelationsAnalyzed: shifts.length,
     shifts,
@@ -220,4 +311,41 @@ export async function detectTemporalShifts(industryId?: number): Promise<Tempora
     reversing,
     summary,
   };
+
+  // Cache for synthesis-agent's readTemporalShiftsTool — avoids a full
+  // memory_relations scan from inside the LLM tool-call loop.
+  try {
+    await ensureSharedStoreReady();
+    await getSharedStore().put(
+      NS.sharedKnowledge("temporal_shifts"),
+      "latest",
+      { ...report, cachedAt: now.toISOString() },
+    );
+  } catch {
+    // Non-fatal — cache miss is acceptable, agent will recompute on demand
+  }
+
+  return report;
+}
+
+/**
+ * Read the most recent cached temporal-shift report. Returns null if the cache
+ * is empty or stale (> 7h old, allowing one missed 6h cron tick). Callers on
+ * the request path (synthesis-agent tool) prefer this over detectTemporalShifts()
+ * because the underlying scan is expensive.
+ */
+export async function getCachedTemporalShiftReport(): Promise<TemporalShiftReport | null> {
+  try {
+    await ensureSharedStoreReady();
+    const items = await getSharedStore().search(NS.sharedKnowledge("temporal_shifts"), { limit: 1 });
+    if (items.length === 0) return null;
+    const cached = items[0]!.value as TemporalShiftReport & { cachedAt?: string };
+    if (cached.cachedAt) {
+      const age = Date.now() - new Date(cached.cachedAt).getTime();
+      if (age > TEMPORAL_SHIFT_CACHE_TTL_MS) return null;
+    }
+    return cached;
+  } catch {
+    return null;
+  }
 }

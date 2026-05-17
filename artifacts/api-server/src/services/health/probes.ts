@@ -365,10 +365,89 @@ const probeAgentStore: Probe = async () => {
   }
 };
 
+/**
+ * Synthesis-agent freshness probe. The agent runs daily and publishes a brief
+ * to NS.sharedKnowledge("synthesis_brief"). We treat a brief written within
+ * the last 25h as fresh; 25–49h is degraded (one missed run); older than 49h
+ * is down (cron is stuck or the agent is failing). Status "not_configured"
+ * surfaces when no brief has ever been written — the agent runs on a 5min
+ * stagger after boot, so this only persists on a fresh deploy for ~5min.
+ */
+const SYNTHESIS_FRESH_THRESHOLD_MS = 25 * 60 * 60 * 1000;
+const SYNTHESIS_STALE_THRESHOLD_MS = 49 * 60 * 60 * 1000;
+
+const probeSynthesisAgent: Probe = async () => {
+  try {
+    const { ensureSharedStoreReady, getSharedStore, NS } = await import("../agent/store");
+    await ensureSharedStoreReady();
+    const items = await withTimeout(
+      getSharedStore().search(NS.sharedKnowledge("synthesis_brief"), { limit: 1 }),
+      PROBE_TIMEOUT_MS,
+      "synthesis-agent",
+    );
+    if (items.length === 0) {
+      return { status: "not_configured", latencyMs: null, lastError: "No synthesis brief has been published yet (agent runs 5 min after boot)" };
+    }
+    const generatedAt = (items[0]!.value as { generatedAt?: string }).generatedAt;
+    if (!generatedAt) {
+      return { status: "degraded", latencyMs: null, lastError: "Synthesis brief exists but is missing a generatedAt timestamp" };
+    }
+    const age = Date.now() - new Date(generatedAt).getTime();
+    if (age <= SYNTHESIS_FRESH_THRESHOLD_MS) {
+      return { status: "ok", latencyMs: null, lastError: null };
+    }
+    if (age <= SYNTHESIS_STALE_THRESHOLD_MS) {
+      return { status: "degraded", latencyMs: null, lastError: `Synthesis brief is ${Math.round(age / 3600000)}h old — expected daily refresh` };
+    }
+    return { status: "down", latencyMs: null, lastError: `Synthesis brief is ${Math.round(age / 3600000)}h old — daily cron may be stuck` };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
+};
+
+/**
+ * Temporal-shift cache freshness probe. The 6h scheduled cron writes to
+ * NS.sharedKnowledge("temporal_shifts"). Fresh ≤ 7h (one missed tick),
+ * degraded ≤ 14h, down beyond that.
+ */
+const TEMPORAL_FRESH_THRESHOLD_MS = 7 * 60 * 60 * 1000;
+const TEMPORAL_STALE_THRESHOLD_MS = 14 * 60 * 60 * 1000;
+
+const probeTemporalShifts: Probe = async () => {
+  try {
+    const { ensureSharedStoreReady, getSharedStore, NS } = await import("../agent/store");
+    await ensureSharedStoreReady();
+    const items = await withTimeout(
+      getSharedStore().search(NS.sharedKnowledge("temporal_shifts"), { limit: 1 }),
+      PROBE_TIMEOUT_MS,
+      "temporal-shifts",
+    );
+    if (items.length === 0) {
+      return { status: "not_configured", latencyMs: null, lastError: "No temporal-shift report cached yet (cron runs 2 min after boot)" };
+    }
+    const cachedAt = (items[0]!.value as { cachedAt?: string }).cachedAt;
+    if (!cachedAt) {
+      return { status: "degraded", latencyMs: null, lastError: "Temporal-shift cache entry missing cachedAt timestamp" };
+    }
+    const age = Date.now() - new Date(cachedAt).getTime();
+    if (age <= TEMPORAL_FRESH_THRESHOLD_MS) {
+      return { status: "ok", latencyMs: null, lastError: null };
+    }
+    if (age <= TEMPORAL_STALE_THRESHOLD_MS) {
+      return { status: "degraded", latencyMs: null, lastError: `Temporal-shift cache is ${Math.round(age / 3600000)}h old — expected 6h refresh` };
+    }
+    return { status: "down", latencyMs: null, lastError: `Temporal-shift cache is ${Math.round(age / 3600000)}h old — 6h cron may be stuck` };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
+};
+
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
   agent_store: probeAgentStore,
+  synthesis_agent: probeSynthesisAgent,
+  temporal_shifts: probeTemporalShifts,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,
   perplexity: probePerplexity,

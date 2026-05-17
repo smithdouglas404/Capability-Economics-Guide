@@ -33,6 +33,28 @@ export const memoryRelationsTable = pgTable("memory_relations", {
   byTo: index("memory_relations_to_idx").on(t.toEntityId),
 }));
 
+/**
+ * Daily snapshot of every memory_relations row's weight + observedCount.
+ *
+ * Feeds `services/agent/temporal-shift-detector.ts` so it can compute REAL
+ * 30-day momentum by looking up the snapshot closest to (now - 30d), instead
+ * of linearly extrapolating from a fictional 0.1 baseline. A row is appended
+ * per (relationId, calendar day) by the daily cron in scheduler.ts; the
+ * unique constraint guarantees idempotency if the writer fires twice.
+ */
+export const memoryRelationSnapshotsTable = pgTable("memory_relation_snapshots", {
+  id: serial("id").primaryKey(),
+  relationId: integer("relation_id").notNull(),
+  weight: real("weight").notNull(),
+  observedCount: integer("observed_count").notNull(),
+  snapshotAt: timestamp("snapshot_at").defaultNow().notNull(),
+}, (t) => ({
+  byRelation: index("memory_relation_snapshots_relation_idx").on(t.relationId),
+  bySnapshotAt: index("memory_relation_snapshots_snapshot_at_idx").on(t.snapshotAt),
+  // One snapshot per relation per calendar day; the writer trims to date-only.
+  uniqDay: uniqueIndex("memory_relation_snapshots_relation_day_uniq").on(t.relationId, t.snapshotAt),
+}));
+
 export const consolidationRunsTable = pgTable("consolidation_runs", {
   id: serial("id").primaryKey(),
   startedAt: timestamp("started_at").defaultNow().notNull(),
