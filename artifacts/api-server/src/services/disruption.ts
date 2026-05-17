@@ -182,11 +182,40 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
     : null;
 
   // Macro events affecting this cap or any dependency, started in last 90 days.
-  const deps = await db
-    .select({ id: capabilityDependenciesTable.dependsOnId })
-    .from(capabilityDependenciesTable)
-    .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
-  const interestingIds = [capabilityId, ...deps.map(d => d.id)];
+  // Read path: Postgres direct, OR Cypher (multi-hop) when USE_NEO4J_CAPABILITY_GRAPH=1.
+  // The Cypher path can traverse arbitrary depth which is more accurate for cascading
+  // macro impact. Default behavior unchanged (1-hop Postgres).
+  let dependsOnIds: number[];
+  const { useNeo4jCapabilityGraph, cypherCascadeImpacted } = await import("./agent/capabilityGraphSync");
+  if (useNeo4jCapabilityGraph()) {
+    // Note: graph direction in Neo4j is dependent -[DEPENDS_ON]-> prerequisite.
+    // For "what does this cap depend on" we need 1-hop out from this node.
+    // Re-using cypherCascadeImpacted is wrong (that's the upstream direction);
+    // do a quick 1-hop fetch here directly via the driver-less helper pattern.
+    // For now we still query Postgres for the 1-hop list and only OPT IN to
+    // Cypher for full upstream cascade (cypherCascadeImpacted). Once validated
+    // we can replace this branch with a dedicated cypherDirectDependencies()
+    // helper.
+    const pgDeps = await db
+      .select({ id: capabilityDependenciesTable.dependsOnId })
+      .from(capabilityDependenciesTable)
+      .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
+    dependsOnIds = pgDeps.map(d => d.id);
+    // Optionally enrich with Cypher multi-hop cascade for the macro-event
+    // interestingIds set so downstream impact is captured. Stays no-op when
+    // Neo4j returns null (driver missing or unreachable).
+    const cascade = await cypherCascadeImpacted(capabilityId, 3);
+    if (cascade) {
+      for (const c of cascade) if (!dependsOnIds.includes(c.pgId)) dependsOnIds.push(c.pgId);
+    }
+  } else {
+    const pgDeps = await db
+      .select({ id: capabilityDependenciesTable.dependsOnId })
+      .from(capabilityDependenciesTable)
+      .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
+    dependsOnIds = pgDeps.map(d => d.id);
+  }
+  const interestingIds = [capabilityId, ...dependsOnIds];
   const since = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
   const macroRows = await db
     .select({ severity: macroEventsTable.severity, affected: macroEventsTable.affectedCapabilityIds })

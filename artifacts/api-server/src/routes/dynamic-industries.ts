@@ -220,6 +220,19 @@ Output ONLY the JSON array. No markdown, no commentary.`;
         targetCapabilityIds: [cap.id],
         targetIndustryIds: [industry.id],
       }).catch(err => console.error("[dynamic-industries] enrichment agent failed", err));
+      // Mirror into Neo4j capability graph (dual-write).
+      import("../services/agent/capabilityGraphSync").then((m) =>
+        m.mirrorCapability({
+          pgId: cap.id,
+          slug: cap.slug,
+          name: cap.name,
+          industryId: cap.industryId,
+          parentCapabilityId: cap.parentCapabilityId,
+          isLeaf: cap.isLeaf,
+          reviewStatus: cap.reviewStatus,
+          benchmarkScore: cap.benchmarkScore,
+        })
+      ).catch(() => {});
       // Fire-and-forget bot event so persona bots can evaluate the new cap.
       import("../services/bots/workflows/triggers").then((m) =>
         m.dispatchBotEvent("capability.added", { capabilityId: cap.id, industrySlug: industry.slug })

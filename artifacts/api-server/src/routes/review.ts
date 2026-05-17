@@ -86,8 +86,20 @@ router.post("/review/draft", async (req, res) => {
     enrichmentUpdatedAt: new Date(),
   }).returning();
   fireDraftEnrichment(cap.id, industryId);
+  // Mirror capability into Neo4j (dual-write, fire-and-forget — Postgres remains source of truth).
+  import("../services/agent/capabilityGraphSync").then((m) =>
+    m.mirrorCapability({
+      pgId: cap.id,
+      slug: cap.slug,
+      name: cap.name,
+      industryId: cap.industryId,
+      parentCapabilityId: cap.parentCapabilityId,
+      isLeaf: cap.isLeaf,
+      reviewStatus: cap.reviewStatus,
+      benchmarkScore: cap.benchmarkScore,
+    })
+  ).catch(() => { /* mirror is downstream; Postgres write already succeeded */ });
   // Fire-and-forget: notify bot trigger dispatcher so persona bots can evaluate.
-  // Imported lazily to avoid pulling the workflows module into the route bundle's hot path.
   import("../services/bots/workflows/triggers").then((m) =>
     m.dispatchBotEvent("capability.added", { capabilityId: cap.id, industrySlug: industry.slug })
   ).catch(() => { /* swallowed — bots are not in the critical path */ });

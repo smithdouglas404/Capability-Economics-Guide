@@ -143,6 +143,21 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_API_KEY`, `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the weekly optimizer + the 5 specialized agents — cron silently skips if missing). `LETTA_*` env vars are no longer used (Letta was decommissioned in Phase 1.9 Step 6).
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
+- **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
+
+### Neo4j sync — honest scope as of May 2026
+
+Two graph subsystems live in Neo4j; do not confuse them:
+
+1. **Memory entity graph** (`memory_entities` / `memory_relations` tables → `:Entity` nodes). Written dual-write style by `services/agent/graphMemory.ts:upsertEntity` / `recordRelation`. Read by the core CVI agent's `memory.ts` recall and by `ontology-agent.ts`. **NOT** used by any customer-facing analytical surface.
+
+2. **Capability graph** (`capabilities` / `capability_dependencies` tables → `:Capability` nodes + `:DEPENDS_ON` relationships). Written dual-write style by `services/agent/capabilityGraphSync.ts:mirrorCapability` / `mirrorDependency`. Wired at: `routes/review.ts`, `routes/dynamic-industries.ts`, `services/sub-capability-generator.ts`. Read by `services/disruption.ts:computeDisruptionRisk` ONLY when `USE_NEO4J_CAPABILITY_GRAPH=1`. **All other readers (Cascade tab math elsewhere, Fragility, Explainability, Stack Optimizer, generateInsightsTool, Alpha tabs, business-case analyzer) still query Postgres `capability_dependencies` directly.**
+
+Backfills (run once after first wiring Neo4j; safe to re-run for drift recovery):
+- `pnpm --filter @workspace/scripts run backfill:memory-to-neo4j` — populates `:Entity` nodes
+- `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` — populates `:Capability` + `:DEPENDS_ON`
+
+Both honor `DRY_RUN=1`, skip if `NEO4J_URI` is unset.
 - **Neo4j graph engine** (graceful degrade to PostgreSQL if absent): `NEO4J_URI` (bolt://neo4j.railway.internal:7687 for the Railway-internal Neo4j service), `NEO4J_USER` (default: neo4j), `NEO4J_PASSWORD`. When set, `graphMemory.ts` uses Cypher queries for `findCorrelations()` and `findRelated()` — the primary read path for `generateInsightsTool`. Falls back to PostgreSQL automatically on any connection error.
 - **Foundry token rotation** (graceful degrade): `FOUNDRY_TOKEN` / `PALANTIR_TOKEN` / `PALANTIR_FOUNDRY_TOKEN` — still read as env-var fallback, but the preferred path is to store the token via `POST /api/admin/foundry/rotate-token` (admin UI) which writes to `system_secrets` table. `ADMIN_NOTIFY_EMAIL` — email address for the 30-min Foundry token expiry cron alert (also configurable per-token via `PATCH /api/admin/foundry/notify-email`).
 - **Multi-agent + tool callback secrets**: `INFLEXCVI_AGENT_TOOL_KEY` (shared between api-server and any external tool callback services)

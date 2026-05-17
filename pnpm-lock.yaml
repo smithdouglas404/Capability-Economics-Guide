@@ -729,6 +729,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.1(@types/pg@8.18.0)(pg@8.20.0)
+      neo4j-driver:
+        specifier: ^5.28.1
+        version: 5.28.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

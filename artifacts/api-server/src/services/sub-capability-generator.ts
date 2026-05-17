@@ -118,6 +118,20 @@ export async function insertSubCapabilities(
     }).returning({ id: capabilitiesTable.id });
     insertedIds.push(row.id);
 
+    // Mirror into Neo4j capability graph (dual-write, fire-and-forget).
+    import("./agent/capabilityGraphSync").then((m) =>
+      m.mirrorCapability({
+        pgId: row.id,
+        slug,
+        name: s.name,
+        industryId: parent.industryId,
+        parentCapabilityId: parent.id,
+        isLeaf: true,
+        reviewStatus: "approved",
+        benchmarkScore: seedScore,
+      })
+    ).catch(() => {});
+
     await db.insert(cviComponentsTable).values({
       capabilityId: row.id,
       industryId: parent.industryId,
