@@ -76,8 +76,43 @@ This service does *not* host Mem0/Letta/Postgres — it only consumes them. It a
 ### 6. `Neo4j Graph Database (Metal-Ready)` — graph store
 
 - Image: `neo4j:5.26-community-bullseye`
-- Currently deployed but **not yet wired into the api-server** — no `NEO4J_*` env vars consumed by any code today
-- Intended use: mirroring the capability graph (`capabilities`, `capability_dependencies`, `capability_metrics`) for fast graph traversals
+- **Wired into the api-server as of May 17, 2026** — Status: dual-write enabled, opt-in Cypher reads via `USE_NEO4J_CAPABILITY_GRAPH=1`.
+
+**What is mirrored:**
+- `memory_entities` + `memory_relations` → `:Entity` nodes + relationships (agent's extracted-entity memory graph). Used by core CVI agent's `findRelated()` / `findCorrelations()`.
+- `capabilities` + `capability_dependencies` → `:Capability` nodes + `:DEPENDS_ON` relationships. Used by `disruption.ts:computeDisruptionRisk` when `USE_NEO4J_CAPABILITY_GRAPH=1`.
+
+**What is NOT mirrored** (Postgres-only reads): all customer-facing analytical tabs (Cascade, Fragility, Explainability, Stack Optimizer, generateInsightsTool, business-cases). Migration to Cypher is incremental — see `services/disruption.ts` for the pattern.
+
+**Required env vars on the api-server service** (NOT on the Neo4j service):
+```env
+NEO4J_URI=bolt://<actual-private-hostname>.railway.internal:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=<set on Neo4j service, reference from api-server via ${{<neo4j-service-id>.NEO4J_PASSWORD}}>
+USE_NEO4J_CAPABILITY_GRAPH=1  # optional — flips capability dependency reads to Cypher
+```
+
+**The Railway hostname trap (we lost ~1 hour on this on 2026-05-17):**
+
+The internal hostname is **NOT** `neo4j.railway.internal`. Railway slugifies the service NAME — and the Neo4j service is named `Neo4j Graph Database (Metal-Ready)`, so its actual internal hostname looks something like `neo4j-graph-database-metal-ready.railway.internal`.
+
+**To get the real value:** Railway dashboard → Neo4j service → **Networking** tab → "Private Networking" section → copy the exact hostname shown. That's what `NEO4J_URI` must use.
+
+If you use Railway's reference variable syntax (`${{<service-id>.NEO4J_URI}}`) on the api-server, the *source* variable on the Neo4j service must exist with the correct value. Setting only the reference without the source results in an empty string that the api-server treats as "Neo4j not configured" → silent skip of all mirror passes.
+
+**One-shot backfill** (runs automatically on every deploy via Phase 4 of `deploy-migrate.ts`, but also runnable manually):
+```bash
+pnpm --filter @workspace/scripts run backfill:memory-to-neo4j
+pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j
+```
+Idempotent. Read Postgres, MERGE into Neo4j. Never creates rows that don't already exist in Postgres.
+
+**Health check via Cypher browser** (or `cypher-shell`):
+```cypher
+MATCH (c:Capability) RETURN count(c)            // should return ~348
+MATCH ()-[r:DEPENDS_ON]->() RETURN count(r)     // currently sparse (~30)
+MATCH (e:Entity) RETURN count(e)                // grows with agent activity
+```
 
 ---
 

@@ -4,6 +4,24 @@
 **Date:** April 2026  
 **Classification:** Technical Reference — PhD Audience
 
+> ## ⚠️ Currency note (added 2026-05-17)
+>
+> This v2.0 spec is **partially superseded**. The following subsystems have changed since April 2026 — for current-state truth on these, see `docs/system-architecture.md`:
+>
+> - **Letta**: DECOMMISSIONED in Phase 1.9 Step 6. Replaced by PostgresStore (one Postgres table, namespaced reads/writes).
+> - **Mem0**: now **self-hosted** on Railway (built from our `mem0/Dockerfile`), NOT Mem0 Cloud.
+> - **Agent system**: now **6 agents** on a shared PostgresStore — core CVI + Macro Event + Disruption + Ontology + Peer-Coop + Stack Optimizer. v2.0 only described the core agent.
+> - **Neo4j**: wired into the agent memory graph + capability graph mirror (dual-write Postgres-first, opt-in Cypher reads via `USE_NEO4J_CAPABILITY_GRAPH=1`).
+> - **Reference orgs**: no longer hardcoded — populated by a Perplexity-driven criterion stored in `reference_org_selection_rule`.
+> - **GDP weights**: Perplexity-cited per industry with mandatory source URLs (no more in-code constants).
+> - **VCE → VCR rename**: Virtual Capability Engineer is now Virtual Capability Researcher (route `/vcr`, tables `vcr_*`).
+> - **Bot framework + bot workflow framework**: did not exist in April 2026. See `system-architecture.md` §4.
+> - **Industry list**: 6 industries are Insurance, Healthcare, Banking & Financial Services, Manufacturing, Technology, **Retail** (not Energy — that was incorrect in earlier docs).
+> - **Capability count**: 348 leaf capabilities (top-level auto-decomposed into sub-caps), not 58.
+> - **Page count**: 68 pages in the SPA, not 17.
+>
+> Sections of v2.0 still authoritative as of 2026-05-17: CVI Bayesian math, EVaR / Fragility / Moat formulas, the design-axiom philosophy in §2. Read v2.0 for those; read `system-architecture.md` for everything else.
+
 ---
 
 ## 1. System Overview & Theoretical Foundations
