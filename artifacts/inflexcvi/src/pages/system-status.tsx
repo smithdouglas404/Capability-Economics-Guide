@@ -14,6 +14,22 @@ const STATUS_TONES: Record<ServiceStatus, string> = {
   not_configured: "text-muted-foreground border-border/60 bg-muted/40",
 };
 
+const SERVICE_LABELS: Record<string, string> = {
+  mem0: "Mem0 Cloud",
+  letta: "Letta Cloud",
+  agent_store: "Letta-backed shared store",
+  agent_registry: "Agent registry (all 7 agents)",
+  synthesis_agent: "Synthesis Agent",
+  temporal_shifts: "Temporal-shift detector",
+  openrouter: "OpenRouter",
+  anthropic: "Anthropic",
+  perplexity: "Perplexity",
+  foundry: "Palantir Foundry",
+  stripe: "Stripe",
+  clerk: "Clerk",
+  demo_readiness: "Demo dataset",
+};
+
 const SERVICE_DESCRIPTIONS: Record<string, string> = {
   mem0: "Long-term agent memory — Mem0 Cloud at api.mem0.ai (durable observations, validated patterns; per-agent agent_id namespacing).",
   letta: "Stateful agent memory blocks — Letta Cloud at api.letta.com (persona / current_focus / industry_priors blocks + archival recall for all 7 agents).",
@@ -108,8 +124,13 @@ export default function SystemStatus() {
                     data-testid={`status-row-${s.service}`}
                   >
                     <td className="px-4 py-3">
-                      <div className="font-serif capitalize">{s.service}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
+                      <div className="font-serif">
+                        {SERVICE_LABELS[s.service] ?? s.service}
+                      </div>
+                      <div className="text-[10px] font-mono text-muted-foreground/70 mt-0.5">
+                        {s.service}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
                         {SERVICE_DESCRIPTIONS[s.service] ?? ""}
                       </div>
                     </td>
