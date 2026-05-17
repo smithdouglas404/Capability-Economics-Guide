@@ -165,10 +165,24 @@ export async function onCviDeltaLarge(payload: EventPayload): Promise<void> {
  */
 export async function onUserSignedUp(payload: EventPayload): Promise<void> {
   if (!payload.userId) return;
-  // Stub: full implementation depends on a "pre-loaded annotations"
-  // surface in onboarding.tsx that doesn't exist yet. For now, log the
-  // event so we can confirm the bus wiring works end-to-end.
-  logger.info({ userId: payload.userId, payload }, "[bot-trigger:user.signed-up] event received (companion workflow stubbed pending UI)");
+  // STUB — intentionally not wired upstream yet.
+  //
+  // Two prerequisites are missing before this trigger has somewhere useful to dispatch to:
+  //   1. There is no Clerk signup webhook handler in routes/ (the app uses Clerk
+  //      auth client-side; the backend reads auth.userId from authenticated
+  //      requests but never observes a discrete "user created" event server-side).
+  //      The closest proxy is the first time an org row is claimed by a
+  //      clerkUserId (organizations.ts:claim route), but that's "first action"
+  //      not "signup".
+  //   2. The companion workflow itself is not implemented — it would pre-load
+  //      persona-relevant annotations into the new user's onboarding queue.
+  //      That requires an onboarding.tsx UI surface to receive the pre-loaded
+  //      annotations, which doesn't exist.
+  //
+  // Wiring this end-to-end is tracked as a Phase 4b deliverable. For now,
+  // calling this is a no-op apart from the log line, which confirms the bus
+  // wiring works should anyone fire the event manually.
+  logger.info({ userId: payload.userId, payload }, "[bot-trigger:user.signed-up] event received (stub — no upstream publishers; no companion workflow yet)");
 }
 
 /**

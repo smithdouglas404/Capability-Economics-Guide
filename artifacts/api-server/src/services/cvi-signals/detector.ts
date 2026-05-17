@@ -1,5 +1,5 @@
-import { db, cviCapabilityHistoryTable, cviSignalEventsTable } from "@workspace/db";
-import { eq, sql, gte, asc, and } from "drizzle-orm";
+import { db, cviCapabilityHistoryTable, cviSignalEventsTable, industriesTable } from "@workspace/db";
+import { eq, sql, gte, asc, and, inArray } from "drizzle-orm";
 import { logger } from "../../lib/logger";
 
 /**
@@ -122,6 +122,25 @@ export async function detectCviSignalEvents(opts: DetectionOptions = {}): Promis
           })
           .onConflictDoNothing();
         inserted++;
+        // Fire-and-forget bot event for severity in {large, extreme} (i.e. |Δ| ≥ 10pt).
+        // Bots covering the relevant industry get a chance to react. Industry slug
+        // is looked up lazily once per cap then cached; per-event dispatch is the bot trigger's debounce concern.
+        if (severity === "large" || severity === "extreme") {
+          (async () => {
+            try {
+              const [ind] = await db.select({ slug: industriesTable.slug })
+                .from(industriesTable)
+                .where(eq(industriesTable.id, newer.industryId));
+              if (!ind) return;
+              const triggers = await import("../bots/workflows/triggers");
+              await triggers.dispatchBotEvent("cvi.delta-large", {
+                capabilityId: capId,
+                industrySlug: ind.slug,
+                metadata: { magnitudePoints: delta, severity, direction },
+              });
+            } catch { /* bots are not critical path */ }
+          })().catch(() => {});
+        }
       } catch (err) {
         // Likely unique violation from a re-run — non-fatal
         logger.debug({ err, capId }, "[cvi-signals] insert conflict (expected on re-run)");

@@ -86,6 +86,11 @@ router.post("/review/draft", async (req, res) => {
     enrichmentUpdatedAt: new Date(),
   }).returning();
   fireDraftEnrichment(cap.id, industryId);
+  // Fire-and-forget: notify bot trigger dispatcher so persona bots can evaluate.
+  // Imported lazily to avoid pulling the workflows module into the route bundle's hot path.
+  import("../services/bots/workflows/triggers").then((m) =>
+    m.dispatchBotEvent("capability.added", { capabilityId: cap.id, industrySlug: industry.slug })
+  ).catch(() => { /* swallowed — bots are not in the critical path */ });
   res.status(202).json({ id: cap.id, status: "pending_review", message: "Capability drafted; enrichment queued (~60-90s once it starts).", submittedBy: reviewerLabel(req.reviewer) });
 });
 

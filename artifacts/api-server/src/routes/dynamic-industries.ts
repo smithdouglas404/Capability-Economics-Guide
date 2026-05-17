@@ -220,6 +220,10 @@ Output ONLY the JSON array. No markdown, no commentary.`;
         targetCapabilityIds: [cap.id],
         targetIndustryIds: [industry.id],
       }).catch(err => console.error("[dynamic-industries] enrichment agent failed", err));
+      // Fire-and-forget bot event so persona bots can evaluate the new cap.
+      import("../services/bots/workflows/triggers").then((m) =>
+        m.dispatchBotEvent("capability.added", { capabilityId: cap.id, industrySlug: industry.slug })
+      ).catch(() => { /* bots are not critical path */ });
       await db.insert(capabilityThresholdsTable).values({
         capabilityId: cap.id,
         greenMin: Math.max(0, Math.min(100, c.greenMin)),

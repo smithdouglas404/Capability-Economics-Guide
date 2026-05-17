@@ -140,6 +140,25 @@ export async function insertSubCapabilities(
     .set({ isLeaf: false })
     .where(eq(capabilitiesTable.id, parentId));
 
+  // Fire-and-forget bot event for each newly created sub-capability. Bots
+  // covering the parent's industry get a chance to evaluate. Single industry
+  // lookup outside the loop to keep cost flat.
+  if (insertedIds.length > 0) {
+    try {
+      const [ind] = await db.select({ slug: industriesTable.slug })
+        .from(industriesTable)
+        .where(eq(industriesTable.id, parent.industryId));
+      if (ind) {
+        const slug = ind.slug;
+        import("./bots/workflows/triggers").then((m) => {
+          for (const id of insertedIds) {
+            m.dispatchBotEvent("capability.added", { capabilityId: id, industrySlug: slug }).catch(() => {});
+          }
+        }).catch(() => {});
+      }
+    } catch { /* bots are not critical path */ }
+  }
+
   return insertedIds;
 }
 
