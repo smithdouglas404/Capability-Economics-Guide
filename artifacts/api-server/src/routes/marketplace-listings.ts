@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
 import { db, marketplaceListingsTable, marketplaceSellersTable } from "@workspace/db";
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
 import { saveUpload, readFile } from "../services/marketplace-storage";
@@ -10,6 +10,8 @@ import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
 import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
 import { getClerkUserSummary } from "../services/clerk-user";
+import { upsertMarketplaceListingToDify, removeMarketplaceListingFromDify } from "../services/dify/sync";
+import { retrieve as difyRetrieve, isDifyAvailable, getMarketplaceDatasetId } from "../services/dify/client";
 
 const router: IRouter = Router();
 
@@ -61,6 +63,110 @@ router.get("/marketplace/listings", async (_req, res) => {
     featured: r.featured && (!r.featuredUntil || r.featuredUntil.getTime() > now),
   }));
   res.json({ listings: projected });
+});
+
+/**
+ * Semantic search across approved marketplace listings via Dify RAG.
+ *
+ * - `?q=<text>` calls Dify's retrieval endpoint against the
+ *   `marketplace-listings` Knowledge Base, maps returned doc.metadata.listing_id
+ *   back to Postgres rows, returns them in relevance order.
+ * - Empty/missing `q` returns the same list as `/marketplace/listings` (no
+ *   filtering — lets the frontend share one endpoint shape).
+ * - If Dify is unavailable, falls back to Postgres ILIKE substring match on
+ *   title + description so search still works in a degraded mode.
+ *
+ * Response shape matches `/marketplace/listings` exactly (same select
+ * columns) so the marketplace-library page can drop the result array into
+ * the same renderer.
+ */
+router.get("/marketplace/listings/search", async (req, res) => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (!q) {
+    res.redirect("/api/marketplace/listings");
+    return;
+  }
+
+  const baseSelect = {
+    id: marketplaceListingsTable.id,
+    sellerId: marketplaceListingsTable.sellerId,
+    sellerName: marketplaceSellersTable.displayName,
+    sellerTier: marketplaceSellersTable.tier,
+    sellerUserId: marketplaceSellersTable.userId,
+    type: marketplaceListingsTable.type,
+    title: marketplaceListingsTable.title,
+    description: marketplaceListingsTable.description,
+    priceCents: marketplaceListingsTable.priceCents,
+    coverImageUrl: marketplaceListingsTable.coverImageUrl,
+    tags: marketplaceListingsTable.tags,
+    featured: marketplaceListingsTable.featured,
+    featuredUntil: marketplaceListingsTable.featuredUntil,
+    approvedAt: marketplaceListingsTable.approvedAt,
+  };
+
+  // Dify RAG path — semantic search via the marketplace-listings KB.
+  const datasetId = getMarketplaceDatasetId();
+  if (isDifyAvailable() && datasetId) {
+    try {
+      const records = await difyRetrieve(datasetId, q, { top_k: 12, score_threshold: 0.35 });
+      const listingIdToScore = new Map<number, number>();
+      for (const r of records) {
+        const lid = r.segment.document.doc_metadata?.listing_id;
+        if (typeof lid === "number") {
+          // Keep the HIGHEST score across multiple matched segments of the
+          // same document (a long listing can have several embedded chunks).
+          const prev = listingIdToScore.get(lid) ?? 0;
+          if (r.score > prev) listingIdToScore.set(lid, r.score);
+        }
+      }
+      const ids = Array.from(listingIdToScore.keys());
+      if (ids.length === 0) {
+        res.json({ listings: [], source: "dify", query: q });
+        return;
+      }
+      const rows = await db
+        .select(baseSelect)
+        .from(marketplaceListingsTable)
+        .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+        .where(and(
+          eq(marketplaceListingsTable.status, "approved"),
+          inArray(marketplaceListingsTable.id, ids),
+          or(
+            isNull(marketplaceListingsTable.expiresAt),
+            gt(marketplaceListingsTable.expiresAt, sql`now()`),
+          ),
+        ));
+      // Sort by Dify-reported relevance, not approvedAt.
+      const sorted = rows
+        .map((r) => ({ ...r, relevance: listingIdToScore.get(r.id) ?? 0 }))
+        .sort((a, b) => b.relevance - a.relevance);
+      res.json({ listings: sorted, source: "dify", query: q });
+      return;
+    } catch (err) {
+      logger.warn({ err: err instanceof Error ? err.message : String(err), q }, "[marketplace] Dify search failed, falling back to keyword");
+    }
+  }
+
+  // Fallback: Postgres ILIKE substring match. Always works; less smart.
+  const like = `%${q}%`;
+  const rows = await db
+    .select(baseSelect)
+    .from(marketplaceListingsTable)
+    .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+    .where(and(
+      eq(marketplaceListingsTable.status, "approved"),
+      or(
+        ilike(marketplaceListingsTable.title, like),
+        ilike(marketplaceListingsTable.description, like),
+      ),
+      or(
+        isNull(marketplaceListingsTable.expiresAt),
+        gt(marketplaceListingsTable.expiresAt, sql`now()`),
+      ),
+    ))
+    .orderBy(desc(marketplaceListingsTable.featured), desc(marketplaceListingsTable.approvedAt))
+    .limit(50);
+  res.json({ listings: rows, source: "keyword_fallback", query: q });
 });
 
 /** Detail for a single public listing (approved) or any listing the caller owns. */
@@ -269,6 +375,9 @@ router.post("/marketplace/listings/:id/archive", async (req, res) => {
     status: "archived",
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id)).returning();
+  // Remove from Dify Knowledge so archived listings stop showing up in
+  // buyer RAG search. Fire-and-forget — never blocks the archive response.
+  void removeMarketplaceListingFromDify(id);
   res.json({ listing: updated });
 });
 
@@ -325,6 +434,10 @@ router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req,
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "approved" } });
   void notifySeller(id, "approved");
+  // Index the newly-approved listing into Dify's Knowledge Base so it shows
+  // up in buyer RAG search. Fire-and-forget — Dify outage doesn't fail the
+  // approval; the listing remains keyword-searchable in Postgres regardless.
+  void upsertMarketplaceListingToDify(id);
   res.json({ ok: true });
 });
 
@@ -391,6 +504,10 @@ router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, 
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "rejected", reason } });
   void notifySeller(id, "rejected", reason);
+  // If a previously-approved listing is rejected, remove from Dify so
+  // it stops appearing in buyer RAG search. No-op when listing was
+  // pending_review (nothing to remove).
+  void removeMarketplaceListingFromDify(id);
   res.json({ ok: true });
 });
 

@@ -71,29 +71,52 @@ export default function MarketplacePage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("newest");
+  // "semantic" when results came from Dify RAG; "keyword_fallback" when Dify
+  // was unavailable; "all" when no query is active (initial load). Drives the
+  // "Powered by semantic search" hint near the input.
+  const [searchSource, setSearchSource] = useState<"all" | "dify" | "keyword_fallback">("all");
 
+  // Debounced server-side search. When query is empty → fetch full listings
+  // (initial load behaviour). When non-empty → call /search which routes
+  // through Dify RAG. 350ms debounce so typing doesn't fire one fetch per
+  // keystroke.
   useEffect(() => {
-    fetch(`${API_BASE}/marketplace/listings`, { credentials: "include" })
-      .then(r => r.json())
-      .then(j => setListings(j.listings ?? []))
-      .catch(() => setListings([]))
-      .finally(() => setLoading(false));
-  }, []);
+    let cancelled = false;
+    const q = query.trim();
+    const timer = setTimeout(() => {
+      setLoading(true);
+      const url = q
+        ? `${API_BASE}/marketplace/listings/search?q=${encodeURIComponent(q)}`
+        : `${API_BASE}/marketplace/listings`;
+      fetch(url, { credentials: "include" })
+        .then(r => r.json())
+        .then(j => {
+          if (cancelled) return;
+          setListings(j.listings ?? []);
+          setSearchSource(q ? (j.source === "dify" ? "dify" : "keyword_fallback") : "all");
+        })
+        .catch(() => { if (!cancelled) setListings([]); })
+        .finally(() => { if (!cancelled) setLoading(false); });
+    }, q ? 350 : 0);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [query]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // Server already filtered by query when present. Local filters (segment,
+    // type, sort) still apply on top.
     let out = listings.filter(l => {
       if (segment !== "all" && !l.tags.includes(segment)) return false;
       if (typeFilter !== "all" && l.type !== typeFilter) return false;
-      if (q && !(l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q) || l.tags.some(t => t.toLowerCase().includes(q)))) return false;
       return true;
     });
     if (sort === "price_asc") out = [...out].sort((a, b) => a.priceCents - b.priceCents);
     else if (sort === "price_desc") out = [...out].sort((a, b) => b.priceCents - a.priceCents);
     else if (sort === "featured") out = [...out].sort((a, b) => Number(b.featured) - Number(a.featured));
-    // "newest" = server order (already featured-first, then desc by approvedAt)
+    // For semantic results, preserve server-side relevance order — don't
+    // re-sort by approvedAt. "newest" sort only matters in the no-query path
+    // where the server already returns newest-first.
     return out;
-  }, [listings, segment, typeFilter, query, sort]);
+  }, [listings, segment, typeFilter, sort]);
 
   return (
     <div className="container mx-auto px-4 py-6 sm:py-8 max-w-6xl">
@@ -125,11 +148,21 @@ export default function MarketplacePage() {
           <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search title, description, or tag..."
+              placeholder="Search listings by intent — &quot;cybersecurity for SaaS&quot;, &quot;fraud detection&quot;..."
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="rounded-none pl-9"
             />
+            {query && searchSource === "dify" && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400 font-mono">
+                semantic
+              </span>
+            )}
+            {query && searchSource === "keyword_fallback" && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400 font-mono">
+                keyword
+              </span>
+            )}
           </div>
           <select
             value={typeFilter}

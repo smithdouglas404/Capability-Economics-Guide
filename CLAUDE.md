@@ -162,6 +162,8 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (cloud at `https://api.mem0.ai`), `LETTA_BASE_URL` + `LETTA_API_KEY` (cloud at `https://api.letta.com`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
+- **Dify integration** (graceful degrade): `DIFY_BASE_URL` + `DIFY_API_KEY` + `DIFY_MARKETPLACE_DATASET_ID`. Dify is self-hosted in a separate `inflexcvi-dify` Railway project. See `### Dify — self-hosted` section below.
+- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. When set, the 7 inflexcvi agents auto-trace to LangSmith. Set the same project on Dify's api+worker to unify both stacks' traces.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
 
@@ -264,3 +266,39 @@ MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
 **Historical: self-hosted Mem0** — `mem0/Dockerfile` in this repo and the paired `pgvector` Railway service are the legacy self-hosted deployment. **Both Railway services are now unused and safe to delete** (service IDs `8b75626c-…` and `ff32eab9-…`). Keep the Dockerfile in-repo for now as a fallback path — if Mem0 Cloud ever has an outage we can flip `MEM0_BASE_URL` back to the internal hostname without redeploying. If you ever rebuild the Dockerfile path, note: `MEM0_VERSION=v2.1.0` is pinned but **does not exist** on upstream (highest tag is `v2.0.2`), and our CMD only runs `uvicorn` — it never runs `alembic upgrade head`, so the `users`/`api_keys`/`request_logs`/`settings`/`refresh_token_jtis` tables won't exist. Fix is to change CMD to `sh -c "alembic upgrade head && uvicorn …"` and either ensure the `mem0_app` database exists on pgvector or set `APP_DB_NAME` to an existing DB.
 
 **Letta** — see `### Letta — RESTORED (via Letta Cloud)` above. Letta Cloud runs at `https://api.letta.com`; the self-hosted Letta Railway service was already deleted.
+
+### Dify — self-hosted on a separate Railway project
+
+Dify is the LLM-app workflow builder used for RAG over marketplace items. Deployed self-hosted in its own Railway project (`inflexcvi-dify`) — kept separate from the `inflexcvi` project so Dify rebuilds don't queue with api-server deploys and a Dify outage can't take the main app down. 11 services (api, worker, worker_beat, web, plugin_daemon, sandbox, ssrf_proxy, nginx, postgres, redis, weaviate); see the plan file at `/home/runner/.claude/plans/steady-drifting-wilkes.md` for per-service resource caps.
+
+Env vars on the **inflexcvi api-server** (set after Dify is deployed and admin generates an API key):
+
+```env
+DIFY_BASE_URL=https://<nginx-public-url>      # the Dify nginx public URL, NO trailing slash
+DIFY_API_KEY=<from Dify admin → API keys>     # workspace-scoped Service API key
+DIFY_MARKETPLACE_DATASET_ID=<uuid>            # populated after POST /api/admin/dify/bootstrap
+```
+
+**Bootstrap flow** (one-shot, after Dify is up):
+1. `curl -X POST -H "x-admin-key: $ADMIN_API_KEY" {inflexcvi}/api/admin/dify/bootstrap` — creates the `marketplace-listings` KB and returns its dataset id.
+2. Set `DIFY_MARKETPLACE_DATASET_ID=<id>` on the api-server Railway service.
+3. `curl -X POST -H "x-admin-key: $ADMIN_API_KEY" {inflexcvi}/api/admin/dify/backfill-marketplace` — indexes all currently-approved listings.
+4. From then on, `services/dify/sync.ts` auto-syncs on approve/archive/reject via hooks in `routes/marketplace-listings.ts`.
+
+**Search path**: `GET /api/marketplace/listings/search?q=<query>` calls Dify's `/v1/datasets/{id}/retrieve` and maps `doc.metadata.listing_id` back to Postgres rows. Falls back to Postgres ILIKE when Dify is unavailable.
+
+**Plugin marketplace adapters**: install Letta + Mem0 adapters from `{dify-host}/explore/plugins` so Dify workflows can read existing agent memory. If marketplace lacks them, write a custom plugin that calls the inflexcvi `/api/agent/*` endpoints. See the plan file Phase 3 notes.
+
+**Health**: `probeDify` reports `not_configured | ok | degraded | down`. Degraded means Dify is reachable but `DIFY_MARKETPLACE_DATASET_ID` isn't set yet (bootstrap step pending).
+
+### LangSmith — observability across both stacks
+
+When set on either the inflexcvi api-server OR Dify's api+worker services, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
+
+```env
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=<from smith.langchain.com>
+LANGCHAIN_PROJECT=inflexcvi    # or per-environment: inflexcvi-prod, inflexcvi-staging
+```
+
+Set the same project name on both api-server and Dify and traces from both stacks land in one LangSmith project so you can see end-to-end flows (Dify Chatflow → inflexcvi /api call → cvi-autonomous-agent → tool calls). Without LangSmith env vars set, all 7 inflexcvi agents continue to work — tracing is purely additive.
