@@ -22,6 +22,7 @@ import { eq, desc, and, gt } from "drizzle-orm";
 import { triangulateCapability } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { recallMemories, storeMemory } from "./memory";
+import { findCorrelations, findRelated } from "./graphMemory";
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
@@ -603,24 +604,80 @@ export const generateInsightsTool = tool(
       `What are the most urgent capability gaps, market disruptions, and strategic opportunities facing the ${industry.name} industry in 2024-2026? Include specific companies, percentages, dollar amounts, and real analyst data from McKinsey, Gartner, Deloitte, or Forrester. Focus on operational risks and economic impact.`
     );
 
-    const prompt = `You are a Inflexcvi advisor analyzing the ${industry.name} industry using real market data.
+    // ── AI-FIRST: Pull institutional memory from Mem0 ──────────────────────
+    // Recall the agent's accumulated patterns and validated observations about
+    // this industry. These represent months of research cycles distilled into
+    // high-confidence signals that ground insights beyond current-cycle data.
+    let mem0PatternContext = "";
+    try {
+      const [industryPatterns, validatedPatterns, contradictions] = await Promise.all([
+        recallMemories(`${industry.name} capability patterns trends observations`, "pattern", 8),
+        recallMemories(`${industry.name} validated confirmed signal`, "pattern", 4),
+        recallMemories(`${industry.name} contradiction reversal unexpected`, "pattern", 3),
+      ]);
+      const allPatterns = [...new Map(
+        [...industryPatterns, ...validatedPatterns, ...contradictions].map(m => [m.mem0Id ?? m.id, m])
+      ).values()].slice(0, 12);
+      if (allPatterns.length > 0) {
+        mem0PatternContext = `\nINSTITUTIONAL MEMORY (${allPatterns.length} validated patterns from prior research cycles):\n` +
+          allPatterns.map(m =>
+            `- [${m.category ?? m.type}] ${m.content}` +
+            (m.relevanceScore ? ` (confidence: ${(m.relevanceScore * 100).toFixed(0)}%)` : "")
+          ).join("\n");
+      }
+    } catch (memErr) {
+      // Non-fatal — insights still generate without historical context
+      console.warn("[generateInsightsTool] Mem0 recall failed:", memErr instanceof Error ? memErr.message : memErr);
+    }
+
+    // ── AI-FIRST: Pull graph correlations from Neo4j ───────────────────────
+    // findCorrelations traverses the capability relationship graph to surface
+    // structural co-dependencies observed across research cycles. This reveals
+    // which capabilities move together and which are upstream blockers.
+    let graphCorrelationContext = "";
+    try {
+      const topCapsByScore = caps
+        .map(c => ({ ...c, score: compMap.get(c.id)?.consensusScore ?? c.benchmarkScore ?? 0 }))
+        .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+        .slice(0, 5);
+      const correlationResults = await Promise.all(
+        topCapsByScore.map(c => findCorrelations(industry.id, c.id, 2).catch(() => []))
+      );
+      const allCorrelations = correlationResults.flat()
+        .sort((a, b) => b.observedCount - a.observedCount)
+        .slice(0, 10);
+      if (allCorrelations.length > 0) {
+        graphCorrelationContext = `\nGRAPH INTELLIGENCE (capability co-occurrence patterns from ${allCorrelations.length} observed relationships):\n` +
+          allCorrelations.map(r =>
+            `- ${r.fromLabel} ↔ ${r.toLabel}: observed ${r.observedCount}x, relationship strength ${(r.weight * 100).toFixed(0)}% [${r.relationType}]`
+          ).join("\n");
+      }
+    } catch (graphErr) {
+      console.warn("[generateInsightsTool] Neo4j correlation fetch failed:", graphErr instanceof Error ? graphErr.message : graphErr);
+    }
+
+    const prompt = `You are a Inflexcvi advisor analyzing the ${industry.name} industry using real market data, institutional memory, and graph intelligence.
 
 Current capability scores:
 ${capSummary}
 
 PERPLEXITY RESEARCH (use this to ground insights in real data):
-${researchContext}
+${researchContext}${mem0PatternContext}${graphCorrelationContext}
 
-Generate exactly 4 strategic insights based on the capability scores and research above. Each must reference specific data points from the research.
+Generate exactly 4 strategic insights. Each insight MUST:
+1. Reference specific data points from the Perplexity research
+2. Where relevant, reference patterns from Institutional Memory to show whether this is a new signal or a confirmed trend
+3. Where relevant, reference Graph Intelligence to explain structural co-dependencies (e.g. "improving X requires first addressing Y")
 
 Return ONLY valid JSON array:
 [
   {
     "title": "Concise insight title (max 12 words)",
-    "content": "2-3 sentences with specific data points, percentages, dollar amounts from the research. Reference real companies or analyst data.",
-    "recommendation": "1-2 sentences with a specific, actionable recommendation including timeline and measurable target.",
+    "content": "2-3 sentences with specific data points, percentages, dollar amounts from the research. Reference real companies or analyst data. If a pattern from Institutional Memory confirms or contradicts this, cite it.",
+    "recommendation": "1-2 sentences with a specific, actionable recommendation including timeline and measurable target. If graph co-dependencies exist, name the upstream capability that must be addressed first.",
     "severity": "critical" | "warning" | "info",
-    "capabilityFocus": "name of the most relevant capability from the list above"
+    "capabilityFocus": "name of the most relevant capability from the list above",
+    "evidenceSources": ["perplexity", "institutional_memory", "graph_intelligence"] // include only sources actually used
   }
 ]
 

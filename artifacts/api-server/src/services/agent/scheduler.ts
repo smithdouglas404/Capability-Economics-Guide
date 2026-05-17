@@ -1,6 +1,7 @@
 import { runAgent } from "./graph";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
+import { detectTemporalShifts } from "./temporal-shift-detector";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune } from "./memory";
@@ -10,6 +11,7 @@ import { runDisruptionAgent } from "../disruption-agent";
 import { runPeerCoopAgent } from "../peer-coop-agent";
 import { runStackOptimizerAgent } from "../stack-optimizer-agent";
 import { runOntologyAgent } from "../ontology-agent";
+import { runSynthesisAgent } from "../synthesis-agent";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -74,6 +76,11 @@ const STACK_OPTIMIZER_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // extraction; runs last in the chain after others have published.
 // 4h matches the natural rollup horizon.
 const ONTOLOGY_AGENT_INTERVAL_MS = 4 * 60 * 60 * 1000;
+// Synthesis Agent: cross-agent intelligence layer. Runs once daily after
+// all specialized agents have completed their cycles. Uses Claude Sonnet
+// to synthesize a unified strategic brief from all five agent digests,
+// graph correlations, Mem0 patterns, and temporal shifts.
+const SYNTHESIS_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -103,6 +110,9 @@ let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
 let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
 let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
 let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
+let synthesisAgentTimer: ReturnType<typeof setInterval> | null = null;
+let foundryTokenCheckTimer: ReturnType<typeof setInterval> | null = null;
+let temporalShiftTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -522,12 +532,23 @@ export function startScheduler(): void {
       .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
       .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
   }, STACK_OPTIMIZER_AGENT_INTERVAL_MS);
-  ontologyAgentTimer = setInterval(() => {
+    ontologyAgentTimer = setInterval(() => {
     runOntologyAgent()
       .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
       .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
   }, ONTOLOGY_AGENT_INTERVAL_MS);
-
+  // Synthesis Agent — daily, staggered 5 minutes after startup so all
+  // other agents have had a chance to publish their first digests.
+  setTimeout(() => {
+    runSynthesisAgent()
+      .then(r => console.log(`[Agent] Synthesis agent (startup): tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+  }, 300_000);
+  synthesisAgentTimer = setInterval(() => {
+    runSynthesisAgent()
+      .then(r => console.log(`[Agent] Synthesis agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+      .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+  }, SYNTHESIS_AGENT_INTERVAL_MS);
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
   startConsolidator();
@@ -572,6 +593,28 @@ export function startScheduler(): void {
   setTimeout(() => edgarRssTick(), 240_000);
   // CVI signals detector — 5 min stagger, then daily.
   setTimeout(() => ceiSignalsTick(), 300_000);
+  // Foundry token expiry check — every 30 minutes.
+  const FOUNDRY_TOKEN_CHECK_MS = 30 * 60 * 1000;
+  foundryTokenCheckTimer = setInterval(() => {
+    foundryTokenExpiryCheck().catch(err =>
+      console.warn("[Agent] Foundry token expiry check failed:", err instanceof Error ? err.message : err),
+    );
+  }, FOUNDRY_TOKEN_CHECK_MS);
+  // Temporal shift detection — every 6 hours.
+  // Detects accelerating/reversing capability relationships by comparing
+  // current graph weights against 30-day baselines. High-signal shifts are
+  // written to Mem0 so all agents recall them in future cycles.
+  const TEMPORAL_SHIFT_INTERVAL_MS = 6 * 60 * 60 * 1000;
+  setTimeout(() => {
+    detectTemporalShifts()
+      .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+      .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+  }, 120_000);
+  temporalShiftTimer = setInterval(() => {
+    detectTemporalShifts()
+      .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+      .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+  }, TEMPORAL_SHIFT_INTERVAL_MS);
 }
 
 /**
@@ -603,6 +646,9 @@ export function stopScheduler(): void {
   if (peerCoopAgentTimer) { clearInterval(peerCoopAgentTimer); peerCoopAgentTimer = null; }
   if (stackOptimizerAgentTimer) { clearInterval(stackOptimizerAgentTimer); stackOptimizerAgentTimer = null; }
   if (ontologyAgentTimer) { clearInterval(ontologyAgentTimer); ontologyAgentTimer = null; }
+  if (synthesisAgentTimer) { clearInterval(synthesisAgentTimer); synthesisAgentTimer = null; }
+  if (foundryTokenCheckTimer) { clearInterval(foundryTokenCheckTimer); foundryTokenCheckTimer = null; }
+  if (temporalShiftTimer) { clearInterval(temporalShiftTimer); temporalShiftTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   console.log("[Agent] Autonomous monitoring stopped");
