@@ -101,6 +101,11 @@ const CORE_BLOCKS: Array<{ label: CoreBlockLabel; value: string; description: st
 
 let lettaClient: LettaClient | null = null;
 let lettaAgentId: string | null = null;
+// Cached archive id for archival memory operations. Letta Cloud requires an
+// attached archive before passages.create / passages.search will succeed —
+// the agent-level endpoints return 404 / 400 ("No conversation history found")
+// without one. Set by ensureAttachedArchive() during doInit().
+let lettaArchiveId: string | null = null;
 let lettaConnected = false;
 let lastAttemptAt = 0;
 let initPromise: Promise<boolean> | null = null;
@@ -185,6 +190,52 @@ async function ensureCustomTools(): Promise<void> {
   }
 }
 
+/**
+ * Letta Cloud requires the agent to have at least one attached archive before
+ * `agents.passages.create` / `agents.passages.search` will succeed. Without an
+ * archive these endpoints return 404 ("Not Found" from the internal vector
+ * store) and 400 ("No conversation history found. Please send a message first
+ * to enable search.") respectively.
+ *
+ * On boot: list the agent's archives, take the first one if any exist, else
+ * create + attach a fresh "cvi-default-archive" and cache its id at module
+ * scope. lettaArchivalInsert / lettaArchivalSearch use this archive directly
+ * via the top-level archives.passages / passages.search endpoints (which work
+ * regardless of agent chat history).
+ *
+ * Non-fatal on failure: archival just stays disabled, core memory blocks
+ * (lettaReadBlock / lettaUpdateBlock) continue to work.
+ */
+async function ensureAttachedArchive(): Promise<void> {
+  if (!lettaClient || !lettaAgentId) return;
+  try {
+    const lc = lettaClient as unknown as {
+      agents: { archives: { list: (agentId: string) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>> } };
+      archives: { create: (body: { name: string }) => Promise<{ id: string }> };
+    };
+    const page = await lc.agents.archives.list(lettaAgentId);
+    const attached: Array<{ id: string; name?: string }> = [];
+    for await (const a of page as AsyncIterable<{ id: string; name?: string }>) {
+      attached.push(a);
+    }
+    if (attached.length > 0) {
+      lettaArchiveId = attached[0]!.id;
+      console.log(`[Letta] Archive reused — id=${lettaArchiveId} name=${attached[0]!.name ?? "(unnamed)"}`);
+      return;
+    }
+    // Create + attach a fresh archive for this agent.
+    const created = await lc.archives.create({ name: `${LETTA_AGENT_NAME}-archive` });
+    await (lettaClient as unknown as {
+      agents: { archives: { attach: (archiveId: string, params: { agent_id: string }) => Promise<unknown> } };
+    }).agents.archives.attach(created.id, { agent_id: lettaAgentId });
+    lettaArchiveId = created.id;
+    console.log(`[Letta] Archive created + attached — id=${lettaArchiveId} name=${LETTA_AGENT_NAME}-archive`);
+  } catch (err) {
+    console.log(`[Letta] Archive setup failed (non-fatal, archival memory disabled): ${err instanceof Error ? err.message : err}`);
+    lettaArchiveId = null;
+  }
+}
+
 async function doInit(): Promise<boolean> {
   try {
     const { default: Letta } = await import("@letta-ai/letta-client");
@@ -263,6 +314,7 @@ async function doInit(): Promise<boolean> {
 
     await ensureCoreBlocks();
     await ensureCustomTools();
+    await ensureAttachedArchive();
 
     lettaConnected = true;
     emitAgentEvent({ type: "letta_connected", agentId: lettaAgentId });
@@ -345,10 +397,15 @@ export async function lettaReadBlock(label: CoreBlockLabel): Promise<string | nu
 
 export async function lettaArchivalInsert(text: string): Promise<boolean> {
   if (!lettaConnected && !await initLettaClient()) return false;
-  if (!lettaClient || !lettaAgentId) return false;
+  if (!lettaClient || !lettaArchiveId) return false;
   try {
+    // Write directly to the attached archive (not the agent-mediated endpoint
+    // — that one 404s on Letta Cloud when the agent's vector index hasn't been
+    // bootstrapped yet, which happens for every fresh agent).
     await Promise.race([
-      lettaClient.agents.passages.create(lettaAgentId, { text }),
+      (lettaClient as unknown as {
+        archives: { passages: { create: (archiveId: string, body: { text: string }) => Promise<unknown> } };
+      }).archives.passages.create(lettaArchiveId, { text }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
     ]);
     emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
@@ -361,12 +418,17 @@ export async function lettaArchivalInsert(text: string): Promise<boolean> {
 
 export async function lettaArchivalSearch(query: string, limit: number = 5): Promise<Array<{ text: string; score?: number }>> {
   if (!lettaConnected && !await initLettaClient()) return [];
-  if (!lettaClient || !lettaAgentId) return [];
+  if (!lettaClient || !lettaArchiveId) return [];
   try {
+    // Search via the top-level passages endpoint scoped to our archive_id.
+    // The agent-mediated endpoint 400s on Letta Cloud with "No conversation
+    // history found. Please send a message first to enable search." because
+    // Cloud's agent-search path requires a prior chat message — ours doesn't
+    // have one. The archive-scoped path works regardless.
     const result = await Promise.race([
-      (lettaClient.agents.passages as unknown as {
-        search: (agentID: string, params: { query?: string; search?: string; limit?: number; top_k?: number }) => Promise<unknown>;
-      }).search(lettaAgentId, { query, search: query, limit, top_k: limit }),
+      (lettaClient as unknown as {
+        passages: { search: (body: { archive_id: string; query: string; limit?: number }) => Promise<unknown> };
+      }).passages.search({ archive_id: lettaArchiveId, query, limit }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
     ]);
     const items = Array.isArray(result) ? result : ((result as { results?: unknown[] })?.results ?? []);

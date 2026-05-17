@@ -382,34 +382,55 @@ export async function recallMemories(
 
   if (isMem0Available()) {
     try {
-      // Mem0 v1.0.0+ supports enhanced filters with logical (AND/OR/NOT)
-      // and comparison (gt/gte/lt/lte/eq/ne/in/nin/contains/icontains)
-      // operators evaluated at the vector store level. Push every
-      // available predicate server-side so we don't burn the retrieval
-      // budget on memories the caller would discard.
-      //
-      // Falls back to the basic single-level filter shape on older
-      // servers via defensive re-check in the result loop below.
-      const andClauses: Record<string, unknown>[] = [
-        { agent_id: MEM0_AGENT_ID },
-      ];
-      if (options.runId) andClauses.push({ run_id: `cycle-${options.runId}` });
-      if (type) andClauses.push({ metadata: { memoryType: type } });
-      if (options.category) andClauses.push({ metadata: { category: options.category } });
-      if (options.topic) andClauses.push({ metadata: { topic: options.topic } });
-      if (typeof options.minConfidence === "number") {
-        andClauses.push({ metadata: { confidence: { gte: options.minConfidence } } });
-      }
-      if (options.createdAfter) {
-        andClauses.push({ created_at: { gte: options.createdAfter.toISOString() } });
-      }
+      // Mem0 Cloud (v1) and self-hosted Mem0 (v2.x) expect DIFFERENT search
+      // payload shapes. Cloud wants agent_id as a top-level field; self-hosted
+      // v2.x supports the nested AND/OR filter DSL. Branching on isCloud
+      // avoids the 400 "At least one of the filters: agent_id, user_id,
+      // app_id, run_id is required!" that Cloud throws when only a nested
+      // filters object is sent.
+      const cfgSearch = getMem0Config();
+      const isCloud = cfgSearch?.isCloud ?? false;
 
-      const res = await mem0Fetch("/search", "POST", {
-        query,
-        filters: { AND: andClauses },
-        limit,
-        threshold: 0.35,
-      }) as { results?: Array<{ id?: string; memory?: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> };
+      let res: { results?: Array<{ id?: string; memory?: string; score?: number; metadata?: Record<string, unknown>; created_at?: string }> };
+
+      if (isCloud) {
+        // Cloud (v1) shape: top-level agent_id + optional metadata filter.
+        // Cloud's metadata filter is a flat dict (not an AND-array).
+        const cloudMeta: Record<string, unknown> = {};
+        if (type) cloudMeta.memoryType = type;
+        if (options.category) cloudMeta.category = options.category;
+        if (options.topic) cloudMeta.topic = options.topic;
+        const cloudBody: Record<string, unknown> = {
+          query,
+          agent_id: MEM0_AGENT_ID,
+          limit,
+          threshold: 0.35,
+        };
+        if (options.runId) cloudBody.run_id = `cycle-${options.runId}`;
+        if (Object.keys(cloudMeta).length > 0) cloudBody.metadata = cloudMeta;
+        res = await mem0Fetch("/search", "POST", cloudBody) as typeof res;
+      } else {
+        // Self-hosted v2.x: nested AND filter DSL with metadata sub-filters.
+        const andClauses: Record<string, unknown>[] = [
+          { agent_id: MEM0_AGENT_ID },
+        ];
+        if (options.runId) andClauses.push({ run_id: `cycle-${options.runId}` });
+        if (type) andClauses.push({ metadata: { memoryType: type } });
+        if (options.category) andClauses.push({ metadata: { category: options.category } });
+        if (options.topic) andClauses.push({ metadata: { topic: options.topic } });
+        if (typeof options.minConfidence === "number") {
+          andClauses.push({ metadata: { confidence: { gte: options.minConfidence } } });
+        }
+        if (options.createdAfter) {
+          andClauses.push({ created_at: { gte: options.createdAfter.toISOString() } });
+        }
+        res = await mem0Fetch("/search", "POST", {
+          query,
+          filters: { AND: andClauses },
+          limit,
+          threshold: 0.35,
+        }) as typeof res;
+      }
 
       for (const m of res?.results ?? []) {
         const meta = m.metadata || {};
