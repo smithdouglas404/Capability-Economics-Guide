@@ -204,13 +204,13 @@ const PROPOSE_CAPABILITY_FLAG: LettaToolDef = {
 const PROPOSE_ECONOMIC_RULE_CHANGE: LettaToolDef = {
   name: "propose_economic_rule_change",
   description: "Queue a proposed change to one of the strategic thresholds in your economic_rules block (CVI floor, DVX ceiling, etc.) for admin review. Reference the rule by key. Include your full rationale — admins audit these carefully.",
-  sourceCode: `def propose_economic_rule_change(rule_key: str, new_value, rationale: str) -> dict:
+  sourceCode: `def propose_economic_rule_change(rule_key: str, new_value: float, rationale: str) -> dict:
     """Queue an economic rule threshold change for admin approval.
 
     Args:
         rule_key: The rule's key from your economic_rules block
                   (e.g. "cvi_floor", "dvx_ceiling").
-        new_value: Proposed new value (number or struct, matching the rule's unit).
+        new_value: Proposed new numeric value, matching the rule's unit.
         rationale: REQUIRED. Detailed chain-of-thought explaining why the
                    current value is mis-calibrated and citing the observations
                    that led to this proposal.
