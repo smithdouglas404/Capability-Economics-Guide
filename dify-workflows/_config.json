@@ -72,6 +72,46 @@
       "description": "Daily cron-triggered workflow that pulls each agent's digest + Neo4j correlations + Mem0 patterns and produces a cross-agent strategic brief. Replaces services/synthesis-agent.ts once proven.",
       "tags": ["agents", "internal", "cron"],
       "callsBack": []
+    },
+    {
+      "slug": "assessment-analyzer",
+      "kind": "workflow",
+      "displayName": "Assessment Analyzer",
+      "description": "Sonnet scoring + narrative for the assess flow. Replaces inline LLM calls at routes/assess.ts:237 (start) and :469 (analyze).",
+      "tags": ["assessment", "user-facing"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "industry-bootstrap",
+      "kind": "workflow",
+      "displayName": "Industry Bootstrap",
+      "description": "Perplexity + Sonnet pipeline that materializes a new industry on demand. Replaces inline calls in routes/dynamic-industries.ts.",
+      "tags": ["enrichment", "admin"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "case-study-generator",
+      "kind": "workflow",
+      "displayName": "Case Study Generator",
+      "description": "Regenerates case-study economics breakdown on admin trigger. Replaces inline LLM at routes/case-studies.ts:93.",
+      "tags": ["content", "admin"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "capability-enrichment-retry",
+      "kind": "workflow",
+      "displayName": "Capability Enrichment Retry",
+      "description": "Wraps the fragile fireDraftEnrichment retry path (the 'enhance' flow that often fails). Perplexity → Sonnet → DB write with per-step backoff. Replaces /admin/backfill-ai-narratives inline behavior when DIFY_CAPABILITY_ENRICHMENT_RETRY_ENABLED=1.",
+      "tags": ["enrichment", "internal", "retry"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "admin-config-proposer",
+      "kind": "workflow",
+      "displayName": "Admin Config Proposer",
+      "description": "Generic AI proposer for admin-tunable settings (economic rules, agent tuning, enrichment cadence, source-quality scores). Proposes new values based on recent outcomes; routes through existing /admin/agent/proposals HITL approval loop.",
+      "tags": ["admin", "internal", "hitl"],
+      "callsBack": ["agent-tool-invoke"]
     }
   ]
 }

@@ -1,0 +1,214 @@
+# Dify Workflow (non-chat) — Admin Config Proposer
+#
+# Generic AI proposer for admin-tunable settings. Replaces the "human guesses
+# a number, types it into the form" pattern across these admin surfaces:
+#
+#   • /admin/economic-rules/:key — CVI floor, DVX ceiling, posterior variance,
+#       DVX factor weights, EVaR alarm levels
+#   • /admin/agent-tuning — model + temperature + max-tokens per agent
+#   • /admin/enrichment/config — cadence numbers
+#   • /admin/source-quality — credibility scores
+#   • /admin/bots/:id — bot config
+#
+# Input `configArea` controls which schema the LLM emits. Output goes through
+# the EXISTING /agent/tools/propose-economic-rule-change HITL approval loop
+# (admin reviews proposals in /admin/agent/proposals and clicks approve/reject),
+# so this workflow never directly changes a setting.
+#
+# Wire from inflexcvi: a new admin button "Ask AI to propose values" on each
+# admin page, OR a cron that periodically scans outcomes and proposes
+# improvements. Both call this workflow with the relevant configArea.
+app:
+  name: Admin Config Proposer
+  description: Proposes new values for admin-tunable settings, routed through HITL approval.
+  mode: workflow
+  icon: "\U0001F39B"
+  icon_background: "#E0E7FF"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables:
+    - { name: INFLEXCVI_API_BASE, value: "" }
+    - { name: DIFY_CALLBACK_KEY, value: "" }
+  conversation_variables: []
+  features: { file_upload: { enabled: false }, text_to_speech: { enabled: false } }
+  graph:
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 240 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - { variable: configArea, type: select, label: Config Area, required: true, options: [economic_rules, agent_tuning, enrichment_config, source_quality, bot_config] }
+            - { variable: currentValues, type: paragraph, label: Current Values JSON, required: true }
+            - { variable: recentOutcomes, type: paragraph, label: Recent Outcomes JSON, required: true }
+            - { variable: targetKey, type: text-input, label: Target Key (optional — narrow proposal), required: false, max_length: 128 }
+            - { variable: triggeredBy, type: text-input, label: Triggered By (admin user or "cron"), required: true, max_length: 64 }
+      - id: propose_llm
+        type: custom
+        position: { x: 360, y: 240 }
+        data:
+          type: llm
+          title: Propose values
+          model:
+            provider: anthropic
+            name: claude-3-7-sonnet-latest
+            mode: chat
+            completion_params: { temperature: 0.2, max_tokens: 3000 }
+          prompt_template:
+            - role: system
+              text: |
+                You propose tweaked values for admin-tunable settings. A human will approve or reject
+                every proposal — your job is to make a well-reasoned, conservative recommendation
+                with clear rationale. NEVER propose a value you cannot defend with the recent
+                outcomes data.
+
+                Output ONLY a JSON object:
+
+                {
+                  "configArea": "string",
+                  "proposals": [
+                    {
+                      "key": "string — the specific setting being changed",
+                      "currentValue": <any — copy from input>,
+                      "proposedValue": <any — your suggestion>,
+                      "delta": "string — direction + magnitude in plain words",
+                      "rationale": "string — 1-2 sentences citing recent outcomes",
+                      "confidence": 0.0
+                    }
+                  ],
+                  "abstentions": [
+                    {"key": "string", "reason": "why you did not propose a change for this one"}
+                  ]
+                }
+
+                Hard rules:
+                - Never change more than 5 keys in one proposal — surgical wins over sweeping.
+                - For numeric thresholds: propose at most a 25% delta in one step.
+                - For model selections: switch only between known-supported options
+                  (sonnet-4.6, haiku-4.5, gemini-2.0-flash-001, deepseek-chat-v3).
+                - Abstain explicitly on keys where outcomes are inconclusive — abstaining is fine.
+              edition_type: basic
+            - role: user
+              text: |
+                configArea: {{#start.configArea#}}
+                targetKey hint: {{#start.targetKey#}}
+                triggeredBy: {{#start.triggeredBy#}}
+
+                CURRENT VALUES:
+                {{#start.currentValues#}}
+
+                RECENT OUTCOMES (last 30 days):
+                {{#start.recentOutcomes#}}
+              edition_type: basic
+      - id: parse
+        type: custom
+        position: { x: 640, y: 240 }
+        data:
+          type: code
+          title: Coerce JSON
+          code_language: python3
+          code: |
+            import json
+            def main(text: str) -> dict:
+                s = text.strip()
+                if s.startswith("```"):
+                    s = s.strip("`")
+                    if s.startswith("json"):
+                        s = s[4:]
+                try:
+                    p = json.loads(s)
+                except Exception:
+                    return {"payload": {"proposals": [], "abstentions": [], "raw": text[:600]}, "count": 0}
+                count = len(p.get("proposals") or [])
+                return {"payload": p, "count": count}
+          variables:
+            - { variable: text, value_selector: [propose_llm, text] }
+          outputs:
+            payload: { type: object }
+            count: { type: number }
+      - id: branch
+        type: custom
+        position: { x: 920, y: 240 }
+        data:
+          type: if-else
+          title: Any proposals?
+          logical_operator: and
+          conditions:
+            - { variable_selector: [parse, count], comparison_operator: ">", value: "0" }
+      - id: hmac
+        type: custom
+        position: { x: 1200, y: 120 }
+        data:
+          type: code
+          title: HMAC sign body
+          code_language: python3
+          code: |
+            import hmac, hashlib, json
+            def main(area: str, payload: dict, triggered_by: str, run_id: str, key: str) -> dict:
+                body = {
+                    "clientRequestId": run_id,
+                    "configArea": area,
+                    "triggeredBy": triggered_by,
+                    "proposals": payload.get("proposals", []),
+                    "abstentions": payload.get("abstentions", []),
+                }
+                msg = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+                sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+                return {"signature": sig, "body": msg.decode("utf-8")}
+          variables:
+            - { variable: area, value_selector: [start, configArea] }
+            - { variable: payload, value_selector: [parse, payload] }
+            - { variable: triggered_by, value_selector: [start, triggeredBy] }
+            - { variable: run_id, value_selector: [sys, workflow_run_id] }
+            - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
+          outputs:
+            signature: { type: string }
+            body: { type: string }
+      - id: callback
+        type: custom
+        position: { x: 1480, y: 120 }
+        data:
+          type: http-request
+          title: POST /api/dify/callback/agent-tool-invoke
+          method: post
+          # The agent-tool-invoke callback in routes/dify-callbacks.ts proxies to
+          # services/agent/tools.ts, which already has a propose-economic-rule-change
+          # handler that writes to agent_proposals and surfaces in /admin/agent/proposals.
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/agent-tool-invoke"
+          headers: |
+            Content-Type: application/json
+            X-Dify-Callback-Signature: {{#hmac.signature#}}
+            X-Dify-Workflow-Slug: admin-config-proposer
+            X-Dify-Tool: propose-config-change
+          body: { type: raw-text, data: "{{#hmac.body#}}" }
+          timeout: { max_connect_timeout: 10, max_read_timeout: 30, max_write_timeout: 30 }
+      - id: end_proposed
+        type: custom
+        position: { x: 1760, y: 120 }
+        data:
+          type: end
+          title: End (proposed)
+          outputs:
+            - { variable: status, value: "proposals_queued" }
+            - { variable: count, value_selector: [parse, count] }
+            - { variable: payload, value_selector: [parse, payload] }
+      - id: end_abstain
+        type: custom
+        position: { x: 1200, y: 360 }
+        data:
+          type: end
+          title: End (abstained)
+          outputs:
+            - { variable: status, value: "no_proposals" }
+            - { variable: payload, value_selector: [parse, payload] }
+    edges:
+      - { id: e1, source: start, target: propose_llm }
+      - { id: e2, source: propose_llm, target: parse }
+      - { id: e3, source: parse, target: branch }
+      - { id: e4, source: branch, target: hmac, sourceHandle: "true" }
+      - { id: e5, source: branch, target: end_abstain, sourceHandle: "false" }
+      - { id: e6, source: hmac, target: callback }
+      - { id: e7, source: callback, target: end_proposed }

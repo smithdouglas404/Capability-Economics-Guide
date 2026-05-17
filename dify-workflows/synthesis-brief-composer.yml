@@ -1,36 +1,195 @@
-# Dify Workflow — Synthesis Brief Composer
-# Daily cron-triggered. Pulls each specialized agent's digest + Neo4j
-# correlations + Mem0 patterns + temporal-shift report (all via HTTP
-# Request nodes back to inflexcvi /api/agent/*), then has Sonnet 4.6
-# compose a cross-agent strategic brief. Replaces services/synthesis-agent.ts
-# once proven for ≥7 days behind DIFY_SYNTHESIS_ENABLED=1.
+# Dify Workflow (non-chat) — Synthesis Brief Composer
 #
-# Inputs (none — pulls everything via HTTP nodes).
+# Cron-triggered (daily). Pulls each specialized agent's digest + Neo4j
+# correlations + Mem0 patterns + the temporal-shift report (all via HTTP
+# nodes to existing inflexcvi admin endpoints), composes a cross-agent
+# strategic brief, and writes it back via /api/dify/callback/research-result
+# with kind=synthesis_brief. Replaces services/synthesis-agent.ts once stable.
 #
-# Required output:
-#   brief          string
-#   refs           string[]   (agent names + topics referenced)
+# Required Dify environment variables:
+#   ADMIN_API_KEY   inflexcvi admin key (read-side only — these endpoints GET)
+#   INFLEXCVI_API_BASE
+#   DIFY_CALLBACK_KEY
 app:
   name: Synthesis Brief Composer
-  description: Daily cross-agent strategic brief. Reads all 5 specialized-agent digests + Neo4j + Mem0 patterns.
+  description: Daily cross-agent strategic brief — replaces services/synthesis-agent.ts.
   mode: workflow
   icon: "\U0001F4DA"
-  icon_background: "#DDD6FE"
+  icon_background: "#FDE68A"
 kind: app
 version: 0.1.5
 workflow:
-  environment_variables: []
+  environment_variables:
+    - { name: INFLEXCVI_API_BASE, value: "" }
+    - { name: DIFY_CALLBACK_KEY, value: "" }
+    - { name: ADMIN_API_KEY, value: "" }
   conversation_variables: []
-  features:
-    file_upload:
-      enabled: false
+  features: { file_upload: { enabled: false }, text_to_speech: { enabled: false } }
   graph:
-    edges: []
     nodes:
       - id: start
         type: custom
-        position: { x: 80, y: 80 }
+        position: { x: 80, y: 240 }
         data:
           type: start
-          title: Start
+          title: Start (cron)
           variables: []
+      - id: digests
+        type: custom
+        position: { x: 360, y: 240 }
+        data:
+          type: http-request
+          title: GET /admin/agent-runs (digests)
+          method: get
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/admin/agent-runs?lookbackHours=24"
+          headers: |
+            X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+          timeout: { max_connect_timeout: 10, max_read_timeout: 30, max_write_timeout: 10 }
+      - id: correlations
+        type: custom
+        position: { x: 360, y: 420 }
+        data:
+          type: http-request
+          title: GET /admin/graph/correlations
+          method: get
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/admin/graph/correlations?top=20"
+          headers: |
+            X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+          timeout: { max_connect_timeout: 10, max_read_timeout: 30, max_write_timeout: 10 }
+      - id: temporal
+        type: custom
+        position: { x: 360, y: 600 }
+        data:
+          type: http-request
+          title: GET /admin/temporal-shifts
+          method: get
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/admin/temporal-shifts"
+          headers: |
+            X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+          timeout: { max_connect_timeout: 10, max_read_timeout: 30, max_write_timeout: 10 }
+      - id: brief_llm
+        type: custom
+        position: { x: 700, y: 420 }
+        data:
+          type: llm
+          title: Compose brief
+          model:
+            provider: anthropic
+            name: claude-3-7-sonnet-latest
+            mode: chat
+            completion_params: { temperature: 0.4, max_tokens: 4000 }
+          prompt_template:
+            - role: system
+              text: |
+                You are the Synthesis Agent. Read the 5 specialized agents' last-24h digests, the
+                top correlations from the capability graph, and the 6h temporal-shift report. Produce
+                a daily strategic brief that EVERY downstream agent will prepend to its system prompt
+                on its next run.
+
+                Output a JSON object — no prose, no fences:
+
+                {
+                  "headline": "<= 12 words",
+                  "themes": ["3-5 cross-agent themes"],
+                  "openQuestions": ["2-4 questions for the agents to investigate today"],
+                  "recommendations": [{"agent": "macro-event|disruption|peer-coop|stack-optimizer|ontology", "action": "..."}],
+                  "confidence": 0.0
+                }
+
+                Constraints:
+                - Cite the specific agents whose digests support each theme (just the agent slug).
+                - If two agents contradict, surface it in `openQuestions` — DO NOT pick a winner.
+                - Never fabricate data points.
+              edition_type: basic
+            - role: user
+              text: |
+                AGENT DIGESTS (24h):
+                {{#digests.body#}}
+
+                CAPABILITY CORRELATIONS (top 20):
+                {{#correlations.body#}}
+
+                TEMPORAL SHIFTS (6h):
+                {{#temporal.body#}}
+              edition_type: basic
+      - id: parse
+        type: custom
+        position: { x: 980, y: 420 }
+        data:
+          type: code
+          title: Coerce JSON
+          code_language: python3
+          code: |
+            import json
+            def main(text: str) -> dict:
+                s = text.strip()
+                if s.startswith("```"):
+                    s = s.strip("`")
+                    if s.startswith("json"):
+                        s = s[4:]
+                try:
+                    return {"payload": json.loads(s)}
+                except Exception:
+                    return {"payload": {"headline": text[:120], "themes": [], "openQuestions": [], "recommendations": [], "confidence": 0.0}}
+          variables:
+            - { variable: text, value_selector: [brief_llm, text] }
+          outputs:
+            payload: { type: object }
+      - id: hmac
+        type: custom
+        position: { x: 1260, y: 420 }
+        data:
+          type: code
+          title: HMAC sign body
+          code_language: python3
+          code: |
+            import hmac, hashlib, json
+            def main(payload: dict, run_id: str, key: str) -> dict:
+                body = {
+                    "clientRequestId": run_id,
+                    "kind": "synthesis_brief",
+                    "payload": payload,
+                }
+                msg = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+                sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+                return {"signature": sig, "body": msg.decode("utf-8")}
+          variables:
+            - { variable: payload, value_selector: [parse, payload] }
+            - { variable: run_id, value_selector: [sys, workflow_run_id] }
+            - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
+          outputs:
+            signature: { type: string }
+            body: { type: string }
+      - id: callback
+        type: custom
+        position: { x: 1540, y: 420 }
+        data:
+          type: http-request
+          title: POST /api/dify/callback/research-result
+          method: post
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/research-result"
+          headers: |
+            Content-Type: application/json
+            X-Dify-Callback-Signature: {{#hmac.signature#}}
+            X-Dify-Workflow-Slug: synthesis-brief-composer
+          body: { type: raw-text, data: "{{#hmac.body#}}" }
+          timeout: { max_connect_timeout: 10, max_read_timeout: 60, max_write_timeout: 60 }
+      - id: end
+        type: custom
+        position: { x: 1820, y: 420 }
+        data:
+          type: end
+          title: End
+          outputs:
+            - { variable: payload, value_selector: [parse, payload] }
+    edges:
+      - { id: e1, source: start, target: digests }
+      - { id: e2, source: start, target: correlations }
+      - { id: e3, source: start, target: temporal }
+      - { id: e4, source: digests, target: brief_llm }
+      - { id: e5, source: correlations, target: brief_llm }
+      - { id: e6, source: temporal, target: brief_llm }
+      - { id: e7, source: brief_llm, target: parse }
+      - { id: e8, source: parse, target: hmac }
+      - { id: e9, source: hmac, target: callback }
+      - { id: e10, source: callback, target: end }

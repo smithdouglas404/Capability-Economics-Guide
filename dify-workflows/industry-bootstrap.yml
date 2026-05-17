@@ -1,19 +1,15 @@
-# Dify Workflow (non-chat) — Research Pipeline
+# Dify Workflow (non-chat) — Industry Bootstrap
 #
-# Generic Perplexity → Sonnet synthesis flow. Replaces inline calls in
-# enrichment/runners.ts + alpha/enrich.ts when DIFY_RESEARCH_PIPELINE_ENABLED=1.
-# Callback hits /api/dify/callback/research-result with the requested `kind`.
-#
-# Required Dify environment variables:
-#   PERPLEXITY_API_KEY    same key configured on inflexcvi api-server
-#   INFLEXCVI_API_BASE
-#   DIFY_CALLBACK_KEY
+# Materializes a new industry on demand. Replaces inline Perplexity + Sonnet
+# calls in routes/dynamic-industries.ts (POST /industries — admin route). Calls
+# back to /api/dify/callback/research-result with kind=industry_bootstrap so
+# the route handler can insert the rows in one transaction.
 app:
-  name: Research Pipeline
-  description: Perplexity research → Sonnet synthesis → callback to inflexcvi.
+  name: Industry Bootstrap
+  description: Perplexity + Sonnet → full industry seed (capabilities, value chain, companies).
   mode: workflow
-  icon: "\U0001F50D"
-  icon_background: "#E0E7FF"
+  icon: "\U0001F3ED"
+  icon_background: "#FEF3C7"
 kind: app
 version: 0.1.5
 workflow:
@@ -32,9 +28,8 @@ workflow:
           type: start
           title: Start
           variables:
-            - { variable: capabilityId, type: number, label: Capability ID, required: false }
-            - { variable: kind, type: select, label: Kind, required: true, options: [quadrant, alpha, value_chain, generic] }
-            - { variable: prompt, type: paragraph, label: Research Prompt, required: true }
+            - { variable: industryName, type: text-input, label: Industry Name, required: true, max_length: 128 }
+            - { variable: seedPrompt, type: paragraph, label: Seed Prompt (optional), required: false }
       - id: perplexity
         type: custom
         position: { x: 360, y: 240 }
@@ -51,23 +46,23 @@ workflow:
             data: |
               {
                 "model": "sonar-pro",
-                "max_tokens": 4096,
+                "max_tokens": 6000,
                 "messages": [
-                  { "role": "system", "content": "You are a research analyst. Cite sources inline." },
-                  { "role": "user", "content": {{#start.prompt#}} }
+                  {"role":"system","content":"You are an industry analyst. Use only verifiable, citable sources."},
+                  {"role":"user","content":"Research the {{#start.industryName#}} industry. Identify (a) 8-12 core capabilities that drive competitive position, (b) the 4-6 value chain stages, (c) 10-20 major companies with headquarters + employee count + 2024 revenue if disclosed. {{#start.seedPrompt#}}"}
                 ]
               }
-          timeout: { max_connect_timeout: 15, max_read_timeout: 120, max_write_timeout: 60 }
-      - id: extract_research
+          timeout: { max_connect_timeout: 15, max_read_timeout: 180, max_write_timeout: 60 }
+      - id: extract
         type: custom
         position: { x: 640, y: 240 }
         data:
           type: code
-          title: Extract Perplexity body
+          title: Extract research
           code_language: python3
           code: |
             import json
-            def main(body: str) -> dict:
+            def main(body) -> dict:
                 try:
                     data = json.loads(body) if isinstance(body, str) else body
                     content = data["choices"][0]["message"]["content"]
@@ -81,40 +76,51 @@ workflow:
           outputs:
             research: { type: string }
             citations: { type: array[object] }
-      - id: synth_llm
+      - id: shape_llm
         type: custom
         position: { x: 920, y: 240 }
         data:
           type: llm
-          title: Sonnet synthesis
+          title: Shape into industry seed
           model:
             provider: anthropic
             name: claude-3-7-sonnet-latest
             mode: chat
-            completion_params: { temperature: 0.2, max_tokens: 4000 }
+            completion_params: { temperature: 0.1, max_tokens: 8000 }
           prompt_template:
             - role: system
               text: |
-                Synthesize the research below into a structured payload appropriate for `kind`.
+                Convert the research into a strict JSON shape for industry-bootstrap. Output ONLY JSON.
 
-                For `kind=quadrant`: emit { quadrant: "...", justification: "...", confidence: 0.0 }.
-                For `kind=alpha`: emit { tamUsd: number|null, evarBp: number|null, moatTier: "...",
-                  narratives: {traditional, economic, ai}, citations: [...] }.
-                For `kind=value_chain`: emit { stages: [{name, description, players: [...]}] }.
-                For `kind=generic`: emit { summary: string, bullets: [...] }.
+                {
+                  "industry": { "name": "string", "description": "<= 280 chars" },
+                  "capabilities": [
+                    { "name": "string", "description": "string", "quadrant": "core|differentiator|qualifier|peripheral" }
+                  ],
+                  "valueChain": [
+                    { "name": "string", "description": "string", "order": 1 }
+                  ],
+                  "companies": [
+                    { "name": "string", "headquarters": "string", "employeeCount": null, "revenue2024Usd": null }
+                  ],
+                  "citations": [{"url": "string", "title": "string"}]
+                }
 
-                Output ONLY the JSON object — no prose, no fences. Preserve citations verbatim.
+                Rules:
+                - 8-12 capabilities, 4-6 valueChain stages, 10-20 companies.
+                - `quadrant` is your best judgment; do not invent if unclear — use "qualifier" as the safe default.
+                - Use null for numeric fields you can't source. Never fabricate revenue or headcount.
+                - Preserve every research citation verbatim.
               edition_type: basic
             - role: user
               text: |
-                kind: {{#start.kind#}}
-                capabilityId: {{#start.capabilityId#}}
+                industryName: {{#start.industryName#}}
 
                 Research:
-                {{#extract_research.research#}}
+                {{#extract.research#}}
 
-                Citations:
-                {{#extract_research.citations#}}
+                Raw citations:
+                {{#extract.citations#}}
               edition_type: basic
       - id: parse
         type: custom
@@ -134,9 +140,9 @@ workflow:
                 try:
                     return {"payload": json.loads(s)}
                 except Exception:
-                    return {"payload": {"summary": text[:500]}}
+                    return {"payload": {"error": "parse_failed", "raw": text[:1000]}}
           variables:
-            - { variable: text, value_selector: [synth_llm, text] }
+            - { variable: text, value_selector: [shape_llm, text] }
           outputs:
             payload: { type: object }
       - id: hmac
@@ -148,19 +154,18 @@ workflow:
           code_language: python3
           code: |
             import hmac, hashlib, json
-            def main(cap_id, kind: str, payload: dict, run_id: str, key: str) -> dict:
+            def main(industry_name: str, payload: dict, run_id: str, key: str) -> dict:
                 body = {
                     "clientRequestId": run_id,
-                    "capabilityId": cap_id,
-                    "kind": kind,
+                    "kind": "industry_bootstrap",
+                    "industryName": industry_name,
                     "payload": payload,
                 }
                 msg = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
                 sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
                 return {"signature": sig, "body": msg.decode("utf-8")}
           variables:
-            - { variable: cap_id, value_selector: [start, capabilityId] }
-            - { variable: kind, value_selector: [start, kind] }
+            - { variable: industry_name, value_selector: [start, industryName] }
             - { variable: payload, value_selector: [parse, payload] }
             - { variable: run_id, value_selector: [sys, workflow_run_id] }
             - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
@@ -178,9 +183,9 @@ workflow:
           headers: |
             Content-Type: application/json
             X-Dify-Callback-Signature: {{#hmac.signature#}}
-            X-Dify-Workflow-Slug: research-pipeline
+            X-Dify-Workflow-Slug: industry-bootstrap
           body: { type: raw-text, data: "{{#hmac.body#}}" }
-          timeout: { max_connect_timeout: 10, max_read_timeout: 60, max_write_timeout: 60 }
+          timeout: { max_connect_timeout: 10, max_read_timeout: 90, max_write_timeout: 90 }
       - id: end
         type: custom
         position: { x: 2040, y: 240 }
@@ -191,9 +196,9 @@ workflow:
             - { variable: payload, value_selector: [parse, payload] }
     edges:
       - { id: e1, source: start, target: perplexity }
-      - { id: e2, source: perplexity, target: extract_research }
-      - { id: e3, source: extract_research, target: synth_llm }
-      - { id: e4, source: synth_llm, target: parse }
+      - { id: e2, source: perplexity, target: extract }
+      - { id: e3, source: extract, target: shape_llm }
+      - { id: e4, source: shape_llm, target: parse }
       - { id: e5, source: parse, target: hmac }
       - { id: e6, source: hmac, target: callback }
       - { id: e7, source: callback, target: end }

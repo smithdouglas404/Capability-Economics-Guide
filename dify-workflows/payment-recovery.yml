@@ -1,48 +1,186 @@
 # Dify Chatflow — Payment Recovery
-# Triggered on invoice.payment_failed Stripe webhook. Helps user pick a
-# rescue path (update card / switch method / downgrade / pause / escalate
-# to human). Calls back to POST /api/dify/callback/payment-recovery-action
-# with chosen action + details. Runs in PARALLEL to dunning email.
 #
-# Inputs:
-#   userId         string  required
-#   subscriptionId string  required
-#   failureCode    string  optional (Stripe decline_code)
+# Triggered on Stripe `invoice.payment_failed`. Helps the user pick a rescue
+# path (update card / switch method / downgrade / pause / escalate) and
+# logs the chosen action via /api/dify/callback/payment-recovery-action.
+# Runs in PARALLEL to the existing dunning email. The actual payment retry,
+# downgrade, etc. is executed by inflexcvi (Stripe), NOT by Dify.
 app:
   name: Payment Recovery
-  description: Conversational rescue path for failed subscription payments. Captures chosen action + reroute.
+  description: Helps a user with a failed invoice pick a rescue path.
   mode: advanced-chat
   icon: "\U0001F4B3"
   icon_background: "#FEF3C7"
 kind: app
 version: 0.1.5
 workflow:
-  environment_variables: []
+  environment_variables:
+    - { name: INFLEXCVI_API_BASE, value: "" }
+    - { name: DIFY_CALLBACK_KEY, value: "" }
   conversation_variables: []
   features:
-    file_upload:
-      enabled: false
-    opening_statement: "Looks like your last payment didn't go through. Let's get this sorted."
-    suggested_questions: []
-    text_to_speech:
-      enabled: false
+    file_upload: { enabled: false }
+    opening_statement: "Your last payment didn't go through. I can help you pick what to do next — update card, switch method, drop a tier, pause your subscription, or escalate to a human. What's easiest for you right now?"
+    suggested_questions:
+      - "Update my card"
+      - "I want to downgrade"
+      - "Can I pause for a month?"
+    text_to_speech: { enabled: false }
   graph:
-    edges: []
     nodes:
       - id: start
         type: custom
-        position: { x: 80, y: 80 }
+        position: { x: 80, y: 240 }
         data:
           type: start
           title: Start
           variables:
-            - variable: userId
-              type: text-input
-              label: User ID
-              required: true
-              max_length: 64
-            - variable: subscriptionId
-              type: text-input
-              label: Subscription ID
-              required: true
-              max_length: 64
+            - { variable: userId, type: text-input, label: User ID, required: true, max_length: 64 }
+            - { variable: subscriptionId, type: text-input, label: Stripe Sub ID, required: true, max_length: 64 }
+            - { variable: failureCode, type: text-input, label: Failure Code, required: false, max_length: 64 }
+      - id: recovery_llm
+        type: custom
+        position: { x: 360, y: 240 }
+        data:
+          type: llm
+          title: Recovery LLM
+          model:
+            provider: anthropic
+            name: claude-3-5-haiku-latest
+            mode: chat
+            completion_params: { temperature: 0.2, max_tokens: 1000 }
+          prompt_template:
+            - role: system
+              text: |
+                You help a user pick a payment-recovery action. The valid actions are EXACTLY:
+
+                  update_card | switch_method | downgrade | pause_1m | escalate
+
+                Hard rules:
+                - You DO NOT touch Stripe directly. inflexcvi will execute the action you log.
+                - If the user is angry or describes financial hardship, default to `escalate`.
+                - If the failure code suggests a card issue (lost_card, stolen_card, expired_card),
+                  steer toward `update_card`.
+                - Never offer a discount or refund.
+
+                Ask up to 2 short follow-up questions, then end with a fenced JSON block:
+
+                ```json
+                { "readyToSubmit": true, "action": "update_card", "userMessage": "..." }
+                ```
+
+                Or, to keep talking:
+
+                ```json
+                { "readyToSubmit": false, "nextQuestion": "..." }
+                ```
+              edition_type: basic
+            - role: user
+              text: "Failure code: {{#start.failureCode#}}\n\nUser: {{#sys.query#}}"
+              edition_type: basic
+      - id: parse_json
+        type: custom
+        position: { x: 640, y: 240 }
+        data:
+          type: code
+          title: Parse JSON tail
+          code_language: python3
+          code: |
+            import json, re
+            VALID = {"update_card", "switch_method", "downgrade", "pause_1m", "escalate"}
+            def main(text: str) -> dict:
+                m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+                if not m:
+                    return {"ready": False, "answer": text, "action": None}
+                try:
+                    p = json.loads(m.group(1))
+                except Exception:
+                    return {"ready": False, "answer": text, "action": None}
+                a = p.get("action")
+                if a not in VALID:
+                    a = None
+                clean = text[:m.start()].strip()
+                return {
+                    "ready": bool(p.get("readyToSubmit")) and a is not None,
+                    "answer": clean or p.get("nextQuestion") or p.get("userMessage", ""),
+                    "action": a,
+                }
+          variables:
+            - { variable: text, value_selector: [recovery_llm, text] }
+          outputs:
+            ready: { type: boolean }
+            answer: { type: string }
+            action: { type: string }
+      - id: branch
+        type: custom
+        position: { x: 920, y: 240 }
+        data:
+          type: if-else
+          title: Action chosen?
+          logical_operator: and
+          conditions:
+            - { variable_selector: [parse_json, ready], comparison_operator: "is", value: "true" }
+      - id: hmac
+        type: custom
+        position: { x: 1200, y: 120 }
+        data:
+          type: code
+          title: HMAC sign body
+          code_language: python3
+          code: |
+            import hmac, hashlib, json
+            def main(user_id: str, sub_id: str, action: str, run_id: str, key: str) -> dict:
+                payload = {
+                    "clientRequestId": run_id,
+                    "userId": user_id,
+                    "subscriptionId": sub_id,
+                    "chosenAction": action,
+                }
+                msg = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+                sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+                return {"signature": sig, "body": msg.decode("utf-8")}
+          variables:
+            - { variable: user_id, value_selector: [start, userId] }
+            - { variable: sub_id, value_selector: [start, subscriptionId] }
+            - { variable: action, value_selector: [parse_json, action] }
+            - { variable: run_id, value_selector: [sys, workflow_run_id] }
+            - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
+          outputs:
+            signature: { type: string }
+            body: { type: string }
+      - id: callback
+        type: custom
+        position: { x: 1480, y: 120 }
+        data:
+          type: http-request
+          title: POST /api/dify/callback/payment-recovery-action
+          method: post
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/payment-recovery-action"
+          headers: |
+            Content-Type: application/json
+            X-Dify-Callback-Signature: {{#hmac.signature#}}
+            X-Dify-Workflow-Slug: payment-recovery
+          body: { type: raw-text, data: "{{#hmac.body#}}" }
+          timeout: { max_connect_timeout: 10, max_read_timeout: 20, max_write_timeout: 20 }
+      - id: answer_logged
+        type: custom
+        position: { x: 1760, y: 120 }
+        data:
+          type: answer
+          title: Answer (logged)
+          answer: "Got it — I've logged **{{#parse_json.action#}}**. You'll see the next step in your account within a minute or two.\n\n{{#parse_json.answer#}}"
+      - id: answer_continue
+        type: custom
+        position: { x: 1200, y: 360 }
+        data:
+          type: answer
+          title: Answer (continue)
+          answer: "{{#parse_json.answer#}}"
+    edges:
+      - { id: e1, source: start, target: recovery_llm }
+      - { id: e2, source: recovery_llm, target: parse_json }
+      - { id: e3, source: parse_json, target: branch }
+      - { id: e4, source: branch, target: hmac, sourceHandle: "true" }
+      - { id: e5, source: branch, target: answer_continue, sourceHandle: "false" }
+      - { id: e6, source: hmac, target: callback }
+      - { id: e7, source: callback, target: answer_logged }

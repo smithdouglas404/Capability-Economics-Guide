@@ -1,47 +1,176 @@
 # Dify Chatflow — Tier Selector
-# Conversational layer in front of static membership cards. On final answer,
-# calls back to POST /api/dify/callback/recommend-tier with a structured
-# recommendation (discovery | briefing | console | platform + rationale).
 #
-# Inputs:
-#   userId         string  required
-#   currentTier    string  optional ("none" for new users)
-#   usagePattern   object  optional (recent API calls, feature touches)
+# Conversational layer in front of the static membership tier cards. Asks 2-3
+# questions about usage pattern, then recommends discovery/briefing/console/
+# platform and fires a callback to /api/dify/callback/recommend-tier so the
+# recommendation is logged in `tier_recommendations` for analytics.
 app:
   name: Tier Selector
-  description: Conversational layer that recommends a membership tier based on stated needs.
+  description: Recommends a membership tier based on stated needs.
   mode: advanced-chat
-  icon: "\U0001F3AF"
-  icon_background: "#E0F2FE"
+  icon: "\U0001F39F"
+  icon_background: "#E0E7FF"
 kind: app
 version: 0.1.5
 workflow:
-  environment_variables: []
+  environment_variables:
+    - { name: INFLEXCVI_API_BASE, value: "" }
+    - { name: DIFY_CALLBACK_KEY, value: "" }
   conversation_variables: []
   features:
-    file_upload:
-      enabled: false
-    opening_statement: "What problem are you trying to solve right now? I'll suggest a tier that fits."
-    suggested_questions: []
-    text_to_speech:
-      enabled: false
+    file_upload: { enabled: false }
+    opening_statement: "Tell me how you'd use the product — once a quarter, weekly, or as part of a daily decision loop — and I'll point at the right tier."
+    suggested_questions:
+      - "I just want to see this quarter's outlook for one industry"
+      - "Our team needs weekly briefings on 3 industries"
+      - "We want to embed CVI in our internal decision tooling"
+    text_to_speech: { enabled: false }
   graph:
-    edges: []
     nodes:
       - id: start
         type: custom
-        position: { x: 80, y: 80 }
+        position: { x: 80, y: 240 }
         data:
           type: start
           title: Start
           variables:
-            - variable: userId
-              type: text-input
-              label: User ID
-              required: true
-              max_length: 64
-            - variable: currentTier
-              type: text-input
-              label: Current Tier
-              required: false
-              max_length: 32
+            - { variable: userId, type: text-input, label: User ID, required: true, max_length: 64 }
+            - { variable: currentTier, type: text-input, label: Current Tier, required: false, max_length: 32 }
+      - id: tier_llm
+        type: custom
+        position: { x: 360, y: 240 }
+        data:
+          type: llm
+          title: Tier Selector LLM
+          model:
+            provider: anthropic
+            name: claude-3-7-sonnet-latest
+            mode: chat
+            completion_params: { temperature: 0.2, max_tokens: 1200 }
+          prompt_template:
+            - role: system
+              text: |
+                You recommend one of 4 inflexcvi tiers: `discovery` (free, view one industry/qtr),
+                `briefing` (weekly briefs across 3 industries), `console` (full CVI cockpit + alerts),
+                `platform` (API + embed + SLA). Ask up to 3 follow-up questions; once you have a
+                clear read, end with a fenced JSON block:
+
+                ```json
+                { "readyToRecommend": true, "tier": "console", "rationale": "..." }
+                ```
+
+                Otherwise:
+
+                ```json
+                { "readyToRecommend": false, "nextQuestion": "..." }
+                ```
+
+                Be honest — if `discovery` is enough, recommend it. Never upsell.
+              edition_type: basic
+            - role: user
+              text: "Current tier: {{#start.currentTier#}}\n\nUser: {{#sys.query#}}"
+              edition_type: basic
+      - id: parse_json
+        type: custom
+        position: { x: 640, y: 240 }
+        data:
+          type: code
+          title: Parse JSON tail
+          code_language: python3
+          code: |
+            import json, re
+            def main(text: str) -> dict:
+                m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+                if not m:
+                    return {"ready": False, "answer": text, "tier": None, "rationale": None}
+                try:
+                    p = json.loads(m.group(1))
+                except Exception:
+                    return {"ready": False, "answer": text, "tier": None, "rationale": None}
+                clean = text[:m.start()].strip()
+                return {
+                    "ready": bool(p.get("readyToRecommend")),
+                    "answer": clean or p.get("nextQuestion", ""),
+                    "tier": p.get("tier"),
+                    "rationale": p.get("rationale"),
+                }
+          variables:
+            - { variable: text, value_selector: [tier_llm, text] }
+          outputs:
+            ready: { type: boolean }
+            answer: { type: string }
+            tier: { type: string }
+            rationale: { type: string }
+      - id: branch
+        type: custom
+        position: { x: 920, y: 240 }
+        data:
+          type: if-else
+          title: Ready?
+          logical_operator: and
+          conditions:
+            - { variable_selector: [parse_json, ready], comparison_operator: "is", value: "true" }
+      - id: hmac
+        type: custom
+        position: { x: 1200, y: 120 }
+        data:
+          type: code
+          title: HMAC sign body
+          code_language: python3
+          code: |
+            import hmac, hashlib, json
+            def main(user_id: str, tier: str, rationale: str, run_id: str, key: str) -> dict:
+                payload = {
+                    "clientRequestId": run_id,
+                    "userId": user_id,
+                    "tier": tier,
+                    "rationale": rationale,
+                }
+                msg = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+                sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+                return {"signature": sig, "body": msg.decode("utf-8")}
+          variables:
+            - { variable: user_id, value_selector: [start, userId] }
+            - { variable: tier, value_selector: [parse_json, tier] }
+            - { variable: rationale, value_selector: [parse_json, rationale] }
+            - { variable: run_id, value_selector: [sys, workflow_run_id] }
+            - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
+          outputs:
+            signature: { type: string }
+            body: { type: string }
+      - id: callback
+        type: custom
+        position: { x: 1480, y: 120 }
+        data:
+          type: http-request
+          title: POST /api/dify/callback/recommend-tier
+          method: post
+          url: "{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/recommend-tier"
+          headers: |
+            Content-Type: application/json
+            X-Dify-Callback-Signature: {{#hmac.signature#}}
+            X-Dify-Workflow-Slug: tier-selector
+          body: { type: raw-text, data: "{{#hmac.body#}}" }
+          timeout: { max_connect_timeout: 10, max_read_timeout: 20, max_write_timeout: 20 }
+      - id: answer_recommended
+        type: custom
+        position: { x: 1760, y: 120 }
+        data:
+          type: answer
+          title: Answer (recommended)
+          answer: "**Recommended tier: {{#parse_json.tier#}}**\n\n{{#parse_json.rationale#}}\n\n{{#parse_json.answer#}}"
+      - id: answer_continue
+        type: custom
+        position: { x: 1200, y: 360 }
+        data:
+          type: answer
+          title: Answer (continue)
+          answer: "{{#parse_json.answer#}}"
+    edges:
+      - { id: e1, source: start, target: tier_llm }
+      - { id: e2, source: tier_llm, target: parse_json }
+      - { id: e3, source: parse_json, target: branch }
+      - { id: e4, source: branch, target: hmac, sourceHandle: "true" }
+      - { id: e5, source: branch, target: answer_continue, sourceHandle: "false" }
+      - { id: e6, source: hmac, target: callback }
+      - { id: e7, source: callback, target: answer_recommended }

@@ -21,6 +21,7 @@
  *   pnpm --filter @workspace/scripts run dify:import-workflows
  *   pnpm --filter @workspace/scripts run dify:import-workflows -- --dry-run
  *   pnpm --filter @workspace/scripts run dify:import-workflows -- --only=onboarding-concierge
+ *   pnpm --filter @workspace/scripts run dify:import-workflows -- --update      # rewrite DSL of already-imported apps in place (preserves app ids)
  */
 
 import { createHash } from "node:crypto";
@@ -36,12 +37,14 @@ const WORKFLOWS_DIR = join(__dirname, "..", "..", "dify-workflows");
 interface CliOpts {
   dryRun: boolean;
   only: string | null;
+  update: boolean;
 }
 
 function parseArgs(): CliOpts {
-  const opts: CliOpts = { dryRun: false, only: null };
+  const opts: CliOpts = { dryRun: false, only: null, update: false };
   for (const a of process.argv.slice(2)) {
     if (a === "--dry-run") opts.dryRun = true;
+    else if (a === "--update") opts.update = true;
     else if (a.startsWith("--only=")) opts.only = a.slice("--only=".length);
   }
   return opts;
@@ -112,6 +115,31 @@ async function importYaml(
   return { appId: id };
 }
 
+/**
+ * Update an existing Dify app's graph in place — preserves the app id (which
+ * the registry already points at) and avoids orphaning prior versions. Uses
+ * the Console API's DSL endpoint that the Web UI's "Edit DSL → Save" button
+ * calls under the hood.
+ */
+async function updateDsl(
+  session: DifySession,
+  appId: string,
+  yamlText: string,
+): Promise<void> {
+  const resp = await fetch(`${session.baseUrl}/console/api/apps/${appId}/dsl`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: session.cookies,
+      "X-CSRF-Token": session.csrfToken,
+    },
+    body: JSON.stringify({ data: yamlText }),
+  });
+  if (!resp.ok) {
+    throw new Error(`update ${appId} failed ${resp.status}: ${await resp.text()}`);
+  }
+}
+
 async function listYamls(): Promise<Array<{ slug: string; text: string; hash: string }>> {
   const entries = await readdir(WORKFLOWS_DIR);
   const out: Array<{ slug: string; text: string; hash: string }> = [];
@@ -154,25 +182,42 @@ async function main() {
     }
 
     if (opts.dryRun) {
-      console.log(`  ${y.slug}: would import (new=${!existing}, hash=${y.hash.slice(0, 12)})`);
+      const action = existing && opts.update ? "would update DSL in place" : "would import";
+      console.log(`  ${y.slug}: ${action} (new=${!existing}, hash=${y.hash.slice(0, 12)})`);
       continue;
     }
 
     if (!session) session = await login();
-    console.log(`  ${y.slug}: importing...`);
-    const { appId } = await importYaml(session, y.text, y.slug);
-    if (existing) {
+
+    if (existing && opts.update) {
+      // Update path: preserves the existing dify_app_id so callers that have
+      // already cached the id (e.g. live Dify Service API keys minted against
+      // that specific app) continue to work.
+      console.log(`  ${y.slug}: updating in place (app=${existing.difyAppId})...`);
+      await updateDsl(session, existing.difyAppId, y.text);
       await db
         .update(difyWorkflowRegistry)
-        .set({ difyAppId: appId, versionHash: y.hash, importedAt: new Date() })
+        .set({ versionHash: y.hash, importedAt: new Date() })
         .where(eq(difyWorkflowRegistry.slug, y.slug));
-    } else {
-      await db.insert(difyWorkflowRegistry).values({
-        slug: y.slug,
-        difyAppId: appId,
-        versionHash: y.hash,
-      });
+      console.log(`  ${y.slug}: updated`);
+      continue;
     }
+
+    if (existing && !opts.update) {
+      // Default behaviour for an already-imported slug whose YAML changed:
+      // skip and tell the operator to pass --update. Re-running POST imports
+      // would create a duplicate app and orphan the registry mapping.
+      console.log(`  ${y.slug}: SKIPPED — YAML changed but --update flag not set (would orphan app ${existing.difyAppId})`);
+      continue;
+    }
+
+    console.log(`  ${y.slug}: importing...`);
+    const { appId } = await importYaml(session, y.text, y.slug);
+    await db.insert(difyWorkflowRegistry).values({
+      slug: y.slug,
+      difyAppId: appId,
+      versionHash: y.hash,
+    });
     console.log(`  ${y.slug}: imported as ${appId}`);
   }
 

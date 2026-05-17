@@ -56,6 +56,11 @@ export const WORKFLOWS: Record<string, WorkflowDescriptor> = {
   "capability-review-assist": descriptor("capability-review-assist", "workflow"),
   "research-pipeline": descriptor("research-pipeline", "workflow"),
   "synthesis-brief-composer": descriptor("synthesis-brief-composer", "workflow"),
+  "assessment-analyzer": descriptor("assessment-analyzer", "workflow"),
+  "industry-bootstrap": descriptor("industry-bootstrap", "workflow"),
+  "case-study-generator": descriptor("case-study-generator", "workflow"),
+  "capability-enrichment-retry": descriptor("capability-enrichment-retry", "workflow"),
+  "admin-config-proposer": descriptor("admin-config-proposer", "workflow"),
 };
 
 export function isWorkflowEnabled(slug: string): boolean {

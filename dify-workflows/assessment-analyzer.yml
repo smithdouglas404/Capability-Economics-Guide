@@ -1,14 +1,17 @@
-# Dify Workflow (non-chat) — Capability Review Assist
+# Dify Workflow (non-chat) — Assessment Analyzer
 #
-# Triggered on review-reject-with-comment in routes/review.ts. Takes the
-# reviewer's comment + the current draft, produces a structured list of
-# revision_prompts the existing fireDraftEnrichment retry path consumes.
-# Callback hits /api/dify/callback/research-result with kind=revision_prompts.
+# Replaces the two inline Sonnet calls in routes/assess.ts:
+#   :237 (assess/start — generates the assessment intro/framing)
+#   :469 (assess/analyze — scores the responses + produces narrative)
+#
+# One workflow handles both modes via the `phase` input. Callback fires with
+# kind=assessment so /api/dify/callback/research-result can write to the
+# assessment record.
 app:
-  name: Capability Review Assist
-  description: Produces revision prompts for a rejected capability draft.
+  name: Assessment Analyzer
+  description: Sonnet scoring + narrative for the assess flow. Replaces routes/assess.ts inline calls.
   mode: workflow
-  icon: "\U0001F4DD"
+  icon: "\U0001F4CA"
   icon_background: "#DBEAFE"
 kind: app
 version: 0.1.5
@@ -27,50 +30,55 @@ workflow:
           type: start
           title: Start
           variables:
-            - { variable: capabilityId, type: number, label: Capability ID, required: true }
-            - { variable: reviewerComment, type: paragraph, label: Reviewer Comment, required: true }
-            - { variable: currentDraft, type: paragraph, label: Current Draft JSON, required: true }
-      - id: revise_llm
+            - { variable: sessionId, type: text-input, label: Session ID, required: true, max_length: 64 }
+            - { variable: phase, type: select, label: Phase, required: true, options: [start, analyze] }
+            - { variable: industryName, type: text-input, label: Industry, required: true, max_length: 128 }
+            - { variable: orgContext, type: paragraph, label: Org Context JSON, required: false }
+            - { variable: responses, type: paragraph, label: Responses JSON (analyze only), required: false }
+      - id: analyze_llm
         type: custom
         position: { x: 360, y: 240 }
         data:
           type: llm
-          title: Revision Prompts LLM
+          title: Assessment LLM
           model:
             provider: anthropic
             name: claude-3-7-sonnet-latest
             mode: chat
-            completion_params: { temperature: 0.2, max_tokens: 2000 }
+            completion_params: { temperature: 0.2, max_tokens: 6000 }
           prompt_template:
             - role: system
               text: |
-                A reviewer rejected a capability draft. Read the reviewer's comment and the current
-                draft, then produce structured revision prompts the next enrichment pass will use.
+                You analyze a CVI capability self-assessment.
 
-                Output ONLY a JSON object, no prose:
+                If `phase=start`: emit an intro framing for the user that lists the 6-10 capabilities
+                they're about to score, with one-sentence definitions tailored to their industry.
 
                 {
-                  "summary": "1-sentence diagnosis of what the reviewer is asking to change",
-                  "prompts": {
-                    "perplexityFollowup": "string — what to research next, OR null",
-                    "narrativeRevisions": ["bullet list of specific narrative changes"],
-                    "metricRevisions": ["bullet list of metric changes (TAM/EVaR/moat etc)"]
-                  },
-                  "confidence": 0.0
+                  "phase": "start",
+                  "intro": "string",
+                  "capabilities": [{"id": int, "name": "string", "definition": "string"}]
                 }
 
-                If the reviewer's comment doesn't actually require a revision (e.g. just a question),
-                return `confidence: 0` and explain in `summary`.
+                If `phase=analyze`: score each capability (0-100) and produce a narrative.
+
+                {
+                  "phase": "analyze",
+                  "overallScore": 0,
+                  "perCapability": [{"capabilityId": int, "score": 0, "rationale": "string"}],
+                  "narrative": "<= 6 paragraphs, plain prose",
+                  "topRisks": ["..."],
+                  "topOpportunities": ["..."]
+                }
+
+                Output ONLY the JSON, no fences or prose.
               edition_type: basic
             - role: user
               text: |
-                Capability ID: {{#start.capabilityId#}}
-
-                Reviewer comment:
-                {{#start.reviewerComment#}}
-
-                Current draft (truncated):
-                {{#start.currentDraft#}}
+                phase: {{#start.phase#}}
+                industry: {{#start.industryName#}}
+                orgContext: {{#start.orgContext#}}
+                responses: {{#start.responses#}}
               edition_type: basic
       - id: parse
         type: custom
@@ -90,9 +98,9 @@ workflow:
                 try:
                     return {"payload": json.loads(s)}
                 except Exception:
-                    return {"payload": {"summary": text[:300], "prompts": {}, "confidence": 0.0}}
+                    return {"payload": {"raw": text[:1000]}}
           variables:
-            - { variable: text, value_selector: [revise_llm, text] }
+            - { variable: text, value_selector: [analyze_llm, text] }
           outputs:
             payload: { type: object }
       - id: hmac
@@ -104,18 +112,18 @@ workflow:
           code_language: python3
           code: |
             import hmac, hashlib, json
-            def main(cap_id: int, payload: dict, run_id: str, key: str) -> dict:
+            def main(session_id: str, payload: dict, run_id: str, key: str) -> dict:
                 body = {
                     "clientRequestId": run_id,
-                    "capabilityId": cap_id,
-                    "kind": "revision_prompts",
+                    "sessionId": session_id,
+                    "kind": "assessment",
                     "payload": payload,
                 }
                 msg = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
                 sig = hmac.new(key.encode("utf-8"), msg, hashlib.sha256).hexdigest()
                 return {"signature": sig, "body": msg.decode("utf-8")}
           variables:
-            - { variable: cap_id, value_selector: [start, capabilityId] }
+            - { variable: session_id, value_selector: [start, sessionId] }
             - { variable: payload, value_selector: [parse, payload] }
             - { variable: run_id, value_selector: [sys, workflow_run_id] }
             - { variable: key, value_selector: [env, DIFY_CALLBACK_KEY] }
@@ -133,7 +141,7 @@ workflow:
           headers: |
             Content-Type: application/json
             X-Dify-Callback-Signature: {{#hmac.signature#}}
-            X-Dify-Workflow-Slug: capability-review-assist
+            X-Dify-Workflow-Slug: assessment-analyzer
           body: { type: raw-text, data: "{{#hmac.body#}}" }
           timeout: { max_connect_timeout: 10, max_read_timeout: 60, max_write_timeout: 60 }
       - id: end
@@ -145,8 +153,8 @@ workflow:
           outputs:
             - { variable: payload, value_selector: [parse, payload] }
     edges:
-      - { id: e1, source: start, target: revise_llm }
-      - { id: e2, source: revise_llm, target: parse }
+      - { id: e1, source: start, target: analyze_llm }
+      - { id: e2, source: analyze_llm, target: parse }
       - { id: e3, source: parse, target: hmac }
       - { id: e4, source: hmac, target: callback }
       - { id: e5, source: callback, target: end }

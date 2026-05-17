@@ -1,15 +1,15 @@
 # Dify Chatflow — Marketplace Search v2
-# Intent-parsing + reranking layer over the marketplace-listings Knowledge
-# Base. Replaces the direct retrieve() call in routes/marketplace-listings.ts
-# when DIFY_MARKETPLACE_SEARCH_V2_ENABLED=1.
 #
-# Inputs:
-#   query     string required
-#   filters   object optional (industry, listing_type, etc.)
-#   userTier  string optional (used to gate premium-only results)
+# Intent-parsing + KB retrieval + Haiku reranking layer on top of the
+# marketplace-listings Knowledge Base. Replaces the direct retrieve() call
+# in routes/marketplace-listings.ts when DIFY_MARKETPLACE_SEARCH_V2_ENABLED=1.
+#
+# IMPORTANT: replace `MARKETPLACE_LISTINGS_KB_ID` below with the actual
+# dataset id from DIFY_MARKETPLACE_DATASET_ID after first import (Dify
+# requires literal dataset ids in DSL, not env-var references).
 app:
   name: Marketplace Search v2
-  description: Intent-aware semantic search over marketplace listings. Replaces direct retrieve() with parse + retrieve + rerank.
+  description: Intent-parsing + reranking layer on the marketplace-listings KB.
   mode: advanced-chat
   icon: "\U0001F50D"
   icon_background: "#FEF3C7"
@@ -19,29 +19,131 @@ workflow:
   environment_variables: []
   conversation_variables: []
   features:
-    file_upload:
-      enabled: false
-    opening_statement: ""
+    file_upload: { enabled: false }
+    opening_statement: "What kind of marketplace listing are you looking for?"
     suggested_questions: []
-    text_to_speech:
-      enabled: false
+    text_to_speech: { enabled: false }
+    retriever_resource: { enabled: false }
   graph:
-    edges: []
     nodes:
       - id: start
         type: custom
-        position: { x: 80, y: 80 }
+        position: { x: 80, y: 240 }
         data:
           type: start
           title: Start
           variables:
-            - variable: query
-              type: paragraph
-              label: Query
-              required: true
-              max_length: 2000
-            - variable: userTier
-              type: text-input
-              label: User Tier
-              required: false
-              max_length: 32
+            - { variable: query, type: paragraph, label: Search Query, required: true }
+            - { variable: userTier, type: text-input, label: User Tier, required: false, max_length: 32 }
+            - { variable: filters, type: paragraph, label: Filters JSON, required: false }
+      - id: intent_llm
+        type: custom
+        position: { x: 360, y: 240 }
+        data:
+          type: llm
+          title: Parse intent
+          model:
+            provider: anthropic
+            name: claude-3-5-haiku-latest
+            mode: chat
+            completion_params: { temperature: 0.1, max_tokens: 400 }
+          prompt_template:
+            - role: system
+              text: |
+                Parse the user's marketplace search query into a structured intent. Output ONLY a JSON
+                object — no prose, no fences:
+
+                {"normalizedQuery": "string", "category": "capability|company|industry|generic", "industries": ["..."], "k": 8}
+
+                `normalizedQuery` rewrites the query for keyword + vector search (expand acronyms, drop
+                filler). `industries` lists any industries the user mentioned. `k` defaults to 8.
+              edition_type: basic
+            - role: user
+              text: "Query: {{#start.query#}}\nFilters: {{#start.filters#}}"
+              edition_type: basic
+      - id: parse_intent
+        type: custom
+        position: { x: 640, y: 240 }
+        data:
+          type: code
+          title: Coerce intent JSON
+          code_language: python3
+          code: |
+            import json
+            def main(text: str, raw_query: str) -> dict:
+                try:
+                    s = text.strip()
+                    if s.startswith("```"):
+                        s = s.strip("`")
+                        if s.startswith("json"):
+                            s = s[4:]
+                    p = json.loads(s)
+                except Exception:
+                    p = {}
+                return {
+                    "normalizedQuery": p.get("normalizedQuery") or raw_query,
+                    "k": int(p.get("k") or 8),
+                }
+          variables:
+            - { variable: text, value_selector: [intent_llm, text] }
+            - { variable: raw_query, value_selector: [start, query] }
+          outputs:
+            normalizedQuery: { type: string }
+            k: { type: number }
+      - id: retrieve
+        type: custom
+        position: { x: 920, y: 240 }
+        data:
+          type: knowledge-retrieval
+          title: Retrieve from KB
+          query_variable_selector: [parse_intent, normalizedQuery]
+          dataset_ids: ["MARKETPLACE_LISTINGS_KB_ID"]
+          retrieval_mode: multiple
+          multiple_retrieval_config:
+            top_k: 12
+            score_threshold_enabled: false
+            reranking_mode: weighted_score
+            weights: { weight_type: customized, vector_setting: { vector_weight: 0.6 }, keyword_setting: { keyword_weight: 0.4 } }
+      - id: rerank_llm
+        type: custom
+        position: { x: 1200, y: 240 }
+        data:
+          type: llm
+          title: Rerank + filter
+          model:
+            provider: anthropic
+            name: claude-3-5-haiku-latest
+            mode: chat
+            completion_params: { temperature: 0.0, max_tokens: 1200 }
+          prompt_template:
+            - role: system
+              text: |
+                You are reranking marketplace listings retrieved from a KB.
+
+                Read the candidate chunks below. Return ONLY the top {{#parse_intent.k#}} listings,
+                ordered by relevance to the user query. Each listing chunk has a `metadata.listing_id`
+                you must preserve. Output exactly this JSON shape:
+
+                ```json
+                {
+                  "rankedListingIds": ["listing-id-1", "listing-id-2"],
+                  "summary": "one-paragraph synthesis the UI can show above the list"
+                }
+                ```
+              edition_type: basic
+            - role: user
+              text: "User query: {{#start.query#}}\n\nCandidates:\n{{#retrieve.result#}}"
+              edition_type: basic
+      - id: answer
+        type: custom
+        position: { x: 1480, y: 240 }
+        data:
+          type: answer
+          title: Answer
+          answer: "{{#rerank_llm.text#}}"
+    edges:
+      - { id: e1, source: start, target: intent_llm }
+      - { id: e2, source: intent_llm, target: parse_intent }
+      - { id: e3, source: parse_intent, target: retrieve }
+      - { id: e4, source: retrieve, target: rerank_llm }
+      - { id: e5, source: rerank_llm, target: answer }
