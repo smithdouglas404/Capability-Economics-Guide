@@ -1,7 +1,7 @@
 import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
 import { desc, sql, and, eq } from "drizzle-orm";
-import { mem0AgentIdFor } from "./agent-registry";
+import { mem0AgentIdFor, buildIdentityTags } from "./agent-registry";
 import { MemoryClient, type Memory as Mem0Memory } from "mem0ai";
 
 // Cutover note: was "cei-autonomous-agent" before the Inflexcvi rebrand.
@@ -273,6 +273,10 @@ export async function storeMemory(
       // enable_graph: true is the SDK's documented per-request flag for
       // graph-store storage on Mem0 Cloud. Account/plan tier must support
       // graph mode — if not, the server silently degrades to vector-only.
+      // tags: application-layer identity metadata that travels WITH each
+      // memory — replaces server-side identity tracking (deprecated by Letta
+      // upstream) and works with Mem0 Cloud's metadata.tags filter.
+      const tags = buildIdentityTags(agentName);
       const result = await client.add(messages, {
         agent_id: resolvedAgentId,
         ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
@@ -283,6 +287,7 @@ export async function storeMemory(
           category: category ?? type,
           runId: runId ?? null,
           ttlDays,
+          tags,
           // Stamp the ISO expiry so mem0Prune can filter on metadata.expiresAt
           // server-side. Without this, ttlDays is opaque to Mem0 and pgvector
           // grows unbounded.

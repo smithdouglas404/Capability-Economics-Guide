@@ -171,3 +171,22 @@ export function lettaAgentNameFor(shortName: string | undefined): string {
     ?? BY_LETTA.get(shortName)?.lettaAgentName
     ?? "cvi-autonomous-agent";
 }
+
+/**
+ * Build the application-layer identity tags stamped onto every memory artifact
+ * (Mem0 memories, Letta archival passages). Replaces server-side identity
+ * tracking (deprecated upstream by Letta) with tags that travel with the data
+ * itself. Filtering on these tags works in both Mem0 (`metadata.tags`) and
+ * Letta archival (`PassageCreateParams.tags`).
+ *
+ * Format: ["agent:<shortName>", "platform:inflexcvi", "env:<NODE_ENV>"].
+ * The env tag separates prod/staging data when the same Mem0/Letta cloud
+ * accounts back multiple deploys.
+ */
+export function buildIdentityTags(shortName?: string): string[] {
+  const tags = ["platform:inflexcvi"];
+  if (shortName) tags.push(`agent:${shortName}`);
+  const env = process.env.NODE_ENV;
+  if (env) tags.push(`env:${env}`);
+  return tags;
+}

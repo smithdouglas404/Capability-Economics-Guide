@@ -3,7 +3,7 @@ import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents"
 import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
 import { LETTA_CUSTOM_TOOLS } from "./letta-tools";
-import { AGENT_REGISTRY, type AgentRegistryEntry, lettaAgentNameFor } from "./agent-registry";
+import { AGENT_REGISTRY, type AgentRegistryEntry, lettaAgentNameFor, buildIdentityTags } from "./agent-registry";
 
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
@@ -551,17 +551,21 @@ export async function lettaReadBlock(label: CoreBlockLabel): Promise<string | nu
   }
 }
 
-export async function lettaArchivalInsert(text: string): Promise<boolean> {
+export async function lettaArchivalInsert(text: string, identityShortName?: string): Promise<boolean> {
   if (!lettaConnected && !await initLettaClient()) return false;
   if (!lettaClient || !lettaArchiveId) return false;
   try {
+    // Identity tags travel WITH the passage — replaces server-side Letta
+    // identity tracking (deprecated upstream). Filterable later via
+    // passages.search with tag predicates.
+    const tags = buildIdentityTags(identityShortName);
     // Write directly to the attached archive (not the agent-mediated endpoint
     // — that one 404s on Letta Cloud when the agent's vector index hasn't been
     // bootstrapped yet, which happens for every fresh agent).
     await Promise.race([
       (lettaClient as unknown as {
-        archives: { passages: { create: (archiveId: string, body: { text: string }) => Promise<unknown> } };
-      }).archives.passages.create(lettaArchiveId, { text }),
+        archives: { passages: { create: (archiveId: string, body: { text: string; tags?: string[] }) => Promise<unknown> } };
+      }).archives.passages.create(lettaArchiveId, { text, tags }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
     ]);
     emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
@@ -724,10 +728,11 @@ export async function lettaArchivalInsertFor(shortName: string, text: string): P
   const archiveId = getLettaArchiveId(shortName);
   if (!lettaClient || !archiveId) return false;
   try {
+    const tags = buildIdentityTags(shortName);
     await Promise.race([
       (lettaClient as unknown as {
-        archives: { passages: { create: (archiveId: string, body: { text: string }) => Promise<unknown> } };
-      }).archives.passages.create(archiveId, { text }),
+        archives: { passages: { create: (archiveId: string, body: { text: string; tags?: string[] }) => Promise<unknown> } };
+      }).archives.passages.create(archiveId, { text, tags }),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
     ]);
     emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
