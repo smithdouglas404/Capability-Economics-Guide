@@ -1,0 +1,47 @@
+# Dify Chatflow — Marketplace Search v2
+# Intent-parsing + reranking layer over the marketplace-listings Knowledge
+# Base. Replaces the direct retrieve() call in routes/marketplace-listings.ts
+# when DIFY_MARKETPLACE_SEARCH_V2_ENABLED=1.
+#
+# Inputs:
+#   query     string required
+#   filters   object optional (industry, listing_type, etc.)
+#   userTier  string optional (used to gate premium-only results)
+app:
+  name: Marketplace Search v2
+  description: Intent-aware semantic search over marketplace listings. Replaces direct retrieve() with parse + retrieve + rerank.
+  mode: advanced-chat
+  icon: "\U0001F50D"
+  icon_background: "#FEF3C7"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ""
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: query
+              type: paragraph
+              label: Query
+              required: true
+              max_length: 2000
+            - variable: userTier
+              type: text-input
+              label: User Tier
+              required: false
+              max_length: 32

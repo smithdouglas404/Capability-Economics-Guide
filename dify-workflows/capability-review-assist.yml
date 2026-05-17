@@ -1,0 +1,45 @@
+# Dify Workflow — Capability Review Assist
+# Triggered on review-reject-with-comment. Generates revision prompts that
+# the existing fireDraftEnrichment retry path consumes. Calls back to
+# POST /api/dify/callback/research-result with kind="revision_prompts".
+#
+# Inputs:
+#   capabilityId      integer required
+#   reviewerComment   string  required
+#   currentDraft      object  optional (the rejected draft)
+#
+# Required output:
+#   revisionPrompts   string[]
+app:
+  name: Capability Review Assist
+  description: Translates reviewer comments into concrete revision prompts for the enrichment retry path.
+  mode: workflow
+  icon: "\U0001F4DD"
+  icon_background: "#E0E7FF"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: capabilityId
+              type: number
+              label: Capability ID
+              required: true
+            - variable: reviewerComment
+              type: paragraph
+              label: Reviewer Comment
+              required: true
+              max_length: 4000

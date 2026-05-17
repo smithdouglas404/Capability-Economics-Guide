@@ -1,0 +1,57 @@
+# Dify Workflow — Listing Moderation
+# Triggered on marketplace listing submission. Reviews title + description +
+# (optional) PDF text + seller history, then calls back to
+# POST /api/dify/callback/moderation-verdict with verdict + risk flags.
+# Runs in PARALLEL to the manual moderation queue — the queue remains
+# authoritative until we trust auto_approve.
+#
+# Inputs:
+#   listingId       integer required
+#   title           string  required
+#   description     string  required
+#   sellerHistory   object  optional ({listingCount, flaggedCount, firstListedAt})
+#   pdfText         string  optional
+#
+# Required output (returned to caller in `outputs`):
+#   verdict     "auto_approve" | "send_to_moderator" | "auto_reject"
+#   riskFlags   string[]   (e.g., ["price_inconsistency", "pii_leak"])
+#   confidence  number     (0..1)
+#   rationale   string
+app:
+  name: Listing Moderation
+  description: Reviews seller submissions and produces a verdict + risk flags. Advisory; human queue stays authoritative.
+  mode: workflow
+  icon: "⚖️"
+  icon_background: "#FEE2E2"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: listingId
+              type: number
+              label: Listing ID
+              required: true
+            - variable: title
+              type: text-input
+              label: Title
+              required: true
+              max_length: 512
+            - variable: description
+              type: paragraph
+              label: Description
+              required: true
+              max_length: 8000

@@ -1,0 +1,51 @@
+# Dify Workflow — Research Pipeline
+# Generic Perplexity → Sonnet synthesis flow. Replaces inline calls in
+# enrichment/runners.ts + alpha/enrich.ts when DIFY_RESEARCH_ENABLED=1.
+# Calls back to POST /api/dify/callback/research-result with kind from
+# inputs (e.g., kind="quadrant" or kind="alpha").
+#
+# Inputs:
+#   capabilityId   integer required
+#   kind           string  required (caller chooses payload shape)
+#   prompt         string  required (research question)
+#
+# Required output:
+#   payload        object  (kind-specific structured response)
+app:
+  name: Research Pipeline
+  description: Perplexity research + Sonnet synthesis. Routes results into typed payloads by kind.
+  mode: workflow
+  icon: "\U0001F52C"
+  icon_background: "#DCFCE7"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: capabilityId
+              type: number
+              label: Capability ID
+              required: true
+            - variable: kind
+              type: text-input
+              label: Kind
+              required: true
+              max_length: 32
+            - variable: prompt
+              type: paragraph
+              label: Prompt
+              required: true
+              max_length: 8000

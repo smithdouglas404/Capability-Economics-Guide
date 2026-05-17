@@ -38,6 +38,7 @@
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
     "deploy:migrate": "tsx ./src/deploy-migrate.ts",
+    "dify:import-workflows": "tsx ./src/dify-workflow-import.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "type": "module"

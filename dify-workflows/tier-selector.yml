@@ -1,0 +1,47 @@
+# Dify Chatflow — Tier Selector
+# Conversational layer in front of static membership cards. On final answer,
+# calls back to POST /api/dify/callback/recommend-tier with a structured
+# recommendation (discovery | briefing | console | platform + rationale).
+#
+# Inputs:
+#   userId         string  required
+#   currentTier    string  optional ("none" for new users)
+#   usagePattern   object  optional (recent API calls, feature touches)
+app:
+  name: Tier Selector
+  description: Conversational layer that recommends a membership tier based on stated needs.
+  mode: advanced-chat
+  icon: "\U0001F3AF"
+  icon_background: "#E0F2FE"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: "What problem are you trying to solve right now? I'll suggest a tier that fits."
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: userId
+              type: text-input
+              label: User ID
+              required: true
+              max_length: 64
+            - variable: currentTier
+              type: text-input
+              label: Current Tier
+              required: false
+              max_length: 32

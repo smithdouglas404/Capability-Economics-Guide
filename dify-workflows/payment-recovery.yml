@@ -1,0 +1,48 @@
+# Dify Chatflow — Payment Recovery
+# Triggered on invoice.payment_failed Stripe webhook. Helps user pick a
+# rescue path (update card / switch method / downgrade / pause / escalate
+# to human). Calls back to POST /api/dify/callback/payment-recovery-action
+# with chosen action + details. Runs in PARALLEL to dunning email.
+#
+# Inputs:
+#   userId         string  required
+#   subscriptionId string  required
+#   failureCode    string  optional (Stripe decline_code)
+app:
+  name: Payment Recovery
+  description: Conversational rescue path for failed subscription payments. Captures chosen action + reroute.
+  mode: advanced-chat
+  icon: "\U0001F4B3"
+  icon_background: "#FEF3C7"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: "Looks like your last payment didn't go through. Let's get this sorted."
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: userId
+              type: text-input
+              label: User ID
+              required: true
+              max_length: 64
+            - variable: subscriptionId
+              type: text-input
+              label: Subscription ID
+              required: true
+              max_length: 64

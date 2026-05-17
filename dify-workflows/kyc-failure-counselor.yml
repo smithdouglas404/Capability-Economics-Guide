@@ -1,0 +1,46 @@
+# Dify Chatflow — KYC Failure Counselor
+# Triggered on KYC decline / AML hit / liveness fail. Captures a structured
+# appeal via POST /api/dify/callback/kyc-appeal. Does NOT auto-override the
+# decline — the appeal goes into a queue for the compliance reviewer.
+#
+# Inputs:
+#   verificationId  integer required
+#   declineReason   string  required ("aml_hit" | "id_mismatch" | "liveness_failed" | ...)
+#   kycLevel        string  optional ("email" | "identity" | "biometric" | "full")
+app:
+  name: KYC Failure Counselor
+  description: Captures structured appeals on KYC decline. Does not override the decline.
+  mode: advanced-chat
+  icon: "\U0001F914"
+  icon_background: "#FCE7F3"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: "I see the verification didn't go through. Let's understand what happened so we can route this to a reviewer."
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: verificationId
+              type: number
+              label: Verification ID
+              required: true
+            - variable: declineReason
+              type: text-input
+              label: Decline Reason
+              required: true
+              max_length: 64

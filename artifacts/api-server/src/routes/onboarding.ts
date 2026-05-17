@@ -26,6 +26,7 @@ import { and, eq, inArray, sql, asc } from "drizzle-orm";
 import { requireSession } from "../middlewares/requireSession";
 import { runIdeation, ideationCacheKey, type IdeationKind } from "../services/ideation";
 import { deriveLifecycleStage } from "../services/lifecycle";
+import { runOnboardingConcierge } from "../services/dify/workflows";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -147,7 +148,21 @@ router.post("/onboarding/start", async (req, res) => {
       velocity: candidates.find(c => c.cap.id === firstCap.id)?.comp?.velocity ?? null,
     };
     const kind: IdeationKind = "lifecycle_outlook";
-    const result = await runIdeation(kind, ctx);
+    // When DIFY_ONBOARDING_CONCIERGE_ENABLED=1, try the Dify concierge first;
+    // its answer becomes the seed insight body. Any null/error falls through
+    // to the existing runIdeation path so the legacy behaviour never breaks.
+    const difyResult = await runOnboardingConcierge({
+      clerkUserId: auth.userId!,
+      clerkOrgId: auth.orgId ?? null,
+      selectedIndustry: industry.name,
+      signals: { firstCapability: firstCap.name, score: firstComp.score },
+    }).catch((err) => {
+      logger.warn({ err }, "[onboarding] dify concierge failed — falling back to runIdeation");
+      return null;
+    });
+    const result = difyResult
+      ? { text: difyResult.answer, bullets: [], modelUsed: "dify/onboarding-concierge", fallbackCount: 0 }
+      : await runIdeation(kind, ctx);
     const cacheKey = ideationCacheKey(kind, ctx);
     const [saved] = await db.insert(workbenchCardInsightsTable).values({
       cardId: firstCard.id,

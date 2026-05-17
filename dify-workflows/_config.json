@@ -1,0 +1,77 @@
+{
+  "$comment": "Slug → workflow metadata. The import script reads this for display names + tags; runtime wrappers in services/dify/workflows.ts use slug as the canonical id.",
+  "workflows": [
+    {
+      "slug": "onboarding-concierge",
+      "kind": "chatflow",
+      "displayName": "Onboarding Concierge",
+      "description": "Asks new users 2-3 qualifying questions and seeds a starter workbench board with 3-5 relevant capabilities.",
+      "tags": ["onboarding", "user-facing"],
+      "callsBack": ["seed-board"]
+    },
+    {
+      "slug": "tier-selector",
+      "kind": "chatflow",
+      "displayName": "Tier Selector",
+      "description": "Conversational layer in front of static membership tier cards. Recommends discovery/briefing/console/platform based on stated needs.",
+      "tags": ["membership", "user-facing"],
+      "callsBack": ["recommend-tier"]
+    },
+    {
+      "slug": "marketplace-search-v2",
+      "kind": "chatflow",
+      "displayName": "Marketplace Search v2",
+      "description": "Intent-parsing + reranking layer on top of the marketplace-listings KB. Replaces direct retrieve() in routes/marketplace-listings.ts.",
+      "tags": ["marketplace", "rag"],
+      "callsBack": []
+    },
+    {
+      "slug": "listing-moderation",
+      "kind": "workflow",
+      "displayName": "Listing Moderation",
+      "description": "Reviews seller submissions and produces a verdict (auto_approve | send_to_moderator | auto_reject) with risk flags + confidence. Runs in parallel to the manual moderation queue.",
+      "tags": ["marketplace", "internal", "moderation"],
+      "callsBack": ["moderation-verdict"]
+    },
+    {
+      "slug": "kyc-failure-counselor",
+      "kind": "chatflow",
+      "displayName": "KYC Failure Counselor",
+      "description": "On KYC decline / AML hit / liveness failure, captures a structured appeal for the compliance reviewer. Does NOT override the decline.",
+      "tags": ["kyc", "compliance", "user-facing"],
+      "callsBack": ["kyc-appeal"]
+    },
+    {
+      "slug": "payment-recovery",
+      "kind": "chatflow",
+      "displayName": "Payment Recovery",
+      "description": "On invoice.payment_failed, helps user pick a rescue path (update card / switch method / downgrade / pause / escalate). Runs in parallel to dunning email.",
+      "tags": ["billing", "user-facing"],
+      "callsBack": ["payment-recovery-action"]
+    },
+    {
+      "slug": "capability-review-assist",
+      "kind": "workflow",
+      "displayName": "Capability Review Assist",
+      "description": "On reject-with-comment in routes/review.ts, generates revision prompts that fireDraftEnrichment uses for its retry.",
+      "tags": ["enrichment", "internal"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "research-pipeline",
+      "kind": "workflow",
+      "displayName": "Research Pipeline",
+      "description": "Generic Perplexity → Sonnet synthesis flow. Replaces inline calls in enrichment/runners.ts + alpha/enrich.ts when DIFY_RESEARCH_ENABLED=1.",
+      "tags": ["enrichment", "internal"],
+      "callsBack": ["research-result"]
+    },
+    {
+      "slug": "synthesis-brief-composer",
+      "kind": "workflow",
+      "displayName": "Synthesis Brief Composer",
+      "description": "Daily cron-triggered workflow that pulls each agent's digest + Neo4j correlations + Mem0 patterns and produces a cross-agent strategic brief. Replaces services/synthesis-agent.ts once proven.",
+      "tags": ["agents", "internal", "cron"],
+      "callsBack": []
+    }
+  ]
+}

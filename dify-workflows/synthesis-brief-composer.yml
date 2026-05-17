@@ -1,0 +1,36 @@
+# Dify Workflow — Synthesis Brief Composer
+# Daily cron-triggered. Pulls each specialized agent's digest + Neo4j
+# correlations + Mem0 patterns + temporal-shift report (all via HTTP
+# Request nodes back to inflexcvi /api/agent/*), then has Sonnet 4.6
+# compose a cross-agent strategic brief. Replaces services/synthesis-agent.ts
+# once proven for ≥7 days behind DIFY_SYNTHESIS_ENABLED=1.
+#
+# Inputs (none — pulls everything via HTTP nodes).
+#
+# Required output:
+#   brief          string
+#   refs           string[]   (agent names + topics referenced)
+app:
+  name: Synthesis Brief Composer
+  description: Daily cross-agent strategic brief. Reads all 5 specialized-agent digests + Neo4j + Mem0 patterns.
+  mode: workflow
+  icon: "\U0001F4DA"
+  icon_background: "#DDD6FE"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables: []

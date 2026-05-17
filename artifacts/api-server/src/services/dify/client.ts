@@ -284,6 +284,126 @@ export async function retrieve(
   }
 }
 
+// ── Workflow / Chatflow trigger (Service API) ────────────────────────────
+//
+// Per-app Service API keys are issued in the Dify UI per workflow/chatflow.
+// Store each key as an env var named after the workflow slug, e.g.
+// DIFY_APIKEY_ONBOARDING_CONCIERGE. The workflows.ts wrapper resolves the
+// right key from the slug at call time so the per-workflow auth stays
+// scoped (one key compromise doesn't expose the rest).
+
+export interface WorkflowRunResult {
+  workflow_run_id: string;
+  task_id: string;
+  data: {
+    id: string;
+    workflow_id: string;
+    status: "running" | "succeeded" | "failed" | "stopped";
+    outputs: Record<string, unknown> | null;
+    error: string | null;
+    elapsed_time: number;
+  };
+}
+
+export interface ChatflowResult {
+  message_id: string;
+  conversation_id: string;
+  mode: "chat";
+  answer: string;
+  metadata?: Record<string, unknown>;
+}
+
+function appFetchHeaders(appApiKey: string): Headers {
+  const h = new Headers();
+  h.set("Authorization", `Bearer ${appApiKey}`);
+  h.set("Content-Type", "application/json");
+  return h;
+}
+
+async function appFetch(
+  path: string,
+  appApiKey: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const cfg = getDifyConfig();
+  if (!cfg) throw new Error("Dify not configured");
+  const headers = appFetchHeaders(appApiKey);
+  const incoming = new Headers(init.headers ?? {});
+  incoming.forEach((v, k) => {
+    if (!headers.has(k)) headers.set(k, v);
+  });
+  const url = `${cfg.baseUrl}/v1${path.startsWith("/") ? path : `/${path}`}`;
+  const resp = await fetch(url, { ...init, headers });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Dify ${init.method ?? "GET"} ${path} ${resp.status}: ${body.slice(0, 500)}`);
+  }
+  return resp;
+}
+
+/**
+ * Trigger a Workflow synchronously (response_mode: blocking). Use for
+ * non-chat workflows like listing-moderation or research-pipeline where
+ * we want one round-trip response with structured outputs.
+ *
+ * Returns null when the per-app key isn't configured — callers should
+ * treat null as "Dify workflow disabled" and fall through to the legacy
+ * handler.
+ */
+export async function triggerWorkflow(
+  appApiKey: string,
+  inputs: Record<string, unknown>,
+  user: string,
+  options: { responseMode?: "blocking" | "streaming" } = {},
+): Promise<WorkflowRunResult | null> {
+  if (!isDifyAvailable() || !appApiKey) return null;
+  try {
+    const resp = await appFetch("/workflows/run", appApiKey, {
+      method: "POST",
+      body: JSON.stringify({
+        inputs,
+        response_mode: options.responseMode ?? "blocking",
+        user,
+      }),
+    });
+    return (await resp.json()) as WorkflowRunResult;
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : err }, "[dify] triggerWorkflow failed");
+    return null;
+  }
+}
+
+/**
+ * Trigger a Chatflow synchronously. Same shape as triggerWorkflow but uses
+ * /chat-messages and returns an answer string. Used for conversational
+ * surfaces (onboarding-concierge, tier-selector, kyc-counselor).
+ */
+export async function triggerChatflow(
+  appApiKey: string,
+  query: string,
+  user: string,
+  inputs: Record<string, unknown> = {},
+  options: { conversationId?: string } = {},
+): Promise<ChatflowResult | null> {
+  if (!isDifyAvailable() || !appApiKey) return null;
+  try {
+    const resp = await appFetch("/chat-messages", appApiKey, {
+      method: "POST",
+      body: JSON.stringify({
+        query,
+        inputs,
+        response_mode: "blocking",
+        user,
+        ...(options.conversationId ? { conversation_id: options.conversationId } : {}),
+      }),
+    });
+    return (await resp.json()) as ChatflowResult;
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : err }, "[dify] triggerChatflow failed");
+    return null;
+  }
+}
+
 // ── Health ────────────────────────────────────────────────────────────────
 
 /**

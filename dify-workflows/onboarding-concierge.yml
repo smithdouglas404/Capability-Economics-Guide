@@ -1,0 +1,55 @@
+# Dify Chatflow — Onboarding Concierge
+# Asks the user 2-3 qualifying questions, then calls back to inflexcvi via
+# POST /api/dify/callback/seed-board to create a starter workbench with 3-5
+# relevant capabilities.
+#
+# Inputs (passed in `inputs`):
+#   clerkUserId      string  required
+#   clerkOrgId       string  optional
+#   selectedIndustry string  optional
+#   signals          object  optional (qualifying-question answers so far)
+#
+# Edit in Dify UI: add LLM node + HTTP Request node to /api/dify/callback/seed-board.
+app:
+  name: Onboarding Concierge
+  description: New-user concierge that asks qualifying questions and seeds a starter workbench board.
+  mode: advanced-chat
+  icon: "\U0001F44B"
+  icon_background: "#FFEAD5"
+kind: app
+version: 0.1.5
+workflow:
+  environment_variables: []
+  conversation_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: "Hi! Let's pick 3-5 capabilities to start with. What industry are you focused on?"
+    suggested_questions: []
+    text_to_speech:
+      enabled: false
+  graph:
+    edges: []
+    nodes:
+      - id: start
+        type: custom
+        position: { x: 80, y: 80 }
+        data:
+          type: start
+          title: Start
+          variables:
+            - variable: clerkUserId
+              type: text-input
+              label: Clerk User ID
+              required: true
+              max_length: 64
+            - variable: clerkOrgId
+              type: text-input
+              label: Clerk Org ID
+              required: false
+              max_length: 64
+            - variable: selectedIndustry
+              type: text-input
+              label: Selected Industry
+              required: false
+              max_length: 128
