@@ -1,0 +1,275 @@
+app:
+  description: Captures a structured appeal after a KYC decline. Routes to compliance
+    reviewer.
+  icon: 📝
+  icon_background: '#FCE7F3'
+  icon_type: emoji
+  mode: advanced-chat
+  name: KYC Failure Counselor
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: f62ed91b-b592-4595-9875-fdda2f649280
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: a50ee7dd-7302-40f7-8078-b620793750a7
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: I see your verification didn't go through. I can capture an
+      appeal for the compliance team — I won't be able to override the decision myself,
+      but I'll make sure your case gets reviewed properly. What feels wrong about
+      this outcome?
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - My name has changed since my ID was issued
+    - I think my address didn't match because I just moved
+    - I tried the selfie three times — what should I do?
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: counselor_llm
+    - id: e2
+      source: counselor_llm
+      target: parse_json
+    - id: e3
+      source: parse_json
+      target: branch
+    - id: e4
+      source: branch
+      sourceHandle: 'true'
+      target: hmac
+    - id: e5
+      source: branch
+      sourceHandle: 'false'
+      target: answer_continue
+    - id: e6
+      source: hmac
+      target: callback
+    - id: e7
+      source: callback
+      target: answer_submitted
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: Verification ID
+          max_length: 64
+          required: true
+          type: text-input
+          variable: verificationId
+        - label: Decline Reason
+          max_length: 128
+          required: true
+          type: text-input
+          variable: declineReason
+        - label: KYC Level
+          max_length: 32
+          required: false
+          type: text-input
+          variable: kycLevel
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 1500
+            temperature: 0.3
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "You are the KYC Counselor. Your job: gather a structured appeal so\
+            \ a human compliance\nreviewer can decide whether to re-run verification.\n\
+            \nHard rules — NEVER violate:\n- You DO NOT override the decline. Say\
+            \ so plainly.\n- You DO NOT promise approval, fast-track, or refund.\n\
+            - You DO NOT advise re-submitting with different data; only capture the\
+            \ appeal as-is.\n- If the user describes potential fraud or coercion,\
+            \ end the conversation and tell them\n  to email security@inflexcvi.com.\n\
+            \nOtherwise, ask up to 3 short questions to capture:\n  reasonCategory:\
+            \ \"data_mismatch\" | \"liveness_quality\" | \"document_quality\" | \"\
+            identity_change\" | \"other\"\n  userExplanation: free text, paraphrased\n\
+            \  evidenceOffered: short list of what the user says they can provide\n\
+            \nWhen you have enough, end with a fenced JSON block:\n\n```json\n{\n\
+            \  \"readyToSubmit\": true,\n  \"structuredAppeal\": {\n    \"reasonCategory\"\
+            : \"...\",\n    \"userExplanation\": \"...\",\n    \"evidenceOffered\"\
+            : [\"...\"]\n  }\n}\n```\n\nOtherwise:\n\n```json\n{ \"readyToSubmit\"\
+            : false, \"nextQuestion\": \"...\" }\n```\n"
+        - edition_type: basic
+          role: user
+          text: 'Decline reason: {{#start.declineReason#}}
+
+            KYC level: {{#start.kycLevel#}}
+
+
+            User: {{#sys.query#}}'
+        title: Counselor LLM
+        type: llm
+      id: counselor_llm
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json, re\ndef main(text: str) -> dict:\n    m = re.search(r\"\
+          ```json\\s*(\\{.*?\\})\\s*```\", text, re.DOTALL)\n    if not m:\n     \
+          \   return {\"ready\": False, \"answer\": text, \"appeal\": None}\n    try:\n\
+          \        p = json.loads(m.group(1))\n    except Exception:\n        return\
+          \ {\"ready\": False, \"answer\": text, \"appeal\": None}\n    clean = text[:m.start()].strip()\n\
+          \    return {\n        \"ready\": bool(p.get(\"readyToSubmit\")),\n    \
+          \    \"answer\": clean or p.get(\"nextQuestion\", \"\"),\n        \"appeal\"\
+          : p.get(\"structuredAppeal\"),\n    }\n"
+        code_language: python3
+        outputs:
+          answer:
+            type: string
+          appeal:
+            type: object
+          ready:
+            type: boolean
+        title: Parse JSON tail
+        type: code
+        variables:
+        - value_selector:
+          - counselor_llm
+          - text
+          variable: text
+      id: parse_json
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        conditions:
+        - comparison_operator: is
+          value: 'true'
+          variable_selector:
+          - parse_json
+          - ready
+        logical_operator: and
+        title: Ready to submit?
+        type: if-else
+      id: branch
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(verification_id: str, appeal:\
+          \ dict, run_id: str, key: str) -> dict:\n    payload = {\n        \"clientRequestId\"\
+          : run_id,\n        \"verificationId\": verification_id,\n        \"structuredAppeal\"\
+          : appeal or {},\n    }\n    msg = json.dumps(payload, separators=(\",\"\
+          , \":\"), sort_keys=True).encode(\"utf-8\")\n    sig = hmac.new(key.encode(\"\
+          utf-8\"), msg, hashlib.sha256).hexdigest()\n    return {\"signature\": sig,\
+          \ \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - verificationId
+          variable: verification_id
+        - value_selector:
+          - parse_json
+          - appeal
+          variable: appeal
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 1200
+        y: 120
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: kyc-failure-counselor
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 20
+          max_write_timeout: 20
+        title: POST /api/dify/callback/kyc-appeal
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/kyc-appeal'
+      id: callback
+      position:
+        x: 1480
+        y: 120
+      type: custom
+    - data:
+        answer: 'Thanks — I''ve recorded the appeal and it''ll go to a human reviewer
+          within 1 business day. You''ll get an email when there''s a decision.
+
+
+          {{#parse_json.answer#}}'
+        title: Answer (submitted)
+        type: answer
+      id: answer_submitted
+      position:
+        x: 1760
+        y: 120
+      type: custom
+    - data:
+        answer: '{{#parse_json.answer#}}'
+        title: Answer (continue)
+        type: answer
+      id: answer_continue
+      position:
+        x: 1200
+        y: 360
+      type: custom
+  rag_pipeline_variables: []

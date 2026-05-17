@@ -18,9 +18,9 @@ kind: app
 version: 0.1.5
 workflow:
   environment_variables:
-    - { name: INFLEXCVI_API_BASE, value: "" }
-    - { name: DIFY_CALLBACK_KEY, value: "" }
-    - { name: PERPLEXITY_API_KEY, value: "" }
+    - { name: INFLEXCVI_API_BASE, value: "", value_type: string }
+    - { name: DIFY_CALLBACK_KEY, value: "", value_type: string }
+    - { name: PERPLEXITY_API_KEY, value: "", value_type: string }
   conversation_variables: []
   features: { file_upload: { enabled: false }, text_to_speech: { enabled: false } }
   graph:
@@ -80,7 +80,7 @@ workflow:
             - { variable: body, value_selector: [perplexity, body] }
           outputs:
             research: { type: string }
-            citations: { type: array[object] }
+            citations: { type: "array[object]" }
       - id: synth_llm
         type: custom
         position: { x: 920, y: 240 }

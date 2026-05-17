@@ -1,0 +1,279 @@
+app:
+  description: New-user concierge that asks qualifying questions and seeds a starter
+    workbench board.
+  icon: 👋
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: Onboarding Concierge
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: ''
+    id: 76c90a72-f230-4235-82b8-0703c297beb8
+    name: signals
+    selector:
+    - conversation
+    - signals
+    value: {}
+    value_type: object
+  environment_variables:
+  - description: ''
+    id: 8a268e80-c826-4097-b654-f08f3ed44a95
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: f7220eb2-45fe-4710-ac60-a1af3a29660b
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: Hi! I'll help you pick 3-5 capabilities to start tracking.
+      What industry are you focused on, and what's the single decision you're trying
+      to make this quarter?
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - I run a hospital system — help me prioritize
+    - We're a mid-market SaaS — what should I track?
+    - I'm exploring this tool, just show me what's possible
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      sourceHandle: source
+      target: concierge_llm
+      targetHandle: target
+    - id: e2
+      source: concierge_llm
+      sourceHandle: source
+      target: parse_json
+      targetHandle: target
+    - id: e3
+      source: parse_json
+      sourceHandle: source
+      target: branch
+      targetHandle: target
+    - id: e4
+      source: branch
+      sourceHandle: 'true'
+      target: hmac
+      targetHandle: target
+    - id: e5
+      source: branch
+      sourceHandle: 'false'
+      target: answer_continue
+      targetHandle: target
+    - id: e6
+      source: hmac
+      sourceHandle: source
+      target: callback
+      targetHandle: target
+    - id: e7
+      source: callback
+      sourceHandle: source
+      target: answer_seeded
+      targetHandle: target
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: Clerk User ID
+          max_length: 64
+          required: true
+          type: text-input
+          variable: clerkUserId
+        - label: Clerk Org ID
+          max_length: 64
+          required: false
+          type: text-input
+          variable: clerkOrgId
+        - label: Selected Industry
+          max_length: 128
+          required: false
+          type: text-input
+          variable: selectedIndustry
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 1500
+            temperature: 0.3
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "You are the inflexcvi Onboarding Concierge. Your job: in 2-3 turns,\
+            \ gather enough\nsignal to recommend 3-5 capabilities the user should\
+            \ start tracking.\n\nAlways end your reply with a fenced JSON block of\
+            \ the shape:\n\n```json\n{ \"readyToSeed\": false, \"nextQuestion\": \"\
+            ...\" }\n```\n\nor, once you have enough signal:\n\n```json\n{\n  \"readyToSeed\"\
+            : true,\n  \"boardSeed\": {\n    \"boardName\": \"string\",\n    \"description\"\
+            : \"string\",\n    \"cards\": [\n      { \"capabilityName\": \"string\"\
+            , \"lane\": \"now|next|later\", \"notes\": \"string\" }\n    ]\n  }\n\
+            }\n```\n\nCards should reference real capability names where you have\
+            \ signal; otherwise leave the\narray empty and let the legacy ideation\
+            \ flow fill them. Be specific to the industry the\nuser mentions. Never\
+            \ invent KPIs.\n"
+        - edition_type: basic
+          role: user
+          text: 'Industry hint: {{#start.selectedIndustry#}}
+
+
+            User message: {{#sys.query#}}'
+        title: Concierge LLM
+        type: llm
+      id: concierge_llm
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json, re\ndef main(text: str) -> dict:\n    m = re.search(r\"\
+          ```json\\s*(\\{.*?\\})\\s*```\", text, re.DOTALL)\n    if not m:\n     \
+          \   return {\"ready\": False, \"answer\": text, \"boardSeed\": None}\n \
+          \   try:\n        parsed = json.loads(m.group(1))\n    except Exception:\n\
+          \        return {\"ready\": False, \"answer\": text, \"boardSeed\": None}\n\
+          \    clean = text[:m.start()].strip()\n    return {\n        \"ready\":\
+          \ bool(parsed.get(\"readyToSeed\")),\n        \"answer\": clean or parsed.get(\"\
+          nextQuestion\", \"\"),\n        \"boardSeed\": parsed.get(\"boardSeed\"\
+          ),\n    }\n"
+        code_language: python3
+        outputs:
+          answer:
+            type: string
+          boardSeed:
+            type: object
+          ready:
+            type: boolean
+        title: Parse JSON tail
+        type: code
+        variables:
+        - value_selector:
+          - concierge_llm
+          - text
+          variable: text
+      id: parse_json
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        conditions:
+        - comparison_operator: is
+          value: 'true'
+          variable_selector:
+          - parse_json
+          - ready
+        logical_operator: and
+        title: Ready to seed?
+        type: if-else
+      id: branch
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(body: dict, key: str) -> dict:\n\
+          \    msg = json.dumps(body, separators=(\",\", \":\"), sort_keys=True).encode(\"\
+          utf-8\")\n    sig = hmac.new(key.encode(\"utf-8\"), msg, hashlib.sha256).hexdigest()\n\
+          \    return {\"signature\": sig, \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - parse_json
+          - boardSeed
+          variable: body
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 1200
+        y: 120
+      type: custom
+    - data:
+        body:
+          data: "{\n  \"clientRequestId\": \"{{#sys.conversation_id#}}-{{#sys.workflow_run_id#}}\"\
+            ,\n  \"clerkUserId\": \"{{#start.clerkUserId#}}\",\n  \"clerkOrgId\":\
+            \ \"{{#start.clerkOrgId#}}\",\n  \"boardSeed\": {{#hmac.body#}}\n}\n"
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: onboarding-concierge
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 30
+          max_write_timeout: 30
+        title: POST /api/dify/callback/seed-board
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/seed-board'
+      id: callback
+      position:
+        x: 1480
+        y: 120
+      type: custom
+    - data:
+        answer: '{{#parse_json.answer#}}
+
+
+          I''ve started a starter board for you — check your workbench in a moment.'
+        title: Answer (seeded)
+        type: answer
+      id: answer_seeded
+      position:
+        x: 1760
+        y: 120
+      type: custom
+    - data:
+        answer: '{{#parse_json.answer#}}'
+        title: Answer (continue)
+        type: answer
+      id: answer_continue
+      position:
+        x: 1200
+        y: 360
+      type: custom
+  rag_pipeline_variables: []

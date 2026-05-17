@@ -1,0 +1,216 @@
+app:
+  description: Regenerates a case study's economics breakdown on admin trigger.
+  icon: 📖
+  icon_background: '#FCE7F3'
+  icon_type: emoji
+  mode: workflow
+  name: case-study-generator
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: f8072e88-679a-4995-a768-6297b567280a
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: 188f7895-f7c4-4425-bba4-6b31c4f5f19a
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: economics_llm
+    - id: e2
+      source: economics_llm
+      target: parse
+    - id: e3
+      source: parse
+      target: hmac
+    - id: e4
+      source: hmac
+      target: callback
+    - id: e5
+      source: callback
+      target: end
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: Case Study ID
+          required: true
+          type: number
+          variable: caseStudyId
+        - label: Industry Name
+          max_length: 128
+          required: true
+          type: text-input
+          variable: industryName
+        - label: Current Case Study Text
+          required: true
+          type: paragraph
+          variable: currentText
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 4000
+            temperature: 0.2
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "Produce an economics breakdown for the given case study. Output ONLY\
+            \ JSON, no fences.\n\n{\n  \"summary\": \"<= 2 paragraphs in plain prose\"\
+            ,\n  \"unitEconomics\": [\n    {\"metric\": \"string\", \"valueUsd\":\
+            \ null, \"rationale\": \"string\"}\n  ],\n  \"tamReachable\": { \"valueUsd\"\
+            : null, \"notes\": \"string\" },\n  \"marginProfile\": \"string — 1-2\
+            \ sentences\",\n  \"sensitivityFactors\": [\"bullet list\"]\n}\n\nRules:\n\
+            - Use null for numbers you can't source from the case study text.\n- Never\
+            \ fabricate dollar figures or growth rates.\n- All claims must be grounded\
+            \ in `currentText`. No outside knowledge.\n"
+        - edition_type: basic
+          role: user
+          text: 'Case study ID: {{#start.caseStudyId#}}
+
+            Industry: {{#start.industryName#}}
+
+
+            Case study text:
+
+            {{#start.currentText#}}
+
+            '
+        title: Economics Breakdown LLM
+        type: llm
+      id: economics_llm
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json\ndef main(text: str) -> dict:\n    s = text.strip()\n \
+          \   if s.startswith(\"```\"):\n        s = s.strip(\"`\")\n        if s.startswith(\"\
+          json\"):\n            s = s[4:]\n    try:\n        return {\"payload\":\
+          \ json.loads(s)}\n    except Exception:\n        return {\"payload\": {\"\
+          error\": \"parse_failed\", \"raw\": text[:800]}}\n"
+        code_language: python3
+        outputs:
+          payload:
+            type: object
+        title: Coerce JSON
+        type: code
+        variables:
+        - value_selector:
+          - economics_llm
+          - text
+          variable: text
+      id: parse
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(case_id: int, payload: dict, run_id:\
+          \ str, key: str) -> dict:\n    body = {\n        \"clientRequestId\": run_id,\n\
+          \        \"kind\": \"case_study_economics\",\n        \"caseStudyId\": case_id,\n\
+          \        \"payload\": payload,\n    }\n    msg = json.dumps(body, separators=(\"\
+          ,\", \":\"), sort_keys=True).encode(\"utf-8\")\n    sig = hmac.new(key.encode(\"\
+          utf-8\"), msg, hashlib.sha256).hexdigest()\n    return {\"signature\": sig,\
+          \ \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - caseStudyId
+          variable: case_id
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: case-study-generator
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 60
+          max_write_timeout: 60
+        title: POST /api/dify/callback/research-result
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/research-result'
+      id: callback
+      position:
+        x: 1200
+        y: 240
+      type: custom
+    - data:
+        outputs:
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        title: End
+        type: end
+      id: end
+      position:
+        x: 1480
+        y: 240
+      type: custom
+  rag_pipeline_variables: []

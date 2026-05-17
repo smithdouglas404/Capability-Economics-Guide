@@ -14,8 +14,8 @@ kind: app
 version: 0.1.5
 workflow:
   environment_variables:
-    - { name: INFLEXCVI_API_BASE, value: "" }
-    - { name: DIFY_CALLBACK_KEY, value: "" }
+    - { name: INFLEXCVI_API_BASE, value: "", value_type: string }
+    - { name: DIFY_CALLBACK_KEY, value: "", value_type: string }
   conversation_variables: []
   features: { file_upload: { enabled: false }, text_to_speech: { enabled: false } }
   graph:
@@ -107,7 +107,7 @@ workflow:
             - { variable: text, value_selector: [classify_llm, text] }
           outputs:
             verdict: { type: string }
-            riskFlags: { type: array[string] }
+            riskFlags: { type: "array[string]" }
             confidence: { type: number }
             rationale: { type: string }
       - id: hmac

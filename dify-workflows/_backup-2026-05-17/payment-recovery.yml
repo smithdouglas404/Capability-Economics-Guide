@@ -1,0 +1,272 @@
+app:
+  description: Helps a user with a failed invoice pick a rescue path.
+  icon: 💳
+  icon_background: '#FEF3C7'
+  icon_type: emoji
+  mode: advanced-chat
+  name: Payment Recovery
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: b7235d2d-ff38-4183-8506-6fe8b80165a2
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: d525ad48-2ec5-47fc-acb0-659340fc4571
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: Your last payment didn't go through. I can help you pick what
+      to do next — update card, switch method, drop a tier, pause your subscription,
+      or escalate to a human. What's easiest for you right now?
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - Update my card
+    - I want to downgrade
+    - Can I pause for a month?
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: recovery_llm
+    - id: e2
+      source: recovery_llm
+      target: parse_json
+    - id: e3
+      source: parse_json
+      target: branch
+    - id: e4
+      source: branch
+      sourceHandle: 'true'
+      target: hmac
+    - id: e5
+      source: branch
+      sourceHandle: 'false'
+      target: answer_continue
+    - id: e6
+      source: hmac
+      target: callback
+    - id: e7
+      source: callback
+      target: answer_logged
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: User ID
+          max_length: 64
+          required: true
+          type: text-input
+          variable: userId
+        - label: Stripe Sub ID
+          max_length: 64
+          required: true
+          type: text-input
+          variable: subscriptionId
+        - label: Failure Code
+          max_length: 64
+          required: false
+          type: text-input
+          variable: failureCode
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 1000
+            temperature: 0.2
+          mode: chat
+          name: claude-3-5-haiku-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "You help a user pick a payment-recovery action. The valid actions\
+            \ are EXACTLY:\n\n  update_card | switch_method | downgrade | pause_1m\
+            \ | escalate\n\nHard rules:\n- You DO NOT touch Stripe directly. inflexcvi\
+            \ will execute the action you log.\n- If the user is angry or describes\
+            \ financial hardship, default to `escalate`.\n- If the failure code suggests\
+            \ a card issue (lost_card, stolen_card, expired_card),\n  steer toward\
+            \ `update_card`.\n- Never offer a discount or refund.\n\nAsk up to 2 short\
+            \ follow-up questions, then end with a fenced JSON block:\n\n```json\n\
+            { \"readyToSubmit\": true, \"action\": \"update_card\", \"userMessage\"\
+            : \"...\" }\n```\n\nOr, to keep talking:\n\n```json\n{ \"readyToSubmit\"\
+            : false, \"nextQuestion\": \"...\" }\n```\n"
+        - edition_type: basic
+          role: user
+          text: 'Failure code: {{#start.failureCode#}}
+
+
+            User: {{#sys.query#}}'
+        title: Recovery LLM
+        type: llm
+      id: recovery_llm
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json, re\nVALID = {\"update_card\", \"switch_method\", \"downgrade\"\
+          , \"pause_1m\", \"escalate\"}\ndef main(text: str) -> dict:\n    m = re.search(r\"\
+          ```json\\s*(\\{.*?\\})\\s*```\", text, re.DOTALL)\n    if not m:\n     \
+          \   return {\"ready\": False, \"answer\": text, \"action\": None}\n    try:\n\
+          \        p = json.loads(m.group(1))\n    except Exception:\n        return\
+          \ {\"ready\": False, \"answer\": text, \"action\": None}\n    a = p.get(\"\
+          action\")\n    if a not in VALID:\n        a = None\n    clean = text[:m.start()].strip()\n\
+          \    return {\n        \"ready\": bool(p.get(\"readyToSubmit\")) and a is\
+          \ not None,\n        \"answer\": clean or p.get(\"nextQuestion\") or p.get(\"\
+          userMessage\", \"\"),\n        \"action\": a,\n    }\n"
+        code_language: python3
+        outputs:
+          action:
+            type: string
+          answer:
+            type: string
+          ready:
+            type: boolean
+        title: Parse JSON tail
+        type: code
+        variables:
+        - value_selector:
+          - recovery_llm
+          - text
+          variable: text
+      id: parse_json
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        conditions:
+        - comparison_operator: is
+          value: 'true'
+          variable_selector:
+          - parse_json
+          - ready
+        logical_operator: and
+        title: Action chosen?
+        type: if-else
+      id: branch
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(user_id: str, sub_id: str, action:\
+          \ str, run_id: str, key: str) -> dict:\n    payload = {\n        \"clientRequestId\"\
+          : run_id,\n        \"userId\": user_id,\n        \"subscriptionId\": sub_id,\n\
+          \        \"chosenAction\": action,\n    }\n    msg = json.dumps(payload,\
+          \ separators=(\",\", \":\"), sort_keys=True).encode(\"utf-8\")\n    sig\
+          \ = hmac.new(key.encode(\"utf-8\"), msg, hashlib.sha256).hexdigest()\n \
+          \   return {\"signature\": sig, \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - userId
+          variable: user_id
+        - value_selector:
+          - start
+          - subscriptionId
+          variable: sub_id
+        - value_selector:
+          - parse_json
+          - action
+          variable: action
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 1200
+        y: 120
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: payment-recovery
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 20
+          max_write_timeout: 20
+        title: POST /api/dify/callback/payment-recovery-action
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/payment-recovery-action'
+      id: callback
+      position:
+        x: 1480
+        y: 120
+      type: custom
+    - data:
+        answer: 'Got it — I''ve logged **{{#parse_json.action#}}**. You''ll see the
+          next step in your account within a minute or two.
+
+
+          {{#parse_json.answer#}}'
+        title: Answer (logged)
+        type: answer
+      id: answer_logged
+      position:
+        x: 1760
+        y: 120
+      type: custom
+    - data:
+        answer: '{{#parse_json.answer#}}'
+        title: Answer (continue)
+        type: answer
+      id: answer_continue
+      position:
+        x: 1200
+        y: 360
+      type: custom
+  rag_pipeline_variables: []

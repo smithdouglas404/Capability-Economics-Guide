@@ -1,0 +1,281 @@
+app:
+  description: Daily cross-agent strategic brief — replaces services/synthesis-agent.ts.
+  icon: 📚
+  icon_background: '#FDE68A'
+  icon_type: emoji
+  mode: workflow
+  name: Synthesis Brief Composer
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: 688bb2b6-11c4-49ea-9a39-0397f84bf9f0
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: 022e748c-1ef9-49e1-bc89-c41a6ba420f7
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  - description: ''
+    id: 8d528af2-4d9f-4d0d-9dd2-890be963d4b6
+    name: ADMIN_API_KEY
+    selector:
+    - env
+    - ADMIN_API_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: digests
+    - id: e2
+      source: start
+      target: correlations
+    - id: e3
+      source: start
+      target: temporal
+    - id: e4
+      source: digests
+      target: brief_llm
+    - id: e5
+      source: correlations
+      target: brief_llm
+    - id: e6
+      source: temporal
+      target: brief_llm
+    - id: e7
+      source: brief_llm
+      target: parse
+    - id: e8
+      source: parse
+      target: hmac
+    - id: e9
+      source: hmac
+      target: callback
+    - id: e10
+      source: callback
+      target: end
+    nodes:
+    - data:
+        title: Start (cron)
+        type: start
+        variables: []
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        headers: 'X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+
+          '
+        method: get
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 30
+          max_write_timeout: 10
+        title: GET /admin/agent-runs (digests)
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/admin/agent-runs?lookbackHours=24'
+      id: digests
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        headers: 'X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+
+          '
+        method: get
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 30
+          max_write_timeout: 10
+        title: GET /admin/graph/correlations
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/admin/graph/correlations?top=20'
+      id: correlations
+      position:
+        x: 360
+        y: 420
+      type: custom
+    - data:
+        headers: 'X-Admin-Key: {{#env.ADMIN_API_KEY#}}
+
+          '
+        method: get
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 30
+          max_write_timeout: 10
+        title: GET /admin/temporal-shifts
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/admin/temporal-shifts'
+      id: temporal
+      position:
+        x: 360
+        y: 600
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 4000
+            temperature: 0.4
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "You are the Synthesis Agent. Read the 5 specialized agents' last-24h\
+            \ digests, the\ntop correlations from the capability graph, and the 6h\
+            \ temporal-shift report. Produce\na daily strategic brief that EVERY downstream\
+            \ agent will prepend to its system prompt\non its next run.\n\nOutput\
+            \ a JSON object — no prose, no fences:\n\n{\n  \"headline\": \"<= 12 words\"\
+            ,\n  \"themes\": [\"3-5 cross-agent themes\"],\n  \"openQuestions\": [\"\
+            2-4 questions for the agents to investigate today\"],\n  \"recommendations\"\
+            : [{\"agent\": \"macro-event|disruption|peer-coop|stack-optimizer|ontology\"\
+            , \"action\": \"...\"}],\n  \"confidence\": 0.0\n}\n\nConstraints:\n-\
+            \ Cite the specific agents whose digests support each theme (just the\
+            \ agent slug).\n- If two agents contradict, surface it in `openQuestions`\
+            \ — DO NOT pick a winner.\n- Never fabricate data points.\n"
+        - edition_type: basic
+          role: user
+          text: 'AGENT DIGESTS (24h):
+
+            {{#digests.body#}}
+
+
+            CAPABILITY CORRELATIONS (top 20):
+
+            {{#correlations.body#}}
+
+
+            TEMPORAL SHIFTS (6h):
+
+            {{#temporal.body#}}
+
+            '
+        title: Compose brief
+        type: llm
+      id: brief_llm
+      position:
+        x: 700
+        y: 420
+      type: custom
+    - data:
+        code: "import json\ndef main(text: str) -> dict:\n    s = text.strip()\n \
+          \   if s.startswith(\"```\"):\n        s = s.strip(\"`\")\n        if s.startswith(\"\
+          json\"):\n            s = s[4:]\n    try:\n        return {\"payload\":\
+          \ json.loads(s)}\n    except Exception:\n        return {\"payload\": {\"\
+          headline\": text[:120], \"themes\": [], \"openQuestions\": [], \"recommendations\"\
+          : [], \"confidence\": 0.0}}\n"
+        code_language: python3
+        outputs:
+          payload:
+            type: object
+        title: Coerce JSON
+        type: code
+        variables:
+        - value_selector:
+          - brief_llm
+          - text
+          variable: text
+      id: parse
+      position:
+        x: 980
+        y: 420
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(payload: dict, run_id: str, key:\
+          \ str) -> dict:\n    body = {\n        \"clientRequestId\": run_id,\n  \
+          \      \"kind\": \"synthesis_brief\",\n        \"payload\": payload,\n \
+          \   }\n    msg = json.dumps(body, separators=(\",\", \":\"), sort_keys=True).encode(\"\
+          utf-8\")\n    sig = hmac.new(key.encode(\"utf-8\"), msg, hashlib.sha256).hexdigest()\n\
+          \    return {\"signature\": sig, \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 1260
+        y: 420
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: synthesis-brief-composer
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 60
+          max_write_timeout: 60
+        title: POST /api/dify/callback/research-result
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/research-result'
+      id: callback
+      position:
+        x: 1540
+        y: 420
+      type: custom
+    - data:
+        outputs:
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        title: End
+        type: end
+      id: end
+      position:
+        x: 1820
+        y: 420
+      type: custom
+  rag_pipeline_variables: []

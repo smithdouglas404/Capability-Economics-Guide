@@ -1,0 +1,230 @@
+app:
+  description: Sonnet scoring + narrative for the assess flow. Replaces routes/assess.ts
+    inline calls.
+  icon: 📊
+  icon_background: '#DBEAFE'
+  icon_type: emoji
+  mode: workflow
+  name: assessment-analyzer
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: e201143c-1bef-403e-b9c6-54b092daeb10
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: 15915d9d-8218-46d6-8156-13789991d5d9
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: analyze_llm
+    - id: e2
+      source: analyze_llm
+      target: parse
+    - id: e3
+      source: parse
+      target: hmac
+    - id: e4
+      source: hmac
+      target: callback
+    - id: e5
+      source: callback
+      target: end
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: Session ID
+          max_length: 64
+          required: true
+          type: text-input
+          variable: sessionId
+        - label: Phase
+          options:
+          - start
+          - analyze
+          required: true
+          type: select
+          variable: phase
+        - label: Industry
+          max_length: 128
+          required: true
+          type: text-input
+          variable: industryName
+        - label: Org Context JSON
+          required: false
+          type: paragraph
+          variable: orgContext
+        - label: Responses JSON (analyze only)
+          required: false
+          type: paragraph
+          variable: responses
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 6000
+            temperature: 0.2
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "You analyze a CVI capability self-assessment.\n\nIf `phase=start`:\
+            \ emit an intro framing for the user that lists the 6-10 capabilities\n\
+            they're about to score, with one-sentence definitions tailored to their\
+            \ industry.\n\n{\n  \"phase\": \"start\",\n  \"intro\": \"string\",\n\
+            \  \"capabilities\": [{\"id\": int, \"name\": \"string\", \"definition\"\
+            : \"string\"}]\n}\n\nIf `phase=analyze`: score each capability (0-100)\
+            \ and produce a narrative.\n\n{\n  \"phase\": \"analyze\",\n  \"overallScore\"\
+            : 0,\n  \"perCapability\": [{\"capabilityId\": int, \"score\": 0, \"rationale\"\
+            : \"string\"}],\n  \"narrative\": \"<= 6 paragraphs, plain prose\",\n\
+            \  \"topRisks\": [\"...\"],\n  \"topOpportunities\": [\"...\"]\n}\n\n\
+            Output ONLY the JSON, no fences or prose.\n"
+        - edition_type: basic
+          role: user
+          text: 'phase: {{#start.phase#}}
+
+            industry: {{#start.industryName#}}
+
+            orgContext: {{#start.orgContext#}}
+
+            responses: {{#start.responses#}}
+
+            '
+        title: Assessment LLM
+        type: llm
+      id: analyze_llm
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json\ndef main(text: str) -> dict:\n    s = text.strip()\n \
+          \   if s.startswith(\"```\"):\n        s = s.strip(\"`\")\n        if s.startswith(\"\
+          json\"):\n            s = s[4:]\n    try:\n        return {\"payload\":\
+          \ json.loads(s)}\n    except Exception:\n        return {\"payload\": {\"\
+          raw\": text[:1000]}}\n"
+        code_language: python3
+        outputs:
+          payload:
+            type: object
+        title: Coerce JSON
+        type: code
+        variables:
+        - value_selector:
+          - analyze_llm
+          - text
+          variable: text
+      id: parse
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(session_id: str, payload: dict,\
+          \ run_id: str, key: str) -> dict:\n    body = {\n        \"clientRequestId\"\
+          : run_id,\n        \"sessionId\": session_id,\n        \"kind\": \"assessment\"\
+          ,\n        \"payload\": payload,\n    }\n    msg = json.dumps(body, separators=(\"\
+          ,\", \":\"), sort_keys=True).encode(\"utf-8\")\n    sig = hmac.new(key.encode(\"\
+          utf-8\"), msg, hashlib.sha256).hexdigest()\n    return {\"signature\": sig,\
+          \ \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - sessionId
+          variable: session_id
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: assessment-analyzer
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 60
+          max_write_timeout: 60
+        title: POST /api/dify/callback/research-result
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/research-result'
+      id: callback
+      position:
+        x: 1200
+        y: 240
+      type: custom
+    - data:
+        outputs:
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        title: End
+        type: end
+      id: end
+      position:
+        x: 1480
+        y: 240
+      type: custom
+  rag_pipeline_variables: []

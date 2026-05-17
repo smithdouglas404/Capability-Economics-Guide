@@ -1,0 +1,288 @@
+app:
+  description: Perplexity + Sonnet → full industry seed (capabilities, value chain,
+    companies).
+  icon: 🏭
+  icon_background: '#FEF3C7'
+  icon_type: emoji
+  mode: workflow
+  name: industry-bootstrap
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: ''
+    id: ddb96323-a5a4-4e53-abe3-c0d7a392ea85
+    name: INFLEXCVI_API_BASE
+    selector:
+    - env
+    - INFLEXCVI_API_BASE
+    value: ''
+    value_type: string
+  - description: ''
+    id: b35c60b3-420f-4d78-a16c-3cccc43f00cb
+    name: DIFY_CALLBACK_KEY
+    selector:
+    - env
+    - DIFY_CALLBACK_KEY
+    value: ''
+    value_type: string
+  - description: ''
+    id: 9793a687-91c5-4925-a569-cd9a81a77277
+    name: PERPLEXITY_API_KEY
+    selector:
+    - env
+    - PERPLEXITY_API_KEY
+    value: ''
+    value_type: string
+  features:
+    file_upload:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - id: e1
+      source: start
+      target: perplexity
+    - id: e2
+      source: perplexity
+      target: extract
+    - id: e3
+      source: extract
+      target: shape_llm
+    - id: e4
+      source: shape_llm
+      target: parse
+    - id: e5
+      source: parse
+      target: hmac
+    - id: e6
+      source: hmac
+      target: callback
+    - id: e7
+      source: callback
+      target: end
+    nodes:
+    - data:
+        title: Start
+        type: start
+        variables:
+        - label: Industry Name
+          max_length: 128
+          required: true
+          type: text-input
+          variable: industryName
+        - label: Seed Prompt (optional)
+          required: false
+          type: paragraph
+          variable: seedPrompt
+      id: start
+      position:
+        x: 80
+        y: 240
+      type: custom
+    - data:
+        body:
+          data: "{\n  \"model\": \"sonar-pro\",\n  \"max_tokens\": 6000,\n  \"messages\"\
+            : [\n    {\"role\":\"system\",\"content\":\"You are an industry analyst.\
+            \ Use only verifiable, citable sources.\"},\n    {\"role\":\"user\",\"\
+            content\":\"Research the {{#start.industryName#}} industry. Identify (a)\
+            \ 8-12 core capabilities that drive competitive position, (b) the 4-6\
+            \ value chain stages, (c) 10-20 major companies with headquarters + employee\
+            \ count + 2024 revenue if disclosed. {{#start.seedPrompt#}}\"}\n  ]\n\
+            }\n"
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          Authorization: Bearer {{#env.PERPLEXITY_API_KEY#}}
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 15
+          max_read_timeout: 180
+          max_write_timeout: 60
+        title: Perplexity research
+        type: http-request
+        url: https://api.perplexity.ai/chat/completions
+      id: perplexity
+      position:
+        x: 360
+        y: 240
+      type: custom
+    - data:
+        code: "import json\ndef main(body) -> dict:\n    try:\n        data = json.loads(body)\
+          \ if isinstance(body, str) else body\n        content = data[\"choices\"\
+          ][0][\"message\"][\"content\"]\n        citations = data.get(\"citations\"\
+          ) or data.get(\"search_results\") or []\n    except Exception:\n       \
+          \ content = body if isinstance(body, str) else \"\"\n        citations =\
+          \ []\n    return {\"research\": content, \"citations\": citations}\n"
+        code_language: python3
+        outputs:
+          citations:
+            type: array[object]
+          research:
+            type: string
+        title: Extract research
+        type: code
+        variables:
+        - value_selector:
+          - perplexity
+          - body
+          variable: body
+      id: extract
+      position:
+        x: 640
+        y: 240
+      type: custom
+    - data:
+        model:
+          completion_params:
+            max_tokens: 8000
+            temperature: 0.1
+          mode: chat
+          name: claude-3-7-sonnet-latest
+          provider: anthropic
+        prompt_template:
+        - edition_type: basic
+          role: system
+          text: "Convert the research into a strict JSON shape for industry-bootstrap.\
+            \ Output ONLY JSON.\n\n{\n  \"industry\": { \"name\": \"string\", \"description\"\
+            : \"<= 280 chars\" },\n  \"capabilities\": [\n    { \"name\": \"string\"\
+            , \"description\": \"string\", \"quadrant\": \"core|differentiator|qualifier|peripheral\"\
+            \ }\n  ],\n  \"valueChain\": [\n    { \"name\": \"string\", \"description\"\
+            : \"string\", \"order\": 1 }\n  ],\n  \"companies\": [\n    { \"name\"\
+            : \"string\", \"headquarters\": \"string\", \"employeeCount\": null, \"\
+            revenue2024Usd\": null }\n  ],\n  \"citations\": [{\"url\": \"string\"\
+            , \"title\": \"string\"}]\n}\n\nRules:\n- 8-12 capabilities, 4-6 valueChain\
+            \ stages, 10-20 companies.\n- `quadrant` is your best judgment; do not\
+            \ invent if unclear — use \"qualifier\" as the safe default.\n- Use null\
+            \ for numeric fields you can't source. Never fabricate revenue or headcount.\n\
+            - Preserve every research citation verbatim.\n"
+        - edition_type: basic
+          role: user
+          text: 'industryName: {{#start.industryName#}}
+
+
+            Research:
+
+            {{#extract.research#}}
+
+
+            Raw citations:
+
+            {{#extract.citations#}}
+
+            '
+        title: Shape into industry seed
+        type: llm
+      id: shape_llm
+      position:
+        x: 920
+        y: 240
+      type: custom
+    - data:
+        code: "import json\ndef main(text: str) -> dict:\n    s = text.strip()\n \
+          \   if s.startswith(\"```\"):\n        s = s.strip(\"`\")\n        if s.startswith(\"\
+          json\"):\n            s = s[4:]\n    try:\n        return {\"payload\":\
+          \ json.loads(s)}\n    except Exception:\n        return {\"payload\": {\"\
+          error\": \"parse_failed\", \"raw\": text[:1000]}}\n"
+        code_language: python3
+        outputs:
+          payload:
+            type: object
+        title: Coerce JSON
+        type: code
+        variables:
+        - value_selector:
+          - shape_llm
+          - text
+          variable: text
+      id: parse
+      position:
+        x: 1200
+        y: 240
+      type: custom
+    - data:
+        code: "import hmac, hashlib, json\ndef main(industry_name: str, payload: dict,\
+          \ run_id: str, key: str) -> dict:\n    body = {\n        \"clientRequestId\"\
+          : run_id,\n        \"kind\": \"industry_bootstrap\",\n        \"industryName\"\
+          : industry_name,\n        \"payload\": payload,\n    }\n    msg = json.dumps(body,\
+          \ separators=(\",\", \":\"), sort_keys=True).encode(\"utf-8\")\n    sig\
+          \ = hmac.new(key.encode(\"utf-8\"), msg, hashlib.sha256).hexdigest()\n \
+          \   return {\"signature\": sig, \"body\": msg.decode(\"utf-8\")}\n"
+        code_language: python3
+        outputs:
+          body:
+            type: string
+          signature:
+            type: string
+        title: HMAC sign body
+        type: code
+        variables:
+        - value_selector:
+          - start
+          - industryName
+          variable: industry_name
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        - value_selector:
+          - sys
+          - workflow_run_id
+          variable: run_id
+        - value_selector:
+          - env
+          - DIFY_CALLBACK_KEY
+          variable: key
+      id: hmac
+      position:
+        x: 1480
+        y: 240
+      type: custom
+    - data:
+        body:
+          data: '{{#hmac.body#}}'
+          type: raw-text
+        headers: 'Content-Type: application/json
+
+          X-Dify-Callback-Signature: {{#hmac.signature#}}
+
+          X-Dify-Workflow-Slug: industry-bootstrap
+
+          '
+        method: post
+        timeout:
+          max_connect_timeout: 10
+          max_read_timeout: 90
+          max_write_timeout: 90
+        title: POST /api/dify/callback/research-result
+        type: http-request
+        url: '{{#env.INFLEXCVI_API_BASE#}}/api/dify/callback/research-result'
+      id: callback
+      position:
+        x: 1760
+        y: 240
+      type: custom
+    - data:
+        outputs:
+        - value_selector:
+          - parse
+          - payload
+          variable: payload
+        title: End
+        type: end
+      id: end
+      position:
+        x: 2040
+        y: 240
+      type: custom
+  rag_pipeline_variables: []

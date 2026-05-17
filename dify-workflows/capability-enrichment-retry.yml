@@ -21,9 +21,9 @@ kind: app
 version: 0.1.5
 workflow:
   environment_variables:
-    - { name: INFLEXCVI_API_BASE, value: "" }
-    - { name: DIFY_CALLBACK_KEY, value: "" }
-    - { name: PERPLEXITY_API_KEY, value: "" }
+    - { name: INFLEXCVI_API_BASE, value: "", value_type: string }
+    - { name: DIFY_CALLBACK_KEY, value: "", value_type: string }
+    - { name: PERPLEXITY_API_KEY, value: "", value_type: string }
   conversation_variables: []
   features: { file_upload: { enabled: false }, text_to_speech: { enabled: false } }
   graph:
@@ -38,7 +38,7 @@ workflow:
             - { variable: capabilityId, type: number, label: Capability ID, required: true }
             - { variable: currentDraft, type: paragraph, label: Current Draft JSON, required: true }
             - { variable: lastError, type: paragraph, label: Last Error (optional), required: false }
-            - { variable: attempt, type: number, label: Attempt #, required: false }
+            - { variable: attempt, type: number, label: "Attempt number", required: false }
       - id: research_prompt
         type: custom
         position: { x: 360, y: 240 }
@@ -107,7 +107,7 @@ workflow:
             - { variable: body, value_selector: [perplexity, body] }
           outputs:
             research: { type: string }
-            citations: { type: array[object] }
+            citations: { type: "array[object]" }
             ok: { type: boolean }
       - id: synth_llm
         type: custom
@@ -178,7 +178,7 @@ workflow:
           outputs:
             payload: { type: object }
             ok: { type: boolean }
-            missing: { type: array[string] }
+            missing: { type: "array[string]" }
       - id: branch
         type: custom
         position: { x: 1760, y: 240 }
