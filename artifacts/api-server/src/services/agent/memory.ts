@@ -1,11 +1,17 @@
 import { db } from "@workspace/db";
 import { agentMemoriesTable } from "@workspace/db";
 import { desc, sql, and, eq } from "drizzle-orm";
+import { mem0AgentIdFor } from "./agent-registry";
 
 // Cutover note: was "cei-autonomous-agent" before the Inflexcvi rebrand.
 // Memories created under the old ID stay readable via mem0 search regardless
 // of agent_id (mem0 filters but doesn't gatekeep historical content), so no
 // data is lost — they just stop appearing in the default agent-scoped list.
+//
+// Now resolves per-call via mem0AgentIdFor() when an `agentName` is passed in
+// options/options. Defaults to the shared "cvi-autonomous-agent" pool to
+// preserve backward compat for the many call sites that don't yet pass an
+// agentName (the constant below is the fallback default).
 const MEM0_AGENT_ID = "cvi-autonomous-agent";
 
 export type MemoryType = "pattern" | "observation" | "insight" | "decision_context";
@@ -43,6 +49,14 @@ export interface StoreOptions {
   runId?: number | null;
   ttlDays?: number;
   context?: string;
+  /**
+   * Per-agent Mem0 namespace. When set, this memory is filed under the named
+   * agent's mem0 agent_id (resolved via AGENT_REGISTRY) instead of the shared
+   * cvi-autonomous-agent pool. Lets each specialized agent (macro-event,
+   * disruption, peer-coop, stack-optimizer, ontology, synthesis) recall only
+   * its own observations.
+   */
+  agentName?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,8 +248,11 @@ export async function storeMemory(
   metadata: Record<string, unknown> = {},
   options: StoreOptions = {},
 ): Promise<AgentMemory> {
-  const { category, runId, ttlDays = 90, context } = options;
+  const { category, runId, ttlDays = 90, context, agentName } = options;
   const expiresAt = new Date(Date.now() + ttlDays * 86400000);
+  // Resolve the Mem0 agent_id for this store. Falls back to the shared pool
+  // if no agentName is provided (preserves backward compat).
+  const resolvedAgentId = agentName ? mem0AgentIdFor(agentName) : MEM0_AGENT_ID;
 
   let mem0Id: string | null = null;
   let mem0EventId: string | null = null;
@@ -246,7 +263,7 @@ export async function storeMemory(
       const messages = buildConversationalMessages(type, category, content, context, metadata);
       const result = await mem0Fetch("/memories", "POST", {
         messages,
-        agent_id: MEM0_AGENT_ID,
+        agent_id: resolvedAgentId,
         ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
         metadata: {
           ...metadata,
@@ -376,9 +393,22 @@ export async function recallMemories(
     minConfidence?: number;
     createdAfter?: Date;
     topic?: string;
+    /**
+     * Per-agent Mem0 namespace. When set, recall is scoped to the named
+     * agent's mem0 agent_id (resolved via AGENT_REGISTRY) instead of the
+     * shared cvi-autonomous-agent pool.
+     */
+    agentName?: string;
+    /**
+     * Mem0 Cloud `criteria` parameter — biases retrieval ranking by recency,
+     * relevance, or completeness. Cloud-only; ignored on self-hosted.
+     */
+    criteria?: "recency" | "relevance" | "completeness";
   } = {},
 ): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
+  // Resolve the Mem0 agent_id for this recall. Falls back to the shared pool.
+  const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
   if (isMem0Available()) {
     try {
@@ -402,17 +432,19 @@ export async function recallMemories(
         if (options.topic) cloudMeta.topic = options.topic;
         const cloudBody: Record<string, unknown> = {
           query,
-          agent_id: MEM0_AGENT_ID,
+          agent_id: resolvedAgentId,
           limit,
           threshold: 0.35,
         };
         if (options.runId) cloudBody.run_id = `cycle-${options.runId}`;
         if (Object.keys(cloudMeta).length > 0) cloudBody.metadata = cloudMeta;
+        // Mem0 Cloud `criteria` param — biases ranking. Optional.
+        if (options.criteria) cloudBody.criteria = options.criteria;
         res = await mem0Fetch("/search", "POST", cloudBody) as typeof res;
       } else {
         // Self-hosted v2.x: nested AND filter DSL with metadata sub-filters.
         const andClauses: Record<string, unknown>[] = [
-          { agent_id: MEM0_AGENT_ID },
+          { agent_id: resolvedAgentId },
         ];
         if (options.runId) andClauses.push({ run_id: `cycle-${options.runId}` });
         if (type) andClauses.push({ metadata: { memoryType: type } });

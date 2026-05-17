@@ -3,6 +3,7 @@ import type { AgentState } from "@letta-ai/letta-client/resources/agents/agents"
 import type { LettaResponse, AssistantMessage, Message } from "@letta-ai/letta-client/resources/agents/messages";
 import { emitAgentEvent } from "./events";
 import { LETTA_CUSTOM_TOOLS } from "./letta-tools";
+import { AGENT_REGISTRY, type AgentRegistryEntry, lettaAgentNameFor } from "./agent-registry";
 
 const LETTA_API_KEY = process.env.LETTA_API_KEY || undefined;
 const LETTA_BASE_URL = process.env.LETTA_BASE_URL || (LETTA_API_KEY ? "https://api.letta.ai" : "http://localhost:8283");
@@ -110,6 +111,20 @@ let lettaConnected = false;
 let lastAttemptAt = 0;
 let initPromise: Promise<boolean> | null = null;
 
+/**
+ * Per-agent Letta state — one entry per AGENT_REGISTRY row. Populated by
+ * registerAllAgents() during doInit() after the primary cvi-autonomous-agent
+ * is up. Each entry holds the agent's id + its attached archive id so the
+ * per-agent variants of lettaArchivalInsert / lettaReadBlock / etc. can
+ * target the right Letta agent.
+ *
+ * The existing single-agent `lettaAgentId` / `lettaArchiveId` globals are
+ * preserved for backward compatibility — they continue to point at the
+ * cvi-autonomous-agent (also present in this map under "cvi-autonomous-agent").
+ */
+type AgentLettaState = { agentId: string; archiveId: string | null };
+const lettaAgentMap = new Map<string, AgentLettaState>();
+
 function extractAssistantText(messages: Message[]): string {
   return messages
     .filter((m): m is AssistantMessage => m.message_type === "assistant_message")
@@ -209,11 +224,20 @@ async function ensureCustomTools(): Promise<void> {
 async function ensureAttachedArchive(): Promise<void> {
   if (!lettaClient || !lettaAgentId) return;
   try {
+    // Letta SDK shape (v1.11.x): list method lives at the TOP-LEVEL
+    // archives resource (filtered by agent_id), not under agents.archives.
+    // The latter only exposes attach/detach. Filtering at top-level is the
+    // documented way per the SDK type `ArchiveListParams.agentId`.
     const lc = lettaClient as unknown as {
-      agents: { archives: { list: (agentId: string) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>> } };
-      archives: { create: (body: { name: string }) => Promise<{ id: string }> };
+      archives: {
+        list: (query: { agentId: string }) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>>;
+        create: (body: { name: string }) => Promise<{ id: string }>;
+      };
+      agents: {
+        archives: { attach: (archiveId: string, params: { agent_id: string }) => Promise<unknown> };
+      };
     };
-    const page = await lc.agents.archives.list(lettaAgentId);
+    const page = await lc.archives.list({ agentId: lettaAgentId });
     const attached: Array<{ id: string; name?: string }> = [];
     for await (const a of page as AsyncIterable<{ id: string; name?: string }>) {
       attached.push(a);
@@ -225,15 +249,104 @@ async function ensureAttachedArchive(): Promise<void> {
     }
     // Create + attach a fresh archive for this agent.
     const created = await lc.archives.create({ name: `${LETTA_AGENT_NAME}-archive` });
-    await (lettaClient as unknown as {
-      agents: { archives: { attach: (archiveId: string, params: { agent_id: string }) => Promise<unknown> } };
-    }).agents.archives.attach(created.id, { agent_id: lettaAgentId });
+    await lc.agents.archives.attach(created.id, { agent_id: lettaAgentId });
     lettaArchiveId = created.id;
     console.log(`[Letta] Archive created + attached — id=${lettaArchiveId} name=${LETTA_AGENT_NAME}-archive`);
   } catch (err) {
     console.log(`[Letta] Archive setup failed (non-fatal, archival memory disabled): ${err instanceof Error ? err.message : err}`);
     lettaArchiveId = null;
   }
+}
+
+/**
+ * Find-or-create a Letta agent for a single registry entry. Idempotent:
+ * if an agent with the registry's `lettaAgentName` already exists in the
+ * org, reuse it; otherwise create with the entry's persona + initial focus
+ * memory blocks + sleeptime configured. Also ensures the agent has an
+ * attached archive so passages.create / passages.search will work.
+ *
+ * Returns the agent state record (agentId + archiveId) or null on failure.
+ * Failure is non-fatal — the agent just won't be available in the per-agent
+ * map; the platform continues running on the shared cvi-autonomous-agent.
+ */
+async function registerLettaAgent(entry: AgentRegistryEntry, existingAgents: AgentState[]): Promise<AgentLettaState | null> {
+  if (!lettaClient) return null;
+  try {
+    const existing = existingAgents.find((a) => a.name === entry.lettaAgentName);
+    let agentId: string;
+    if (existing) {
+      agentId = existing.id;
+      console.log(`[Letta] Reused agent "${entry.lettaAgentName}" (${agentId})`);
+    } else {
+      // Per-agent memory blocks: persona (read-only identity) + current_focus
+      // (mutable working memory) + industry_priors (accumulated beliefs).
+      const newAgent = await (lettaClient.agents as unknown as {
+        create: (body: Record<string, unknown>) => Promise<{ id: string; managed_group?: { id: string } }>;
+      }).create({
+        name: entry.lettaAgentName,
+        description: `${entry.persona.slice(0, 200)}…`,
+        include_base_tools: true,
+        model: entry.lettaModel,
+        embedding: LETTA_EMBEDDING,
+        enable_sleeptime: entry.enableSleeptime,
+        memory_blocks: [
+          { label: "persona", value: entry.persona, description: "Identity and reasoning style for this agent.", limit: 4000, read_only: true },
+          { label: "current_focus", value: entry.initialFocus, description: "What this agent is currently working on this cycle.", limit: 2000 },
+          { label: "industry_priors", value: "(empty — populated as the agent observes patterns)", description: "Stable validated beliefs accumulated by this specific agent.", limit: 8000 },
+        ],
+      });
+      agentId = newAgent.id;
+      console.log(`[Letta] Created agent "${entry.lettaAgentName}" (${agentId}) with sleeptime=${entry.enableSleeptime}`);
+    }
+
+    // Attach an archive to this agent so archival memory ops work.
+    let archiveId: string | null = null;
+    try {
+      const lc = lettaClient as unknown as {
+        archives: {
+          list: (query: { agentId: string }) => AsyncIterable<{ id: string; name?: string }> | Promise<AsyncIterable<{ id: string; name?: string }>>;
+          create: (body: { name: string }) => Promise<{ id: string }>;
+        };
+        agents: { archives: { attach: (archiveId: string, params: { agent_id: string }) => Promise<unknown> } };
+      };
+      const page = await lc.archives.list({ agentId });
+      const attached: Array<{ id: string }> = [];
+      for await (const a of page as AsyncIterable<{ id: string }>) attached.push(a);
+      if (attached.length > 0) {
+        archiveId = attached[0]!.id;
+      } else {
+        const created = await lc.archives.create({ name: `${entry.lettaAgentName}-archive` });
+        await lc.agents.archives.attach(created.id, { agent_id: agentId });
+        archiveId = created.id;
+        console.log(`[Letta] Created + attached archive for "${entry.lettaAgentName}" (archive=${archiveId})`);
+      }
+    } catch (err) {
+      console.log(`[Letta] Archive setup for "${entry.lettaAgentName}" failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+    }
+
+    return { agentId, archiveId };
+  } catch (err) {
+    console.log(`[Letta] registerLettaAgent("${entry.lettaAgentName}") failed (non-fatal): ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
+
+/**
+ * Register every agent in AGENT_REGISTRY. Called from doInit() after the
+ * primary cvi-autonomous-agent setup so the agentsList is already paid for.
+ * Populates lettaAgentMap. Idempotent — safe to call on every boot.
+ */
+async function registerAllAgents(existingAgents: AgentState[]): Promise<void> {
+  if (!lettaClient) return;
+  let successes = 0;
+  for (const entry of AGENT_REGISTRY) {
+    const state = await registerLettaAgent(entry, existingAgents);
+    if (state) {
+      lettaAgentMap.set(entry.shortName, state);
+      successes++;
+    }
+  }
+  console.log(`[Letta] Registered ${successes}/${AGENT_REGISTRY.length} agents from AGENT_REGISTRY`);
 }
 
 async function doInit(): Promise<boolean> {
@@ -315,6 +428,20 @@ async function doInit(): Promise<boolean> {
     await ensureCoreBlocks();
     await ensureCustomTools();
     await ensureAttachedArchive();
+
+    // Register all 7 AGENT_REGISTRY agents in Letta. Idempotent — reuses by
+    // name on subsequent boots. The cvi-autonomous-agent we just set up above
+    // is also in the registry, so registerAllAgents will reuse its agentId
+    // and also seed its archive id into lettaAgentMap.
+    await registerAllAgents(agentsList);
+    // If the primary agent setup didn't get an archive (legacy path), backfill
+    // it from the registry map so single-agent callers can still use archival.
+    if (!lettaArchiveId) {
+      const primary = lettaAgentMap.get("cvi-autonomous-agent");
+      if (primary?.archiveId) {
+        lettaArchiveId = primary.archiveId;
+      }
+    }
 
     lettaConnected = true;
     emitAgentEvent({ type: "letta_connected", agentId: lettaAgentId });
@@ -520,6 +647,139 @@ export async function lettaReadAllBlocks(): Promise<Record<CoreBlockLabel, strin
     init[labels[i]!] = results[i] ?? null;
   }
   return init;
+}
+
+// ─── Per-agent accessors ──────────────────────────────────────────────────────
+// Public API surface for the 6 specialized agents (macro-event, disruption,
+// peer-coop, stack-optimizer, ontology, synthesis) and the primary cvi
+// agent. All look up the agent's id via lettaAgentMap; fall back to the
+// primary cvi-autonomous-agent if the registry entry is unknown — preserves
+// backward compat for any callers passing legacy / unknown names.
+
+/**
+ * Return the Letta agent_id for a given AGENT_REGISTRY short name, or null
+ * if the agent isn't registered (e.g. during the brief startup window before
+ * registerAllAgents() completes, or if Letta is offline).
+ */
+export function getLettaAgentId(shortName: string): string | null {
+  // Try direct match first
+  const direct = lettaAgentMap.get(shortName);
+  if (direct) return direct.agentId;
+  // Try via registry's name-resolution
+  const resolved = lettaAgentNameFor(shortName);
+  const fallback = lettaAgentMap.get(resolved);
+  if (fallback) return fallback.agentId;
+  // Last resort: the primary agent (preserves backward compat)
+  return lettaAgentId;
+}
+
+/**
+ * Return the Letta archive_id for a given AGENT_REGISTRY short name, or null
+ * if the agent has no attached archive yet.
+ */
+export function getLettaArchiveId(shortName: string): string | null {
+  const direct = lettaAgentMap.get(shortName);
+  if (direct?.archiveId) return direct.archiveId;
+  const resolved = lettaAgentNameFor(shortName);
+  const fallback = lettaAgentMap.get(resolved);
+  if (fallback?.archiveId) return fallback.archiveId;
+  return lettaArchiveId; // fallback to primary
+}
+
+/**
+ * Per-agent archival insert. Writes a passage to the named agent's archive.
+ * Falls back to the primary cvi-autonomous-agent if shortName is unknown.
+ */
+export async function lettaArchivalInsertFor(shortName: string, text: string): Promise<boolean> {
+  if (!lettaConnected && !await initLettaClient()) return false;
+  const archiveId = getLettaArchiveId(shortName);
+  if (!lettaClient || !archiveId) return false;
+  try {
+    await Promise.race([
+      (lettaClient as unknown as {
+        archives: { passages: { create: (archiveId: string, body: { text: string }) => Promise<unknown> } };
+      }).archives.passages.create(archiveId, { text }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+    ]);
+    emitAgentEvent({ type: "letta_archival_insert", chars: text.length });
+    return true;
+  } catch (err) {
+    if (LETTA_ENABLED) console.error(`[Letta] archival insert (${shortName}) failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+/**
+ * Per-agent archival search. Queries the named agent's archive only.
+ */
+export async function lettaArchivalSearchFor(shortName: string, query: string, limit: number = 5): Promise<Array<{ text: string; score?: number }>> {
+  if (!lettaConnected && !await initLettaClient()) return [];
+  const archiveId = getLettaArchiveId(shortName);
+  if (!lettaClient || !archiveId) return [];
+  try {
+    const result = await Promise.race([
+      (lettaClient as unknown as {
+        passages: { search: (body: { archive_id: string; query: string; limit?: number }) => Promise<unknown> };
+      }).passages.search({ archive_id: archiveId, query, limit }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("timeout")), 10000)),
+    ]);
+    const items = Array.isArray(result) ? result : ((result as { results?: unknown[] })?.results ?? []);
+    return (items as Array<{ text?: string; content?: string; score?: number }>)
+      .map((p) => ({ text: p.text || p.content || "", score: p.score }))
+      .filter((p) => p.text);
+  } catch (err) {
+    if (LETTA_ENABLED) console.error(`[Letta] archival search (${shortName}) failed:`, err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
+/**
+ * Per-agent core-block read. Each registered agent has its own persona,
+ * current_focus, and industry_priors blocks; this reads them by agent name.
+ */
+export async function lettaReadBlockFor(shortName: string, label: string): Promise<string | null> {
+  if (!lettaConnected && !await initLettaClient()) return null;
+  const agentId = getLettaAgentId(shortName);
+  if (!lettaClient || !agentId) return null;
+  try {
+    const block = await (lettaClient.agents.blocks as unknown as {
+      retrieve: (label: string, params: { agent_id: string }) => Promise<{ value?: string }>;
+    }).retrieve(label, { agent_id: agentId });
+    return block?.value ?? null;
+  } catch (err) {
+    if (LETTA_ENABLED) console.error(`[Letta] block read (${shortName}/${label}) failed:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+/**
+ * Per-agent core-block write.
+ */
+export async function lettaUpdateBlockFor(shortName: string, label: string, value: string): Promise<boolean> {
+  if (!lettaConnected && !await initLettaClient()) return false;
+  const agentId = getLettaAgentId(shortName);
+  if (!lettaClient || !agentId) return false;
+  try {
+    await (lettaClient.agents.blocks as unknown as {
+      update: (label: string, params: { agent_id: string; value: string }) => Promise<unknown>;
+    }).update(label, { agent_id: agentId, value });
+    return true;
+  } catch (err) {
+    if (LETTA_ENABLED) console.error(`[Letta] block update (${shortName}/${label}) failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+/**
+ * Diagnostic: returns the agent_id / archive_id map for every registered
+ * agent. Used by /api/health/services to surface registration state.
+ */
+export function getRegisteredAgents(): Array<{ shortName: string; agentId: string; archiveId: string | null }> {
+  return Array.from(lettaAgentMap.entries()).map(([shortName, state]) => ({
+    shortName,
+    agentId: state.agentId,
+    archiveId: state.archiveId,
+  }));
 }
 
 initLettaClient().catch(() => {});

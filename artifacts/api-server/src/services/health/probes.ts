@@ -15,8 +15,9 @@
  */
 
 import { isMem0Available, mem0Ping } from "../agent/memory";
-import { lettaPing } from "../agent/letta";
+import { lettaPing, getRegisteredAgents } from "../agent/letta";
 import { storePing } from "../agent/store";
+import { AGENT_REGISTRY } from "../agent/agent-registry";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
 import { organizationsTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
@@ -442,10 +443,51 @@ const probeTemporalShifts: Probe = async () => {
   }
 };
 
+/**
+ * Confirms that all 7 AGENT_REGISTRY agents are registered in Letta Cloud
+ * with their own agent_id + archive. This is the probe operators check
+ * after deploying the multi-agent registration refactor — if it reports
+ * "ok" with count=7/7, the Letta dashboard should now show all 7 agents,
+ * each with its own attached archive + sleeptime config.
+ */
+const probeAgentRegistry: Probe = async () => {
+  try {
+    const registered = getRegisteredAgents();
+    const total = AGENT_REGISTRY.length;
+    const withArchive = registered.filter((r) => r.archiveId).length;
+    if (registered.length === 0) {
+      // Letta init may not have run yet, or it failed silently.
+      return {
+        status: "not_configured",
+        latencyMs: null,
+        lastError: "No agents registered yet — Letta init may still be in progress or LETTA_API_KEY may be unset",
+      };
+    }
+    if (registered.length < total) {
+      return {
+        status: "degraded",
+        latencyMs: null,
+        lastError: `Only ${registered.length}/${total} agents registered (${withArchive} with archive). Check api-server logs for [Letta] registerLettaAgent warnings.`,
+      };
+    }
+    if (withArchive < total) {
+      return {
+        status: "degraded",
+        latencyMs: null,
+        lastError: `${total}/${total} agents registered but only ${withArchive}/${total} have an attached archive. Archival memory will be partial.`,
+      };
+    }
+    return { status: "ok", latencyMs: null, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
+};
+
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
   agent_store: probeAgentStore,
+  agent_registry: probeAgentRegistry,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
   openrouter: probeOpenRouter,

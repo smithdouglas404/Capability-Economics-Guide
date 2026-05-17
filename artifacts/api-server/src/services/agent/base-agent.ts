@@ -73,22 +73,47 @@ async function buildMemoryContext(
 ): Promise<string> {
   const contextParts: string[] = [];
 
-  // 1. Mem0 semantic recall
+  // 1. Mem0 semantic recall — per-agent.
+  // Each specialized agent now has its own Mem0 agent_id (resolved via
+  // AGENT_REGISTRY), so this recall returns only memories THIS agent has
+  // written. The synthesis-agent additionally recalls the shared pool below
+  // because its job is cross-agent.
   try {
     const memories = await recallMemories(
       recallTopic,
       undefined,
       5,
-      { category: "pattern" },
+      { category: "pattern", agentName, criteria: "relevance" },
     );
     if (memories.length > 0) {
       const memLines = memories
         .map(m => `  - ${m.content.substring(0, 200)}`)
         .join("\n");
-      contextParts.push(`RELEVANT PATTERNS FROM MEMORY:\n${memLines}`);
+      contextParts.push(`RELEVANT PATTERNS FROM YOUR MEMORY:\n${memLines}`);
     }
   } catch {
     // Non-fatal — agent runs without memory context if Mem0 is down
+  }
+
+  // 1b. Cross-agent shared-pool recall — also pull from the institutional
+  // memory under the original cvi-autonomous-agent pool so individual agents
+  // benefit from research the core agent has done. Limit 3 to keep the
+  // prompt budget tight.
+  try {
+    const sharedMemories = await recallMemories(
+      recallTopic,
+      undefined,
+      3,
+      { category: "pattern", criteria: "relevance" },
+    );
+    if (sharedMemories.length > 0) {
+      const memLines = sharedMemories
+        .map(m => `  - ${m.content.substring(0, 200)}`)
+        .join("\n");
+      contextParts.push(`INSTITUTIONAL PATTERNS (shared across all agents):\n${memLines}`);
+    }
+  } catch {
+    // Non-fatal
   }
 
   // 2. Agent's own prior block
@@ -134,13 +159,16 @@ async function writePostRunMemory(
 ): Promise<void> {
   if (!output || output.length < 50) return;
 
-  // Summarize the output to a concise memory entry
+  // Summarize the output to a concise memory entry, written under THIS
+  // agent's mem0 agent_id (not the shared cvi-autonomous-agent pool) so
+  // recalls from this agent's perspective don't get drowned out by the
+  // other agents' run summaries.
   const summary = output.substring(0, 400);
   await storeMemory(
     "observation",
     `[${agentName}] ${summary}`,
     { source: agentName, agentRun: true },
-    { category: "agent_run_summary" },
+    { category: "agent_run_summary", agentName },
   ).catch(() => {
     // Non-fatal
   });
