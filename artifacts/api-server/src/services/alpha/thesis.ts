@@ -26,9 +26,12 @@ export interface ThesisMemo {
   };
 }
 
-async function glmJson(prompt: string, maxTokens = 3000): Promise<string> {
+const DEFAULT_LLM_MODEL = "anthropic/claude-sonnet-4.6";
+
+async function openrouterChatJson(prompt: string, maxTokens = 3000): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  const model = process.env.LLM_MODEL || DEFAULT_LLM_MODEL;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180000);
   try {
@@ -41,16 +44,16 @@ async function glmJson(prompt: string, maxTokens = 3000): Promise<string> {
         "X-Title": "Inflexcvi Thesis",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.6",
+        model,
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
       }),
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
+    if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
     const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`GLM: ${data.error.message}`);
+    if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
     return data.choices?.[0]?.message?.content ?? "";
   } finally { clearTimeout(timeout); }
 }
@@ -59,7 +62,7 @@ function extractJson(text: string): unknown {
   const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
   const m = cleaned.match(/\{[\s\S]*\}/);
   if (m) { try { return JSON.parse(m[0]); } catch {} }
-  throw new Error("Bad JSON from GLM");
+  throw new Error("Bad JSON from OpenRouter");
 }
 
 export async function generateThesisMemo(capabilityId: number): Promise<ThesisMemo> {
@@ -158,9 +161,9 @@ Two specific observations that would invalidate this thesis.
 
 Be concrete. Use real numbers from the data. Do not hedge. Do not add disclaimers. Output ONLY the JSON object with the "memoMarkdown" key.`;
 
-  const raw = await glmJson(prompt, 3500);
+  const raw = await openrouterChatJson(prompt, 3500);
   const parsed = extractJson(raw) as { memoMarkdown?: string };
-  if (!parsed.memoMarkdown) throw new Error("GLM returned no memo content");
+  if (!parsed.memoMarkdown) throw new Error("OpenRouter returned no memo content");
 
   return {
     capabilityId,

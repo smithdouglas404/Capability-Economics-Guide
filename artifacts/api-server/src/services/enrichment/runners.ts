@@ -1,6 +1,7 @@
 /**
  * Per-table enrichment runners — the actual functions that hit Perplexity +
- * GLM and write to capability_quadrants / value_chain_stages /
+ * an LLM (Claude Sonnet 4.6 via OpenRouter by default; override with LLM_MODEL)
+ * and write to capability_quadrants / value_chain_stages /
  * company_capability_profiles. The LangGraph tools in `tools.ts` wrap these,
  * and the synchronous per-cap rerun route pre-calls `enrichCapabilityQuadrants`
  * directly. There is no "linear pipeline" entry point — `runEnrichmentGraph`
@@ -51,9 +52,10 @@ async function perplexitySearch(query: string): Promise<PerplexityResult> {
   return { content, sources };
 }
 
-async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> {
+async function openrouterSynthesize(prompt: string, maxTokens = 4096): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  const model = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6";
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180000);
@@ -68,7 +70,7 @@ async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> 
         "X-Title": "Inflexcvi",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.6",
+        model,
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -76,10 +78,10 @@ async function glmSynthesize(prompt: string, maxTokens = 4096): Promise<string> 
     });
     if (!resp.ok) {
       const errText = await resp.text().catch(() => "unknown");
-      throw new Error(`GLM HTTP ${resp.status}: ${errText.substring(0, 200)}`);
+      throw new Error(`OpenRouter HTTP ${resp.status} (model=${model}): ${errText.substring(0, 200)}`);
     }
     const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`GLM error: ${data.error.message}`);
+    if (data.error) throw new Error(`OpenRouter error (model=${model}): ${data.error.message}`);
     return data.choices?.[0]?.message?.content ?? "";
   } finally {
     clearTimeout(timeout);
@@ -111,7 +113,7 @@ function extractJson(text: string): unknown {
     try { return JSON.parse(objMatch[0]); } catch {}
   }
 
-  throw new Error("No JSON found in GLM response");
+  throw new Error("No JSON found in LLM response");
 }
 
 export async function enrichCapabilityQuadrants(
@@ -130,7 +132,7 @@ export async function enrichCapabilityQuadrants(
 
   if (!researchResult.content) return { classified: 0, errors: [`No Perplexity response for ${industryName} quadrants`] };
 
-  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} capabilities:
+  const llmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} capabilities:
 
 ${researchResult.content}
 
@@ -144,7 +146,7 @@ For each of these capabilities, produce a JSON array where each element has:
 
 Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 
-  const glmText = await glmSynthesize(glmPrompt);
+  const llmText = await openrouterSynthesize(llmPrompt);
   let parsed: Array<{
     name: string;
     quadrant: string;
@@ -154,10 +156,10 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
     rationale: string;
   }>;
   try {
-    parsed = extractJson(glmText) as typeof parsed;
+    parsed = extractJson(llmText) as typeof parsed;
     if (!Array.isArray(parsed)) throw new Error("Not an array");
   } catch (e) {
-    errors.push(`GLM parse error for ${industryName} quadrants: ${e}`);
+    errors.push(`LLM parse error for ${industryName} quadrants: ${e}`);
     return { classified, errors };
   }
 
@@ -171,7 +173,7 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
       continue;
     }
     if (item.economic_impact_score == null || item.adoption_momentum_score == null || item.disruption_intensity == null || !item.rationale) {
-      errors.push(`Skipping ${item.name}: missing required fields from GLM output`);
+      errors.push(`Skipping ${item.name}: missing required fields from LLM output`);
       continue;
     }
     try {
@@ -218,7 +220,7 @@ export async function enrichValueChainStages(
 
   if (!researchResult.content) return { created: 0, errors: [`No Perplexity response for ${industryName} value chain`] };
 
-  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about the ${industryName} value chain:
+  const llmPrompt = `You are a Inflexcvi analyst. Based on this research about the ${industryName} value chain:
 
 ${researchResult.content}
 
@@ -241,17 +243,17 @@ Produce a JSON array of 6-8 value chain stages, each with:
 
 Return ONLY a JSON array. No markdown.`;
 
-  log.info(`  Value chain: calling Perplexity done, calling GLM for ${industryName}...`);
-  let glmText: string;
+  log.info(`  Value chain: calling Perplexity done, calling LLM for ${industryName}...`);
+  let llmText: string;
   try {
-    glmText = await glmSynthesize(glmPrompt, 8192);
+    llmText = await openrouterSynthesize(llmPrompt, 8192);
   } catch (e) {
-    log.error(`  Value chain GLM FAILED for ${industryName}: ${e}`);
-    errors.push(`GLM call failed for ${industryName} value chain: ${e}`);
+    log.error(`  Value chain LLM FAILED for ${industryName}: ${e}`);
+    errors.push(`LLM call failed for ${industryName} value chain: ${e}`);
     return { created, errors };
   }
 
-  log.info(`  Value chain GLM response length: ${glmText.length} chars`);
+  log.info(`  Value chain LLM response length: ${llmText.length} chars`);
 
   let parsed: Array<{
     stage_name: string;
@@ -271,11 +273,11 @@ Return ONLY a JSON array. No markdown.`;
     key_companies: string[];
   }>;
   try {
-    parsed = extractJson(glmText) as typeof parsed;
+    parsed = extractJson(llmText) as typeof parsed;
     if (!Array.isArray(parsed)) throw new Error("Not an array");
   } catch (e) {
-    log.error(`  Value chain parse failed. First 500 chars of GLM text: ${glmText.substring(0, 500)}`);
-    errors.push(`GLM parse error for ${industryName} value chain: ${e}`);
+    log.error(`  Value chain parse failed. First 500 chars of LLM text: ${llmText.substring(0, 500)}`);
+    errors.push(`LLM parse error for ${industryName} value chain: ${e}`);
     return { created, errors };
   }
 
@@ -337,7 +339,7 @@ export async function enrichCompanyProfiles(
 
   if (!researchResult.content) return { profiled: 0, mapped: 0, errors: [`No Perplexity response for ${industryName} companies`] };
 
-  const glmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} companies:
+  const llmPrompt = `You are a Inflexcvi analyst. Based on this research about ${industryName} companies:
 
 ${researchResult.content}
 
@@ -355,7 +357,7 @@ Produce a JSON array of 15-25 real companies, each with:
 
 Return ONLY a JSON array. No markdown.`;
 
-  const glmText = await glmSynthesize(glmPrompt, 6144);
+  const llmText = await openrouterSynthesize(llmPrompt, 6144);
   let parsed: Array<{
     name: string;
     country: string;
@@ -369,10 +371,10 @@ Return ONLY a JSON array. No markdown.`;
     primary_capabilities: string[];
   }>;
   try {
-    parsed = extractJson(glmText) as typeof parsed;
+    parsed = extractJson(llmText) as typeof parsed;
     if (!Array.isArray(parsed)) throw new Error("Not an array");
   } catch (e) {
-    errors.push(`GLM parse error for ${industryName} companies: ${e}`);
+    errors.push(`LLM parse error for ${industryName} companies: ${e}`);
     return { profiled, mapped, errors };
   }
 
@@ -385,7 +387,7 @@ Return ONLY a JSON array. No markdown.`;
       continue;
     }
     if (company.fevi_score == null || company.cdi_score == null) {
-      errors.push(`Skipping ${company.name}: missing FEVI/CDI scores from GLM output`);
+      errors.push(`Skipping ${company.name}: missing FEVI/CDI scores from LLM output`);
       continue;
     }
     try {

@@ -176,12 +176,21 @@ No direct competitor offers continuous, quantified, AI-driven capability intelli
 
 The most defensible competitive asset is not the software — it is the accumulated research corpus. After 12 months of 3× daily research cycles:
 
-- **~3,000 agent memories** stored in Mem0 Cloud (observations, patterns, insights, decision contexts)
+- **~3,000 agent memories** stored in Mem0 (observations, patterns, insights, decision contexts)
 - **~4,000 source triangulations** in the database (Perplexity evidence records per capability)
 - **~500 CVI snapshots** (time-series history across 6 industries)
 - **Calibrated priors** — the agent's Bayesian prior for each capability shifts from the non-informative prior (μ=50, σ=25) to an informative prior derived from 12 months of observed data
 
 A competitor launching today with the same technology stack cannot replicate this corpus. They can build the software; they cannot buy the data. This creates an asymmetric compounding advantage: every research cycle widens the gap.
+
+### 4.4 The Defensibility-By-Rule Architecture
+
+Two design choices guarantee the platform's outputs are defensible to a customer or auditor, not merely "AI-generated":
+
+- **Industry GDP weights** in the CVI rollup are not hand-typed. They are pulled per industry via Perplexity with a mandatory `source_url`, `source_year`, and `source_citations[]`. The schema enforces it (the column is `NOT NULL`). Industries without a citable weight are *excluded* from the overall index with a visible warning, never substituted with a synthetic number.
+- **Reference organizations** that anchor peer benchmarks are not hand-picked. The single criterion used to select them (e.g., *"top 10 per industry by trailing-12-month revenue, mixing public + largest known private, including at least 2 non-US companies and at least 1 disruptor or SMB where one materially exists"*) is stored as one row in the DB. A Perplexity-driven populator applies the criterion per industry on a 90-day refresh, and every populated entry carries a source URL. Entries without verifiable revenue citations are dropped, not padded.
+
+In both cases, the *artifact a customer can argue with* is the criterion or the schema — not the output. There is no "where does this number come from?" gap because the answer is always a URL and a rule.
 
 ---
 

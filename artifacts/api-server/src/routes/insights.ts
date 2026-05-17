@@ -286,7 +286,7 @@ Only output the JSON array, no other text.`;
           "X-Title": "Inflexcvi",
         },
         body: JSON.stringify({
-          model: "anthropic/claude-haiku-4.5",
+          model: process.env.LLM_MODEL || "anthropic/claude-haiku-4.5",
           max_tokens: 4096,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -297,7 +297,7 @@ Only output the JSON array, no other text.`;
     }
 
     const data = (await resp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`GLM error: ${data.error.message}`);
+    if (data.error) throw new Error(`OpenRouter error: ${data.error.message}`);
     const text = data.choices?.[0]?.message?.content ?? "";
 
     let insights;
@@ -317,7 +317,7 @@ Only output the JSON array, no other text.`;
         content: insight.content,
         severity: insight.severity || "info",
         recommendation: insight.recommendation,
-        metadata: { source: "openrouter", model: "anthropic/claude-haiku-4.5", generatedAt: new Date().toISOString() },
+        metadata: { source: "openrouter", model: process.env.LLM_MODEL || "anthropic/claude-haiku-4.5", generatedAt: new Date().toISOString() },
       });
     }
 

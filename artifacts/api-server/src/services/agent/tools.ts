@@ -506,7 +506,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
             "X-Title": "Inflexcvi",
           },
           body: JSON.stringify({
-            model: "anthropic/claude-sonnet-4.6",
+            model: process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6",
             max_tokens: 4096,
             messages: [{ role: "user", content: prompt }],
           }),

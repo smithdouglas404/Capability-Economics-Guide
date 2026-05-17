@@ -60,7 +60,7 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
 - Comprehensive schema including `industries`, `capabilities`, `organizations`, `technology_projects`, `capability_thresholds`, `capability_insights`, `industry_leaderboard`, `data_sources`, `ontology_relationships`, `cei_snapshots`, `agent_runs`, `capability_quadrants`, `value_chain_stages`, and `company_capability_profiles`.
 
 ### Enrichment Pipeline
-- **Process**: Perplexity research feeds into GLM 5.1 (via OpenRouter) for synthesis and DB insertion.
+- **Process**: Perplexity research feeds into the LLM synthesis layer (Claude Sonnet 4.6 by default, via OpenRouter; overridable per-deploy via `LLM_MODEL` env var; cascades Sonnet → Haiku → GLM 5.1 on credit/budget errors via `services/llm-fallback.ts`) for typed-JSON synthesis and DB insertion.
 - **Phases**: Capability quadrant classification, value chain stages, and company profiles.
 - **Data Retention**: Tracks run history in `enrichment_runs` with status and duration.
 - **Concurrency**: Lock to prevent simultaneous enrichment runs.
@@ -84,11 +84,12 @@ Do not make changes to the file `lib/api-zod/src/index.ts`.
 
 - **Database**: PostgreSQL
 - **AI/LLM**:
-    - Anthropic Claude (via Replit AI Integrations proxy)
+    - Anthropic Claude Sonnet 4.6 / Haiku 4.5 (via OpenRouter, with `LLM_MODEL` env-var override)
     - Perplexity API (for research, `PERPLEXITY_API_KEY`)
-    - GLM 5.1 (via OpenRouter for synthesis)
-- **Memory**: Mem0 Cloud (`MEM0_API_KEY`)
-- **Stateful Agent Layer**: Letta (`@letta-ai/letta-client`)
+    - OpenRouter (chat-completions; `OPENROUTER_API_KEY`). Sonnet → Haiku → `z-ai/glm-5.1` fallback chain via `services/llm-fallback.ts`.
+- **Graph store**: Neo4j (wired into `services/agent/graphMemory.ts` with PostgreSQL fallback; `NEO4J_URI`/`NEO4J_USER`/`NEO4J_PASSWORD`)
+- **Memory**: Mem0 (self-hosted on Railway from `mem0/Dockerfile`; `MEM0_BASE_URL`/`MEM0_API_KEY`)
+- ~~**Stateful Agent Layer**: Letta~~ — DECOMMISSIONED in Phase 1.9 Step 6. Replaced by PostgresStore (shared agent store with namespaced reads/writes).
 - **UI Frameworks/Libraries**:
     - `wouter` (client-side routing)
     - `framer-motion` (animations)

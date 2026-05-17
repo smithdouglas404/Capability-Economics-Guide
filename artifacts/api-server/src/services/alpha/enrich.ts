@@ -39,9 +39,12 @@ async function perplexity(query: string): Promise<PerplexityResult> {
   } finally { clearTimeout(timeout); }
 }
 
-async function glmJson(prompt: string, maxTokens = 2000): Promise<string> {
+const DEFAULT_LLM_MODEL = "anthropic/claude-sonnet-4.6";
+
+async function openrouterChatJson(prompt: string, maxTokens = 2000): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  const model = process.env.LLM_MODEL || DEFAULT_LLM_MODEL;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120000);
   try {
@@ -54,16 +57,16 @@ async function glmJson(prompt: string, maxTokens = 2000): Promise<string> {
         "X-Title": "Inflexcvi Alpha",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.6",
+        model,
         max_tokens: maxTokens,
         response_format: { type: "json_object" },
         messages: [{ role: "user", content: prompt }],
       }),
       signal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
+    if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
     const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`GLM: ${data.error.message}`);
+    if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
     return data.choices?.[0]?.message?.content ?? "";
   } finally { clearTimeout(timeout); }
 }
@@ -74,7 +77,7 @@ function extractJson(text: string): unknown {
   if (objMatch) { try { return JSON.parse(objMatch[0]); } catch {} }
   const arrMatch = cleaned.match(/\[[\s\S]*\]/);
   if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch {} }
-  throw new Error("No JSON in GLM response");
+  throw new Error("No JSON in OpenRouter response");
 }
 
 async function enrichOneCapabilityEconomics(
@@ -94,7 +97,7 @@ async function enrichOneCapabilityEconomics(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const glmText = await glmJson(
+    const llmText = await openrouterChatJson(
       `Analyst research on "${cap.name}" in ${industryName}:\n\n${research.content}\n\n` +
       `Return ONLY a JSON object with keys:\n` +
       `"tam_usd_mm" (number, null if unknown), ` +
@@ -110,7 +113,7 @@ async function enrichOneCapabilityEconomics(
       `Output strict JSON, no prose.`
     );
 
-    const parsed = extractJson(glmText) as {
+    const parsed = extractJson(llmText) as {
       tam_usd_mm?: number | null;
       sam_usd_mm?: number | null;
       margin_structure_pct?: number;
@@ -189,7 +192,7 @@ async function enrichOneEdge(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const glmText = await glmJson(
+    const llmText = await openrouterChatJson(
       `Research on cascade edge "${from}" → "${to}":\n\n${research.content}\n\n` +
       `Return ONLY a JSON object with keys:\n` +
       `"disruption_probability" (0-1), ` +
@@ -200,7 +203,7 @@ async function enrichOneEdge(
       1200,
     );
 
-    const parsed = extractJson(glmText) as {
+    const parsed = extractJson(llmText) as {
       disruption_probability?: number;
       time_to_impact_months?: number;
       dollar_impact_mm?: number;
@@ -247,7 +250,7 @@ async function enrichOneCapabilityDetail(
     const depList = deps.map(d => ({ name: d.dependsOnName, strength: d.strength }));
     const roleList = roles.map(r => ({ title: r.roleTitle, name: r.roleName, relevance: r.relevance }));
 
-    const glmText = await glmJson(
+    const llmText = await openrouterChatJson(
       `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
       `Existing context:\n` +
       `- traditional view: "${cap.traditionalView ?? ""}"\n` +
@@ -278,7 +281,7 @@ async function enrichOneCapabilityDetail(
       4000,
     );
 
-    const parsed = extractJson(glmText) as {
+    const parsed = extractJson(llmText) as {
       summary_narrative?: string;
       traditional_narrative?: string;
       alpha_narrative?: string;
@@ -419,7 +422,7 @@ async function regenerateOneAiSection(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const glmText = await glmJson(
+    const llmText = await openrouterChatJson(
       `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
       `Return ONLY a JSON object with these keys:\n` +
       `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months), ` +
@@ -430,7 +433,7 @@ async function regenerateOneAiSection(
       2000,
     );
 
-    const parsed = extractJson(glmText) as {
+    const parsed = extractJson(llmText) as {
       ai_exposure_score?: number;
       ai_time_to_displacement_months?: number;
       ai_substitutes?: string[];

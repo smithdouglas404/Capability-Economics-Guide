@@ -3,23 +3,39 @@
  * (latest available year, World Bank / IMF sources). Replaces the prior
  * hardcoded INDUSTRY_GDP_WEIGHTS constant in cei-engine.ts.
  *
- * No fallback values per firm rule: if Perplexity fails to return a numeric gdp_share or
- * a sourceUrl for an industry, that row is SKIPPED and logged. Missing rows
- * cause the engine to EXCLUDE that industry from the overall CVI rollup *with a warning* rather
- * than substituting a synthetic number.
+ * No fallback values per firm rule: if Perplexity fails to return a numeric
+ * gdp_share or a sourceUrl for an industry, that row is SKIPPED and logged.
+ * Missing rows cause the CVI engine to EXCLUDE that industry from the overall
+ * rollup *with a warning* rather than substituting a synthetic number.
  *
- * Idempotent: existing rows for an industry are left in place. Pass
- * `FORCE=1` to overwrite.
+ * Idempotent: existing rows for an industry are left in place. Pass `FORCE=1`
+ * to overwrite.
  *
- * Run: cd artifacts/api-server && ./node_modules/.bin/tsx scripts-seed-gdp-weights.mts
+ * Skip flags (for deploy-migrate SEED_CHAIN safety):
+ *   SKIP_GDP_WEIGHTS_SEED=1      — bypass the seed (exit 0)
+ *   PERPLEXITY_API_KEY missing   — log warning and exit 0 (graceful degrade);
+ *                                  the CVI engine will continue to warn at
+ *                                  startup about missing weights until the key
+ *                                  is provided and the seed re-runs.
+ *
+ * Exit codes:
+ *   0  — success, or graceful degrade (no key / skipped). Per-industry errors
+ *        are logged but never fail the deploy; the engine handles missing
+ *        weights by excluding them from the rollup.
+ *   1  — catastrophic error only (DB connection lost, etc.). Never used for
+ *        per-industry Perplexity failures.
  */
 import { db } from "@workspace/db";
 import { industriesTable, industryGdpWeightsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
+if (process.env.SKIP_GDP_WEIGHTS_SEED === "1" || process.env.SKIP_GDP_WEIGHTS_SEED === "true") {
+  console.log("[seed:gdp-weights] SKIP_GDP_WEIGHTS_SEED set — skipping");
+  process.exit(0);
+}
 if (!process.env.PERPLEXITY_API_KEY) {
-  console.error("ERROR: PERPLEXITY_API_KEY not set");
-  process.exit(1);
+  console.warn("[seed:gdp-weights] PERPLEXITY_API_KEY not set — skipping (CVI engine will continue to warn about missing weights until the key is provided)");
+  process.exit(0);
 }
 const FORCE = process.env.FORCE === "1";
 
@@ -83,35 +99,35 @@ For sub-industries (e.g. Residential Solar) treat as the share of world GDP attr
 }
 
 const inds = await db.select().from(industriesTable);
-console.log(`Seeding GDP weights for ${inds.length} industries (FORCE=${FORCE ? "yes" : "no"})`);
+console.log(`[seed:gdp-weights] processing ${inds.length} industries (FORCE=${FORCE ? "yes" : "no"})`);
 
 let inserted = 0;
-let skipped = 0;
+let alreadySeeded = 0;
+let errored = 0;
 const errors: string[] = [];
 
 for (const ind of inds) {
   const existing = await db.select().from(industryGdpWeightsTable).where(eq(industryGdpWeightsTable.industryId, ind.id)).limit(1);
   if (existing.length > 0 && !FORCE) {
-    console.log(`  [skip] ${ind.name} — already has gdp_share=${existing[0]!.gdpShare} (set FORCE=1 to overwrite)`);
+    console.log(`  [skip] ${ind.name} — already seeded (gdp_share=${existing[0]!.gdpShare})`);
+    alreadySeeded++;
     continue;
   }
   try {
     const { parsed, citations } = await callPerplexity(ind.name);
-    // Strict validation: no fallback values. If Perplexity didn't return a
-    // numeric share in (0,1] or a non-empty source_url, we skip the row.
     if (typeof parsed.gdp_share !== "number" || !isFinite(parsed.gdp_share) || parsed.gdp_share <= 0 || parsed.gdp_share > 1) {
       errors.push(`${ind.name}: invalid gdp_share=${parsed.gdp_share}`);
-      skipped++;
+      errored++;
       continue;
     }
     if (typeof parsed.source_url !== "string" || parsed.source_url.length === 0) {
       errors.push(`${ind.name}: missing source_url`);
-      skipped++;
+      errored++;
       continue;
     }
     if (typeof parsed.source_year !== "number" || parsed.source_year < 2015 || parsed.source_year > new Date().getFullYear()) {
       errors.push(`${ind.name}: invalid source_year=${parsed.source_year}`);
-      skipped++;
+      errored++;
       continue;
     }
     const row = {
@@ -132,11 +148,17 @@ for (const ind of inds) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     errors.push(`${ind.name}: ${msg.substring(0, 200)}`);
-    skipped++;
+    errored++;
     console.log(`  [err]  ${ind.name} — ${msg.substring(0, 200)}`);
   }
 }
 
-console.log("\n=== summary ===");
-console.log(JSON.stringify({ totalIndustries: inds.length, inserted, skipped, errors }, null, 2));
-process.exit(skipped > 0 ? 1 : 0);
+console.log(`[seed:gdp-weights] done. inserted=${inserted} alreadySeeded=${alreadySeeded} errored=${errored}`);
+if (errored > 0) {
+  console.log(`[seed:gdp-weights] per-industry errors (non-fatal):`);
+  for (const e of errors) console.log(`    - ${e}`);
+}
+// Always exit 0 — per-industry Perplexity failures are non-fatal for the deploy.
+// The CVI engine handles missing weights by excluding industries from the rollup
+// with a warning. Failed industries will retry on the next deploy.
+process.exit(0);

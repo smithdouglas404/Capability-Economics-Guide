@@ -44,13 +44,18 @@ export async function sendEmail({ to, subject, text, html }: {
   subject: string;
   text: string;
   html?: string;
-}): Promise<void> {
-  await sendRaw({
-    to,
-    subject,
-    text,
-    html: html ?? wrap(`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))}</pre>`),
-  });
+}): Promise<boolean> {
+  try {
+    return await sendRawStrict({
+      to,
+      subject,
+      text,
+      html: html ?? wrap(`<pre style="font-family: ui-monospace, monospace; white-space: pre-wrap;">${text.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c))}</pre>`),
+    });
+  } catch (err) {
+    logger.warn({ err, to, subject }, "[email] send failed");
+    return false;
+  }
 }
 
 async function sendRaw(payload: EmailPayload): Promise<void> {

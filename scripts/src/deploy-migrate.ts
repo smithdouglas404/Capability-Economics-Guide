@@ -31,11 +31,31 @@
  *        seed                       — knowledge graph base (industries,
  *                                     capabilities). Everything below
  *                                     depends on these rows existing.
+ *        seed:gdp-weights           — Perplexity-cited GDP shares for the
+ *                                     CVI weighted rollup. Graceful-degrade:
+ *                                     no PERPLEXITY_API_KEY → skip (exit 0),
+ *                                     per-industry Perplexity failures are
+ *                                     logged but never fail the deploy. The
+ *                                     CVI engine excludes industries with no
+ *                                     weight from the overall index.
+ *        seed:reference-org-rule    — single-row criterion ("top 10 per
+ *                                     industry by revenue, mixing public +
+ *                                     private, intl coverage…") that the
+ *                                     populator below applies. Editable
+ *                                     later via admin UI.
+ *        seed:reference-orgs        — Perplexity-driven populator that reads
+ *                                     the rule and inserts reference orgs
+ *                                     into `organizations` with source URLs.
+ *                                     Replaces the previous hardcoded 12-org
+ *                                     list. Refresh-window guarded
+ *                                     (default 90d); override with
+ *                                     FORCE_REFERENCE_ORGS_REFRESH=1.
+ *                                     Graceful-degrade if no PERPLEXITY_API_KEY.
+ *        seed:organizations         — per-capability Perplexity scoring of
+ *                                     the reference orgs (reads from DB,
+ *                                     no longer owns the list).
  *        seed:marketplace           — legacy marketplace listings
  *                                     (back-compat).
- *        seed:organizations         — 12 reference orgs (Allstate, JPMC,
- *                                     etc.) with capability assessments
- *                                     populated.
  *        seed:patterns              — Uber/Stripe/OpenAI design-thinking
  *                                     exemplars (workbench priming).
  *        seed:reports               — 8 marketplace research listings.
@@ -53,11 +73,21 @@
  *          can blow past Railway's health-check window. Run manually.
  *
  *      Per-seed skip flags (set in env to bypass):
- *        SKIP_KNOWLEDGE_GRAPH_SEED, SKIP_MARKETPLACE_SEED,
- *        SKIP_ORGANIZATIONS_SEED, SKIP_PATTERNS_SEED, SKIP_REPORTS_SEED,
+ *        SKIP_KNOWLEDGE_GRAPH_SEED, SKIP_GDP_WEIGHTS_SEED,
+ *        SKIP_REFERENCE_ORG_RULE_SEED, SKIP_REFERENCE_ORGS_SEED,
+ *        SKIP_MARKETPLACE_SEED, SKIP_ORGANIZATIONS_SEED,
+ *        SKIP_PATTERNS_SEED, SKIP_REPORTS_SEED,
  *        SKIP_ALPHA_CONFIG_SEED, SKIP_PAYG_SEED,
  *        SKIP_DISRUPTION_PATTERN_SEED, SKIP_DISRUPTION_EVENT_SEED
  *      Each individual seed script honors its own flag.
+ *
+ *      Force flags (override idempotency / refresh windows):
+ *        FORCE_REFERENCE_ORGS_REFRESH=1  re-run reference-orgs even if
+ *                                        within the refresh window.
+ *        RESET_REFERENCE_ORGS=1          DESTRUCTIVE — deletes all rows
+ *                                        with sessionToken LIKE
+ *                                        'seed:reference:%' before re-populating.
+ *                                        Customer-added orgs are NOT touched.
  *
  *      Whole-phase skip: SKIP_SEEDS=1.
  *
@@ -168,8 +198,11 @@ async function runDrizzlePush(): Promise<void> {
  */
 const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "knowledge graph", script: "seed" },
+  { name: "industry GDP weights (Perplexity-cited)", script: "seed:gdp-weights" },
+  { name: "reference-org selection rule (default criterion)", script: "seed:reference-org-rule" },
+  { name: "reference orgs populated from rule (Perplexity-cited)", script: "seed:reference-orgs" },
+  { name: "reference org capability scoring (Perplexity-cited)", script: "seed:organizations" },
   { name: "marketplace listings (legacy)", script: "seed:marketplace" },
-  { name: "reference organizations", script: "seed:organizations" },
   { name: "design-thinking patterns", script: "seed:patterns" },
   { name: "marketplace reports", script: "seed:reports" },
   { name: "alpha config", script: "seed:alpha-config" },

@@ -27,7 +27,7 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
-    if (!resp.ok) throw new Error(`GLM ${resp.status}: ${(await resp.text()).slice(0, 400)}`);
+    if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${opts.model}): ${(await resp.text()).slice(0, 400)}`);
     const data = await resp.json() as { choices: Array<{ message: { content: string; reasoning?: string } }> };
     const msg = data.choices[0]?.message;
     return (msg?.content && msg.content.trim().length > 0) ? msg.content : (msg?.reasoning ?? "");
@@ -39,7 +39,8 @@ async function glmCall(prompt: string, maxTokens = 4096, timeoutMs = 180_000, js
   // ~2.5x faster than GLM 5.1, and noticeably richer narrative content (named
   // vendors, specific $ figures, multi-thread synthesis). Function name kept
   // as `glmCall` to avoid sweeping renames; body is model-agnostic.
-  const models = ["anthropic/claude-sonnet-4.6"];
+  // Override via LLM_MODEL env var to swap models without redeploy.
+  const models = [process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6"];
   let lastErr: unknown = null;
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {

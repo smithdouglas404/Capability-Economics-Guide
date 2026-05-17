@@ -1,3 +1,24 @@
+/**
+ * Per-capability scoring for reference orgs.
+ *
+ * The reference org SET (which companies are anchors) is now populated by
+ * `seed-reference-orgs.ts` from a defensible criterion stored in
+ * `reference_org_selection_rule`. This script no longer owns that list.
+ *
+ * What this script still does (unchanged): for each reference org in the DB,
+ * call Perplexity to score 6-10 of that industry's capabilities for the org
+ * with required URL citations. Inserts into `organization_capabilities`.
+ *
+ * Reference orgs are identified by `sessionToken LIKE 'seed:reference:%'`
+ * (the prefix the new populator writes). Customer-added orgs (with Clerk
+ * userIds or arbitrary sessionTokens) are never scored by this script.
+ *
+ * Idempotent: orgs that already have any capability mappings are skipped
+ * unless `--force` is passed. Per-org Perplexity failures are logged but
+ * never fail the deploy (matches the gdp-weights + reference-orgs pattern).
+ *
+ * Skip with SKIP_ORGANIZATIONS_SEED=1.
+ */
 import {
   db,
   industriesTable,
@@ -5,37 +26,8 @@ import {
   organizationsTable,
   organizationCapabilitiesTable,
 } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, like } from "drizzle-orm";
 import { queryPerplexity, extractJson } from "./perplexity-client";
-
-type RefOrg = {
-  name: string;
-  industrySlug: string;
-  size: "large" | "mid" | "small";
-  publicTicker?: string;
-  oneLiner: string;
-};
-
-const REFERENCE_ORGS: RefOrg[] = [
-  { name: "Allstate", industrySlug: "insurance", size: "large", publicTicker: "ALL", oneLiner: "Top-5 US P&C insurer with national agent network and growing telematics-driven auto book." },
-  { name: "Progressive", industrySlug: "insurance", size: "large", publicTicker: "PGR", oneLiner: "Auto-insurance leader known for usage-based pricing (Snapshot) and direct-channel scale." },
-
-  { name: "UnitedHealth Group", industrySlug: "healthcare", size: "large", publicTicker: "UNH", oneLiner: "Largest US health insurer + Optum services arm spanning pharmacy, data, and care delivery." },
-  { name: "HCA Healthcare", industrySlug: "healthcare", size: "large", publicTicker: "HCA", oneLiner: "One of the largest US for-profit hospital operators with 180+ hospitals and 2,300+ care sites." },
-
-  { name: "JPMorgan Chase", industrySlug: "banking", size: "large", publicTicker: "JPM", oneLiner: "Largest US bank by assets; leader in payments, wholesale banking and consumer fintech investment." },
-  { name: "Bank of America", industrySlug: "banking", size: "large", publicTicker: "BAC", oneLiner: "Top-3 US universal bank with industry-leading mobile banking adoption and Erica AI assistant." },
-
-  { name: "Tesla", industrySlug: "manufacturing", size: "large", publicTicker: "TSLA", oneLiner: "Vertically-integrated EV and energy manufacturer with industry-leading software-defined factories." },
-  { name: "Caterpillar", industrySlug: "manufacturing", size: "large", publicTicker: "CAT", oneLiner: "Global heavy-equipment manufacturer with mature dealer network and connected-asset telematics." },
-
-  { name: "Microsoft", industrySlug: "technology", size: "large", publicTicker: "MSFT", oneLiner: "Hyperscaler with leading enterprise cloud (Azure), productivity (M365) and AI platform (Copilot)." },
-  { name: "Anthropic", industrySlug: "technology", size: "mid", oneLiner: "Frontier AI lab building the Claude family of models with a research-first safety posture." },
-
-  { name: "Walmart", industrySlug: "retail", size: "large", publicTicker: "WMT", oneLiner: "Largest global retailer; massive omnichannel operation, fast-growing marketplace and ad business." },
-
-  { name: "Sunrun", industrySlug: "residential-solar", size: "large", publicTicker: "RUN", oneLiner: "Largest US residential solar installer with subscription/PPA financing model and growing storage attach." },
-];
 
 type ScoredCap = {
   capability_slug: string;
@@ -52,7 +44,7 @@ type PerplexityScoring = {
 };
 
 async function scoreOrgCapabilities(
-  org: RefOrg,
+  orgName: string,
   industryName: string,
   capabilities: Array<{ slug: string; name: string }>,
 ): Promise<PerplexityScoring> {
@@ -73,22 +65,20 @@ async function scoreOrgCapabilities(
 }
 Pick 6-10 capabilities where the organization has the strongest, most evidenced position (or, if relevant, a documented weakness — but score it accurately). Maturity scores must reflect real, recent (2023-2026) public evidence: annual reports, earnings calls, analyst reports, press releases, regulatory filings. Use only capability_slug values from the supplied list. Citations must be real URLs (filings, news, reports). If a slug doesn't fit, omit it — do not invent slugs.`;
 
-  const user = `Organization: ${org.name} (${org.industrySlug} industry${org.publicTicker ? `, ticker ${org.publicTicker}` : ""}).
-Context: ${org.oneLiner}
+  const user = `Organization: ${orgName} (${industryName} industry).
 
 Industry: ${industryName}
 
 Available capability slugs (use ONLY these, exactly as written):
 ${capList}
 
-Score 6-10 of these capabilities for ${org.name} based on real, citable public evidence. Return ONLY the JSON.`;
+Score 6-10 of these capabilities for ${orgName} based on real, citable public evidence. Return ONLY the JSON.`;
 
   const result = await queryPerplexity([
     { role: "system", content: sys },
     { role: "user", content: user },
   ]);
   const parsed = extractJson<PerplexityScoring>(result.content);
-  // Merge any top-level Perplexity citations into per-cap citations as fallback evidence.
   if (result.citations.length) {
     for (const sc of parsed.scored_capabilities) {
       if (!sc.citations || sc.citations.length === 0) sc.citations = result.citations.slice(0, 3);
@@ -98,55 +88,55 @@ Score 6-10 of these capabilities for ${org.name} based on real, citable public e
 }
 
 async function main() {
+  if (process.env.SKIP_ORGANIZATIONS_SEED === "1" || process.env.SKIP_ORGANIZATIONS_SEED === "true") {
+    console.log("[seed:organizations] SKIP_ORGANIZATIONS_SEED set — skipping");
+    process.exit(0);
+  }
+  if (!process.env.PERPLEXITY_API_KEY) {
+    console.warn("[seed:organizations] PERPLEXITY_API_KEY not set — skipping (orgs will have no capability scores until the key is provided and the seed re-runs).");
+    process.exit(0);
+  }
+
   const force = process.argv.includes("--force");
-  console.log(`Seeding ${REFERENCE_ORGS.length} reference organizations${force ? " (force re-score)" : ""}...`);
 
+  // Pull all reference orgs the new populator wrote.
+  const refOrgs = await db.select().from(organizationsTable).where(like(organizationsTable.sessionToken, "seed:reference:%"));
+  console.log(`[seed:organizations] found ${refOrgs.length} reference orgs to score${force ? " (force re-score)" : ""}`);
+
+  if (refOrgs.length === 0) {
+    console.log("[seed:organizations] no reference orgs in DB — run seed:reference-orgs first. Skipping.");
+    process.exit(0);
+  }
+
+  // Industry lookup, keyed by id.
   const industries = await db.select().from(industriesTable);
-  const indByslug = new Map(industries.map((i) => [i.slug, i]));
+  const indById = new Map(industries.map((i) => [i.id, i]));
 
-  let inserted = 0;
-  let updated = 0;
+  let scored = 0;
   let skipped = 0;
+  let failed = 0;
   let totalMappings = 0;
 
-  for (const org of REFERENCE_ORGS) {
-    const industry = indByslug.get(org.industrySlug);
+  for (const org of refOrgs) {
+    const industry = indById.get(org.industryId);
     if (!industry) {
-      console.warn(`  ! Industry "${org.industrySlug}" not found — skipping ${org.name}`);
+      console.warn(`  ! ${org.name}: industry id=${org.industryId} missing — skipping`);
+      failed++;
       continue;
     }
 
-    const sessionToken = `seed:${org.industrySlug}:${org.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-
-    const [existing] = await db
-      .select()
-      .from(organizationsTable)
-      .where(eq(organizationsTable.sessionToken, sessionToken));
-
-    let orgId: number;
-    if (existing) {
-      orgId = existing.id;
-      if (!force) {
-        const existingMappings = await db.select({ id: organizationCapabilitiesTable.id })
-          .from(organizationCapabilitiesTable)
-          .where(eq(organizationCapabilitiesTable.organizationId, orgId));
-        if (existingMappings.length > 0) {
-          console.log(`  · ${org.name}: already seeded with ${existingMappings.length} mappings — skipping (use --force to re-score)`);
-          skipped++;
-          totalMappings += existingMappings.length;
-          continue;
-        }
-      } else {
-        await db.delete(organizationCapabilitiesTable).where(eq(organizationCapabilitiesTable.organizationId, orgId));
+    if (!force) {
+      const existingMappings = await db.select({ id: organizationCapabilitiesTable.id })
+        .from(organizationCapabilitiesTable)
+        .where(eq(organizationCapabilitiesTable.organizationId, org.id));
+      if (existingMappings.length > 0) {
+        console.log(`  · ${org.name}: already scored with ${existingMappings.length} mappings — skipping (use --force to re-score)`);
+        skipped++;
+        totalMappings += existingMappings.length;
+        continue;
       }
     } else {
-      const [created] = await db.insert(organizationsTable).values({
-        name: org.name,
-        industryId: industry.id,
-        size: org.size,
-        sessionToken,
-      }).returning();
-      orgId = created.id;
+      await db.delete(organizationCapabilitiesTable).where(eq(organizationCapabilitiesTable.organizationId, org.id));
     }
 
     const caps = await db.select({ slug: capabilitiesTable.slug, name: capabilitiesTable.name, id: capabilitiesTable.id })
@@ -154,7 +144,8 @@ async function main() {
       .where(and(eq(capabilitiesTable.industryId, industry.id), eq(capabilitiesTable.isLeaf, true)));
 
     if (caps.length === 0) {
-      console.warn(`  ! No leaf capabilities for ${industry.name} — skipping ${org.name}`);
+      console.warn(`  ! ${org.name}: no leaf capabilities for industry ${industry.name} — skipping`);
+      failed++;
       continue;
     }
 
@@ -163,9 +154,10 @@ async function main() {
     process.stdout.write(`  → ${org.name} (${industry.name})… `);
     let scoring: PerplexityScoring;
     try {
-      scoring = await scoreOrgCapabilities(org, industry.name, caps);
+      scoring = await scoreOrgCapabilities(org.name, industry.name, caps);
     } catch (err) {
       console.log(`FAILED (${err instanceof Error ? err.message : String(err)})`);
+      failed++;
       continue;
     }
 
@@ -174,13 +166,12 @@ async function main() {
     const validRows = scoring.scored_capabilities
       .filter((sc) => {
         if (!slugToId.has(sc.capability_slug)) { droppedUnknownSlug.push(sc.capability_slug); return false; }
-        // Hard requirement (per project rules): every seeded score must have at least one citation.
         const cites = Array.isArray(sc.citations) ? sc.citations.filter((c) => typeof c === "string" && c.trim().length > 0) : [];
         if (cites.length === 0) { droppedNoCitation.push(sc.capability_slug); return false; }
         return true;
       })
       .map((sc) => ({
-        organizationId: orgId,
+        organizationId: org.id,
         capabilityId: slugToId.get(sc.capability_slug)!,
         maturityScore: Math.max(0, Math.min(100, Number(sc.maturity_score) || 0)),
         investmentLevel: ["high", "moderate", "low"].includes(sc.investment_level) ? sc.investment_level : "moderate",
@@ -195,24 +186,25 @@ async function main() {
 
     if (validRows.length === 0) {
       console.log(`no valid mappings returned (dropped: ${droppedUnknownSlug.length} unknown slug, ${droppedNoCitation.length} no-citation)`);
+      failed++;
       continue;
     }
 
     await db.insert(organizationCapabilitiesTable).values(validRows).onConflictDoNothing();
-
-    if (existing) updated++;
-    else inserted++;
+    scored++;
     totalMappings += validRows.length;
     const dropNote = (droppedNoCitation.length || droppedUnknownSlug.length)
       ? ` (dropped ${droppedNoCitation.length} no-citation, ${droppedUnknownSlug.length} unknown-slug)` : "";
     console.log(`${validRows.length} mappings${dropNote}`);
   }
 
-  console.log(`\nDone. inserted=${inserted} updated=${updated} skipped=${skipped} totalMappings=${totalMappings}`);
-  console.log(`Total reference orgs in DB: ${(await db.select().from(organizationsTable)).length}`);
+  console.log(`\n[seed:organizations] done. scored=${scored} skipped=${skipped} failed=${failed} totalMappings=${totalMappings}`);
+  console.log(`[seed:organizations] reference orgs in DB: ${refOrgs.length}`);
+  // Always exit 0 — per-org failures don't break the deploy.
+  process.exit(0);
 }
 
-main().then(() => process.exit(0)).catch((err) => {
-  console.error(err);
+main().catch((err) => {
+  console.error("[seed:organizations] catastrophic error:", err);
   process.exit(1);
 });

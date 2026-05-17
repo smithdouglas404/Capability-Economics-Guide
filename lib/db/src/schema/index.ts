@@ -2,6 +2,7 @@ export * from "./industries";
 export * from "./capabilities";
 export * from "./c-suite-roles";
 export * from "./organizations";
+export * from "./reference-org-selection-rule";
 export * from "./projects";
 export * from "./insights";
 export * from "./ontology";

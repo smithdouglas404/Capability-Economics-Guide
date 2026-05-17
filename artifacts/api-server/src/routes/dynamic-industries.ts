@@ -34,7 +34,7 @@ async function callGlm(prompt: string, maxTokens = 6000): Promise<string> {
         "X-Title": "Inflexcvi",
       },
       body: JSON.stringify({
-        model: "anthropic/claude-sonnet-4.6",
+        model: process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6",
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -159,7 +159,7 @@ Output ONLY the JSON array. No markdown, no commentary.`;
     caps = extractJson(text);
     if (!Array.isArray(caps) || caps.length === 0) throw new Error("Empty capability list");
   } catch (err) {
-    res.status(502).json({ error: "GLM synthesis failed", details: String(err) });
+    res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
     return;
   }
 
@@ -323,7 +323,7 @@ Output ONLY the JSON array. No markdown, no commentary.`;
     projects = extractJson(text);
     if (!Array.isArray(projects) || projects.length === 0) throw new Error("Empty project list");
   } catch (err) {
-    res.status(502).json({ error: "GLM synthesis failed", details: String(err) });
+    res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
     return;
   }
 

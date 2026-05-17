@@ -639,7 +639,7 @@ The platform is a direct product of this convergence. Two years earlier: researc
 - Knowledge Graph (D3 force-directed)
 - Technology Project Impact Analysis (catalogue + per-project impact + executive insights + risks)
 - Insights, Educational Content, Featured Content (CMS-style, admin-managed)
-- Enrichment pipeline (admin-triggered Perplexity → GLM 5.1 synthesis → DB)
+- Enrichment pipeline (admin-triggered Perplexity → LLM synthesis (Claude Sonnet 4.6 default; cascades to Haiku → GLM 5.1 on credit errors) → DB)
 - Marketplace: listings CRUD, sellers, KYC integration, purchases via Stripe, watermarked deliverables, auto-archive, moderation
 - Memberships (Free, Professional, Enterprise) with Stripe Checkout, invoice/crypto via admin approval, NowPayments crypto IPN
 - Admin surfaces: overview, content, assessments, agent runs, payments, review queue, foundry admin, case-study admin, educational content
@@ -754,7 +754,7 @@ Numbering convention: `BR-NNN`. Each requirement carries a priority (M=Must, S=S
 - **BR-102** [M / E] Resend shall deliver transactional emails; templates centralised in `services/email.ts`.
 - **BR-103** [M / E] Hedera HCS shall anchor purchase + security audit chain.
 - **BR-104** [M / E] Mem0 Cloud shall provide semantic memory; Letta shall provide stateful memory blocks; both graceful-degrade.
-- **BR-105** [M / E] Perplexity Sonar Pro shall drive research; OpenRouter shall drive synthesis (GLM 5.1) and Anthropic-compatible Claude shim.
+- **BR-105** [M / E] Perplexity Sonar Pro shall drive research; OpenRouter shall drive synthesis (Claude Sonnet 4.6 by default, overridable via `LLM_MODEL`, with Sonnet → Haiku → GLM 5.1 fallback on credit/budget errors) and the Anthropic-compatible Claude shim.
 
 ### 16.12 Education & Content
 
@@ -1580,7 +1580,7 @@ A full-stack intelligence platform that autonomously researches, scores, and adv
                           │       External integrations         │
                           ├─────────────────────────────────────┤
                           │  Perplexity Sonar Pro               │
-                          │  OpenRouter (Claude + GLM 5.1)      │
+                          │  OpenRouter (Sonnet→Haiku→GLM5.1)   │
                           │  Anthropic (direct, if configured)  │
                           │  Stripe + Stripe Connect            │
                           │  Clerk (auth)                       │
@@ -2069,7 +2069,7 @@ UI: `/backtest` TrendChart (Recharts LineChart) plotting Brier + log-loss with u
 
 ## 32. Enrichment Pipeline
 
-Perplexity research feeds into **GLM 5.1 (via OpenRouter)** for synthesis and DB insertion. Three phases per industry:
+Perplexity research feeds into the **LLM synthesis layer** (Claude Sonnet 4.6 via OpenRouter by default; overridable per-deploy via `LLM_MODEL` env var; cascades Sonnet → Haiku → `z-ai/glm-5.1` on OpenRouter credit/budget errors via `services/llm-fallback.ts`) for typed-JSON synthesis and DB insertion. Three phases per industry:
 
 1. **Capability quadrant classification** — placement on a 2×2 strategic matrix
 2. **Value chain stages** — decomposition of capabilities by value-chain position
@@ -2385,7 +2385,7 @@ artifacts/inflexcvi/src/
 The "Anthropic integration" (`@workspace/integrations-anthropic-ai`) is a shim that routes Claude calls through **OpenRouter**, not the direct Anthropic API. The single env var required is `OPENROUTER_API_KEY` — the shim throws on import without it.
 
 - Model name remapping: short names like `claude-haiku-4-5` map to OpenRouter model ids (`anthropic/claude-haiku-4.5`).
-- GLM 5.1 also routed through OpenRouter for enrichment synthesis.
+- The LLM synthesis layer (Claude Sonnet 4.6 default, swap via `LLM_MODEL`) is routed through OpenRouter; `z-ai/glm-5.1` is the cheapest tier of the automatic fallback chain.
 - Reasoning: OpenRouter provides single-key access to multiple providers, simplifies failover, and supports cost arbitration.
 - Direct `ANTHROPIC_API_KEY` is also set on Railway for paths that bypass the shim (kept for future direct-Anthropic optionality).
 
@@ -3185,7 +3185,8 @@ Grouped by route file. All endpoints under `/api`. Admin-protected endpoints mar
 | `PERPLEXITY_API_KEY` | Sonar research | Research feature disabled; agent logs warning |
 | `MEM0_API_KEY` + `MEM0_BASE_URL` | Semantic memory | Agent skips Mem0 calls; local-DB fallback only |
 | `LETTA_BASE_URL` + `LETTA_API_KEY` | Stateful memory blocks | Agent skips Letta; lazy retry with 60s cooldown |
-| `OPENROUTER_API_KEY` | Claude shim + GLM 5.1 synthesis | `lib/integrations-anthropic-ai` throws on import; cascade failure |
+| `OPENROUTER_API_KEY` | LLM synthesis (Sonnet 4.6 default; Haiku 4.5 + GLM 5.1 in fallback chain) | enrichment + alpha + thesis + assess routes 500; `services/llm-fallback.ts` chain unavailable |
+| `LLM_MODEL` (optional) | Overrides the default synthesis model without redeploy. Falls back to `anthropic/claude-sonnet-4.6`. | none — used only when set |
 | `ANTHROPIC_API_KEY` | Direct Anthropic path + anthropic probe | Probe reports `not_configured` |
 
 ### D.3 Admin & Auth
@@ -3275,7 +3276,7 @@ Grouped by route file. All endpoints under `/api`. Admin-protected endpoints mar
 - **Conjugate Gaussian** — A Bayesian formulation where Normal prior + Normal likelihood yield Normal posterior, with closed-form update equations. Computationally cheap; suited to repeated incremental updating.
 - **D3 force-directed layout** — Graph visualisation technique using simulated physical forces. Used for the knowledge graph.
 - **EMA (Exponential Moving Average)** — Weighted average where recent observations carry more weight. Used to compute velocity from score deltas.
-- **Enrichment** — Pipeline that transforms Perplexity research into structured DB rows (quadrants, value chains, company profiles) via GLM 5.1 synthesis.
+- **Enrichment** — Pipeline that transforms Perplexity research into structured DB rows (quadrants, value chains, company profiles) via the LLM synthesis layer (Claude Sonnet 4.6 default).
 - **Explorer** — Free PLG tier.
 - **GDP weight** — Per-industry economic weighting factor used in the CVI formula.
 - **GraphQL (Railway)** — Authoritative way to inspect Railway state from a Claude shell. Documented in CLAUDE.md.
