@@ -269,15 +269,24 @@ MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
 
 ### Dify — self-hosted on a separate Railway project
 
-Dify is the LLM-app workflow builder used for RAG over marketplace items. Deployed self-hosted in its own Railway project (`inflexcvi-dify`) — kept separate from the `inflexcvi` project so Dify rebuilds don't queue with api-server deploys and a Dify outage can't take the main app down. 11 services (api, worker, worker_beat, web, plugin_daemon, sandbox, ssrf_proxy, nginx, postgres, redis, weaviate); see the plan file at `/home/runner/.claude/plans/steady-drifting-wilkes.md` for per-service resource caps.
+Dify is the LLM-app workflow builder used for RAG over marketplace items. Deployed self-hosted in its own Railway project (`inflexcvi-dify`, project id `dd2e99e1-b314-467e-9b14-19d44aee55c2`) — kept separate from the `inflexcvi` project so Dify rebuilds don't queue with api-server deploys and a Dify outage can't take the main app down. The Railway community template that seeded this deployment ships **11 services** but **no nginx** — `Web` is the public entry point directly and `Api` is the console/service-API host. The list: api (langgenius/dify-api), worker (same image, MODE=worker), web (langgenius/dify-web), plugin_daemon, sandbox, storage (minio/minio), storage-provision (minio/mc one-shot), postgres (postgres:15-alpine), database-provision (postgres:15-alpine one-shot — see template-fix note below), redis (redis:6-alpine), weaviate.
 
-Env vars on the **inflexcvi api-server** (set after Dify is deployed and admin generates an API key):
+**Template fix (2026-05-17):** The community template's `Database Provision` service shipped with NO `startCommand` set, so it tried to boot as a duplicate Postgres server and crashed (`POSTGRES_PASSWORD not specified`). Meanwhile Api/Worker couldn't migrate because the `dify` database it expected on the main `Postgres` service was never created. Fix: set `startCommand` on the Database Provision service to a one-shot `psql $DATABASE_URL -c "CREATE DATABASE dify"` (with a `pg_isready` wait + `IF NOT EXISTS` guard) and set `restartPolicyType=NEVER`. `DATABASE_URL` on Database Provision was wired via Railway reference variable `${{Postgres.DATABASE_URL}}` so the credential is never copied. If you ever rebuild this from the template, expect to redo this fix on the first deploy.
+
+**Live URLs (2026-05-17):**
+- Console / Service API: `https://api-production-b73b.up.railway.app` (this is `DIFY_BASE_URL`)
+- Web (admin UI login): `https://web-production-84035.up.railway.app`
+- Admin email: `dsmith@smithfamilyusa.com` — password = the `INIT_PASSWORD` env on the Api service (rotate after first login)
+
+Env vars on the **inflexcvi api-server** (Capability Economics Railway project) to wire after Dify is deployed:
 
 ```env
-DIFY_BASE_URL=https://<nginx-public-url>      # the Dify nginx public URL, NO trailing slash
-DIFY_API_KEY=<from Dify admin → API keys>     # workspace-scoped Service API key
-DIFY_MARKETPLACE_DATASET_ID=<uuid>            # populated after POST /api/admin/dify/bootstrap
+DIFY_BASE_URL=https://api-production-b73b.up.railway.app   # NO trailing slash; this is the API service, not nginx (template has no nginx)
+DIFY_API_KEY=<dataset-prefix token from Dify Web UI → Knowledge → API keys, or POST /console/api/datasets/api-keys>
+DIFY_MARKETPLACE_DATASET_ID=<uuid>                          # populated after POST /api/admin/dify/bootstrap
 ```
+
+**Service API auth quirk:** Dify's Service API key is a Bearer token prefixed `dataset-...` (workspace-scoped to the Knowledge / dataset surface). The Dify Console API (for admin operations like creating the API key) is separate — it uses a cookie-based session with a `__Host-csrf_token` cookie that must be echoed back as an `X-CSRF-Token` header on every request. Login encodes the password with **base64**, not RSA — the field is named "encrypted" but `api/libs/encryption.py` `FieldEncryption.decrypt_field` is literally `base64.b64decode(...)`. Plaintext passwords return `{"code":"authentication_failed","message":"Invalid encrypted data","status":401}`.
 
 **Bootstrap flow** (one-shot, after Dify is up):
 1. `curl -X POST -H "x-admin-key: $ADMIN_API_KEY" {inflexcvi}/api/admin/dify/bootstrap` — creates the `marketplace-listings` KB and returns its dataset id.
