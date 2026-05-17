@@ -26,7 +26,7 @@ import {
   organizationsTable,
   organizationCapabilitiesTable,
 } from "@workspace/db";
-import { eq, and, like } from "drizzle-orm";
+import { eq, and, like, inArray } from "drizzle-orm";
 import { queryPerplexity, extractJson } from "./perplexity-client";
 
 type ScoredCap = {
@@ -98,10 +98,10 @@ async function main() {
   }
 
   const force = process.argv.includes("--force");
+  const verbose = process.argv.includes("--verbose") || process.env.SEED_ORGS_VERBOSE === "1";
 
   // Pull all reference orgs the new populator wrote.
   const refOrgs = await db.select().from(organizationsTable).where(like(organizationsTable.sessionToken, "seed:reference:%"));
-  console.log(`[seed:organizations] found ${refOrgs.length} reference orgs to score${force ? " (force re-score)" : ""}`);
 
   if (refOrgs.length === 0) {
     console.log("[seed:organizations] no reference orgs in DB — run seed:reference-orgs first. Skipping.");
@@ -116,6 +116,34 @@ async function main() {
   let skipped = 0;
   let failed = 0;
   let totalMappings = 0;
+  const skippedSamples: string[] = [];
+
+  // Fast-path: if NOT forcing, batch-check existing mappings per org first so
+  // we can emit a single summary line for the (very common) "everything is
+  // already scored" case instead of N lines of "skipping". Saves ~60 lines
+  // of log noise per deploy.
+  if (!force) {
+    const orgIds = refOrgs.map((o) => o.id);
+    const existingByOrg = orgIds.length > 0
+      ? await db.select({ orgId: organizationCapabilitiesTable.organizationId, capId: organizationCapabilitiesTable.id })
+          .from(organizationCapabilitiesTable)
+          .where(inArray(organizationCapabilitiesTable.organizationId, orgIds))
+      : [];
+    const mappingCountByOrg = new Map<number, number>();
+    for (const r of existingByOrg) mappingCountByOrg.set(r.orgId, (mappingCountByOrg.get(r.orgId) ?? 0) + 1);
+    const allAlreadyScored = refOrgs.every((o) => (mappingCountByOrg.get(o.id) ?? 0) > 0);
+    if (allAlreadyScored) {
+      const totalExistingMappings = Array.from(mappingCountByOrg.values()).reduce((a, b) => a + b, 0);
+      console.log(`[seed:organizations] all ${refOrgs.length} reference orgs already scored (${totalExistingMappings} mappings total) — skipping all. Run with --force to re-score, or --verbose / SEED_ORGS_VERBOSE=1 to list each org.`);
+      console.log(`[seed:organizations] done. scored=0 skipped=${refOrgs.length} failed=0 totalMappings=${totalExistingMappings}`);
+      console.log(`[seed:organizations] reference orgs in DB: ${refOrgs.length}`);
+      process.exit(0);
+    }
+  }
+
+  // Mixed state (some orgs unscored, or --force): fall through to per-org loop
+  // and only log per-org lines when we actually do work (or under --verbose).
+  console.log(`[seed:organizations] found ${refOrgs.length} reference orgs to score${force ? " (force re-score)" : ""}`);
 
   for (const org of refOrgs) {
     const industry = indById.get(org.industryId);
@@ -130,7 +158,11 @@ async function main() {
         .from(organizationCapabilitiesTable)
         .where(eq(organizationCapabilitiesTable.organizationId, org.id));
       if (existingMappings.length > 0) {
-        console.log(`  · ${org.name}: already scored with ${existingMappings.length} mappings — skipping (use --force to re-score)`);
+        if (verbose) {
+          console.log(`  · ${org.name}: already scored with ${existingMappings.length} mappings — skipping`);
+        } else if (skippedSamples.length < 3) {
+          skippedSamples.push(`${org.name} (${existingMappings.length})`);
+        }
         skipped++;
         totalMappings += existingMappings.length;
         continue;
@@ -198,6 +230,12 @@ async function main() {
     console.log(`${validRows.length} mappings${dropNote}`);
   }
 
+  // If we skipped any silently in the mixed-state path, surface a brief sample
+  // so the log still tells the operator what was skipped without flooding.
+  if (skipped > 0 && !verbose && skippedSamples.length > 0) {
+    const more = skipped > skippedSamples.length ? ` and ${skipped - skippedSamples.length} more` : "";
+    console.log(`[seed:organizations] skipped ${skipped} already-scored orgs (e.g. ${skippedSamples.join(", ")}${more}) — run with --verbose / SEED_ORGS_VERBOSE=1 to list each.`);
+  }
   console.log(`\n[seed:organizations] done. scored=${scored} skipped=${skipped} failed=${failed} totalMappings=${totalMappings}`);
   console.log(`[seed:organizations] reference orgs in DB: ${refOrgs.length}`);
   // Always exit 0 — per-org failures don't break the deploy.
