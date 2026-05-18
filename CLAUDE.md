@@ -162,8 +162,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (cloud at `https://api.mem0.ai`), `LETTA_BASE_URL` + `LETTA_API_KEY` (cloud at `https://api.letta.com`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
-- **Dify integration** (graceful degrade): `DIFY_BASE_URL` + `DIFY_API_KEY` + `DIFY_MARKETPLACE_DATASET_ID`. Dify is self-hosted in a separate `inflexcvi-dify` Railway project. See `### Dify — self-hosted` section below.
-- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. When set, the 7 inflexcvi agents auto-trace to LangSmith. Set the same project on Dify's api+worker to unify both stacks' traces.
+- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. When set, the 7 inflexcvi agents auto-trace to LangSmith.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
 
@@ -242,9 +241,9 @@ Never reuse a token from memory or a prior session — always ask for a fresh on
 
 Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railway runs `pnpm install --frozen-lockfile && pnpm run build:deploy` then `pnpm run start` — the api-server both exposes `/api/*` and serves the built inflexcvi SPA with a client-routing fallback. Provision Postgres and set `DATABASE_URL`; run `drizzle-kit push` against prod before first boot. `PORT` is injected by Railway. All AI integration keys are optional — absence logs a warning and disables the dependent feature.
 
-**Deploy model — push to git IS deploy.** Railway watches `origin/main` on the `capabilityeconomics` service in the Capability Economics project. A `git push origin main` triggers a build + deploy within a couple minutes — no manual `railway up` needed, no dashboard click needed. So: once code is committed and pushed, the work is durable AND the deploy is in flight. Don't lecture the user about "next steps to deploy" after a push; the push is the deploy. Same pattern for the `inflexcvi-dify` project's services (api, worker, web, nginx) — they all redeploy from their respective Docker images / git refs configured in Railway. The Dify-side **workflow content** (graphs, prompts, env vars) lives in Dify's own Postgres and is NOT driven by git — only the inflexcvi api-server's code is git-driven.
+**Deploy model — push to git IS deploy.** Railway watches `origin/main` on the `capabilityeconomics` service in the Capability Economics project. A `git push origin main` triggers a build + deploy within a couple minutes — no manual `railway up` needed, no dashboard click needed. So: once code is committed and pushed, the work is durable AND the deploy is in flight. Don't lecture the user about "next steps to deploy" after a push; the push is the deploy.
 
-**Dify draft vs published — drafts are runnable.** Dify's Service API runs the current draft when no published version exists. So a workflow whose graph lives only as a draft (never clicked "Publish") still works through `triggerWorkflow` / `triggerChatflow` in `services/dify/client.ts`. Publishing creates an immutable snapshot useful for stability (Service API will keep running the published one even if someone edits the draft later) but is not required for the workflow to function. Don't block the user on "you need to publish first" — drafts execute.
+**In-process AI workflows.** The 14 LLM workflows (onboarding-concierge, tier-selector, listing-moderation, kyc-failure-counselor, payment-recovery, capability-review-assist, research-pipeline, synthesis-brief-composer, assessment-analyzer, industry-bootstrap, case-study-generator, capability-enrichment-retry, admin-config-proposer, marketplace-search-v2) run natively in the api-server via `services/workflows/index.ts`. Each typed wrapper calls Anthropic (via OpenRouter) + Perplexity inline and returns `null` on failure so callers fall back to legacy code. No external workflow service in the loop.
 
 ### Mem0 — RESTORED (via Mem0 Cloud, 2026-05-17)
 
@@ -271,76 +270,9 @@ MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
 
 **Letta** — see `### Letta — RESTORED (via Letta Cloud)` above. Letta Cloud runs at `https://api.letta.com`; the self-hosted Letta Railway service was already deleted.
 
-### Dify — self-hosted on a separate Railway project
-
-Dify is the LLM-app workflow builder used for RAG over marketplace items + the workflow orchestration layer (Phase B+ of `~/.claude/plans/steady-drifting-wilkes.md`). Deployed self-hosted in its own Railway project (`inflexcvi-dify`, project id `dd2e99e1-b314-467e-9b14-19d44aee55c2`) — kept separate from the `inflexcvi` project so Dify rebuilds don't queue with api-server deploys and a Dify outage can't take the main app down. The Railway template ships **12 services** including an `Nginx` reverse proxy (earlier docs said "no nginx" — wrong, it's there). Service list: api (langgenius/dify-api), worker (same image, MODE=worker), web (langgenius/dify-web), nginx (nginx:1-alpine with config in NGINX_CONF_B64 env var), plugin_daemon, sandbox, storage (minio/minio), storage-provision (minio/mc one-shot), postgres, database-provision (one-shot), redis, weaviate.
-
-**Template fix (2026-05-17):** The community template's `Database Provision` service shipped with NO `startCommand` set, so it tried to boot as a duplicate Postgres server and crashed (`POSTGRES_PASSWORD not specified`). Meanwhile Api/Worker couldn't migrate because the `dify` database it expected on the main `Postgres` service was never created. Fix: set `startCommand` on the Database Provision service to a one-shot `psql $DATABASE_URL -c "CREATE DATABASE dify"` (with a `pg_isready` wait + `IF NOT EXISTS` guard) and set `restartPolicyType=NEVER`. `DATABASE_URL` on Database Provision was wired via Railway reference variable `${{Postgres.DATABASE_URL}}` so the credential is never copied. If you ever rebuild this from the template, expect to redo this fix on the first deploy.
-
-**Live URLs (2026-05-17, post-nginx-rewire):**
-- **Canonical entry point**: `https://nginx-production-ab8f.up.railway.app` (use this everywhere — Web + Api both proxied here, same-origin so SameSite=Lax cookies survive)
-- Direct Web (debug only): `https://web-production-84035.up.railway.app` — login fails here because cookies don't cross sites
-- Direct Api (debug only): `https://api-production-b73b.up.railway.app`
-- Admin email: `dsmith@smithfamilyusa.com` — password = the `INIT_PASSWORD` env on the Api service (rotate after first login)
-
-**The nginx wiring** (this was the day's longest yak-shave):
-- Both Web and Api have ALL public URLs pointing at the nginx host: `CONSOLE_API_URL`, `APP_API_URL`, `FILES_URL`, `CONSOLE_WEB_URL`, `APP_WEB_URL`, `SERVICE_API_URL`, plus the two `NEXT_PUBLIC_*` baked into the Web bundle at boot.
-- CORS on Api allows the nginx origin: `CONSOLE_CORS_ALLOW_ORIGINS=https://nginx-...`, `WEB_API_CORS_ALLOW_ORIGINS=https://nginx-...`.
-- Nginx config lives in env var `NGINX_CONF_B64` on the Nginx service (base64-encoded). startCommand decodes it at boot. Edit pattern: update the env var, redeploy Nginx — no startCommand surgery needed.
-- **Gotcha**: nginx resolves upstream hostnames (`api.railway.internal`, `web.railway.internal`) ONCE at startup and caches the IPs. If you redeploy Web or Api, **also redeploy Nginx** or it'll 504 until you do. (We tried dynamic resolver `[fd12::10]` — Railway's IPv6 DNS doesn't reliably resolve `.railway.internal`, so we reverted to static upstreams.)
-
-Env vars on the **inflexcvi api-server** (Capability Economics Railway project) to wire after Dify is deployed:
-
-```env
-DIFY_BASE_URL=https://nginx-production-ab8f.up.railway.app   # NO trailing slash; the nginx entry point
-DIFY_API_KEY=<dataset-prefix token from Dify Web UI → Knowledge → API keys, or POST /console/api/datasets/api-keys>
-DIFY_MARKETPLACE_DATASET_ID=<uuid>                            # populated after POST /api/admin/dify/bootstrap
-DIFY_CALLBACK_KEY=<openssl rand -hex 32>                      # shared HMAC secret for Dify→inflexcvi callbacks (Phase B)
-DIFY_ADMIN_EMAIL=dsmith@smithfamilyusa.com                    # for scripts/src/dify-workflow-import.ts (Console API login)
-DIFY_ADMIN_PASSWORD=<the INIT_PASSWORD value or its post-rotation replacement>
-```
-
-**Service API auth quirk:** Dify's Service API key is a Bearer token prefixed `dataset-...` (workspace-scoped to the Knowledge / dataset surface). The Dify Console API (for admin operations like creating the API key) is separate — it uses a cookie-based session with a `__Host-csrf_token` cookie that must be echoed back as an `X-CSRF-Token` header on every request. Login encodes the password with **base64**, not RSA — the field is named "encrypted" but `api/libs/encryption.py` `FieldEncryption.decrypt_field` is literally `base64.b64decode(...)`. Plaintext passwords return `{"code":"authentication_failed","message":"Invalid encrypted data","status":401}`.
-
-**Bootstrap flow** (one-shot, after Dify is up):
-1. `curl -X POST -H "x-admin-key: $ADMIN_API_KEY" {inflexcvi}/api/admin/dify/bootstrap` — creates the `marketplace-listings` KB and returns its dataset id.
-2. Set `DIFY_MARKETPLACE_DATASET_ID=<id>` on the api-server Railway service.
-3. `curl -X POST -H "x-admin-key: $ADMIN_API_KEY" {inflexcvi}/api/admin/dify/backfill-marketplace` — indexes all currently-approved listings.
-4. From then on, `services/dify/sync.ts` auto-syncs on approve/archive/reject via hooks in `routes/marketplace-listings.ts`.
-
-**Search path**: `GET /api/marketplace/listings/search?q=<query>` calls Dify's `/v1/datasets/{id}/retrieve` and maps `doc.metadata.listing_id` back to Postgres rows. Falls back to Postgres ILIKE when Dify is unavailable.
-
-**Plugin marketplace adapters**: install Letta + Mem0 adapters from `{dify-host}/explore/plugins` so Dify workflows can read existing agent memory. If marketplace lacks them, write a custom plugin that calls the inflexcvi `/api/agent/*` endpoints. See the plan file Phase 3 notes.
-
-**Health**: `probeDify` reports `not_configured | ok | degraded | down`. Degraded means Dify is reachable but `DIFY_MARKETPLACE_DATASET_ID` isn't set yet (bootstrap step pending).
-
-### Dify workflow orchestration (Phase B + C + D scaffolding landed 2026-05-17)
-
-The orchestration plan at `~/.claude/plans/steady-drifting-wilkes.md` introduces 9 Dify workflows that augment (not replace) existing inflexcvi handlers. Each runs behind a per-workflow feature flag so the legacy code is always the safe fallback.
-
-**Callback gateway (Phase B — committed `8792a6c`):** Inbound `POST /api/dify/callback/*` router at `artifacts/api-server/src/routes/dify-callbacks.ts`. HMAC-gated on `DIFY_CALLBACK_KEY` (constant-time compare over raw body), idempotent on `clientRequestId` (unique index on `dify_callback_log.client_request_id`), all 7 endpoints wired: `seed-board`, `recommend-tier`, `moderation-verdict`, `kyc-appeal`, `payment-recovery-action`, `research-result`, `agent-tool-invoke`. Router mounted BEFORE `express.json()` in `app.ts` (raw body needed for HMAC). Tables in `lib/db/src/schema/dify.ts`: `dify_workflow_registry`, `dify_callback_log`, `tier_recommendations`, `kyc_appeals`, `payment_recovery_log`, `research_artifacts`. New `moderation_hints jsonb` column on `marketplace_listings` (advisory only — human queue stays authoritative).
-
-**Workflow runtime (Phase C scaffold — committed in same chunk as Phase D below):**
-- `artifacts/api-server/src/services/dify/client.ts` — added `triggerWorkflow` (Service API `/v1/workflows/run`, blocking mode) and `triggerChatflow` (`/v1/chat-messages`). Both graceful-degrade to `null` on missing app key or transport error.
-- `artifacts/api-server/src/services/dify/workflows.ts` — `WORKFLOWS` registry (slug → kind + env var names), `isWorkflowEnabled(slug)` flag check, `resolveAppId(slug)` reads from `dify_workflow_registry`, typed wrappers like `runOnboardingConcierge` + `runListingModeration` for route handlers.
-- `scripts/src/dify-workflow-import.ts` — Console-API importer. Logs in via `/console/api/login` (base64-encoded password, captures `__Host-csrf_token` for subsequent writes), POSTs each `dify-workflows/*.yml` to `/console/api/apps/imports`, writes slug → app-id → version_hash to `dify_workflow_registry`. Run with `pnpm --filter @workspace/scripts run dify:import-workflows`. Re-runs are idempotent (skips matching `versionHash`). Flags: `--dry-run`, `--only=<slug>`.
-
-**Workflow DSLs (Phase C — `dify-workflows/*.yml`):** 9 minimal-but-valid skeletons (start node only, no LLM graph) so the import script can register them. Real graph authoring happens in the Dify UI after import — these are seeds, not finished workflows. The 9: `onboarding-concierge`, `tier-selector`, `marketplace-search-v2`, `listing-moderation`, `kyc-failure-counselor`, `payment-recovery`, `capability-review-assist`, `research-pipeline`, `synthesis-brief-composer`. Metadata index at `dify-workflows/_config.json`.
-
-**First integration point (Phase D — onboarding):** `routes/onboarding.ts:/onboarding/start` now tries `runOnboardingConcierge` before the legacy `runIdeation`. When `DIFY_ONBOARDING_CONCIERGE_ENABLED=1` AND `DIFY_APIKEY_ONBOARDING_CONCIERGE` is set, the concierge's answer becomes the first-card insight body. Any null/error falls through to `runIdeation` — legacy behavior preserved.
-
-**Env vars to flip a workflow on (api-server):**
-```
-DIFY_APIKEY_<UPPER_SLUG>=<bearer key from Dify UI → app → Service API>
-DIFY_<UPPER_SLUG>_ENABLED=1
-```
-For example, to enable onboarding: `DIFY_APIKEY_ONBOARDING_CONCIERGE=<key>` + `DIFY_ONBOARDING_CONCIERGE_ENABLED=1`. The slug conversion is `[^A-Z0-9]+` → `_`.
-
-**Remaining Phase D wiring** (each is ~30 LoC, all gated behind their own flag): membership tier-selector, marketplace-search-v2, listing-moderation, kyc-counselor, payment-recovery, capability-review-assist, research-pipeline, synthesis-brief. Plus the corresponding Phase E verification curls. Skeleton patterns to follow are in `services/dify/workflows.ts`.
-
 ### LangSmith — observability across both stacks
 
-When set on either the inflexcvi api-server OR Dify's api+worker services, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
+When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
 
 ```env
 LANGCHAIN_TRACING_V2=true
@@ -348,4 +280,4 @@ LANGCHAIN_API_KEY=<from smith.langchain.com>
 LANGCHAIN_PROJECT=inflexcvi    # or per-environment: inflexcvi-prod, inflexcvi-staging
 ```
 
-Set the same project name on both api-server and Dify and traces from both stacks land in one LangSmith project so you can see end-to-end flows (Dify Chatflow → inflexcvi /api call → cvi-autonomous-agent → tool calls). Without LangSmith env vars set, all 7 inflexcvi agents continue to work — tracing is purely additive.
+Set the project name on the api-server and traces land in one LangSmith project so you can see end-to-end flows (route handler → workflow wrapper → tool calls). Without LangSmith env vars set, all 7 inflexcvi agents continue to work — tracing is purely additive.

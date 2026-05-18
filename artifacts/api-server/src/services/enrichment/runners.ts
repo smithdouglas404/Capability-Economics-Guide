@@ -16,7 +16,7 @@ import {
   companyCapabilityMappingsTable,
 } from "@workspace/db";
 import { logger as log } from "../../lib/logger";
-import { runResearchPipeline } from "../dify/workflows";
+import { runResearchPipeline } from "../workflows";
 
 interface PerplexityResult {
   content: string;
@@ -24,13 +24,13 @@ interface PerplexityResult {
 }
 
 /**
- * If DIFY_RESEARCH_PIPELINE_ENABLED=1, delegate Perplexity+Sonnet to the Dify
+ * Optionally delegate Perplexity+Sonnet to the in-process research-pipeline
  * workflow and pull the structured payload out of its synchronous response.
- * Returns null when the flag is off or the workflow fails — caller falls
- * back to the inline perplexitySearch() + LLM path. Wired into each runner's
- * top-of-function check.
+ * Returns null when the workflow fails — caller falls back to the inline
+ * perplexitySearch() + LLM path. Wired into each runner's top-of-function
+ * check.
  */
-async function tryDifyResearch(
+async function tryWorkflowResearch(
   capabilityId: number,
   kind: "quadrant" | "alpha" | "value_chain" | "generic",
   prompt: string,

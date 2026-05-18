@@ -4,7 +4,7 @@ import { kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { runKycFailureCounselor } from "../services/dify/workflows";
+import { runKycFailureCounselor } from "../services/workflows";
 import {
   sendEmailOtp,
   verifyEmailOtp,
@@ -81,12 +81,12 @@ router.get("/kyc/status", async (req, res) => {
   }
 });
 
-// ── KYC Failure Counselor (Dify-backed) ──
+// ── KYC Failure Counselor (workflow-backed) ──
 //
 // The frontend shows a "Talk to the counselor" CTA on any declined-KYC screen.
-// This route proxies to the kyc-failure-counselor Dify chatflow. The
+// This route proxies to the kyc-failure-counselor chatflow. The
 // counselor captures a structured appeal — it does NOT override the decline.
-// Disabled by default; flip DIFY_KYC_FAILURE_COUNSELOR_ENABLED=1 to turn on.
+// Disabled by default; flip  to turn on.
 router.post("/kyc/:verificationId/counselor", async (req, res) => {
   const auth = getAuth(req);
   const userId = auth?.userId;

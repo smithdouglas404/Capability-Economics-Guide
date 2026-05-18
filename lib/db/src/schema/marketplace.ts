@@ -90,13 +90,13 @@ export const marketplaceListingsTable = pgTable(
     featuredUntil: timestamp("featured_until"),
     tags: jsonb("tags").$type<string[]>().notNull().default([]),
     /**
-     * Latest verdict from the `listing-moderation` Dify workflow:
+     * Latest verdict from the listing-moderation workflow:
      * `{ verdict: "auto_approve" | "send_to_moderator" | "auto_reject",
-     *    risk_flags: string[], confidence: number, rationale: string,
-     *    difyRunId: string, decidedAt: string }`. Written via the
-     * /api/dify/callback/moderation-verdict endpoint. Advisory only —
-     * the human moderation queue stays authoritative until we trust
-     * auto_approve enough to act on it.
+     *    riskFlags: string[], confidence: number, rationale: string,
+     *    decidedAt: string }`. Populated async by the
+     * `/marketplace/listings/:id/submit` route via `runListingModeration`.
+     * Advisory only — the human moderation queue stays authoritative
+     * until we trust auto_approve enough to act on it.
      */
     moderationHints: jsonb("moderation_hints"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

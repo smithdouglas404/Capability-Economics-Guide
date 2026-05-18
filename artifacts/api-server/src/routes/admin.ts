@@ -26,7 +26,7 @@ import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-signals/detector";
 import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
-import { runCapabilityEnrichmentRetry, runAdminConfigProposer } from "../services/dify/workflows";
+import { runCapabilityEnrichmentRetry, runAdminConfigProposer } from "../services/workflows";
 import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -232,11 +232,11 @@ router.get("/admin/backfill-ai-narratives/status", (_req, res) => {
 });
 
 /**
- * Dify-backed surgical retry for a single capability whose enrichment has
+ * workflow-backed surgical retry for a single capability whose enrichment has
  * been failing. Routes through the capability-enrichment-retry workflow
  * which has per-step retries + schema validation + an explicit "degraded"
  * branch so the caller knows when to fall back. Gated on
- * DIFY_CAPABILITY_ENRICHMENT_RETRY_ENABLED=1.
+ * .
  */
 router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res) => {
   const id = Number(req.params.capabilityId);
@@ -258,16 +258,16 @@ router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res)
     attempt: 1,
   }).catch(() => null);
 
-  if (!result) { res.status(503).json({ error: "Dify enrichment-retry workflow unavailable" }); return; }
+  if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
   res.json({ status: result.status, payload: result.payload });
 });
 
 /**
- * Dify-backed admin config proposer. Takes the current values for a config
+ * workflow-backed admin config proposer. Takes the current values for a config
  * area (economic_rules / agent_tuning / enrichment_config / source_quality /
  * bot_config) and recent outcomes, asks the LLM to propose adjustments, and
  * routes proposals through the existing /admin/agent/proposals HITL queue.
- * Gated on DIFY_ADMIN_CONFIG_PROPOSER_ENABLED=1.
+ * 
  */
 router.post("/admin/config-propose", async (req, res) => {
   const body = (req.body ?? {}) as {
@@ -289,7 +289,7 @@ router.post("/admin/config-propose", async (req, res) => {
     triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
   }).catch(() => null);
 
-  if (!result) { res.status(503).json({ error: "Dify admin-config-proposer workflow unavailable" }); return; }
+  if (!result) { res.status(503).json({ error: "Admin-config-proposer workflow unavailable" }); return; }
   res.json({ status: result.status, payload: result.payload });
 });
 

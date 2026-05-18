@@ -16,7 +16,7 @@ import { createInvoice as createNowPaymentsInvoice, isNowPaymentsConfigured } fr
 import { checkKycForTier } from "../middlewares/requireTier";
 import { logAdminAction } from "../services/audit-log";
 import { getClerkUserSummaries, getClerkUserSummary } from "../services/clerk-user";
-import { runTierSelector, runPaymentRecovery } from "../services/dify/workflows";
+import { runTierSelector, runPaymentRecovery } from "../services/workflows";
 import {
   sendWelcomeEmail,
   sendApprovalEmail,
@@ -296,8 +296,8 @@ router.get("/me/membership", async (req, res) => {
 });
 
 /**
- * Conversational tier-recommendation endpoint backed by the Dify
- * `tier-selector` chatflow. Gated on DIFY_TIER_SELECTOR_ENABLED=1 — if the
+ * Conversational tier-recommendation endpoint backed by the in-process
+ * `tier-selector` chatflow. Gated on  — if the
  * workflow is off, returns 503 so the frontend can fall back to the static
  * tier cards. Threads on conversationId so multi-turn dialogue works.
  */
@@ -332,7 +332,7 @@ router.post("/me/membership/concierge", async (req, res) => {
  * Conversational payment-recovery endpoint. Frontend opens this when a user
  * lands with a past_due / unpaid subscription. Stripe webhook handles the
  * dunning email + past_due flag separately — this just helps the user pick
- * a rescue path. Gated on DIFY_PAYMENT_RECOVERY_ENABLED=1.
+ * a rescue path. 
  */
 const PaymentRecoveryBody = z.object({
   query: z.string().min(1).max(2000),

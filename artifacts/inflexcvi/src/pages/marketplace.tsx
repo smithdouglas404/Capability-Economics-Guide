@@ -71,15 +71,14 @@ export default function MarketplacePage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("newest");
-  // "semantic" when results came from Dify RAG; "keyword_fallback" when Dify
-  // was unavailable; "all" when no query is active (initial load). Drives the
-  // "Powered by semantic search" hint near the input.
-  const [searchSource, setSearchSource] = useState<"all" | "dify" | "keyword_fallback">("all");
+  // "keyword_fallback" when results came back from server-side search;
+  // "all" when no query is active (initial load). Drives the small label
+  // near the input.
+  const [searchSource, setSearchSource] = useState<"all" | "keyword_fallback">("all");
 
   // Debounced server-side search. When query is empty → fetch full listings
-  // (initial load behaviour). When non-empty → call /search which routes
-  // through Dify RAG. 350ms debounce so typing doesn't fire one fetch per
-  // keystroke.
+  // (initial load behaviour). When non-empty → call /search. 350ms debounce
+  // so typing doesn't fire one fetch per keystroke.
   useEffect(() => {
     let cancelled = false;
     const q = query.trim();
@@ -93,7 +92,7 @@ export default function MarketplacePage() {
         .then(j => {
           if (cancelled) return;
           setListings(j.listings ?? []);
-          setSearchSource(q ? (j.source === "dify" ? "dify" : "keyword_fallback") : "all");
+          setSearchSource(q ? "keyword_fallback" : "all");
         })
         .catch(() => { if (!cancelled) setListings([]); })
         .finally(() => { if (!cancelled) setLoading(false); });
@@ -153,13 +152,8 @@ export default function MarketplacePage() {
               onChange={e => setQuery(e.target.value)}
               className="rounded-none pl-9"
             />
-            {query && searchSource === "dify" && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-emerald-600 dark:text-emerald-400 font-mono">
-                semantic
-              </span>
-            )}
             {query && searchSource === "keyword_fallback" && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400 font-mono">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
                 keyword
               </span>
             )}

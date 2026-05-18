@@ -12,7 +12,7 @@ import { runPeerCoopAgent } from "../peer-coop-agent";
 import { runStackOptimizerAgent } from "../stack-optimizer-agent";
 import { runOntologyAgent } from "../ontology-agent";
 import { runSynthesisAgent } from "../synthesis-agent";
-import { runSynthesisBriefComposer } from "../dify/workflows";
+import { runSynthesisBriefComposer } from "../workflows";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -547,16 +547,16 @@ export function startScheduler(): void {
   // Synthesis Agent — daily, staggered 5 minutes after startup so all
   // other agents have had a chance to publish their first digests.
   //
-  // If DIFY_SYNTHESIS_BRIEF_COMPOSER_ENABLED=1, the daily run delegates to
-  // the Dify `synthesis-brief-composer` workflow whose callback publishes
+  // If , the daily run delegates to
+  // the in-process synthesis-brief-composer wrapper whose payload publishes
   // the brief through the same NS.sharedKnowledge("synthesis_brief") path
   // that runSynthesisAgent uses. On null/error, falls back to the in-process
   // agent so the daily brief never goes missing.
-  const runSynthesis = async (): Promise<{ source: "dify" | "in-process"; duration: number; toolCallCount: number }> => {
+  const runSynthesis = async (): Promise<{ source: "workflow" | "in-process"; duration: number; toolCallCount: number }> => {
     const start = Date.now();
-    const dify = await runSynthesisBriefComposer().catch(() => null);
-    if (dify && dify.status !== "degraded") {
-      return { source: "dify", duration: Date.now() - start, toolCallCount: 0 };
+    const workflowResult = await runSynthesisBriefComposer().catch(() => null);
+    if (workflowResult && workflowResult.status !== "degraded") {
+      return { source: "workflow", duration: Date.now() - start, toolCallCount: 0 };
     }
     const r = await runSynthesisAgent();
     return { source: "in-process", duration: r.durationMs, toolCallCount: r.toolCallCount };

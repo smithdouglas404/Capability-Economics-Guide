@@ -12,7 +12,7 @@ import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
 import { logger } from "../lib/logger";
-import { runCaseStudyGenerator } from "../services/dify/workflows";
+import { runCaseStudyGenerator } from "../services/workflows";
 
 const router: IRouter = Router();
 
@@ -109,7 +109,7 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
   }
 
   try {
-    // Dify path — delegate to the case-study-generator workflow. Falls
+    // Delegate to the case-study-generator workflow. Falls
     // through to the inline researchEconomicsBreakdown if the workflow
     // is off / fails. The workflow's callback also writes to
     // research_artifacts so admins can review history.
@@ -121,18 +121,18 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
       Array.isArray(cs.challenges) ? cs.challenges.join("\n") : "",
       body.transformationHint ?? "",
     ].filter(Boolean).join("\n\n").slice(0, 12000);
-    const difyResult = await runCaseStudyGenerator({
+    const workflowResult = await runCaseStudyGenerator({
       caseStudyId: id,
       industryName: study.industries.name,
       currentText,
     }).catch(() => null);
-    if (difyResult?.payload && Object.keys(difyResult.payload).length > 0) {
-      // The Dify workflow emits a generic shape; coerce to the
+    if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
+      // The workflow emits a generic shape; coerce to the
       // economicsBreakdown JSONB shape Drizzle expects.
       await db.update(caseStudiesTable)
-        .set({ economicsBreakdown: difyResult.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
+        .set({ economicsBreakdown: workflowResult.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
         .where(eq(caseStudiesTable.id, id));
-      res.json({ ok: true, breakdown: difyResult.payload, source: "dify" });
+      res.json({ ok: true, breakdown: workflowResult.payload, source: "workflow" });
       return;
     }
     const { researchEconomicsBreakdown } = await import("../services/case-study-economics-research");

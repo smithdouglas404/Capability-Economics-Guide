@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { runIndustryBootstrap } from "../services/dify/workflows";
+import { runIndustryBootstrap } from "../services/workflows";
 
 const router: IRouter = Router();
 
@@ -114,14 +114,14 @@ router.post("/industries", requireAdmin, async (req, res) => {
     return;
   }
 
-  // Dify path — delegate Perplexity+Sonnet to the industry-bootstrap workflow.
+  // Delegate Perplexity+Sonnet to the industry-bootstrap workflow.
   // Returns a structured payload directly (the workflow's callback writes to
   // research_artifacts AND emits the payload as a workflow output, so we get
   // a synchronous shape we can shove into the existing insert path).
   let research: { content: string; citations: string[] };
-  const difyBootstrap = await runIndustryBootstrap({ industryName: name }).catch(() => null);
-  if (difyBootstrap?.payload && (difyBootstrap.payload as { capabilities?: unknown }).capabilities) {
-    const p = difyBootstrap.payload as { capabilities: Array<Record<string, unknown>>; citations?: Array<{ url: string; title?: string }> };
+  const bootstrapResult = await runIndustryBootstrap({ industryName: name }).catch(() => null);
+  if (bootstrapResult?.payload && (bootstrapResult.payload as { capabilities?: unknown }).capabilities) {
+    const p = bootstrapResult.payload as { capabilities: Array<Record<string, unknown>>; citations?: Array<{ url: string; title?: string }> };
     research = {
       content: JSON.stringify(p.capabilities),
       citations: (p.citations ?? []).map(c => c.url).filter(Boolean),

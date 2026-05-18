@@ -10,7 +10,7 @@ import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
 import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
 import { getClerkUserSummary } from "../services/clerk-user";
-import { runListingModeration } from "../services/dify/workflows";
+import { runListingModeration } from "../services/workflows";
 
 const router: IRouter = Router();
 
@@ -311,7 +311,7 @@ router.post("/marketplace/listings/:id/submit", async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id)).returning();
 
-  // Fire the listing-moderation Dify workflow in parallel — its callback
+  // Fire the listing-moderation workflow in parallel — its callback
   // writes `moderation_hints` JSONB on the listing for the manual reviewer's
   // dashboard. Advisory only; the human queue stays authoritative. Wrapped
   // in a void-promise so it doesn't block the response.
@@ -325,10 +325,10 @@ router.post("/marketplace/listings/:id/submit", async (req, res) => {
         pdfText: undefined,       // TODO: pipe extracted PDF text when available
       });
       if (result) {
-        logger.info({ listingId: id, verdict: result.verdict, confidence: result.confidence }, "[marketplace] dify moderation verdict");
+        logger.info({ listingId: id, verdict: result.verdict, confidence: result.confidence }, "[marketplace] moderation verdict");
       }
     } catch (err) {
-      logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: id }, "[marketplace] dify moderation failed");
+      logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: id }, "[marketplace] moderation failed");
     }
   })();
 
@@ -349,7 +349,7 @@ router.post("/marketplace/listings/:id/archive", async (req, res) => {
     status: "archived",
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id)).returning();
-  // Remove from Dify Knowledge so archived listings stop showing up in
+  // Remove from in-process workflow so archived listings stop showing up in
   // buyer RAG search. Fire-and-forget — never blocks the archive response.
   res.json({ listing: updated });
 });
@@ -407,8 +407,8 @@ router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req,
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "approved" } });
   void notifySeller(id, "approved");
-  // Index the newly-approved listing into Dify's Knowledge Base so it shows
-  // up in buyer RAG search. Fire-and-forget — Dify outage doesn't fail the
+  // Index the newly-approved listing for search (currently keyword fallback;
+  // reintroduce pgvector embedding here when the catalog grows past ~500).
   // approval; the listing remains keyword-searchable in Postgres regardless.
   res.json({ ok: true });
 });
@@ -476,7 +476,7 @@ router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, 
   }).where(eq(marketplaceListingsTable.id, id));
   await logAdminAction(req, { action: "tier.update", targetType: "marketplace_listing", targetId: id, details: { title: existing.title, approval: "rejected", reason } });
   void notifySeller(id, "rejected", reason);
-  // If a previously-approved listing is rejected, remove from Dify so
+  // Listing rejection cleanup; archived listings are filtered out of search
   // it stops appearing in buyer RAG search. No-op when listing was
   // pending_review (nothing to remove).
   res.json({ ok: true });

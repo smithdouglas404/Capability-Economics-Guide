@@ -39,7 +39,7 @@ app.use(
   }),
 );
 app.use(cors());
-// Stripe, Didit (KYC), NOWPayments (crypto), and Dify callback routes all
+// Stripe, Didit (KYC), and NOWPayments (crypto) webhook routes all
 // read the raw body for signature verification — mount BEFORE express.json().
 app.use("/api", stripeWebhookRouter);
 app.use("/api", kycWebhookRouter);

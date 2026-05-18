@@ -4,7 +4,7 @@ import { capabilityAssessmentsTable, CREDIT_COSTS } from "@workspace/db";
 import { deductCredits } from "../middlewares/deductCredits";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { runAssessmentAnalyzer } from "../services/dify/workflows";
+import { runAssessmentAnalyzer } from "../services/workflows";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let anthropicClient: AnthropicClient | null = null;
@@ -193,24 +193,24 @@ router.post("/assess/start", async (req: Request, res: Response) => {
     return;
   }
 
-  // Dify path — delegate the clarifying-question generation to the
+  // Delegate the clarifying-question generation to the
   // assessment-analyzer workflow when enabled. Falls through to the inline
   // OpenRouter call below if the workflow is off or fails.
-  const difyStart = await runAssessmentAnalyzer({
+  const analyzerStart = await runAssessmentAnalyzer({
     sessionId,
     phase: "start",
     industryName: industry ?? "",
     orgContext: { companyName, opportunity, voiceTranscript: voiceTranscript?.slice(0, 4000), documentText: documentText?.slice(0, 4000), jobPostingText: jobPostingText?.slice(0, 1000), competitors: validCompetitors },
   }).catch(() => null);
-  if (difyStart?.payload && Array.isArray((difyStart.payload as { capabilities?: unknown }).capabilities)) {
-    const cps = (difyStart.payload as { capabilities: Array<{ definition: string }> }).capabilities;
-    // The Dify workflow returns capability definitions; the legacy flow returns
+  if (analyzerStart?.payload && Array.isArray((analyzerStart.payload as { capabilities?: unknown }).capabilities)) {
+    const cps = (analyzerStart.payload as { capabilities: Array<{ definition: string }> }).capabilities;
+    // The workflow returns capability definitions; the legacy flow returns
     // clarifying questions. Bridge by treating definitions as questions.
     const qs = cps.slice(0, 3).map(c => c.definition);
     await db.update(capabilityAssessmentsTable)
       .set({ clarifyingQuestions: qs })
       .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
-    res.json({ sessionId, questions: qs, source: "dify" });
+    res.json({ sessionId, questions: qs, source: "workflow" });
     return;
   }
 
@@ -479,9 +479,9 @@ Rules:
 - Confidence score 40-60 for minimal input, 65-80 for good Q&A, 80-95 for SEC data + detailed context
 - Be specific to this company/industry — not generic platitudes`;
 
-  // Dify path — delegate scoring + narrative to assessment-analyzer workflow.
+  // Delegate scoring + narrative to assessment-analyzer workflow.
   // Falls through to inline OpenRouter call if workflow is off / fails.
-  const difyAnalyze = await runAssessmentAnalyzer({
+  const analyzerResult = await runAssessmentAnalyzer({
     sessionId,
     phase: "analyze",
     industryName: session?.industry ?? "",
@@ -490,8 +490,8 @@ Rules:
   }).catch(() => null);
 
   let rawText: string;
-  if (difyAnalyze?.payload) {
-    rawText = JSON.stringify(difyAnalyze.payload);
+  if (analyzerResult?.payload) {
+    rawText = JSON.stringify(analyzerResult.payload);
   } else {
     // GLM 5.1 — deep reasoning for gap identification, roadmap planning, competitor scoring, SEC interpretation
     const glmAResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {

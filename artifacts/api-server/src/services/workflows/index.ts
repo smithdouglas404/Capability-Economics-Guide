@@ -1,20 +1,12 @@
 /**
- * In-process AI workflows — the 14 capabilities that previously called out
- * to Dify via Service API. Reimplemented natively as inline Anthropic SDK
- * (via OpenRouter) + Perplexity calls. No external Dify service required.
+ * In-process AI workflows — 14 typed wrappers that fan out to Anthropic
+ * (via OpenRouter) + Perplexity inline. Route handlers import these and
+ * call them directly; no external service in the loop.
  *
- * Each `run*()` function preserves the exact signature it had during the
- * Dify era, so route handlers don't need to change. Returns `null` on
- * any failure → caller falls back to its legacy code path. Same
- * graceful-degrade contract as before.
- *
- * The 14 YAML specs in `dify-workflows/*.yml` remain in the repo as
- * reference documentation for "what does each workflow do" but are no
- * longer load-bearing — the truth is the code below.
- *
- * Path is preserved at `services/dify/workflows.ts` to avoid churning
- * imports across 13+ route files. The directory name is historical; the
- * code has no Dify dependency.
+ * Contract: every `run*()` returns its typed output on success, or `null`
+ * on transport / parse / config failure. Callers fall back to their legacy
+ * code path when null is returned — graceful-degrade is mandatory; never
+ * 5xx out of one of these because a single LLM call hiccuped.
  */
 
 import { randomUUID } from "node:crypto";
@@ -247,7 +239,7 @@ export async function runTierSelector(input: TierSelectorInput): Promise<TierSel
 // ──────────────────────────────────────────────────────────────────────────
 // 3. MARKETPLACE SEARCH V2
 // ──────────────────────────────────────────────────────────────────────────
-// Without the Dify KB this becomes a no-op stub. The route handler in
+// No-op stub. The route handler in
 // routes/marketplace-listings.ts falls through to Postgres ILIKE search
 // when this returns null — which is correct for the current 22-listing
 // dataset. Re-implement with pgvector when the listing count justifies it.
@@ -544,7 +536,7 @@ export async function runResearchPipeline(input: ResearchPipelineInput): Promise
 // 9. SYNTHESIS BRIEF COMPOSER (cross-agent daily brief)
 // ──────────────────────────────────────────────────────────────────────────
 // Stays as a stub here — the in-process services/synthesis-agent.ts handles
-// the actual composition. This wrapper only existed to delegate to Dify
+// the actual composition. This wrapper now no-ops; left as a future
 // (now removed). The scheduler's runSynthesis() in services/agent/scheduler.ts
 // already falls through to runSynthesisAgent() when this returns null.
 
