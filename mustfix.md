@@ -6,6 +6,59 @@ Audit was triggered by you noticing the case-study page was reading small and pa
 
 ---
 
+## Wake-up summary (added 2026-05-18 morning — read this first)
+
+### What happened overnight + early morning
+
+The original autonomous run wrote Sections 0–6 and made 6 UI commits before crashing mid-audit (commit `051e0f7`). A second autonomous run this morning closed the gaps the first run never finished: ran the full API path audit, classified every one of the 68 pages, applied one remaining clear-win fix, and wrote Sections 7–10 into this same doc.
+
+**Branch state**: 9 commits ahead of `origin/main`. Push not yet executed (auth not available in this shell — see "What you need to do" below).
+
+| Commit | What it does |
+|---|---|
+| `87d6b71` | Site-wide contrast tokens (`--muted-foreground` 47%→35% light, 65%→75% dark; `--border` family 91%→86% / 17%→23%) |
+| `d6d0760` | Fixes "data not loading" — frontend `/api/cei/*` → `/api/cvi/*` (cvi-dashboard + demo) |
+| `517cfb5` | case-study: rationale 16px, impact 14px sans, metric numeral restored to big 24–30px |
+| `555c9aa` | workbench / workbench-example / disruption: 8–9px content text bumped to 10px |
+| `464151a` | home + cvi-dashboard: un-faded body copy that was double-muted to ~22% contrast |
+| `01607b6` | coverage: destructive "missing" indicator readable (was 10px italic /80) |
+| `051e0f7` | mustfix.md Sections 0–6 (overnight run's doc output) |
+| `70c8849` | companies.tsx 9px content Badge → 10px font-mono eyebrow (morning audit clear-win) |
+| `1211002` | mustfix.md Sections 7–10 (morning audit gap-closing) |
+
+### What's in this doc now (full inventory)
+
+- **Section 0** — What you already had unpushed (6 commits ahead)
+- **Section 1** — 5 things held back from auto-applying (your judgment calls)
+- **Section 2** — Verified intentional patterns (not bugs, documented)
+- **Section 3** — Data hardcoding status (clean across all 68 pages)
+- **Section 4** — Why the case-study generator does NOT need to change for font work
+- **Section 5** — Tomorrow's quick-wins ordered by effort × visibility
+- **Section 6** — Files touched and their commits
+- **Section 7** — Site-wide API path audit. **0 real mismatches** across 461 backend routes vs 73 frontend fetches. Methodology + the one false-positive that tripped the first regex.
+- **Section 8** — Per-page coverage map. All 68 pages classified: 51 totally clean, 15 with only intentional patterns, 2 with documented content findings. No "haven't reached yet" gap.
+- **Section 9** — Record of the one fix applied this morning (companies.tsx Badge).
+- **Section 10** — Transparency on what the prior run did vs didn't do.
+
+### What you need to do when you wake up
+
+1. **Push the 9 commits.** Auth failed in this shell ("Invalid username or token"). From a real Replit Shell tab:
+   ```bash
+   gh auth login          # follow prompts
+   git push origin main   # triggers Railway auto-deploy
+   ```
+   Or paste a fresh PAT: `export GH_TOKEN=<token> && git push origin main`.
+2. **Decide on the 5 judgment calls in Section 1**: 9px chips in cvi-dashboard (1.1), `--muted-foreground/70` callsites (1.2), 10px mono metadata (1.4), `text-xs italic` empty-state pattern (1.5), `developers.tsx:382` `/v1/cei/current` alias (Section 2 footnote).
+3. **Look at 2–3 case studies on staging after deploy** (Section 4). Decide if generator prompt needs a "keep paragraphs under 90 words" instruction. Only stylistic — no code change required either way.
+
+### What is NOT in flight anymore
+
+- ❌ No more partial work. The audit is complete to 68/68 page coverage.
+- ❌ No outstanding code changes I held back without telling you. Everything is either committed, or documented in Section 1 with my reasoning for not auto-applying.
+- ❌ No silent failures. Push failure is documented above; everything else succeeded.
+
+---
+
 ## Section 0 — What you already had unpushed (now 6 commits ahead of origin/main)
 
 These are pushed to `origin/main` by the final step of this autonomous run, so by morning everything below labelled "fixed in commit X" is on staging.
