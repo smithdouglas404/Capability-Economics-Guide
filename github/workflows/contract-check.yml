@@ -1,0 +1,24 @@
+name: contract-check
+  on:
+    pull_request:
+      branches: [main]
+    push:
+      branches: [main]
+  jobs:
+    check:
+      runs-on: ubuntu-latest
+      timeout-minutes: 8
+      steps:
+        - uses: actions/checkout@v4
+        - uses: pnpm/action-setup@v4
+          with:
+            version: 10.26.1
+        - uses: actions/setup-node@v4
+          with:
+            node-version: 20
+            cache: pnpm
+        - run: pnpm install --frozen-lockfile
+        - name: Route-existence check
+          run: pnpm run check:routes
+        - name: Codegen-drift check
+          run: pnpm run check:codegen
