@@ -34,6 +34,7 @@
     "seed:disruption-patterns": "tsx ./src/seed-disruption-patterns.ts",
     "seed:disruption-events": "tsx ./src/seed-disruption-events.ts",
     "cei:replay-history": "tsx ./src/replay-cei-history.ts",
+    "generate:case-studies": "tsx ./src/generate-case-studies.ts",
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
     "deploy:migrate": "tsx ./src/deploy-migrate.ts",
