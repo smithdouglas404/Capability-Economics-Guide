@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
-import { ArrowLeft, RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle } from "lucide-react";
+import { RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle } from "lucide-react";
+import { AdminPageShell } from "@/components/admin-page-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -154,32 +154,21 @@ export default function AdminAgentProposalsPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link href="/admin">
-            <Button variant="ghost" size="sm" className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to admin
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold">Agent Proposal Queue</h1>
-          <p className="text-muted-foreground mt-1">
-            Review and approve every mutating action the Letta agent proposes. Nothing in here has been applied to canonical data yet.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={expireStale}>
-            <Clock className="h-4 w-4 mr-2" />
-            Expire stale
+    <AdminPageShell
+      title="Agent Proposal Queue"
+      description="Review and approve every mutating action the Letta agent proposes. Nothing in here has been applied to canonical data yet."
+      actions={
+        <>
+          <Button variant="outline" size="sm" onClick={expireStale} className="rounded-none">
+            <Clock className="h-4 w-4 mr-2" /> Expire stale
           </Button>
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={load} disabled={loading} className="rounded-none">
             {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
             Refresh
           </Button>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className="flex gap-2 mb-6 flex-wrap">
         {(["pending", "applied", "rejected", "expired"] as ProposalStatus[]).map(s => (
           <Button
@@ -313,6 +302,6 @@ export default function AdminAgentProposalsPage() {
           </Card>
         ))}
       </div>
-    </div>
+    </AdminPageShell>
   );
 }

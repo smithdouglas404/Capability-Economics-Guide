@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
-import { ArrowLeft, ExternalLink, RefreshCw, ShieldCheck, Loader2, CircleAlert, CircleSlash } from "lucide-react";
+import { ExternalLink, RefreshCw, ShieldCheck, Loader2, CircleAlert, CircleSlash } from "lucide-react";
+import { AdminPageShell } from "@/components/admin-page-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,21 +99,10 @@ export default function AdminAuditChainPage() {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [filterType, filterStatus]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-6">
-        <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2">
-          <ArrowLeft className="w-3.5 h-3.5" /> Admin home
-        </Link>
-        <h1 className="font-serif text-3xl tracking-tight flex items-center gap-2">
-          <ShieldCheck className="w-6 h-6 text-emerald-600" />
-          Audit Chain Explorer
-        </h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-          Every audit event flows here. Each row is anchored to Hedera Consensus Service (HCS) with a sequence number and consensus timestamp — verifiable independently on{" "}
-          <a href="https://hashscan.io" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">HashScan</a>. No sensitive payloads are stored on chain; only sha256 hashes + minimal non-sensitive metadata.
-        </p>
-      </div>
-
+    <AdminPageShell
+      title="Audit Chain Explorer"
+      description="Every audit event flows here. Each row is anchored to Hedera Consensus Service (HCS) with a sequence number and consensus timestamp — verifiable independently on HashScan. No sensitive payloads are stored on chain; only sha256 hashes + minimal non-sensitive metadata."
+    >
       {/* Chain status banner */}
       {chain && (
         <Card className={`rounded-none mb-4 ${chain.configured ? "border-emerald-500/30 bg-emerald-500/5" : "border-amber-500/40 bg-amber-500/10"}`}>
@@ -306,6 +295,6 @@ export default function AdminAuditChainPage() {
           The hash column is a sha256 of the canonical payload. Click <strong>HashScan</strong> on any anchored row to open the Hedera message — you'll see the same hash + the consensus timestamp, signed by the Hedera network. Reproduce the hash locally to prove the payload existed at that exact moment without ever sharing the original data on chain.
         </p>
       </div>
-    </div>
+    </AdminPageShell>
   );
 }

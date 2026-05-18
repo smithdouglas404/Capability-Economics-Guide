@@ -14,6 +14,7 @@ import {
   Settings, Store, ShieldAlert,
 } from "lucide-react";
 import { SyntheticAgentBadge } from "@/components/synthetic-agent-badge";
+import { AdminCommandPalette, AdminCommandHint } from "@/components/admin-command-palette";
 import EducationalContentAdmin from "@/components/educational-content-admin";
 import CaseStudyAdmin from "@/components/case-study-admin";
 import EnrichmentAdmin from "@/components/enrichment-admin";
@@ -166,7 +167,30 @@ function PendingDot({ count }: { count: number }) {
 }
 
 export default function AdminDashboard() {
-  const [tab, setTab] = useState<string>("overview");
+  const [tab, setTab] = useState<string>(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      return window.location.hash.replace(/^#/, "") || "overview";
+    }
+    return "overview";
+  });
+  const [navOpen, setNavOpen] = useState(false); // mobile sidebar drawer
+
+  // Sync URL hash <-> tab state so the ⌘K command palette can deep-link
+  // into a section (palette navigates to "/admin#system" etc.).
+  useEffect(() => {
+    function onHash() {
+      const h = window.location.hash.replace(/^#/, "");
+      if (h) setTab(h);
+    }
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash.replace(/^#/, "") !== tab) {
+      window.history.replaceState(null, "", `#${tab}`);
+    }
+  }, [tab]);
 
   const { data: overview, refetch: refetchOv } = useApi<Overview>("/admin/overview");
   const { data: assessments, loading: assLoading, refetch: refetchAss } = useApi<Assessment[]>("/admin/assessments");
@@ -253,41 +277,92 @@ export default function AdminDashboard() {
     else { setSortField(field); setSortDir("desc"); }
   };
 
-  return (
-    <div className="min-h-screen bg-background p-6 max-w-screen-2xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="h-px w-4 bg-accent" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Admin</span>
-          </div>
-          <h1 className="text-3xl font-serif tracking-tight text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Platform monitoring, member approvals, content management &amp; system health.
-          </p>
-        </div>
-        <Button variant="outline" onClick={refetchAll} className="gap-2">
-          <RefreshCw className="w-4 h-4" /> Refresh All
-        </Button>
-      </div>
+  // Sidebar nav config — drives the left rail. Each entry maps to a Tabs
+  // value below so the existing TabsContent blocks light up unchanged.
+  const NAV_ITEMS: Array<{ value: string; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number }> = [
+    { value: "overview",    label: "Overview",     icon: LayoutDashboard },
+    { value: "approvals",   label: "Approvals",    icon: ShieldCheck, badge: pendingCount },
+    { value: "members",     label: "Members",      icon: Gift },
+    { value: "tiers",       label: "Tiers",        icon: CreditCard },
+    { value: "kyc",         label: "KYC",          icon: ShieldCheck },
+    { value: "content",     label: "Content",      icon: BookMarked },
+    { value: "enrichment",  label: "Enrichment",   icon: Zap },
+    { value: "products",    label: "Products",     icon: Layers },
+    { value: "assessments", label: "Assessments",  icon: Users },
+    { value: "marketplace", label: "Marketplace",  icon: Store },
+    { value: "system",      label: "System",       icon: Settings },
+  ];
 
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="flex flex-wrap h-auto mb-6">
-          <TabsTrigger value="overview" className="gap-2"><LayoutDashboard className="w-4 h-4" /> Overview</TabsTrigger>
-          <TabsTrigger value="approvals" className="gap-2">
-            <ShieldCheck className="w-4 h-4" /> Approvals
-            <PendingDot count={pendingCount} />
-          </TabsTrigger>
-          <TabsTrigger value="members" className="gap-2"><Gift className="w-4 h-4" /> Members</TabsTrigger>
-          <TabsTrigger value="tiers" className="gap-2"><CreditCard className="w-4 h-4" /> Tiers &amp; Pricing</TabsTrigger>
-          <TabsTrigger value="kyc" className="gap-2"><ShieldCheck className="w-4 h-4" /> KYC</TabsTrigger>
-          <TabsTrigger value="content" className="gap-2"><BookMarked className="w-4 h-4" /> Content</TabsTrigger>
-          <TabsTrigger value="enrichment" className="gap-2"><Zap className="w-4 h-4" /> Enrichment</TabsTrigger>
-          <TabsTrigger value="products" className="gap-2"><Layers className="w-4 h-4" /> Products</TabsTrigger>
-          <TabsTrigger value="assessments" className="gap-2"><Users className="w-4 h-4" /> Assessments</TabsTrigger>
-          <TabsTrigger value="marketplace" className="gap-2"><Store className="w-4 h-4" /> Marketplace</TabsTrigger>
-          <TabsTrigger value="system" className="gap-2"><Settings className="w-4 h-4" /> System</TabsTrigger>
-        </TabsList>
+  return (
+    <div className="min-h-screen bg-background">
+      <AdminCommandPalette />
+      <div className="max-w-screen-2xl mx-auto flex flex-col lg:flex-row">
+        {/* ── Sidebar (persistent on lg+, drawer below) ─────────────── */}
+        <aside className={`${navOpen ? "block" : "hidden"} lg:block lg:w-56 lg:shrink-0 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto border-r border-border/40 bg-muted/20`}>
+          <div className="px-4 py-5">
+            <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent mb-1">Admin</div>
+            <div className="font-serif text-lg leading-tight">Dashboard</div>
+          </div>
+          <nav className="px-2 pb-4 space-y-0.5">
+            {NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const active = tab === item.value;
+              return (
+                <button
+                  key={item.value}
+                  onClick={() => { setTab(item.value); setNavOpen(false); }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-none text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-foreground text-background"
+                      : "text-foreground/70 hover:bg-muted/60 hover:text-foreground"
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${active ? "" : "text-muted-foreground"}`} />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded-none ${active ? "bg-background/20 text-background" : "bg-amber-500/20 text-amber-700 dark:text-amber-400"}`}>
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        {/* ── Main pane ──────────────────────────────────────────────── */}
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8">
+          <div className="flex items-center justify-between mb-6 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <button onClick={() => setNavOpen(v => !v)} className="lg:hidden p-2 rounded-none border border-border" aria-label="Toggle navigation">
+                <Layers className="w-4 h-4" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="text-2xl font-serif tracking-tight text-foreground truncate">
+                  {NAV_ITEMS.find(n => n.value === tab)?.label ?? "Admin"}
+                </h1>
+                <p className="text-muted-foreground text-xs hidden sm:block">
+                  Platform monitoring, member approvals, content management &amp; system health.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <AdminCommandHint />
+              <Button variant="outline" size="sm" onClick={refetchAll} className="gap-2 rounded-none">
+                <RefreshCw className="w-4 h-4" /> Refresh
+              </Button>
+            </div>
+          </div>
+
+          <Tabs value={tab} onValueChange={setTab}>
+            {/* TabsList kept rendered but visually hidden — Radix Tabs needs
+                triggers to exist for keyboard navigation + a11y. We drive
+                the active value via the sidebar buttons. */}
+            <TabsList className="sr-only" aria-label="Sections">
+              {NAV_ITEMS.map(item => (
+                <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>
+              ))}
+            </TabsList>
 
         {/* ─────────────────────── Overview tab ─────────────────────── */}
         <TabsContent value="overview" className="space-y-6">
@@ -817,7 +892,9 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+          </Tabs>
+        </main>
+      </div>
     </div>
   );
 }

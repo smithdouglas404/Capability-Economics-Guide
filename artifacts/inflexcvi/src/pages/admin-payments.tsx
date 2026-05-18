@@ -1,9 +1,10 @@
 import PaymentApprovals from "@/components/payment-approvals";
+import { AdminPageShell } from "@/components/admin-page-shell";
 
 export default function AdminPaymentsPage() {
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <PaymentApprovals showHeader />
-    </div>
+    <AdminPageShell title="Payments" description="Approvals, refunds, manual comp grants.">
+      <PaymentApprovals showHeader={false} />
+    </AdminPageShell>
   );
 }
