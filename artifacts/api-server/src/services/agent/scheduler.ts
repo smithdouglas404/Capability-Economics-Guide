@@ -28,9 +28,10 @@ import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
 import { detectCviSignalEvents } from "../cvi-signals/detector";
 import { attributeSignalOutcomes } from "../cvi-signals/attribution";
+import { runEnrichmentGraph } from "../enrichment/graph";
 import { db } from "@workspace/db";
-import { cviComponentsTable, cviSnapshotsTable } from "@workspace/db";
-import { desc } from "drizzle-orm";
+import { cviComponentsTable, cviSnapshotsTable, enrichmentConfigTable, capabilitiesTable, capabilityAlphaTable } from "@workspace/db";
+import { desc, eq, or, isNull, lt } from "drizzle-orm";
 
 // Routine cadence is read from agent_tuning each tick — the only fixed
 // constant here is how often we *check* whether it's time to run.
@@ -57,6 +58,12 @@ const EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000;
 // moves >= threshold within the configured window. Cheap (in-memory pair
 // comparison after one DB pull).
 const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Auto-enrich tick: hourly check that reads enrichment_config and, if enabled,
+// finds capabilities with missing or stale economics rows and pushes them
+// through the LangGraph enrichment pipeline one at a time. Replaces the dead
+// BullMQ-based auto-enrich tick that was removed in Task #22 but whose UI
+// surface (enrichment_config.lastRunAt/lastRunEnqueued) was left in place.
+const AUTO_ENRICH_INTERVAL_MS = 60 * 60 * 1000;
 // Mem0 staleness sweep: deletes memories whose metadata.expiresAt has
 // passed. Without this, pgvector grows unbounded and stale observations
 // pollute semantic search. Runs daily.
@@ -106,6 +113,8 @@ let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
+let autoEnrichTimer: ReturnType<typeof setInterval> | null = null;
+let isAutoEnriching = false;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
 let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
@@ -430,6 +439,68 @@ async function cviSignalsTick(): Promise<void> {
 }
 
 /**
+ * Auto-enrich tick — fills missing capability_alpha rows and refreshes
+ * stale ones using the LangGraph enrichment agent's per-cap rerun path
+ * (deterministic 3-step sequence: run_economic_alpha → run_economic_detail
+ * → finish). Honors the admin-tunable enrichment_config row: enabled flag
+ * + refreshDays cadence. Updates lastRunAt + lastRunEnqueued on every tick
+ * that finds work, so the admin UI's status panel reflects reality.
+ *
+ * Loops serially per cap (no concurrency) to stay polite to Perplexity +
+ * OpenRouter quotas; with the typical 8 missing-cap backlog this completes
+ * inside one tick. The function is guarded by isAutoEnriching against
+ * tick overlap if a backlog takes longer than the 1h interval.
+ */
+async function autoEnrichTick(): Promise<void> {
+  if (isAutoEnriching) {
+    console.log("[AutoEnrich] tick skipped — previous tick still in progress");
+    return;
+  }
+  isAutoEnriching = true;
+  try {
+    const [cfg] = await db.select().from(enrichmentConfigTable).limit(1);
+    if (!cfg || !cfg.enabled) return;
+    const refreshThreshold = new Date(Date.now() - cfg.refreshDays * 24 * 60 * 60 * 1000);
+    const candidates = await db
+      .select({
+        capId: capabilitiesTable.id,
+        industryId: capabilitiesTable.industryId,
+        generatedAt: capabilityAlphaTable.generatedAt,
+      })
+      .from(capabilitiesTable)
+      .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+      .where(or(isNull(capabilityAlphaTable.id), lt(capabilityAlphaTable.generatedAt, refreshThreshold)));
+    if (candidates.length === 0) return;
+    await db.update(enrichmentConfigTable).set({
+      lastRunAt: new Date(),
+      lastRunEnqueued: candidates.length,
+      updatedAt: new Date(),
+    }).where(eq(enrichmentConfigTable.id, cfg.id));
+    console.log(`[AutoEnrich] processing ${candidates.length} cap(s) needing economics`);
+    let succeeded = 0;
+    let failed = 0;
+    for (const item of candidates) {
+      try {
+        await runEnrichmentGraph({
+          trigger: "rerun",
+          targetCapabilityIds: [item.capId],
+          targetIndustryIds: [item.industryId],
+        });
+        succeeded++;
+      } catch (err) {
+        failed++;
+        console.warn(`[AutoEnrich] cap ${item.capId} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+    console.log(`[AutoEnrich] tick complete — succeeded=${succeeded} failed=${failed}`);
+  } catch (err) {
+    console.warn("[AutoEnrich] tick failed:", err);
+  } finally {
+    isAutoEnriching = false;
+  }
+}
+
+/**
  * Bot loop tick: wake all active bots, run any actions due per persona
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
@@ -509,6 +580,10 @@ export function startScheduler(): void {
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
   cviSignalsTimer = setInterval(() => cviSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
+  autoEnrichTimer = setInterval(() => autoEnrichTick(), AUTO_ENRICH_INTERVAL_MS);
+  // Kick once on boot so a recently-deployed instance picks up any backlog
+  // without waiting an hour. Runs in the background — does NOT block startup.
+  setTimeout(() => autoEnrichTick(), 60_000);
   mem0PruneTimer = setInterval(() => {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
@@ -690,6 +765,7 @@ export function stopScheduler(): void {
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (cviSignalsTimer) { clearInterval(cviSignalsTimer); cviSignalsTimer = null; }
+  if (autoEnrichTimer) { clearInterval(autoEnrichTimer); autoEnrichTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   // optimizerTimer removed with the optimizer module
   if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }

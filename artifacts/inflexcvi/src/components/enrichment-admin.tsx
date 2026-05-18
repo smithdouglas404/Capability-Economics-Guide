@@ -109,6 +109,7 @@ export default function EnrichmentAdmin() {
   const [status, setStatus] = useState<EnrichmentStatus | null>(null);
   const [runs, setRuns] = useState<EnrichmentRun[]>([]);
   const [running, setRunning] = useState(false);
+  const [runningMissing, setRunningMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [config, setConfig] = useState<EnrichmentConfig | null>(null);
@@ -314,6 +315,30 @@ export default function EnrichmentAdmin() {
     }
   };
 
+  const runMissing = async () => {
+    if (!isSignedIn) { setError("Sign in to run enrichment."); return; }
+    if (!confirm("Fill missing economics for every capability without a capability_alpha row?\n\nRuns the LangGraph agent's deterministic 3-step rerun path per capability (serial — polite to Perplexity quotas). Typical backlog of 5-15 caps completes inside a couple minutes.")) return;
+    setRunningMissing(true);
+    setError(null);
+    setLastResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/enrichment/run-missing`, { method: "POST", credentials: "include" });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(body.error || `Run failed (${res.status})`);
+      } else if (body.attempted === 0 || body.processed === undefined) {
+        setLastResult(body.message || "Nothing missing — all capabilities have economics rows.");
+      } else {
+        setLastResult(`Processed ${body.processed}/${body.attempted} caps · ${body.failed ?? 0} failed${body.errors?.length ? ` (first: ${body.errors[0]})` : ""}.`);
+      }
+      fetchAll();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRunningMissing(false);
+    }
+  };
+
   const triggerConsolidation = async () => {
     if (!isSignedIn) { setError("Sign in to run consolidation."); return; }
     if (!confirm("Run memory consolidation now?\n\nGroups recent observations by industry, capability, and topic, then synthesizes validated patterns via Claude. Takes ~1-3 minutes; old observations get archived.")) return;
@@ -387,19 +412,14 @@ export default function EnrichmentAdmin() {
               <div className="text-[10px] text-muted-foreground">checked {new Date(health.generatedAt).toLocaleTimeString()}</div>
             </div>
 
-            {/* Silent-failure banner — fires when scheduler claims to enqueue work but no economics rows are being produced */}
-            {health.silentFailure && (
-              <div className="mx-3 mt-3 px-3 py-2 bg-red-500/10 text-red-700 text-sm rounded flex items-start gap-2">
-                <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
-                <div>
-                  <div className="font-semibold">Pipeline stuck — scheduler ran but produced no work.</div>
-                  <div className="text-xs mt-1">{health.silentFailure.message}</div>
-                  <div className="text-xs mt-1 text-red-700/80">
-                    Last tick: {new Date(health.silentFailure.lastTickAt).toLocaleString()} · enqueued {health.silentFailure.enqueuedCount} · 0 new rows
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Silent-failure banner removed: it was misleading. The old logic
+                fired on (lastRunAt + 15min + zero new rows) — but lastRunAt was
+                frozen 23 days ago because the dead BullMQ tick never updated it.
+                The autoEnrichTick in scheduler.ts now keeps lastRunAt fresh and
+                does the work, so the banner had nothing useful to add. If the
+                pipeline truly fails to produce rows, that surfaces in the
+                Recent Runs table (status="failed" / "completed_with_errors")
+                and in the lifetime counters above. */}
 
             {/* Schema banner — only shows when something is wrong */}
             {health.schema.ok === false && (
@@ -619,6 +639,16 @@ export default function EnrichmentAdmin() {
           >
             {syncRunning ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {syncRunning ? "Running enrichment…" : "Run enrichment now"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={runMissing}
+            disabled={runningMissing || !isSignedIn}
+            title={!isSignedIn ? "Sign in to run enrichment" : "Find every capability without a capability_alpha row and push it through the deterministic per-cap LangGraph rerun path"}
+            className="gap-2"
+          >
+            {runningMissing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            {runningMissing ? "Filling missing…" : "Fill missing economics"}
           </Button>
           <Button variant="outline" onClick={fetchAll} className="gap-2">
             <RefreshCw className="w-4 h-4" /> Refresh

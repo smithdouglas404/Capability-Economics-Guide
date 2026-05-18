@@ -10,8 +10,9 @@ import {
   capabilityDependenciesTable,
   ontologyRelationshipsTable,
   enrichmentRunsTable,
+  capabilityAlphaTable,
 } from "@workspace/db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, isNull } from "drizzle-orm";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireReviewer } from "../middlewares/requireReviewer";
 
@@ -44,6 +45,59 @@ router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Enrichment failed";
     res.status(500).json({ error: msg });
+  } finally {
+    enrichmentRunning = false;
+  }
+});
+
+/**
+ * Targeted backfill — finds every capability that has no capability_alpha
+ * row and pushes it through the LangGraph agent's deterministic per-cap
+ * rerun path. Used by the admin "Fill missing economics" button when the
+ * autonomous tick falls behind or when a manual sweep is faster than
+ * waiting an hour.
+ *
+ * Concurrency: shares the same `enrichmentRunning` guard as POST /run so
+ * an admin can't accidentally double-trigger work. Per-cap runs are serial
+ * for the same reason the cron does it that way (Perplexity/OpenRouter
+ * politeness).
+ */
+router.post("/run-missing", requireReviewer(), async (_req: Request, res: Response) => {
+  if (enrichmentRunning) {
+    res.status(409).json({ error: "Enrichment already in progress" });
+    return;
+  }
+  enrichmentRunning = true;
+  try {
+    const missing = await db
+      .select({ capId: capabilitiesTable.id, industryId: capabilitiesTable.industryId })
+      .from(capabilitiesTable)
+      .leftJoin(capabilityAlphaTable, eq(capabilityAlphaTable.capabilityId, capabilitiesTable.id))
+      .where(isNull(capabilityAlphaTable.id));
+    if (missing.length === 0) {
+      res.json({ ok: true, message: "Nothing missing — all 349 capabilities have economics.", processed: 0, failed: 0 });
+      return;
+    }
+    let succeeded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    for (const item of missing) {
+      try {
+        await runEnrichmentGraph({
+          trigger: "rerun",
+          targetCapabilityIds: [item.capId],
+          targetIndustryIds: [item.industryId],
+        });
+        succeeded++;
+      } catch (err) {
+        failed++;
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`cap ${item.capId}: ${msg.slice(0, 120)}`);
+      }
+    }
+    res.json({ ok: true, attempted: missing.length, processed: succeeded, failed, errors });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "run-missing failed" });
   } finally {
     enrichmentRunning = false;
   }
