@@ -310,7 +310,7 @@ export default function CoveragePage() {
                           {row.hasGdpWeight ? (
                             <CheckCircle2 className="inline w-3.5 h-3.5 text-emerald-500" aria-label="GDP weight cited" />
                           ) : (
-                            <span className="text-[10px] text-rose-500/80 italic">missing</span>
+                            <span className="text-xs text-rose-600 italic">missing</span>
                           )}
                         </td>
                       </tr>
