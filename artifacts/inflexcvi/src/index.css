@@ -77,15 +77,15 @@
 
   --background: 210 40% 98%; /* Slate 50 */
   --foreground: 222 47% 11%; /* Slate 900 */
-  --border: 214 32% 91%; /* Slate 200 */
+  --border: 214 32% 86%; /* Slate 300 — bumped from 91% to keep dividers readable across all `border-border/40` + `/60` uses */
 
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card-border: 214 32% 86%;
 
   --sidebar: 210 40% 96%;
   --sidebar-foreground: 222 47% 11%;
-  --sidebar-border: 214 32% 91%;
+  --sidebar-border: 214 32% 86%;
   --sidebar-primary: 244 47% 50%;
   --sidebar-primary-foreground: 210 40% 98%;
   --sidebar-accent: 38 92% 50%;
@@ -94,7 +94,7 @@
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover-border: 214 32% 86%;
 
   --primary: 244 47% 50%; /* Indigo 700 */
   --primary-foreground: 210 40% 98%;
@@ -103,7 +103,7 @@
   --secondary-foreground: 222 47% 11%;
 
   --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%; /* Slate 500 */
+  --muted-foreground: 215 16% 35%; /* Slate 700 — bumped from 47% so the ~1900 `text-muted-foreground` callsites meet WCAG AA against the Slate-50 background */
 
   --accent: 38 92% 50%; /* Amber 500 */
   --accent-foreground: 222 47% 11%;
@@ -111,7 +111,7 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
 
-  --input: 214 32% 91%;
+  --input: 214 32% 86%;
   --ring: 244 47% 50%;
 
   --chart-1: 244 47% 50%; /* Indigo */
@@ -152,15 +152,15 @@
 
   --background: 222 47% 6%; /* Deeper Slate */
   --foreground: 210 40% 98%;
-  --border: 217 33% 17%;
+  --border: 217 33% 23%; /* dark-mode dividers — bumped from 17% so they're visible against the deep-slate bg */
 
   --card: 222 47% 8%;
   --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 17%;
+  --card-border: 217 33% 23%;
 
   --sidebar: 222 47% 8%;
   --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 217 33% 17%;
+  --sidebar-border: 217 33% 23%;
   --sidebar-primary: 244 47% 60%;
   --sidebar-primary-foreground: 210 40% 98%;
   --sidebar-accent: 38 92% 50%;
@@ -169,7 +169,7 @@
 
   --popover: 222 47% 8%;
   --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 17%;
+  --popover-border: 217 33% 23%;
 
   --primary: 244 47% 60%;
   --primary-foreground: 210 40% 98%;
@@ -178,7 +178,7 @@
   --secondary-foreground: 210 40% 98%;
 
   --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
+  --muted-foreground: 215 20% 75%; /* dark-mode body/caption — bumped from 65% for white-on-dark readability */
 
   --accent: 38 92% 50%;
   --accent-foreground: 222 47% 6%;
