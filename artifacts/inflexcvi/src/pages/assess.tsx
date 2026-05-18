@@ -774,7 +774,7 @@ export default function Assess() {
               </div>
               <div className="flex items-center gap-3">
                 {!orgSessionToken && (
-                  <span className="text-xs text-muted-foreground italic">
+                  <span className="text-sm text-muted-foreground italic">
                     Set up your org profile to save assessments
                   </span>
                 )}
@@ -1122,7 +1122,7 @@ export default function Assess() {
                       {voiceTranscript}
                       <button onClick={() => { setVoiceTranscript(""); finalRef.current = ""; }} className="ml-2 text-muted-foreground hover:text-foreground"><X className="w-3 h-3 inline" /></button>
                     </div>
-                  ) : !isRecording && <div className="text-xs text-muted-foreground italic">No transcript yet. Click Record and speak.</div>}
+                  ) : !isRecording && <div className="text-sm text-muted-foreground italic">No transcript yet. Click Record and speak.</div>}
                 </div>
 
                 {/* Document upload */}
@@ -1524,13 +1524,13 @@ export default function Assess() {
                                     {cap.wefSubIndicators && cap.wefSubIndicators.length > 0 && (
                                       <div className="mt-1 flex flex-wrap gap-1">
                                         {cap.wefSubIndicators.map((ind, j) => (
-                                          <span key={j} className="text-xs text-muted-foreground italic bg-muted/40 px-1.5 py-0.5 border border-border/50">{ind}</span>
+                                          <span key={j} className="text-sm text-muted-foreground italic bg-muted/40 px-1.5 py-0.5 border border-border/50">{ind}</span>
                                         ))}
                                       </div>
                                     )}
                                   </td>
                                   <td className="px-4 py-3 hidden md:table-cell">
-                                    <span className="text-xs text-muted-foreground italic">{cap.wefAlignment}</span>
+                                    <span className="text-sm text-muted-foreground italic">{cap.wefAlignment}</span>
                                   </td>
                                   <td className="px-4 py-3 text-center">
                                     <div className="flex justify-center gap-0.5">
@@ -1682,7 +1682,7 @@ export default function Assess() {
                             <p className="text-sm text-muted-foreground mb-2 leading-relaxed pl-10">{rec.rationale}</p>
                             <div className="pl-10 flex flex-col gap-1.5">
                               <div className="text-xs text-foreground"><span className="font-semibold">Expected impact:</span> {rec.impact}</div>
-                              <div className="text-xs text-muted-foreground italic flex items-center gap-1">
+                              <div className="text-sm text-muted-foreground italic flex items-center gap-1">
                                 <BookOpen className="w-3 h-3 text-primary" /> {rec.wefReference}
                               </div>
                             </div>

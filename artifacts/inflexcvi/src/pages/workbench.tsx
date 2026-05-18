@@ -384,7 +384,7 @@ export default function WorkbenchPage() {
                     {b.ownerType === "team" ? <Users className="w-3 h-3 text-sky-500" /> : <UserIcon className="w-3 h-3 text-muted-foreground" />}
                     <span className="truncate">{b.name}</span>
                   </div>
-                  <div className="font-mono text-[10px] text-muted-foreground">{b.cardCount} cards</div>
+                  <div className="font-mono text-[11px] text-muted-foreground">{b.cardCount} cards</div>
                 </button>
               ))}
               <Separator className="my-2" />
@@ -492,7 +492,7 @@ export default function WorkbenchPage() {
                           <span className="font-mono text-[11px] uppercase tracking-[0.18em] font-medium">{lane.label}</span>
                           <span className="ml-auto font-mono text-[10px] tabular-nums">{cards.length}</span>
                         </div>
-                        <div className="font-mono text-[10px] text-muted-foreground tracking-wider mt-0.5">{lane.description}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground tracking-wider mt-0.5">{lane.description}</div>
                       </div>
                       <div className="p-1.5 flex-1 space-y-1.5">
                         {cards.length === 0 && (
@@ -509,7 +509,7 @@ export default function WorkbenchPage() {
                               className={`p-2 bg-background border ${activeCardId === card.id ? "border-primary" : "border-border/60"} cursor-pointer hover:border-primary/50`}
                             >
                               <div className="text-xs font-medium leading-tight">{cap?.name ?? `#${card.capabilityId}`}</div>
-                              <div className="font-mono text-[10px] text-muted-foreground mt-0.5 truncate">{cap?.industryName}</div>
+                              <div className="font-mono text-[11px] text-muted-foreground mt-0.5 truncate">{cap?.industryName}</div>
                               <div className="flex items-center gap-1 mt-1">
                                 {cap?.lifecycleStage && (
                                   <Badge variant="outline" className={`rounded-none font-mono text-[10px] uppercase tracking-wider px-1 py-0 ${LIFECYCLE_TONE[cap.lifecycleStage] ?? "bg-muted text-muted-foreground border-border/60"}`}>
@@ -521,7 +521,7 @@ export default function WorkbenchPage() {
                                 )}
                               </div>
                               {card.insights.length > 0 && (
-                                <div className="font-mono text-[10px] text-muted-foreground mt-1 inline-flex items-center gap-1">
+                                <div className="font-mono text-[11px] text-muted-foreground mt-1 inline-flex items-center gap-1">
                                   <Sparkles className="w-2.5 h-2.5" /> {card.insights.length}
                                 </div>
                               )}
@@ -619,7 +619,7 @@ export default function WorkbenchPage() {
                             <Sparkles className="w-3 h-3 text-amber-500" />
                             <span className="text-xs font-medium">{INSIGHT_KIND_LABEL[kind]}</span>
                           </div>
-                          <div className="font-mono text-[10px] text-muted-foreground leading-relaxed">{INSIGHT_KIND_HELP[kind]}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground leading-relaxed">{INSIGHT_KIND_HELP[kind]}</div>
                           {showPromptInput && (
                             <Input
                               value={userPromptByKind[kind] ?? ""}
@@ -670,7 +670,7 @@ export default function WorkbenchPage() {
                             ) : (
                               <p className="text-xs whitespace-pre-wrap leading-relaxed">{ins.body}</p>
                             )}
-                            <div className="font-mono text-[10px] text-muted-foreground">{ins.modelUsed} · {new Date(ins.generatedAt).toLocaleString()}</div>
+                            <div className="font-mono text-[11px] text-muted-foreground">{ins.modelUsed} · {new Date(ins.generatedAt).toLocaleString()}</div>
                           </div>
                         ))}
                       </div>
@@ -751,7 +751,7 @@ function ExportForm({ board, cardCount, authedFetch, onSuccess, onCancel }: Expo
       <div className="flex items-center gap-2 mb-1">
         <Store className="w-3.5 h-3.5 text-amber-500" />
         <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-500 font-medium">Export to marketplace</span>
-        <span className="font-mono text-[10px] text-muted-foreground ml-auto">{cardCount} card{cardCount === 1 ? "" : "s"} will be included</span>
+        <span className="font-mono text-[11px] text-muted-foreground ml-auto">{cardCount} card{cardCount === 1 ? "" : "s"} will be included</span>
       </div>
       <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Listing title" className="rounded-none text-sm h-8" />
       <Textarea

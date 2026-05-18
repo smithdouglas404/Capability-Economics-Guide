@@ -180,7 +180,7 @@ function MetricTile({ label, value, sub, accent = false, delay = 0 }: {
     >
       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">{label}</div>
       <div className={`font-mono text-xl font-medium tabular-nums tracking-tight ${accent ? "text-accent" : "text-foreground"}`}>{value}</div>
-      <div className="font-mono text-[10px] text-muted-foreground mt-1 leading-snug">{sub}</div>
+      <div className="font-mono text-[11px] text-muted-foreground mt-1 leading-snug">{sub}</div>
     </motion.div>
   );
 }
@@ -575,7 +575,7 @@ export default function Home() {
                     <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
                       <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground mt-2">Opaque cost center — no sub-allocation visibility</div>
+                    <div className="font-mono text-[11px] text-muted-foreground mt-2">Opaque cost center — no sub-allocation visibility</div>
                   </div>
                   <div className="border border-accent/30 bg-accent/[0.04] p-6 lg:p-7 relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" />
@@ -601,7 +601,7 @@ export default function Home() {
                         />
                       </div>
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground">
+                    <div className="font-mono text-[11px] text-muted-foreground">
                       {(valueGenerated / capabilityCost.amountUsdMm).toFixed(1)}× return on capability investment
                     </div>
                   </div>

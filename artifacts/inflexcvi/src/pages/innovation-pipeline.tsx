@@ -195,7 +195,7 @@ export default function InnovationPipeline() {
                       <Badge variant="outline" className="text-xs min-w-[70px] justify-center">{h.stage}</Badge>
                       <span className="text-muted-foreground text-xs">{new Date(h.enteredAt).toLocaleDateString()}</span>
                       <span className="text-muted-foreground">{h.decision}</span>
-                      {h.notes && <span className="text-xs italic text-muted-foreground">— {h.notes}</span>}
+                      {h.notes && <span className="text-sm italic text-muted-foreground">— {h.notes}</span>}
                     </div>
                   ))}
                 </div>

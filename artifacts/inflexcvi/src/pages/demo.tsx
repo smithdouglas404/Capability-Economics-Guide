@@ -390,7 +390,7 @@ function CeiSlide({ data }: { data: CEIData | null }) {
                   <div key={i} className="flex items-center justify-between py-1 border-t border-border/40 first:border-t-0">
                     <span className="text-sm">{ind.industryName}</span>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[10px] text-muted-foreground">{ind.capabilityCount} caps</span>
+                      <span className="font-mono text-[11px] text-muted-foreground">{ind.capabilityCount} caps</span>
                       <span className="font-mono text-sm tabular-nums w-12 text-right">{ind.indexValue.toFixed(1)}</span>
                     </div>
                   </div>
@@ -688,7 +688,7 @@ function MarketplaceSlide({ rows }: { rows: MarketplaceListing[] | null }) {
                   {l.sellerTier === "featured" && <Badge variant="outline" className="rounded-none font-mono text-[9px] uppercase tracking-wider bg-amber-500/15 text-amber-500 border-amber-500/40"><Star className="w-2.5 h-2.5 mr-0.5 inline" />Featured author</Badge>}
                 </div>
                 <div className="font-medium truncate">{l.title}</div>
-                <div className="font-mono text-[10px] text-muted-foreground">{l.sellerName ?? "Author"}</div>
+                <div className="font-mono text-[11px] text-muted-foreground">{l.sellerName ?? "Author"}</div>
               </div>
               <div className="font-mono text-xl tabular-nums shrink-0">${(l.priceCents / 100).toFixed(0)}</div>
             </CardContent>

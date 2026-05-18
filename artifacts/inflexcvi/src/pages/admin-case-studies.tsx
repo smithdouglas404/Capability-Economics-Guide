@@ -661,7 +661,7 @@ export default function AdminCaseStudiesPage() {
                         </div>
                         <div className="font-mono text-xl font-light tabular-nums text-foreground/60">${previewBreakdown.costBreakdown[1].amountUsdMm.toFixed(1)}M</div>
                       </div>
-                      <div className="font-mono text-[10px] text-muted-foreground mt-2">
+                      <div className="font-mono text-[11px] text-muted-foreground mt-2">
                         Value generated: <span className="text-accent">${previewBreakdown.valueGeneratedUsdMm.toFixed(1)}M</span>
                         {" · "}
                         {(previewBreakdown.valueGeneratedUsdMm / previewBreakdown.costBreakdown[1].amountUsdMm).toFixed(1)}× return

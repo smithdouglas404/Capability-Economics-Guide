@@ -107,7 +107,7 @@ function StatCard({ label, value, sub, Icon }: { label: string; value: string | 
           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
         </div>
         <div className="font-mono text-2xl tabular-nums">{value}</div>
-        {sub && <div className="font-mono text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+        {sub && <div className="font-mono text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
       </CardContent>
     </Card>
   );
@@ -288,12 +288,12 @@ export default function MarketplaceWorkspacePage() {
                             ))}
                           </div>
                         ) : (
-                          <span className="font-mono text-[10px] text-muted-foreground">No Clerk orgs available to share with.</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">No Clerk orgs available to share with.</span>
                         )}
                       </>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground italic">
+                  <p className="text-sm text-muted-foreground italic">
                     Sharing makes every member of your Clerk org see and manage this seller's listings, payouts, and analytics.
                     Payouts still flow to your single Stripe Connect account.
                   </p>
@@ -397,7 +397,7 @@ export default function MarketplaceWorkspacePage() {
                             )}
                           </td>
                           <td className="px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">{p.listing?.type ?? "—"}</td>
-                          <td className="px-4 py-2 font-mono text-[10px] text-muted-foreground">
+                          <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground">
                             {p.buyerClerkOrgId ? <span className="inline-flex items-center gap-1"><Users className="w-3 h-3" /> team</span> : <span className="inline-flex items-center gap-1"><UserIcon className="w-3 h-3" /> personal</span>}
                           </td>
                           <td className="px-4 py-2">
@@ -407,7 +407,7 @@ export default function MarketplaceWorkspacePage() {
                           </td>
                           <td className="px-4 py-2 text-right font-mono tabular-nums">{fmtMoney(p.priceCents)}</td>
                           <td className="px-4 py-2 text-right font-mono tabular-nums">{p.downloadCount}</td>
-                          <td className="px-4 py-2 font-mono text-[10px] text-muted-foreground">{p.purchasedAt ? new Date(p.purchasedAt).toLocaleDateString() : "—"}</td>
+                          <td className="px-4 py-2 font-mono text-[11px] text-muted-foreground">{p.purchasedAt ? new Date(p.purchasedAt).toLocaleDateString() : "—"}</td>
                         </tr>
                       ))}
                     </tbody>

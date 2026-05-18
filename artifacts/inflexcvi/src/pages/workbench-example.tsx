@@ -192,7 +192,7 @@ export default function WorkbenchExamplePage() {
                       <span className="font-mono text-[11px] uppercase tracking-[0.18em] font-medium">{lane.label}</span>
                       <span className="ml-auto font-mono text-[10px] tabular-nums">{cards.length}</span>
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground tracking-wider mt-0.5">{lane.description}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground tracking-wider mt-0.5">{lane.description}</div>
                   </div>
                   <div className="p-1.5 flex-1 space-y-1.5">
                     {cards.length === 0 && (
@@ -205,7 +205,7 @@ export default function WorkbenchExamplePage() {
                         className={`block w-full text-left p-2 bg-background border ${activeCardId === card.id ? "border-primary" : "border-border/60"} cursor-pointer hover:border-primary/50`}
                       >
                         <div className="text-xs font-medium leading-tight">{card.capabilityName}</div>
-                        <div className="font-mono text-[10px] text-muted-foreground mt-0.5 truncate">{card.industry}</div>
+                        <div className="font-mono text-[11px] text-muted-foreground mt-0.5 truncate">{card.industry}</div>
                         <div className="flex items-center gap-1 mt-1">
                           <Badge variant="outline" className={`rounded-none font-mono text-[10px] uppercase tracking-wider px-1 py-0 ${LIFECYCLE_TONE[card.lifecycle]}`}>
                             {card.lifecycle}
@@ -215,7 +215,7 @@ export default function WorkbenchExamplePage() {
                           )}
                         </div>
                         {card.insights.length > 0 && (
-                          <div className="font-mono text-[10px] text-muted-foreground mt-1 inline-flex items-center gap-1">
+                          <div className="font-mono text-[11px] text-muted-foreground mt-1 inline-flex items-center gap-1">
                             <Sparkles className="w-2.5 h-2.5" /> {card.insights.length}
                           </div>
                         )}
@@ -250,7 +250,7 @@ export default function WorkbenchExamplePage() {
                 </div>
                 <p className="text-xs leading-relaxed">{activeCard.description}</p>
                 {activeCard.notes && (
-                  <div className="border-l-2 border-amber-500/40 pl-2 text-xs italic text-muted-foreground">
+                  <div className="border-l-2 border-amber-500/40 pl-2 text-sm italic text-muted-foreground">
                     {activeCard.notes}
                   </div>
                 )}
@@ -258,7 +258,7 @@ export default function WorkbenchExamplePage() {
                 <Separator />
 
                 {activeCard.insights.length === 0 ? (
-                  <p className="text-xs text-muted-foreground italic">No Claude insights on this card yet — drop it on your own board and run an action.</p>
+                  <p className="text-sm text-muted-foreground italic">No Claude insights on this card yet — drop it on your own board and run an action.</p>
                 ) : (
                   <div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
@@ -269,10 +269,10 @@ export default function WorkbenchExamplePage() {
                         <div key={i} className="border border-border/40 p-2 space-y-1">
                           <div className="flex items-center justify-between">
                             <Badge variant="outline" className="rounded-none font-mono text-[9px] uppercase tracking-wider">{INSIGHT_LABEL[ins.kind]}</Badge>
-                            <span className="font-mono text-[10px] text-muted-foreground">{ins.modelUsed.replace(/^anthropic\//, "")}</span>
+                            <span className="font-mono text-[11px] text-muted-foreground">{ins.modelUsed.replace(/^anthropic\//, "")}</span>
                           </div>
                           {ins.userPrompt && (
-                            <div className="font-mono text-[10px] text-muted-foreground italic">prompt: {ins.userPrompt}</div>
+                            <div className="font-mono text-[11px] text-muted-foreground italic">prompt: {ins.userPrompt}</div>
                           )}
                           {ins.bullets.length > 0 ? (
                             <ol className="list-decimal list-outside ml-4 space-y-0.5 text-xs leading-relaxed">
@@ -281,7 +281,7 @@ export default function WorkbenchExamplePage() {
                           ) : ins.prose ? (
                             <p className="text-xs leading-relaxed whitespace-pre-wrap">{ins.prose}</p>
                           ) : null}
-                          <div className="font-mono text-[10px] text-muted-foreground">{new Date(ins.generatedAt).toLocaleDateString()}</div>
+                          <div className="font-mono text-[11px] text-muted-foreground">{new Date(ins.generatedAt).toLocaleDateString()}</div>
                         </div>
                       ))}
                     </div>

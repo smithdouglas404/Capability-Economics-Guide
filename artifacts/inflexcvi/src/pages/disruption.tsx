@@ -162,7 +162,7 @@ export default function DisruptionPage() {
                         {r.band}
                       </Badge>
                     </div>
-                    <div className="font-mono text-[10px] text-muted-foreground">{r.industryName}</div>
+                    <div className="font-mono text-[11px] text-muted-foreground">{r.industryName}</div>
                     <div className="flex items-center gap-3">
                       <div>
                         <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">P(disrupt)</div>
@@ -188,7 +188,7 @@ export default function DisruptionPage() {
                       )}
                     </div>
                     {r.topDrivers.length > 0 && (
-                      <div className="font-mono text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+                      <div className="font-mono text-[11px] text-muted-foreground pt-1 border-t border-border/40">
                         Drivers: {r.topDrivers.join(", ")}
                       </div>
                     )}

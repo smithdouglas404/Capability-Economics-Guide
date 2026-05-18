@@ -154,7 +154,7 @@ export default function PatternsPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground italic mt-4">Take these to the <Link href="/workbench" className="text-primary hover:underline">Capability Workbench</Link> and run "what to invent" against your industry.</p>
+              <p className="text-sm text-muted-foreground italic mt-4">Take these to the <Link href="/workbench" className="text-primary hover:underline">Capability Workbench</Link> and run "what to invent" against your industry.</p>
             </CardContent>
           </Card>
         )}

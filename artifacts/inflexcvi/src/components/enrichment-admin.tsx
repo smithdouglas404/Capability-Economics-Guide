@@ -1170,7 +1170,7 @@ function LiveGraphState() {
           <summary className="text-[11px] text-muted-foreground cursor-pointer">
             Recent events ({recentEvents.length})
           </summary>
-          <div className="mt-1 space-y-0.5 font-mono text-[10px] text-muted-foreground max-h-32 overflow-y-auto">
+          <div className="mt-1 space-y-0.5 font-mono text-[11px] text-muted-foreground max-h-32 overflow-y-auto">
             {recentEvents.slice(0, 10).map((evt, i) => (
               <div key={i}>
                 <span className="text-foreground">{evt.type}</span>

@@ -793,7 +793,7 @@ function QuadrantBlock({ label, color, items }: { label: string; color: string; 
   return (
     <div className={`rounded-none border p-3 ${color}`}>
       <p className="font-semibold text-xs uppercase tracking-wide mb-2">{label}</p>
-      {items?.length > 0 ? <ul className="text-xs space-y-1 list-disc pl-4">{items.map((i, k) => <li key={k}>{i}</li>)}</ul> : <p className="text-xs italic opacity-60">None</p>}
+      {items?.length > 0 ? <ul className="text-xs space-y-1 list-disc pl-4">{items.map((i, k) => <li key={k}>{i}</li>)}</ul> : <p className="text-sm italic opacity-60">None</p>}
     </div>
   );
 }

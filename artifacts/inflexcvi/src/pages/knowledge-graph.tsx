@@ -482,7 +482,7 @@ export default function KnowledgeGraph() {
                         </div>
                         <p className="text-xs text-muted-foreground">{metric.description}</p>
                         {interp && (
-                          <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{interp}</p>
+                          <p className="text-sm text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{interp}</p>
                         )}
                       </div>
                     );
@@ -549,7 +549,7 @@ export default function KnowledgeGraph() {
                           </div>
                           <p className="text-xs text-muted-foreground">{rm.perspective}</p>
                           {consequence && (
-                            <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{consequence}</p>
+                            <p className="text-sm text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{consequence}</p>
                           )}
                         </div>
                       );
@@ -585,7 +585,7 @@ export default function KnowledgeGraph() {
                         </div>
                         <span className="font-mono text-[11px] bg-primary/10 text-primary px-2 py-0.5">{(p.weight * 100).toFixed(0)}%</span>
                       </div>
-                      {p.evidenceNote && <p className="text-xs text-muted-foreground mt-1.5 italic">{p.evidenceNote}</p>}
+                      {p.evidenceNote && <p className="text-sm text-muted-foreground mt-1.5 italic">{p.evidenceNote}</p>}
                     </div>
                   ))}
                 </div>
@@ -656,7 +656,7 @@ export default function KnowledgeGraph() {
                       <PopoverContent className="w-96 max-h-80 overflow-auto">
                         <div className="space-y-2">
                           {econ?.consensusSummary && (
-                            <div className="text-xs text-muted-foreground italic mb-2 pb-2 border-b">{econ.consensusSummary}</div>
+                            <div className="text-sm text-muted-foreground italic mb-2 pb-2 border-b">{econ.consensusSummary}</div>
                           )}
                           {alphaDetail.sources.map((src, i) => (
                             <a key={i} href={src} target="_blank" rel="noreferrer" className="flex items-start gap-1.5 text-xs text-primary hover:underline">

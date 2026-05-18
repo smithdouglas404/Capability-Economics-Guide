@@ -258,7 +258,7 @@ export default function ProofPage() {
                 <li>Expected directions are stored separately and allowed to disagree with the event's overall sentiment. COVID is globally negative but positive for telehealth; the EU AI Act is a cost burden but positive for AI-governance tooling. A naive engine misses these — the harness surfaces those gaps.</li>
                 <li>Replay runs in dry-run mode (<code className="font-mono text-xs bg-muted px-1">persist: false</code>); the live CVI and snapshots are untouched.</li>
               </ol>
-              <p className="text-xs text-muted-foreground italic">
+              <p className="text-sm text-muted-foreground italic">
                 What this proves: the engine's directional response under shock is consistent with the recorded historical record on a curated event set.
                 What it does not prove: that the engine forecasts magnitude with calibration, or that out-of-sample events not yet in the catalog will land the same way.
               </p>

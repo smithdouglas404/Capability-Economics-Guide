@@ -248,7 +248,7 @@ export default function ComparePage() {
                       </Link>
                     </div>
                     {c.missing ? (
-                      <p className="text-xs text-muted-foreground italic">Not found</p>
+                      <p className="text-sm text-muted-foreground italic">Not found</p>
                     ) : (
                       <>
                         <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">{c.industry?.name}</div>
@@ -261,7 +261,7 @@ export default function ComparePage() {
                           {c.consensusScore !== null && c.consensusScore !== undefined ? c.consensusScore.toFixed(1) : (c.benchmarkScore ?? 0).toFixed(1)}
                         </div>
                         {c.ciLow !== null && c.ciLow !== undefined && c.ciHigh !== null && c.ciHigh !== undefined && (
-                          <div className="font-mono text-[10px] text-muted-foreground tabular-nums">CI [{c.ciLow.toFixed(1)}, {c.ciHigh.toFixed(1)}]</div>
+                          <div className="font-mono text-[11px] text-muted-foreground tabular-nums">CI [{c.ciLow.toFixed(1)}, {c.ciHigh.toFixed(1)}]</div>
                         )}
                         <div className="flex items-center gap-2 text-xs">
                           <VelocityIcon v={c.velocity} className="w-3.5 h-3.5" />

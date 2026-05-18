@@ -1229,7 +1229,7 @@ function SyntheticAgentsPanel() {
                           <td className="px-3 py-3 text-xs">
                             <div className="text-muted-foreground">{bot.email}</div>
                             <div className="text-muted-foreground">{bot.city}{bot.region ? `, ${bot.region}` : ""} {bot.country}</div>
-                            <div className="font-mono text-[10px] text-muted-foreground/70">{bot.clerkUserId}</div>
+                            <div className="font-mono text-[11px] text-muted-foreground/70">{bot.clerkUserId}</div>
                           </td>
                           <td className="px-3 py-3">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${
@@ -1677,7 +1677,7 @@ function BotWorkflowsPanel() {
                                               </td>
                                               <td className="px-2 py-2 font-mono">${(s.costCents / 100).toFixed(2)}</td>
                                               <td className="px-2 py-2 font-mono">{s.durationMs}ms</td>
-                                              <td className="px-2 py-2 font-mono text-[10px] text-muted-foreground max-w-md">
+                                              <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground max-w-md">
                                                 {Object.keys(s.payload).length > 0 ? (
                                                   <pre className="whitespace-pre-wrap break-words">{JSON.stringify(s.payload, null, 2)}</pre>
                                                 ) : "—"}
