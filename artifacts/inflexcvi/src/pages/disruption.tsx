@@ -188,7 +188,7 @@ export default function DisruptionPage() {
                       )}
                     </div>
                     {r.topDrivers.length > 0 && (
-                      <div className="font-mono text-[9px] text-muted-foreground pt-1 border-t border-border/40">
+                      <div className="font-mono text-[10px] text-muted-foreground pt-1 border-t border-border/40">
                         Drivers: {r.topDrivers.join(", ")}
                       </div>
                     )}
