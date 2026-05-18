@@ -9,7 +9,7 @@ import {
   featuredCaseStudyPolicyTable,
   featuredCaseStudyScheduleTable,
 } from "@workspace/db";
-import { and, asc, eq, desc, ne, or, isNull } from "drizzle-orm";
+import { and, asc, eq, desc, ne, or, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
@@ -282,6 +282,36 @@ router.get("/case-studies/:industrySlug", async (req, res) => {
   res.json({ industry, study: study ?? null, capabilities });
 });
 
+/**
+ * One-shot dedupe — for every industryId that has more than one case study
+ * row, keep only the most recently generated one and delete the rest.
+ * Cleans up historical duplicates (the Technology pair 126+127 was the
+ * trigger). Idempotent: if no duplicates exist, returns { removed: 0 }.
+ *
+ * Going forward POST /case-studies/generate already replaces per-industry
+ * inside a transaction, so this is purely backfill.
+ */
+router.post("/admin/case-studies/dedupe-by-industry", requireAdmin, async (_req, res) => {
+  const all = await db
+    .select({
+      id: caseStudiesTable.id,
+      industryId: caseStudiesTable.industryId,
+      generatedAt: caseStudiesTable.generatedAt,
+    })
+    .from(caseStudiesTable)
+    .orderBy(desc(caseStudiesTable.generatedAt));
+  const seen = new Set<number>();
+  const toDelete: number[] = [];
+  for (const row of all) {
+    if (seen.has(row.industryId)) toDelete.push(row.id);
+    else seen.add(row.industryId);
+  }
+  if (toDelete.length > 0) {
+    await db.delete(caseStudiesTable).where(inArray(caseStudiesTable.id, toDelete));
+  }
+  res.json({ ok: true, kept: seen.size, removed: toDelete.length, removedIds: toDelete });
+});
+
 router.delete("/admin/case-studies/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
@@ -433,21 +463,32 @@ Constraints:
     }
   }
 
-  const [inserted] = await db
-    .insert(caseStudiesTable)
-    .values({
-      industryId: industry.id,
-      title: studyJson.title,
-      executiveSummary: studyJson.executiveSummary,
-      situation: studyJson.situation,
-      challenges: studyJson.challenges,
-      recommendations: studyJson.recommendations,
-      fiveYearOutlook: studyJson.fiveYearOutlook,
-      kpis: studyJson.kpis,
-      sources,
-      model: "anthropic/claude-sonnet-4.6+sonar-pro",
-    })
-    .returning();
+  // Replace-per-industry: delete any prior case study rows for this industry
+  // before inserting the new one. Without this, every call to /generate
+  // leaves the previous study behind, which is how we ended up with two
+  // Technology rows (ids 126 + 127) earlier today. The frontend's
+  // /api/case-studies and /api/featured-case-study endpoints both `order by
+  // generatedAt desc` so stale rows clutter the catalog and skew the
+  // "featured" pick. Wrap in a transaction so a failed insert doesn't leave
+  // the industry with zero case studies.
+  const [inserted] = await db.transaction(async (tx) => {
+    await tx.delete(caseStudiesTable).where(eq(caseStudiesTable.industryId, industry.id));
+    return tx
+      .insert(caseStudiesTable)
+      .values({
+        industryId: industry.id,
+        title: studyJson.title,
+        executiveSummary: studyJson.executiveSummary,
+        situation: studyJson.situation,
+        challenges: studyJson.challenges,
+        recommendations: studyJson.recommendations,
+        fiveYearOutlook: studyJson.fiveYearOutlook,
+        kpis: studyJson.kpis,
+        sources,
+        model: "anthropic/claude-sonnet-4.6+sonar-pro",
+      })
+      .returning();
+  });
 
   // Also populate case_study_content (per-capability traditional/economic view
   // cards that back the case-study page grid). This is a separate LLM call —
