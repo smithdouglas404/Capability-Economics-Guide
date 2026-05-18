@@ -379,7 +379,7 @@ export default function DevelopersPage() {
               <div>
                 <div className="font-medium mb-1">Latest CVI snapshot</div>
                 <pre className="bg-muted p-3 text-xs overflow-x-auto">{`curl -H "Authorization: Bearer ce_live_..." \\
-  https://inflexcvi.ai/v1/cei/current`}</pre>
+  https://inflexcvi.ai/v1/cvi/current`}</pre>
               </div>
               <div>
                 <div className="font-medium mb-1">List capabilities for an industry</div>

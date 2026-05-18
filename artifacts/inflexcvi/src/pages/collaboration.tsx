@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageCircle, Gavel, Plus, Check, Users, Send, ChevronDown, ChevronUp } from "lucide-react";
+import { MessageCircle, Gavel, Plus, Check, Users, Send } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -47,7 +47,6 @@ export default function Collaboration() {
   const [showDecisionForm, setShowDecisionForm] = useState(false);
   const [commentForm, setCommentForm] = useState({ authorName: "", authorRole: "CTO", body: "" });
   const [decisionForm, setDecisionForm] = useState({ decision: "invest", rationale: "", decidedBy: "", decidedByRole: "CEO", investmentUsdK: "", timelineMonths: "" });
-  const [expandedComments, setExpandedComments] = useState<Set<number>>(new Set());
   const sessionToken = localStorage.getItem("ce_session_token") ?? "";
 
   useEffect(() => {
