@@ -175,18 +175,25 @@ export default function EnrichmentAdmin() {
     setError(null);
     setLastResult(null);
     try {
-      // Fire-and-forget the The Console refresh — we don't wait on it.
-      fetch(`${API_BASE}/enrichment/run`, { method: "POST", credentials: "include" }).catch(() => { /* surfaced in Recent Runs */ });
-      // Await the sync alpha batch so the user sees real counts return.
-      const res = await fetch(`${API_BASE}/alpha/enrich-sync`, {
+      // Single LangGraph run — handles classification + value-chain +
+      // companies + economics + detail in one orchestrated pass. The old
+      // /alpha/enrich-sync was a BullMQ-era synchronous bypass that was
+      // removed with commit f84dfb7 but the frontend kept calling it,
+      // silently failing for weeks. The new flow is just /enrichment/run.
+      const res = await fetch(`${API_BASE}/enrichment/run`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ limitCapabilities: 10, limitEdges: 10 }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) { setError(body.error || `Run failed (${res.status})`); return; }
-      setLastResult(`Enriched ${body.capabilitiesEnriched ?? 0} capabilities + ${body.edgesEnriched ?? 0} edges in ${Math.round((body.durationMs ?? 0) / 1000)}s. The Console refresh running in background.`);
+      const parts = [
+        body.quadrantsClassified != null ? `${body.quadrantsClassified} quadrants` : null,
+        body.valueChainStagesCreated != null ? `${body.valueChainStagesCreated} stages` : null,
+        body.companiesProfiled != null ? `${body.companiesProfiled} companies` : null,
+      ].filter(Boolean).join(" · ");
+      const dur = body.durationMs ? `${Math.round(body.durationMs / 1000)}s` : "—";
+      setLastResult(`Run complete: ${parts || "no new work"} in ${dur}.`);
       fetchAll();
     } catch (e) {
       setError(String(e));

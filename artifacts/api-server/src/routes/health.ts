@@ -36,6 +36,27 @@ router.get("/healthz", (_req, res) => {
  * Enrichment Health panel and by anyone debugging "why isn't this working?"
  * when a feature silently degrades.
  */
+/**
+ * Redis connection probe — reports whether the Redis client used by
+ * requireApiKey (sliding-window rate limit) and rateLimit middleware
+ * is reachable. Called by the admin enrichment panel and any debugging
+ * around 503 "quota_check_unavailable" responses on the v1 surface.
+ * Restored after the BullMQ removal (commit f84dfb7) left the frontend
+ * call to /api/healthz/redis dangling without a backing route.
+ */
+router.get("/healthz/redis", async (_req, res) => {
+  const { getRedis } = await import("../lib/redis");
+  const configured = !!(process.env.REDIS_URL || process.env.REDIS_HOST);
+  try {
+    const redis = await getRedis();
+    if (!redis) { res.json({ configured, connected: false }); return; }
+    const pong = await redis.ping();
+    res.json({ configured: true, connected: pong === "PONG" });
+  } catch (err) {
+    res.json({ configured, connected: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 router.get("/healthz/schema", async (_req, res) => {
   const cached = getCachedSchemaStatus();
   if (cached) { res.json(cached); return; }

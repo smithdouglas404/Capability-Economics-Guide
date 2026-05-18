@@ -224,7 +224,11 @@ const probePerplexity: Probe = async () => {
           body: JSON.stringify({
             model: "sonar",
             messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1,
+            // Sonar rejects max_tokens < ~50 with HTTP 400 (validation error).
+            // 50 keeps the probe cheap (~$0.0002/call) while staying inside
+            // the model's allowed range. Was 1 → false-alarmed "Perplexity → 400"
+            // every health check even though the actual enrichment calls work.
+            max_tokens: 50,
           }),
         }),
         PROBE_TIMEOUT_MS,

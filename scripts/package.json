@@ -38,6 +38,9 @@
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",
     "sync:foundry": "tsx ./src/foundry/sync.ts",
     "deploy:migrate": "tsx ./src/deploy-migrate.ts",
+    "check:contract": "tsx ./src/check-contract.ts",
+    "check:routes": "tsx ./src/check-contract.ts routes",
+    "check:codegen": "tsx ./src/check-contract.ts codegen",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "type": "module"
