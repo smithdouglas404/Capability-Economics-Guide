@@ -92,6 +92,8 @@ All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** wh
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
+**DO NOT migrate the 7 agents off LangChain/LangGraph.** The 5 specialized agents (`macro-event-agent`, `disruption-agent`, `peer-coop-agent`, `stack-optimizer-agent`, `ontology-agent`) plus the autonomous CVI agent (`services/agent/graph.ts`) plus the `synthesis-agent` use `ChatAnthropic` + `StateGraph` from `@langchain/langgraph` and `@langchain/anthropic`. They work. They are NOT to be migrated to Vercel AI SDK. The two frameworks coexist in this repo on purpose: Vercel AI SDK is for one-shot structured-output calls (the 14 workflows in `services/workflows/` + the 8 Tier-1 service callers); LangGraph is for stateful multi-step agent loops (these 7 agents). Don't propose this migration in future sessions — it was explicitly declined 2026-05-18.
+
 ### LangMem / Shared Agent Store
 
 **LangMem is Python-only and is NOT installed in this TypeScript project.** Do not attempt to `import { create_prompt_optimizer } from "langmem"` — it will not resolve. The TypeScript equivalents are built on `@langchain/langgraph-checkpoint-postgres` + `@langchain/anthropic`.
