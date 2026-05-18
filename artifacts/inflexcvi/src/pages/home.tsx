@@ -135,7 +135,7 @@ function EducationalLibrary() {
                   {entry.keyTakeaways.length > 0 && (
                     <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
                       {entry.keyTakeaways.slice(0, 3).map((t, ti) => (
-                        <li key={ti} className="font-mono text-[10px] text-foreground/50 flex gap-1.5 before:content-['—'] before:text-muted-foreground/40">
+                        <li key={ti} className="font-mono text-[10px] text-foreground/75 flex gap-1.5 before:content-['—'] before:text-muted-foreground">
                           <span>{t}</span>
                         </li>
                       ))}
@@ -180,7 +180,7 @@ function MetricTile({ label, value, sub, accent = false, delay = 0 }: {
     >
       <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">{label}</div>
       <div className={`font-mono text-xl font-medium tabular-nums tracking-tight ${accent ? "text-accent" : "text-foreground"}`}>{value}</div>
-      <div className="font-mono text-[9px] text-muted-foreground/60 mt-1">{sub}</div>
+      <div className="font-mono text-[10px] text-muted-foreground mt-1 leading-snug">{sub}</div>
     </motion.div>
   );
 }
@@ -419,7 +419,7 @@ export default function Home() {
 
             {/* Right: Data panel */}
             <aside className="hidden lg:flex flex-col gap-2 pb-10 self-end">
-              <div className="font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground/60 mb-1 flex items-center gap-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-1 flex items-center gap-2">
                 <span className="h-px w-4 bg-border/60" />
                 Live capability indices
               </div>
@@ -575,7 +575,7 @@ export default function Home() {
                     <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
                       <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
                     </div>
-                    <div className="font-mono text-[9px] text-muted-foreground/60 mt-2">Opaque cost center — no sub-allocation visibility</div>
+                    <div className="font-mono text-[10px] text-muted-foreground mt-2">Opaque cost center — no sub-allocation visibility</div>
                   </div>
                   <div className="border border-accent/30 bg-accent/[0.04] p-6 lg:p-7 relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-[3px] bg-accent" />
@@ -601,7 +601,7 @@ export default function Home() {
                         />
                       </div>
                     </div>
-                    <div className="font-mono text-[9px] text-muted-foreground/60">
+                    <div className="font-mono text-[10px] text-muted-foreground">
                       {(valueGenerated / capabilityCost.amountUsdMm).toFixed(1)}× return on capability investment
                     </div>
                   </div>

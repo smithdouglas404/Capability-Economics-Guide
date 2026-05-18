@@ -1116,7 +1116,7 @@ export default function CVIDashboard() {
                                         </div>
                                       )}
                                       <div className="flex items-center justify-between pt-1 border-t border-border/40">
-                                        <span className="text-[9px] text-muted-foreground italic line-clamp-1" title={t.rationale}>{t.rationale}</span>
+                                        <span className="text-[10px] text-muted-foreground italic line-clamp-1" title={t.rationale}>{t.rationale}</span>
                                         <Button
                                           size="sm"
                                           variant="outline"
