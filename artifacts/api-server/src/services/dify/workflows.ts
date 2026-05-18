@@ -1,197 +1,128 @@
 /**
- * Per-workflow wrappers + feature-flag helpers for the Dify orchestration
- * layer. Plan reference: `~/.claude/plans/steady-drifting-wilkes.md` Phase D.
+ * In-process AI workflows — the 14 capabilities that previously called out
+ * to Dify via Service API. Reimplemented natively as inline Anthropic SDK
+ * (via OpenRouter) + Perplexity calls. No external Dify service required.
  *
- * Each wrapper:
- *  1. Returns null when its feature flag is off (or Dify isn't configured).
- *  2. Resolves the workflow's Dify app id from `dify_workflow_registry`.
- *  3. Resolves the per-workflow Service API key from env (per-workflow keys
- *     keep auth scoped — losing one key doesn't expose the others).
- *  4. Triggers the workflow and returns the structured payload OR null on
- *     failure. Callers MUST fall back to the legacy handler on null.
+ * Each `run*()` function preserves the exact signature it had during the
+ * Dify era, so route handlers don't need to change. Returns `null` on
+ * any failure → caller falls back to its legacy code path. Same
+ * graceful-degrade contract as before.
  *
- * Adding a new workflow:
- *   1. Add an entry to `WORKFLOWS` below (slug → kind + env-var name).
- *   2. Author the DSL in `dify-workflows/<slug>.yml`.
- *   3. Run `pnpm tsx scripts/src/dify-workflow-import.ts` to push it to Dify
- *      and write the registry row.
- *   4. Set `DIFY_APIKEY_<UPPER_SLUG>` on the api-server with the workflow's
- *      Service API key from Dify UI.
- *   5. Add `DIFY_<UPPER_SLUG>_ENABLED=1` to flip the wrapper on in prod.
+ * The 14 YAML specs in `dify-workflows/*.yml` remain in the repo as
+ * reference documentation for "what does each workflow do" but are no
+ * longer load-bearing — the truth is the code below.
+ *
+ * Path is preserved at `services/dify/workflows.ts` to avoid churning
+ * imports across 13+ route files. The directory name is historical; the
+ * code has no Dify dependency.
  */
 
-import { db, difyWorkflowRegistry } from "@workspace/db";
-import { eq } from "drizzle-orm";
-import { triggerChatflow, triggerWorkflow } from "./client";
-import type { ChatflowResult, WorkflowRunResult } from "./client";
+import { randomUUID } from "node:crypto";
+import { anthropic, resolveModel } from "@workspace/integrations-anthropic-ai";
+import pino from "pino";
 
-export type WorkflowKind = "workflow" | "chatflow";
+const logger = pino({ name: "workflows" });
 
-export interface WorkflowDescriptor {
-  slug: string;
-  kind: WorkflowKind;
-  /** Env var holding this workflow's Service API key (Bearer token). */
-  apiKeyEnvVar: string;
-  /** Env var that flips this wrapper on. Off by default. */
-  enabledFlagEnvVar: string;
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+interface PerplexityResult {
+  content: string;
+  citations: string[];
 }
-
-const slugToEnvKey = (slug: string): string =>
-  slug.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
-
-const descriptor = (slug: string, kind: WorkflowKind): WorkflowDescriptor => ({
-  slug,
-  kind,
-  apiKeyEnvVar: `DIFY_APIKEY_${slugToEnvKey(slug)}`,
-  enabledFlagEnvVar: `DIFY_${slugToEnvKey(slug)}_ENABLED`,
-});
-
-export const WORKFLOWS: Record<string, WorkflowDescriptor> = {
-  "onboarding-concierge": descriptor("onboarding-concierge", "chatflow"),
-  "tier-selector": descriptor("tier-selector", "chatflow"),
-  "marketplace-search-v2": descriptor("marketplace-search-v2", "chatflow"),
-  "listing-moderation": descriptor("listing-moderation", "workflow"),
-  "kyc-failure-counselor": descriptor("kyc-failure-counselor", "chatflow"),
-  "payment-recovery": descriptor("payment-recovery", "chatflow"),
-  "capability-review-assist": descriptor("capability-review-assist", "workflow"),
-  "research-pipeline": descriptor("research-pipeline", "workflow"),
-  "synthesis-brief-composer": descriptor("synthesis-brief-composer", "workflow"),
-  "assessment-analyzer": descriptor("assessment-analyzer", "workflow"),
-  "industry-bootstrap": descriptor("industry-bootstrap", "workflow"),
-  "case-study-generator": descriptor("case-study-generator", "workflow"),
-  "capability-enrichment-retry": descriptor("capability-enrichment-retry", "workflow"),
-  "admin-config-proposer": descriptor("admin-config-proposer", "workflow"),
-};
 
 /**
- * Cached registry lookup. The dify_workflow_registry table is the source of
- * truth for `dify_app_id`, `api_key`, and `enabled` per slug. We cache rows
- * for 30s to avoid one DB hit per workflow invocation. Cache is process-
- * local; multi-instance Railway deployments may see up to 30s of staleness
- * after a registry update — acceptable for feature-flag flips.
+ * Direct Perplexity API call. Returns null on missing key or transport
+ * failure so callers can degrade gracefully (most callers fall back to a
+ * legacy code path).
  */
-interface RegistryEntry {
-  difyAppId: string;
-  apiKey: string | null;
-  enabled: boolean;
-}
-const registryCache = new Map<string, { entry: RegistryEntry | null; expiresAt: number }>();
-const REGISTRY_CACHE_TTL_MS = 30_000;
-
-async function getRegistryEntry(slug: string): Promise<RegistryEntry | null> {
-  const now = Date.now();
-  const cached = registryCache.get(slug);
-  if (cached && cached.expiresAt > now) return cached.entry;
-  let entry: RegistryEntry | null = null;
+async function perplexity(query: string, model = "sonar-pro"): Promise<PerplexityResult | null> {
+  const apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) return null;
   try {
-    const [row] = await db
-      .select({
-        difyAppId: difyWorkflowRegistry.difyAppId,
-        apiKey: difyWorkflowRegistry.apiKey,
-        enabled: difyWorkflowRegistry.enabled,
-      })
-      .from(difyWorkflowRegistry)
-      .where(eq(difyWorkflowRegistry.slug, slug))
-      .limit(1);
-    if (row) entry = { difyAppId: row.difyAppId, apiKey: row.apiKey ?? null, enabled: row.enabled };
-  } catch {
-    // DB unreachable — leave entry null and fall back to env vars below.
+    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 4096,
+        messages: [
+          { role: "system", content: "You are a research analyst. Cite sources inline." },
+          { role: "user", content: query },
+        ],
+      }),
+    });
+    if (!resp.ok) return null;
+    const data = (await resp.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+      citations?: string[];
+      search_results?: Array<{ url?: string }>;
+    };
+    const content = data.choices?.[0]?.message?.content ?? "";
+    const citations = data.citations ?? (data.search_results ?? []).map((s) => s.url ?? "").filter(Boolean);
+    return { content, citations };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[workflows] perplexity call failed");
+    return null;
   }
-  registryCache.set(slug, { entry, expiresAt: now + REGISTRY_CACHE_TTL_MS });
-  return entry;
 }
 
 /**
- * Invalidate the cached registry entry for a slug. Call after an admin
- * action that flips `enabled` or rotates `api_key` so the change takes
- * effect immediately instead of waiting up to 30s.
+ * One-shot Anthropic call via the OpenRouter-backed integration. Wraps
+ * the existing `anthropic.messages.create` helper so wrappers below stay
+ * compact. Returns the assistant text or throws — wrappers catch + return
+ * null.
  */
-export function invalidateRegistryCache(slug?: string): void {
-  if (slug) registryCache.delete(slug);
-  else registryCache.clear();
-}
-
-/**
- * Is the workflow allowed to run? Reads `enabled` from the registry row;
- * falls back to the env-var flag (`DIFY_<SLUG>_ENABLED=1`) when the row
- * has no value yet. The fallback exists so the originally-pasted Railway
- * env vars keep working during the migration to DB-driven flags.
- */
-export async function isWorkflowEnabled(slug: string): Promise<boolean> {
-  const d = WORKFLOWS[slug];
-  if (!d) return false;
-  const entry = await getRegistryEntry(slug);
-  if (entry?.enabled) return true;
-  return process.env[d.enabledFlagEnvVar] === "1";
-}
-
-/**
- * Resolve the Service API bearer key for a workflow. Reads `api_key` from
- * the registry first; falls back to `DIFY_APIKEY_<SLUG>` env var when the
- * row hasn't been backfilled yet.
- */
-async function getApiKey(slug: string): Promise<string | null> {
-  const d = WORKFLOWS[slug];
-  if (!d) return null;
-  const entry = await getRegistryEntry(slug);
-  if (entry?.apiKey) return entry.apiKey;
-  return process.env[d.apiKeyEnvVar] || null;
-}
-
-/**
- * Look up the Dify app id for a slug. Populated by the one-shot import
- * script. Returns null if the slug hasn't been imported yet — the wrapper
- * treats that as "Dify not ready, fall back to legacy."
- */
-export async function resolveAppId(slug: string): Promise<string | null> {
-  const entry = await getRegistryEntry(slug);
-  return entry?.difyAppId ?? null;
-}
-
-interface RunOptions {
-  /** Stable user identifier passed to Dify's `user` field. */
-  user: string;
-  /** For chatflows, the conversation id to thread into. */
-  conversationId?: string;
-}
-
-/**
- * Generic chatflow runner. Returns null on any "fall back to legacy"
- * condition (flag off, key missing, app not registered, transport error).
- */
-export async function runChatflow(
-  slug: string,
-  query: string,
-  inputs: Record<string, unknown>,
-  opts: RunOptions,
-): Promise<ChatflowResult | null> {
-  if (!(await isWorkflowEnabled(slug))) return null;
-  const key = await getApiKey(slug);
-  if (!key) return null;
-  // Service API uses the app key directly — no app-id lookup needed for
-  // chat-messages. resolveAppId is still useful for admin/health checks.
-  return await triggerChatflow(key, query, opts.user, inputs, {
-    conversationId: opts.conversationId,
+async function callLLM(
+  system: string,
+  user: string,
+  opts: { model?: string; temperature?: number; maxTokens?: number } = {},
+): Promise<string> {
+  const resp = await anthropic.messages.create({
+    model: resolveModel(opts.model ?? "claude-sonnet-4-6"),
+    max_tokens: opts.maxTokens ?? 4000,
+    temperature: opts.temperature ?? 0.2,
+    system,
+    messages: [{ role: "user", content: user }],
   });
+  const text = resp.content[0]?.type === "text" ? resp.content[0].text : "";
+  return text ?? "";
 }
 
 /**
- * Generic workflow runner. Same null-on-failure contract as runChatflow.
+ * Tolerant JSON extraction: strips ```json fences, finds the first object
+ * or array, parses. Returns null if nothing parses. Used by every wrapper
+ * to coerce LLM output into a typed payload.
  */
-export async function runWorkflow(
-  slug: string,
-  inputs: Record<string, unknown>,
-  opts: RunOptions,
-): Promise<WorkflowRunResult | null> {
-  if (!(await isWorkflowEnabled(slug))) return null;
-  const key = await getApiKey(slug);
-  if (!key) return null;
-  return await triggerWorkflow(key, inputs, opts.user);
+function coerceJSON<T = Record<string, unknown>>(text: string): T | null {
+  if (!text) return null;
+  let s = text.trim();
+  if (s.startsWith("```")) s = s.replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "");
+  const m = s.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+  if (!m) return null;
+  try {
+    return JSON.parse(m[0]) as T;
+  } catch {
+    return null;
+  }
 }
 
-// ── Per-workflow typed wrappers ──────────────────────────────────────────
-// These exist so route handlers don't pass raw slugs around — the type
-// system enforces the contract at each call site.
+function newConversationId(): string {
+  return randomUUID();
+}
+
+// ── Generic workflow output shape ────────────────────────────────────────
+// Used by the non-chat workflows (research-pipeline, synthesis-brief,
+// capability-review-assist, etc.) where the route handler just relays the
+// LLM's structured payload.
+
+interface GenericWorkflowOutput<T = Record<string, unknown>> {
+  status: "ok" | "degraded";
+  payload: T;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 1. ONBOARDING CONCIERGE
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface OnboardingConciergeInput {
   clerkUserId: string;
@@ -210,43 +141,140 @@ export interface OnboardingConciergeOutput {
   conversationId: string;
 }
 
-/**
- * Runs the onboarding concierge chatflow. Wired into routes/onboarding.ts
- * behind DIFY_ONBOARDING_CONCIERGE_ENABLED=1. The chatflow asks 2-3
- * qualifying questions and, when it has enough signal, calls back to
- * /api/dify/callback/seed-board to create a starter workbench. The first
- * synchronous answer (returned here) is what we show the user immediately
- * while the seed-board callback runs in the background.
- */
+const ONBOARDING_SYSTEM = `You are the inflexcvi Onboarding Concierge. Your job: in 2-3 turns, gather enough
+signal to recommend 3-5 capabilities the user should start tracking.
+
+Always end your reply with a fenced JSON block of the shape:
+
+\`\`\`json
+{ "readyToSeed": false, "nextQuestion": "..." }
+\`\`\`
+
+or, once you have enough signal:
+
+\`\`\`json
+{
+  "readyToSeed": true,
+  "boardSeed": {
+    "boardName": "string",
+    "description": "string",
+    "cards": [
+      { "capabilityName": "string", "lane": "now|next|later", "notes": "string" }
+    ]
+  }
+}
+\`\`\`
+
+Cards should reference real capability names where you have signal; otherwise leave the
+array empty and let the legacy ideation flow fill them. Be specific to the industry the
+user mentions. Never invent KPIs.`;
+
 export async function runOnboardingConcierge(
   input: OnboardingConciergeInput,
 ): Promise<OnboardingConciergeOutput | null> {
-  const slug = "onboarding-concierge";
-  const greeting = input.selectedIndustry
-    ? `New user in ${input.selectedIndustry}. Help them pick 3-5 starting capabilities.`
-    : "New user, no industry selected yet. Ask what industry they want to focus on.";
-  const result = await runChatflow(
-    slug,
-    greeting,
-    {
-      clerkUserId: input.clerkUserId,
-      clerkOrgId: input.clerkOrgId ?? null,
-      selectedIndustry: input.selectedIndustry ?? null,
-      signals: input.signals ?? {},
-    },
-    { user: input.clerkUserId },
-  );
-  if (!result) return null;
-  // The chatflow may surface a structured boardSeed in `metadata` when it
-  // has enough signal to seed a board. Absence is fine — the conversation
-  // can continue and the seed-board callback may arrive later.
-  const boardSeed = (result.metadata as { boardSeed?: OnboardingConciergeOutput["boardSeed"] } | undefined)?.boardSeed;
-  return {
-    answer: result.answer,
-    conversationId: result.conversation_id,
-    boardSeed,
-  };
+  try {
+    const userMsg = `Industry hint: ${input.selectedIndustry ?? "(none)"}\n\nSignals so far: ${JSON.stringify(input.signals ?? {})}`;
+    const text = await callLLM(ONBOARDING_SYSTEM, userMsg, { temperature: 0.3, maxTokens: 1500 });
+    const parsed = coerceJSON<{ readyToSeed?: boolean; nextQuestion?: string; boardSeed?: OnboardingConciergeOutput["boardSeed"] }>(text);
+    const answer = parsed?.readyToSeed ? "Got it — seeding your starter board." : (parsed?.nextQuestion ?? text.split(/```/)[0].trim());
+    return {
+      answer,
+      conversationId: newConversationId(),
+      boardSeed: parsed?.readyToSeed ? parsed.boardSeed : undefined,
+    };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), userId: input.clerkUserId }, "[workflows] onboarding-concierge failed");
+    return null;
+  }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// 2. TIER SELECTOR
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface TierSelectorInput {
+  userId: string;
+  currentTier?: string | null;
+  query: string;
+  conversationId?: string;
+}
+
+export interface TierSelectorOutput {
+  answer: string;
+  conversationId: string;
+  recommendedTier?: "discovery" | "briefing" | "console" | "platform";
+  rationale?: string;
+}
+
+const TIER_SELECTOR_SYSTEM = `You recommend one of 4 inflexcvi tiers: \`discovery\` (free, view one industry/qtr),
+\`briefing\` (weekly briefs across 3 industries), \`console\` (full CVI cockpit + alerts),
+\`platform\` (API + embed + SLA). Ask up to 3 follow-up questions; once you have a
+clear read, end with a fenced JSON block:
+
+\`\`\`json
+{ "readyToRecommend": true, "tier": "console", "rationale": "..." }
+\`\`\`
+
+Otherwise:
+
+\`\`\`json
+{ "readyToRecommend": false, "nextQuestion": "..." }
+\`\`\`
+
+Be honest — if \`discovery\` is enough, recommend it. Never upsell.`;
+
+export async function runTierSelector(input: TierSelectorInput): Promise<TierSelectorOutput | null> {
+  try {
+    const userMsg = `Current tier: ${input.currentTier ?? "(none)"}\n\nUser: ${input.query}`;
+    const text = await callLLM(TIER_SELECTOR_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 1200 });
+    const parsed = coerceJSON<{ readyToRecommend?: boolean; tier?: TierSelectorOutput["recommendedTier"]; rationale?: string; nextQuestion?: string }>(text);
+    const ready = !!parsed?.readyToRecommend && !!parsed.tier;
+    const answer = ready
+      ? `Recommended: ${parsed.tier}. ${parsed.rationale ?? ""}`
+      : (parsed?.nextQuestion ?? text.split(/```/)[0].trim());
+    return {
+      answer,
+      conversationId: input.conversationId ?? newConversationId(),
+      recommendedTier: ready ? parsed.tier : undefined,
+      rationale: ready ? parsed.rationale : undefined,
+    };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), userId: input.userId }, "[workflows] tier-selector failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 3. MARKETPLACE SEARCH V2
+// ──────────────────────────────────────────────────────────────────────────
+// Without the Dify KB this becomes a no-op stub. The route handler in
+// routes/marketplace-listings.ts falls through to Postgres ILIKE search
+// when this returns null — which is correct for the current 22-listing
+// dataset. Re-implement with pgvector when the listing count justifies it.
+
+export interface MarketplaceSearchV2Input {
+  query: string;
+  userTier?: string;
+  filters?: Record<string, unknown>;
+  user: string;
+  conversationId?: string;
+}
+
+export interface MarketplaceSearchV2Output {
+  rankedListingIds: string[];
+  summary: string;
+  conversationId: string;
+}
+
+export async function runMarketplaceSearchV2(_input: MarketplaceSearchV2Input): Promise<MarketplaceSearchV2Output | null> {
+  // Intentional null — caller falls back to keyword search. Reintroduce when
+  // we wire pgvector embeddings on marketplace listings.
+  return null;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 4. LISTING MODERATION
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface ListingModerationInput {
   listingId: number;
@@ -263,92 +291,53 @@ export interface ListingModerationOutput {
   rationale: string;
 }
 
-export async function runListingModeration(
-  input: ListingModerationInput,
-): Promise<ListingModerationOutput | null> {
-  const result = await runWorkflow("listing-moderation", input as unknown as Record<string, unknown>, {
-    user: `listing-${input.listingId}`,
-  });
-  if (!result || result.data.status !== "succeeded" || !result.data.outputs) return null;
-  const o = result.data.outputs as Partial<ListingModerationOutput>;
-  if (!o.verdict) return null;
-  return {
-    verdict: o.verdict,
-    riskFlags: o.riskFlags ?? [],
-    confidence: typeof o.confidence === "number" ? o.confidence : 0,
-    rationale: o.rationale ?? "",
-  };
+const LISTING_MODERATION_SYSTEM = `You moderate inflexcvi marketplace listings. Output ONLY a JSON object — no prose:
+
+{
+  "verdict": "auto_approve" | "send_to_moderator" | "auto_reject",
+  "riskFlags": ["array of short strings"],
+  "confidence": 0.0,
+  "rationale": "<= 2 sentences"
 }
 
-// ── Tier Selector ────────────────────────────────────────────────────────
+Defaults:
+- \`auto_approve\` only when the listing is clearly legitimate (clear category, plausible
+  pricing, no compliance flags) AND \`confidence >= 0.85\`.
+- \`auto_reject\` only for explicit policy violations (regulated rails, deceptive claims,
+  obvious spam).
+- Anything else → \`send_to_moderator\` so a human reviews.
 
-export interface TierSelectorInput {
-  userId: string;
-  currentTier?: string | null;
-  query: string;
-  conversationId?: string;
-}
+Risk flags vocabulary (use only these): \`unclear_category\`, \`pricing_anomaly\`,
+\`compliance_risk\`, \`seller_velocity\`, \`pdf_unreadable\`, \`language\`, \`duplicate\`.`;
 
-export interface TierSelectorOutput {
-  answer: string;
-  conversationId: string;
-  recommendedTier?: "discovery" | "briefing" | "console" | "platform";
-  rationale?: string;
-}
-
-export async function runTierSelector(input: TierSelectorInput): Promise<TierSelectorOutput | null> {
-  const result = await runChatflow(
-    "tier-selector",
-    input.query,
-    { userId: input.userId, currentTier: input.currentTier ?? null },
-    { user: input.userId, conversationId: input.conversationId },
-  );
-  if (!result) return null;
-  const meta = (result.metadata ?? {}) as { tier?: TierSelectorOutput["recommendedTier"]; rationale?: string };
-  return { answer: result.answer, conversationId: result.conversation_id, recommendedTier: meta.tier, rationale: meta.rationale };
-}
-
-// ── Marketplace Search v2 ────────────────────────────────────────────────
-
-export interface MarketplaceSearchV2Input {
-  query: string;
-  userTier?: string;
-  filters?: Record<string, unknown>;
-  user: string;
-  conversationId?: string;
-}
-
-export interface MarketplaceSearchV2Output {
-  rankedListingIds: string[];
-  summary: string;
-  conversationId: string;
-}
-
-export async function runMarketplaceSearchV2(input: MarketplaceSearchV2Input): Promise<MarketplaceSearchV2Output | null> {
-  const result = await runChatflow(
-    "marketplace-search-v2",
-    input.query,
-    { query: input.query, userTier: input.userTier ?? null, filters: input.filters ?? {} },
-    { user: input.user, conversationId: input.conversationId },
-  );
-  if (!result) return null;
-  // The chatflow's final answer node emits a JSON block — parse it tolerantly.
-  let rankedListingIds: string[] = [];
-  let summary = result.answer;
+export async function runListingModeration(input: ListingModerationInput): Promise<ListingModerationOutput | null> {
   try {
-    const m = result.answer.match(/\{[\s\S]*\}/);
-    if (m) {
-      const parsed = JSON.parse(m[0]) as { rankedListingIds?: string[]; summary?: string };
-      if (Array.isArray(parsed.rankedListingIds)) rankedListingIds = parsed.rankedListingIds.map(String);
-      if (typeof parsed.summary === "string") summary = parsed.summary;
-    }
-  } catch {
-    // Keep defaults — caller falls back to legacy retrieve() when ids are empty.
+    const userMsg = [
+      `listingId: ${input.listingId}`,
+      `title: ${input.title}`,
+      `description:\n${input.description}`,
+      `sellerHistory: ${JSON.stringify(input.sellerHistory ?? null)}`,
+      `pdfText: ${input.pdfText?.slice(0, 8000) ?? ""}`,
+    ].join("\n\n");
+    const text = await callLLM(LISTING_MODERATION_SYSTEM, userMsg, { model: "claude-haiku-4-5", temperature: 0.0, maxTokens: 800 });
+    const parsed = coerceJSON<Partial<ListingModerationOutput>>(text);
+    if (!parsed?.verdict) return null;
+    const allowed = new Set<ListingModerationOutput["verdict"]>(["auto_approve", "send_to_moderator", "auto_reject"]);
+    return {
+      verdict: allowed.has(parsed.verdict) ? parsed.verdict : "send_to_moderator",
+      riskFlags: Array.isArray(parsed.riskFlags) ? parsed.riskFlags : [],
+      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0,
+      rationale: parsed.rationale ?? "",
+    };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: input.listingId }, "[workflows] listing-moderation failed");
+    return null;
   }
-  return { rankedListingIds, summary, conversationId: result.conversation_id };
 }
 
-// ── KYC Failure Counselor ────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// 5. KYC FAILURE COUNSELOR
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface KycFailureCounselorInput {
   verificationId: string;
@@ -364,19 +353,55 @@ export interface KycFailureCounselorOutput {
   appealSubmitted?: boolean;
 }
 
+const KYC_COUNSELOR_SYSTEM = `You are the KYC Counselor. Your job: gather a structured appeal so a human compliance
+reviewer can decide whether to re-run verification.
+
+Hard rules — NEVER violate:
+- You DO NOT override the decline. Say so plainly.
+- You DO NOT promise approval, fast-track, or refund.
+- You DO NOT advise re-submitting with different data; only capture the appeal as-is.
+- If the user describes potential fraud or coercion, end the conversation and tell them
+  to email security@inflexcvi.com.
+
+Otherwise, ask up to 3 short questions to capture:
+  reasonCategory: "data_mismatch" | "liveness_quality" | "document_quality" | "identity_change" | "other"
+  userExplanation: free text, paraphrased
+  evidenceOffered: short list of what the user says they can provide
+
+When you have enough, end with a fenced JSON block:
+
+\`\`\`json
+{ "readyToSubmit": true, "structuredAppeal": { "reasonCategory": "...", "userExplanation": "...", "evidenceOffered": ["..."] } }
+\`\`\`
+
+Otherwise:
+
+\`\`\`json
+{ "readyToSubmit": false, "nextQuestion": "..." }
+\`\`\``;
+
 export async function runKycFailureCounselor(input: KycFailureCounselorInput): Promise<KycFailureCounselorOutput | null> {
-  const result = await runChatflow(
-    "kyc-failure-counselor",
-    input.query,
-    { verificationId: input.verificationId, declineReason: input.declineReason, kycLevel: input.kycLevel ?? null },
-    { user: `kyc-${input.verificationId}`, conversationId: input.conversationId },
-  );
-  if (!result) return null;
-  const meta = (result.metadata ?? {}) as { appealSubmitted?: boolean };
-  return { answer: result.answer, conversationId: result.conversation_id, appealSubmitted: meta.appealSubmitted };
+  try {
+    const userMsg = `Decline reason: ${input.declineReason}\nKYC level: ${input.kycLevel ?? "(unknown)"}\n\nUser: ${input.query}`;
+    const text = await callLLM(KYC_COUNSELOR_SYSTEM, userMsg, { temperature: 0.3, maxTokens: 1500 });
+    const parsed = coerceJSON<{ readyToSubmit?: boolean; structuredAppeal?: Record<string, unknown>; nextQuestion?: string }>(text);
+    const answer = parsed?.readyToSubmit
+      ? "Thanks — appeal recorded. A human reviewer will get back to you within 1 business day."
+      : (parsed?.nextQuestion ?? text.split(/```/)[0].trim());
+    return {
+      answer,
+      conversationId: input.conversationId ?? newConversationId(),
+      appealSubmitted: !!parsed?.readyToSubmit,
+    };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), verificationId: input.verificationId }, "[workflows] kyc-counselor failed");
+    return null;
+  }
 }
 
-// ── Payment Recovery ─────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// 6. PAYMENT RECOVERY
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface PaymentRecoveryInput {
   userId: string;
@@ -392,44 +417,51 @@ export interface PaymentRecoveryOutput {
   chosenAction?: "update_card" | "switch_method" | "downgrade" | "pause_1m" | "escalate";
 }
 
+const PAYMENT_RECOVERY_SYSTEM = `You help a user pick a payment-recovery action. The valid actions are EXACTLY:
+
+  update_card | switch_method | downgrade | pause_1m | escalate
+
+Hard rules:
+- You DO NOT touch Stripe directly. inflexcvi will execute the action you log.
+- If the user is angry or describes financial hardship, default to \`escalate\`.
+- If the failure code suggests a card issue (lost_card, stolen_card, expired_card),
+  steer toward \`update_card\`.
+- Never offer a discount or refund.
+
+Ask up to 2 short follow-up questions, then end with a fenced JSON block:
+
+\`\`\`json
+{ "readyToSubmit": true, "action": "update_card", "userMessage": "..." }
+\`\`\`
+
+Or, to keep talking:
+
+\`\`\`json
+{ "readyToSubmit": false, "nextQuestion": "..." }
+\`\`\``;
+
 export async function runPaymentRecovery(input: PaymentRecoveryInput): Promise<PaymentRecoveryOutput | null> {
-  const result = await runChatflow(
-    "payment-recovery",
-    input.query,
-    { userId: input.userId, subscriptionId: input.subscriptionId, failureCode: input.failureCode ?? null },
-    { user: input.userId, conversationId: input.conversationId },
-  );
-  if (!result) return null;
-  const meta = (result.metadata ?? {}) as { chosenAction?: PaymentRecoveryOutput["chosenAction"] };
-  return { answer: result.answer, conversationId: result.conversation_id, chosenAction: meta.chosenAction };
+  try {
+    const userMsg = `Failure code: ${input.failureCode ?? "(unknown)"}\n\nUser: ${input.query}`;
+    const text = await callLLM(PAYMENT_RECOVERY_SYSTEM, userMsg, { model: "claude-haiku-4-5", temperature: 0.2, maxTokens: 1000 });
+    const parsed = coerceJSON<{ readyToSubmit?: boolean; action?: PaymentRecoveryOutput["chosenAction"]; userMessage?: string; nextQuestion?: string }>(text);
+    const allowed = new Set(["update_card", "switch_method", "downgrade", "pause_1m", "escalate"]);
+    const action = parsed?.readyToSubmit && parsed.action && allowed.has(parsed.action) ? parsed.action : undefined;
+    const answer = action ? (parsed?.userMessage ?? `Got it — logging ${action}.`) : (parsed?.nextQuestion ?? text.split(/```/)[0].trim());
+    return {
+      answer,
+      conversationId: input.conversationId ?? newConversationId(),
+      chosenAction: action,
+    };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), userId: input.userId }, "[workflows] payment-recovery failed");
+    return null;
+  }
 }
 
-// ── Generic workflow wrappers ────────────────────────────────────────────
-// The remaining workflows are non-chat and emit a single `payload` object
-// that the route handler just relays. One generic helper keeps the per-
-// workflow wrappers tight.
-
-interface GenericWorkflowOutput<T = Record<string, unknown>> {
-  status: "ok" | "degraded" | "succeeded" | "failed";
-  payload: T;
-  raw: unknown;
-}
-
-async function runGenericWorkflow<T = Record<string, unknown>>(
-  slug: string,
-  inputs: Record<string, unknown>,
-  user: string,
-): Promise<GenericWorkflowOutput<T> | null> {
-  const result = await runWorkflow(slug, inputs, { user });
-  if (!result) return null;
-  if (result.data.status !== "succeeded" || !result.data.outputs) return null;
-  const out = result.data.outputs as { payload?: T; status?: GenericWorkflowOutput["status"] };
-  return {
-    status: out.status ?? "succeeded",
-    payload: (out.payload ?? {}) as T,
-    raw: result.data.outputs,
-  };
-}
+// ──────────────────────────────────────────────────────────────────────────
+// 7. CAPABILITY REVIEW ASSIST
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface CapabilityReviewAssistInput {
   capabilityId: number;
@@ -443,9 +475,40 @@ export interface CapabilityReviewAssistPayload {
   confidence?: number;
 }
 
-export async function runCapabilityReviewAssist(input: CapabilityReviewAssistInput): Promise<GenericWorkflowOutput<CapabilityReviewAssistPayload> | null> {
-  return runGenericWorkflow<CapabilityReviewAssistPayload>("capability-review-assist", input as unknown as Record<string, unknown>, `cap-${input.capabilityId}`);
+const REVIEW_ASSIST_SYSTEM = `A reviewer rejected a capability draft. Read the reviewer's comment and the current
+draft, then produce structured revision prompts the next enrichment pass will use.
+
+Output ONLY a JSON object, no prose:
+
+{
+  "summary": "1-sentence diagnosis of what the reviewer is asking to change",
+  "prompts": {
+    "perplexityFollowup": "string — what to research next, OR null",
+    "narrativeRevisions": ["bullet list of specific narrative changes"],
+    "metricRevisions": ["bullet list of metric changes (TAM/EVaR/moat etc)"]
+  },
+  "confidence": 0.0
 }
+
+If the reviewer's comment doesn't actually require a revision (e.g. just a question),
+return \`confidence: 0\` and explain in \`summary\`.`;
+
+export async function runCapabilityReviewAssist(input: CapabilityReviewAssistInput): Promise<GenericWorkflowOutput<CapabilityReviewAssistPayload> | null> {
+  try {
+    const userMsg = `Capability ID: ${input.capabilityId}\n\nReviewer comment:\n${input.reviewerComment}\n\nCurrent draft (truncated):\n${input.currentDraft.slice(0, 8000)}`;
+    const text = await callLLM(REVIEW_ASSIST_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 2000 });
+    const parsed = coerceJSON<CapabilityReviewAssistPayload>(text);
+    if (!parsed) return { status: "degraded", payload: { summary: text.slice(0, 300) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: input.capabilityId }, "[workflows] review-assist failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 8. RESEARCH PIPELINE  (Perplexity → Sonnet)
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface ResearchPipelineInput {
   capabilityId?: number;
@@ -453,17 +516,45 @@ export interface ResearchPipelineInput {
   prompt: string;
 }
 
+const RESEARCH_SYNTH_SYSTEM = `Synthesize the research below into a structured payload appropriate for \`kind\`.
+
+For \`kind=quadrant\`: emit { quadrant: "...", justification: "...", confidence: 0.0 }.
+For \`kind=alpha\`: emit { tamUsd: number|null, evarBp: number|null, moatTier: "...", narratives: {traditional, economic, ai}, citations: [...] }.
+For \`kind=value_chain\`: emit { stages: [{name, description, players: [...]}] }.
+For \`kind=generic\`: emit { summary: string, bullets: [...] }.
+
+Output ONLY the JSON object — no prose, no fences. Preserve citations verbatim.`;
+
 export async function runResearchPipeline(input: ResearchPipelineInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "research-pipeline",
-    input as unknown as Record<string, unknown>,
-    input.capabilityId != null ? `cap-${input.capabilityId}` : "research",
-  );
+  try {
+    const research = await perplexity(input.prompt);
+    if (!research) return { status: "degraded", payload: {} };
+    const userMsg = `kind: ${input.kind}\ncapabilityId: ${input.capabilityId ?? "(none)"}\n\nResearch:\n${research.content}\n\nCitations:\n${research.citations.join("\n")}`;
+    const text = await callLLM(RESEARCH_SYNTH_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 4000 });
+    const parsed = coerceJSON(text);
+    if (!parsed) return { status: "degraded", payload: { summary: text.slice(0, 500) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: input.capabilityId }, "[workflows] research-pipeline failed");
+    return null;
+  }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// 9. SYNTHESIS BRIEF COMPOSER (cross-agent daily brief)
+// ──────────────────────────────────────────────────────────────────────────
+// Stays as a stub here — the in-process services/synthesis-agent.ts handles
+// the actual composition. This wrapper only existed to delegate to Dify
+// (now removed). The scheduler's runSynthesis() in services/agent/scheduler.ts
+// already falls through to runSynthesisAgent() when this returns null.
+
 export async function runSynthesisBriefComposer(): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow("synthesis-brief-composer", {}, "synthesis-cron");
+  return null;
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// 10. ASSESSMENT ANALYZER
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface AssessmentAnalyzerInput {
   sessionId: string;
@@ -473,32 +564,93 @@ export interface AssessmentAnalyzerInput {
   responses?: Record<string, unknown>;
 }
 
-export async function runAssessmentAnalyzer(input: AssessmentAnalyzerInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "assessment-analyzer",
-    {
-      sessionId: input.sessionId,
-      phase: input.phase,
-      industryName: input.industryName,
-      orgContext: JSON.stringify(input.orgContext ?? {}),
-      responses: JSON.stringify(input.responses ?? {}),
-    },
-    `assess-${input.sessionId}`,
-  );
+const ASSESSMENT_SYSTEM = `You analyze a CVI capability self-assessment.
+
+If \`phase=start\`: emit an intro framing for the user that lists the 6-10 capabilities
+they're about to score, with one-sentence definitions tailored to their industry.
+
+{
+  "phase": "start",
+  "intro": "string",
+  "capabilities": [{"id": int, "name": "string", "definition": "string"}]
 }
+
+If \`phase=analyze\`: score each capability (0-100) and produce a narrative.
+
+{
+  "phase": "analyze",
+  "overallScore": 0,
+  "perCapability": [{"capabilityId": int, "score": 0, "rationale": "string"}],
+  "narrative": "<= 6 paragraphs, plain prose",
+  "topRisks": ["..."],
+  "topOpportunities": ["..."]
+}
+
+Output ONLY the JSON, no fences or prose.`;
+
+export async function runAssessmentAnalyzer(input: AssessmentAnalyzerInput): Promise<GenericWorkflowOutput | null> {
+  try {
+    const userMsg = `phase: ${input.phase}\nindustry: ${input.industryName}\norgContext: ${JSON.stringify(input.orgContext ?? {})}\nresponses: ${JSON.stringify(input.responses ?? {})}`;
+    const text = await callLLM(ASSESSMENT_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 6000 });
+    const parsed = coerceJSON(text);
+    if (!parsed) return { status: "degraded", payload: { raw: text.slice(0, 1000) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), sessionId: input.sessionId }, "[workflows] assessment-analyzer failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 11. INDUSTRY BOOTSTRAP (Perplexity + Sonnet — materialize a new industry)
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface IndustryBootstrapInput {
   industryName: string;
   seedPrompt?: string;
 }
 
-export async function runIndustryBootstrap(input: IndustryBootstrapInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "industry-bootstrap",
-    { industryName: input.industryName, seedPrompt: input.seedPrompt ?? "" },
-    `industry-bootstrap-${input.industryName}`,
-  );
+const INDUSTRY_BOOTSTRAP_SYSTEM = `Convert the research into a strict JSON shape for industry-bootstrap. Output ONLY JSON.
+
+{
+  "industry": { "name": "string", "description": "<= 280 chars" },
+  "capabilities": [
+    { "name": "string", "description": "string", "quadrant": "core|differentiator|qualifier|peripheral" }
+  ],
+  "valueChain": [
+    { "name": "string", "description": "string", "order": 1 }
+  ],
+  "companies": [
+    { "name": "string", "headquarters": "string", "employeeCount": null, "revenue2024Usd": null }
+  ],
+  "citations": [{"url": "string", "title": "string"}]
 }
+
+Rules:
+- 8-12 capabilities, 4-6 valueChain stages, 10-20 companies.
+- \`quadrant\` is your best judgment; do not invent if unclear — use "qualifier" as the safe default.
+- Use null for numeric fields you can't source. Never fabricate revenue or headcount.
+- Preserve every research citation verbatim.`;
+
+export async function runIndustryBootstrap(input: IndustryBootstrapInput): Promise<GenericWorkflowOutput | null> {
+  try {
+    const researchQuery = `Research the ${input.industryName} industry. Identify (a) 8-12 core capabilities that drive competitive position, (b) the 4-6 value chain stages, (c) 10-20 major companies with headquarters + employee count + 2024 revenue if disclosed. ${input.seedPrompt ?? ""}`;
+    const research = await perplexity(researchQuery);
+    if (!research) return null;
+    const userMsg = `industryName: ${input.industryName}\n\nResearch:\n${research.content}\n\nRaw citations:\n${research.citations.join("\n")}`;
+    const text = await callLLM(INDUSTRY_BOOTSTRAP_SYSTEM, userMsg, { temperature: 0.1, maxTokens: 8000 });
+    const parsed = coerceJSON(text);
+    if (!parsed) return { status: "degraded", payload: { error: "parse_failed", raw: text.slice(0, 1000) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), industryName: input.industryName }, "[workflows] industry-bootstrap failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 12. CASE STUDY GENERATOR (admin regenerate economics breakdown)
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface CaseStudyGeneratorInput {
   caseStudyId: number;
@@ -506,13 +658,39 @@ export interface CaseStudyGeneratorInput {
   currentText: string;
 }
 
-export async function runCaseStudyGenerator(input: CaseStudyGeneratorInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "case-study-generator",
-    input as unknown as Record<string, unknown>,
-    `case-study-${input.caseStudyId}`,
-  );
+const CASE_STUDY_SYSTEM = `Produce an economics breakdown for the given case study. Output ONLY JSON, no fences.
+
+{
+  "summary": "<= 2 paragraphs in plain prose",
+  "unitEconomics": [
+    {"metric": "string", "valueUsd": null, "rationale": "string"}
+  ],
+  "tamReachable": { "valueUsd": null, "notes": "string" },
+  "marginProfile": "string — 1-2 sentences",
+  "sensitivityFactors": ["bullet list"]
 }
+
+Rules:
+- Use null for numbers you can't source from the case study text.
+- Never fabricate dollar figures or growth rates.
+- All claims must be grounded in \`currentText\`. No outside knowledge.`;
+
+export async function runCaseStudyGenerator(input: CaseStudyGeneratorInput): Promise<GenericWorkflowOutput | null> {
+  try {
+    const userMsg = `Case study ID: ${input.caseStudyId}\nIndustry: ${input.industryName}\n\nCase study text:\n${input.currentText.slice(0, 12000)}`;
+    const text = await callLLM(CASE_STUDY_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 4000 });
+    const parsed = coerceJSON(text);
+    if (!parsed) return { status: "degraded", payload: { error: "parse_failed", raw: text.slice(0, 800) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), caseStudyId: input.caseStudyId }, "[workflows] case-study-generator failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 13. CAPABILITY ENRICHMENT RETRY (fragile draft enrichment with backoff)
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface CapabilityEnrichmentRetryInput {
   capabilityId: number;
@@ -521,18 +699,46 @@ export interface CapabilityEnrichmentRetryInput {
   attempt?: number;
 }
 
-export async function runCapabilityEnrichmentRetry(input: CapabilityEnrichmentRetryInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "capability-enrichment-retry",
-    {
-      capabilityId: input.capabilityId,
-      currentDraft: input.currentDraft,
-      lastError: input.lastError ?? "",
-      attempt: input.attempt ?? 1,
-    },
-    `cap-${input.capabilityId}-retry`,
-  );
+const ENRICHMENT_RETRY_SYSTEM = `Re-emit the capability draft as a clean JSON object. NEVER omit a field that exists in
+the input draft — preserve unrelated fields verbatim. Output ONLY JSON, no fences.
+
+Shape (extend with any input fields you don't touch):
+
+{
+  "capabilityId": int,
+  "tamUsd": number | null,
+  "evarBp": number | null,
+  "moatTier": "string",
+  "narratives": {"traditional": "string", "economic": "string", "ai": "string"},
+  "citations": [{"url": "string", "title": "string"}]
 }
+
+Rules:
+- Every dollar/bp figure must trace to a citation. Otherwise return null.
+- If you cannot improve a field over the current draft, copy it verbatim.
+- Reject any speculation — be conservative.`;
+
+export async function runCapabilityEnrichmentRetry(input: CapabilityEnrichmentRetryInput): Promise<GenericWorkflowOutput | null> {
+  try {
+    const researchPrompt = `Re-research the capability draft below to fix what previously failed.\n\nPrevious error: ${input.lastError ?? "(none)"}\n\nCurrent draft (truncated):\n${input.currentDraft.slice(0, 6000)}\n\nProduce: (a) updated TAM and EVaR ranges with citations, (b) revised moat tier rationale, (c) cleaner narrative paragraphs. Always cite sources.`;
+    const research = await perplexity(researchPrompt);
+    const userMsg = `capabilityId: ${input.capabilityId}\ncurrentDraft: ${input.currentDraft.slice(0, 6000)}\n\nNEW RESEARCH:\n${research?.content ?? "(perplexity unavailable)"}\ncitations: ${(research?.citations ?? []).join("\n")}`;
+    const text = await callLLM(ENRICHMENT_RETRY_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 6000 });
+    const parsed = coerceJSON<Record<string, unknown>>(text);
+    if (!parsed) return { status: "degraded", payload: { raw: text.slice(0, 1000) } };
+    const required = ["narratives", "moatTier"];
+    const missing = required.filter((k) => !(k in parsed));
+    if (missing.length > 0) return { status: "degraded", payload: { ...parsed, missing } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: input.capabilityId }, "[workflows] enrichment-retry failed");
+    return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// 14. ADMIN CONFIG PROPOSER (proposes tunable-setting changes; HITL-gated)
+// ──────────────────────────────────────────────────────────────────────────
 
 export interface AdminConfigProposerInput {
   configArea: "economic_rules" | "agent_tuning" | "enrichment_config" | "source_quality" | "bot_config";
@@ -542,16 +748,46 @@ export interface AdminConfigProposerInput {
   triggeredBy: string;
 }
 
-export async function runAdminConfigProposer(input: AdminConfigProposerInput): Promise<GenericWorkflowOutput | null> {
-  return runGenericWorkflow(
-    "admin-config-proposer",
+const ADMIN_PROPOSER_SYSTEM = `You propose tweaked values for admin-tunable settings. A human will approve or reject
+every proposal — your job is to make a well-reasoned, conservative recommendation
+with clear rationale. NEVER propose a value you cannot defend with the recent
+outcomes data.
+
+Output ONLY a JSON object:
+
+{
+  "configArea": "string",
+  "proposals": [
     {
-      configArea: input.configArea,
-      currentValues: JSON.stringify(input.currentValues),
-      recentOutcomes: JSON.stringify(input.recentOutcomes),
-      targetKey: input.targetKey ?? "",
-      triggeredBy: input.triggeredBy,
-    },
-    `admin-${input.triggeredBy}`,
-  );
+      "key": "string",
+      "currentValue": <any>,
+      "proposedValue": <any>,
+      "delta": "string",
+      "rationale": "string — 1-2 sentences citing recent outcomes",
+      "confidence": 0.0
+    }
+  ],
+  "abstentions": [
+    {"key": "string", "reason": "..."}
+  ]
+}
+
+Hard rules:
+- Never change more than 5 keys in one proposal — surgical wins over sweeping.
+- For numeric thresholds: propose at most a 25% delta in one step.
+- For model selections: switch only between known-supported options
+  (sonnet-4.6, haiku-4.5, gemini-2.0-flash-001, deepseek-chat-v3).
+- Abstain explicitly on keys where outcomes are inconclusive — abstaining is fine.`;
+
+export async function runAdminConfigProposer(input: AdminConfigProposerInput): Promise<GenericWorkflowOutput | null> {
+  try {
+    const userMsg = `configArea: ${input.configArea}\ntargetKey hint: ${input.targetKey ?? "(none)"}\ntriggeredBy: ${input.triggeredBy}\n\nCURRENT VALUES:\n${JSON.stringify(input.currentValues, null, 2)}\n\nRECENT OUTCOMES (last 30 days):\n${JSON.stringify(input.recentOutcomes, null, 2)}`;
+    const text = await callLLM(ADMIN_PROPOSER_SYSTEM, userMsg, { temperature: 0.2, maxTokens: 3000 });
+    const parsed = coerceJSON<{ proposals?: unknown[]; abstentions?: unknown[] }>(text);
+    if (!parsed) return { status: "degraded", payload: { proposals: [], abstentions: [], raw: text.slice(0, 600) } };
+    return { status: "ok", payload: parsed };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), configArea: input.configArea }, "[workflows] admin-config-proposer failed");
+    return null;
+  }
 }

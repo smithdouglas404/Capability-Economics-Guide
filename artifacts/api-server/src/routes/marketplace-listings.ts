@@ -10,9 +10,7 @@ import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
 import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
 import { getClerkUserSummary } from "../services/clerk-user";
-import { upsertMarketplaceListingToDify, removeMarketplaceListingFromDify } from "../services/dify/sync";
-import { retrieve as difyRetrieve, isDifyAvailable, getMarketplaceDatasetId } from "../services/dify/client";
-import { runMarketplaceSearchV2, runListingModeration } from "../services/dify/workflows";
+import { runListingModeration } from "../services/dify/workflows";
 
 const router: IRouter = Router();
 
@@ -67,19 +65,14 @@ router.get("/marketplace/listings", async (_req, res) => {
 });
 
 /**
- * Semantic search across approved marketplace listings via Dify RAG.
- *
- * - `?q=<text>` calls Dify's retrieval endpoint against the
- *   `marketplace-listings` Knowledge Base, maps returned doc.metadata.listing_id
- *   back to Postgres rows, returns them in relevance order.
- * - Empty/missing `q` returns the same list as `/marketplace/listings` (no
- *   filtering — lets the frontend share one endpoint shape).
- * - If Dify is unavailable, falls back to Postgres ILIKE substring match on
- *   title + description so search still works in a degraded mode.
+ * Keyword search across approved marketplace listings (Postgres ILIKE).
  *
  * Response shape matches `/marketplace/listings` exactly (same select
  * columns) so the marketplace-library page can drop the result array into
- * the same renderer.
+ * the same renderer. Empty/missing `q` redirects to the full list.
+ *
+ * Catalog scale: ~22 listings at time of writing — keyword search is fine.
+ * Revisit with pgvector embeddings if catalog grows past ~500 listings.
  */
 router.get("/marketplace/listings/search", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -105,76 +98,8 @@ router.get("/marketplace/listings/search", async (req, res) => {
     approvedAt: marketplaceListingsTable.approvedAt,
   };
 
-  // Dify Chatflow v2 path — intent parse + KB retrieve + Haiku rerank. Gated
-  // on DIFY_MARKETPLACE_SEARCH_V2_ENABLED=1. Falls through to direct retrieve
-  // below if disabled or returns no ids (legacy path is the safe fallback).
-  const auth = getAuth(req);
-  const userTag = auth?.userId ?? `anon-${req.ip ?? "unknown"}`;
-  const v2 = await runMarketplaceSearchV2({ query: q, user: userTag }).catch(() => null);
-  if (v2 && v2.rankedListingIds.length > 0) {
-    const numericIds = v2.rankedListingIds.map((s) => Number(s)).filter((n) => Number.isFinite(n));
-    if (numericIds.length > 0) {
-      const rows = await db
-        .select(baseSelect)
-        .from(marketplaceListingsTable)
-        .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
-        .where(and(
-          eq(marketplaceListingsTable.status, "approved"),
-          inArray(marketplaceListingsTable.id, numericIds),
-          or(isNull(marketplaceListingsTable.expiresAt), gt(marketplaceListingsTable.expiresAt, sql`now()`)),
-        ));
-      // Preserve Dify's rerank order.
-      const orderIndex = new Map(numericIds.map((id, idx) => [id, idx]));
-      const sorted = rows.sort((a, b) => (orderIndex.get(a.id) ?? 99) - (orderIndex.get(b.id) ?? 99));
-      res.json({ listings: sorted, source: "dify-v2", query: q, summary: v2.summary });
-      return;
-    }
-  }
-
-  // Dify RAG path — semantic search via the marketplace-listings KB.
-  const datasetId = getMarketplaceDatasetId();
-  if (isDifyAvailable() && datasetId) {
-    try {
-      const records = await difyRetrieve(datasetId, q, { top_k: 12, score_threshold: 0.35 });
-      const listingIdToScore = new Map<number, number>();
-      for (const r of records) {
-        const lid = r.segment.document.doc_metadata?.listing_id;
-        if (typeof lid === "number") {
-          // Keep the HIGHEST score across multiple matched segments of the
-          // same document (a long listing can have several embedded chunks).
-          const prev = listingIdToScore.get(lid) ?? 0;
-          if (r.score > prev) listingIdToScore.set(lid, r.score);
-        }
-      }
-      const ids = Array.from(listingIdToScore.keys());
-      if (ids.length === 0) {
-        res.json({ listings: [], source: "dify", query: q });
-        return;
-      }
-      const rows = await db
-        .select(baseSelect)
-        .from(marketplaceListingsTable)
-        .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
-        .where(and(
-          eq(marketplaceListingsTable.status, "approved"),
-          inArray(marketplaceListingsTable.id, ids),
-          or(
-            isNull(marketplaceListingsTable.expiresAt),
-            gt(marketplaceListingsTable.expiresAt, sql`now()`),
-          ),
-        ));
-      // Sort by Dify-reported relevance, not approvedAt.
-      const sorted = rows
-        .map((r) => ({ ...r, relevance: listingIdToScore.get(r.id) ?? 0 }))
-        .sort((a, b) => b.relevance - a.relevance);
-      res.json({ listings: sorted, source: "dify", query: q });
-      return;
-    } catch (err) {
-      logger.warn({ err: err instanceof Error ? err.message : String(err), q }, "[marketplace] Dify search failed, falling back to keyword");
-    }
-  }
-
-  // Fallback: Postgres ILIKE substring match. Always works; less smart.
+  // Postgres ILIKE substring match. 22 listings is small enough that keyword
+  // search is fine; revisit with pgvector if the catalog grows past ~500.
   const like = `%${q}%`;
   const rows = await db
     .select(baseSelect)
@@ -426,7 +351,6 @@ router.post("/marketplace/listings/:id/archive", async (req, res) => {
   }).where(eq(marketplaceListingsTable.id, id)).returning();
   // Remove from Dify Knowledge so archived listings stop showing up in
   // buyer RAG search. Fire-and-forget — never blocks the archive response.
-  void removeMarketplaceListingFromDify(id);
   res.json({ listing: updated });
 });
 
@@ -486,7 +410,6 @@ router.post("/admin/marketplace/listings/:id/approve", requireAdmin, async (req,
   // Index the newly-approved listing into Dify's Knowledge Base so it shows
   // up in buyer RAG search. Fire-and-forget — Dify outage doesn't fail the
   // approval; the listing remains keyword-searchable in Postgres regardless.
-  void upsertMarketplaceListingToDify(id);
   res.json({ ok: true });
 });
 
@@ -556,7 +479,6 @@ router.post("/admin/marketplace/listings/:id/reject", requireAdmin, async (req, 
   // If a previously-approved listing is rejected, remove from Dify so
   // it stops appearing in buyer RAG search. No-op when listing was
   // pending_review (nothing to remove).
-  void removeMarketplaceListingFromDify(id);
   res.json({ ok: true });
 });
 

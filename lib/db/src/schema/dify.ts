@@ -5,71 +5,15 @@ import {
   integer,
   jsonb,
   timestamp,
-  uniqueIndex,
-  boolean,
 } from "drizzle-orm/pg-core";
 
-/**
- * Maps each Dify workflow slug we maintain in `dify-workflows/*.yml` to the
- * live Dify app id it was imported as. Populated by the one-shot import
- * script (`scripts/src/dify-workflow-import.ts`). The TS-side trigger
- * (`services/dify/workflows.ts:resolveAppId`) reads from this so we never
- * hardcode UUIDs that could change if a workflow is re-imported.
- *
- * `versionHash` is the SHA-256 of the YAML at import time; the import
- * script skips re-importing identical versions.
- *
- * `apiKey` is the Dify Service API bearer token for this app. The importer
- * mints it via `POST /console/api/apps/{id}/api-keys` on first creation so
- * adding a new workflow is pure git-driven — no Railway env-var paste step.
- * Tokens look like `app-XxxxYyyyZzzz`.
- *
- * `enabled` is the feature flag the wrappers in `services/dify/workflows.ts`
- * use to decide whether to delegate to Dify or fall through to legacy code.
- * Defaults to false so newly-imported workflows are dormant until a
- * deliberate flip — same safety contract as the previous env-var-based
- * `DIFY_<SLUG>_ENABLED=1` flag (which is still honored as a fallback for
- * the originally-pasted env vars).
- */
-export const difyWorkflowRegistry = pgTable("dify_workflow_registry", {
-  id: serial("id").primaryKey(),
-  slug: text("slug").notNull().unique(),
-  difyAppId: text("dify_app_id").notNull(),
-  versionHash: text("version_hash").notNull(),
-  apiKey: text("api_key"),
-  enabled: boolean("enabled").notNull().default(false),
-  importedAt: timestamp("imported_at").notNull().defaultNow(),
-});
-
-/**
- * Audit + idempotency record for every Dify→inflexcvi callback. The HMAC
- * gate (`services/dify/hmac.ts`) verifies the signature, then the route
- * checks this table for a prior `clientRequestId` — if found, the cached
- * `responsePayload` is returned without re-executing the side effect.
- *
- * `status` is `received | succeeded | failed | duplicate`.
- */
-export const difyCallbackLog = pgTable(
-  "dify_callback_log",
-  {
-    id: serial("id").primaryKey(),
-    endpoint: text("endpoint").notNull(), // e.g. "/api/dify/callback/seed-board"
-    clientRequestId: text("client_request_id").notNull(),
-    difyWorkflowId: text("dify_workflow_id"),
-    difyRunId: text("dify_run_id"),
-    status: text("status").notNull(),
-    latencyMs: integer("latency_ms"),
-    error: text("error"),
-    requestPayload: jsonb("request_payload"),
-    responsePayload: jsonb("response_payload"),
-    createdAt: timestamp("created_at").notNull().defaultNow(),
-  },
-  (t) => ({
-    clientRequestIdIdx: uniqueIndex("dify_callback_log_client_request_id_idx").on(
-      t.clientRequestId,
-    ),
-  }),
-);
+// Note: dify_workflow_registry + dify_callback_log were removed when the
+// Dify integration was ripped out (2026-05-18). The 14 LLM workflows now
+// run in-process from services/dify/workflows.ts using the Anthropic SDK
+// directly — no external service, no HMAC callback gateway, no registry
+// lookup. The product data tables below (tier_recommendations,
+// kyc_appeals, payment_recovery_log, research_artifacts) are kept because
+// they store real user actions, not workflow scaffolding.
 
 /**
  * Persistent record of every tier recommendation produced by the

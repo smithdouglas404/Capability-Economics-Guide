@@ -18,7 +18,6 @@ import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing, getRegisteredAgents } from "../agent/letta";
 import { storePing } from "../agent/store";
 import { AGENT_REGISTRY } from "../agent/agent-registry";
-import { isDifyAvailable, difyPing, getMarketplaceDatasetId } from "../dify/client";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
 import { organizationsTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
@@ -360,42 +359,6 @@ const probeDemoReadiness: Probe = async () => {
   }
 };
 
-/**
- * Self-hosted Dify probe.
- *
- * Status semantics:
- *   ok               — DIFY_BASE_URL + DIFY_API_KEY set, /v1/datasets responds
- *   degraded         — endpoint reachable but DIFY_MARKETPLACE_DATASET_ID
- *                      unset (sync writes will no-op until operator provisions
- *                      the KB via POST /api/admin/dify/bootstrap)
- *   not_configured   — DIFY_BASE_URL or DIFY_API_KEY missing entirely
- *   down             — endpoint unreachable / 5xx / auth rejected
- *
- * The probe hits `/v1/datasets?page=1&limit=1` (cheap authed read).
- */
-const probeDify: Probe = async () => {
-  if (!isDifyAvailable()) {
-    return {
-      status: "not_configured",
-      latencyMs: null,
-      lastError: "Dify not configured (DIFY_BASE_URL + DIFY_API_KEY required on api-server). Self-hosted Dify deploys to a separate Railway project; see CLAUDE.md → Dify section.",
-    };
-  }
-  try {
-    const { latencyMs } = await timed(() => withTimeout(difyPing(), PROBE_TIMEOUT_MS, "dify"));
-    if (!getMarketplaceDatasetId()) {
-      return {
-        status: "degraded",
-        latencyMs,
-        lastError: "Dify reachable but DIFY_MARKETPLACE_DATASET_ID unset. Run POST /api/admin/dify/bootstrap once to provision the marketplace-listings KB, then set the env var on the api-server.",
-      };
-    }
-    return { status: "ok", latencyMs, lastError: null };
-  } catch (err) {
-    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
-  }
-};
-
 // Forward-path probe for the LangMem-equivalent shared store. Cheap
 // DB ping via storePing(). Same latency-threshold treatment as the
 // mem0/letta probes — degraded above 2000ms.
@@ -536,7 +499,6 @@ const PROBES: Record<string, Probe> = {
   agent_registry: probeAgentRegistry,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
-  dify: probeDify,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,
   perplexity: probePerplexity,
