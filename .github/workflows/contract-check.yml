@@ -1,0 +1,35 @@
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Catches frontend `/api/*` URLs with no backing route in
+      # artifacts/api-server/src/routes/**. This is the class of bug that
+      # caused /embed/cei→/embed/cvi, /v1/cei/*→/v1/cvi/*, and the
+      # /healthz/redis dangler.
+      - name: Route-existence check
+        run: pnpm run check:routes
+
+      # Catches stale openapi.yaml — re-runs orval codegen and fails if
+      # anything in lib/api-client-react/src/generated or lib/api-zod/src/generated
+      # changes. This is the class of bug that caused the ceiBeforeIndex →
+      # cviBeforeIndex mismatch (backend renamed, openapi wasn't, generated
+      # client kept the old name, 5 frontend pages silently broke).
+      - name: Codegen-drift check
+        run: pnpm run check:codegen
