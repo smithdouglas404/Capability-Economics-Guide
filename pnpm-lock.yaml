@@ -130,6 +130,9 @@ importers:
       '@letta-ai/letta-client':
         specifier: ^1.10.2
         version: 1.11.0
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
       '@workspace/api-zod':
         specifier: workspace:*
         version: link:../../lib/api-zod
