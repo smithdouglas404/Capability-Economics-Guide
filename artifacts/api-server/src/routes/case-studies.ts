@@ -6,8 +6,10 @@ import {
   industriesTable,
   capabilitiesTable,
   dataSourcesTable,
+  featuredCaseStudyPolicyTable,
+  featuredCaseStudyScheduleTable,
 } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { and, asc, eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
@@ -473,6 +475,92 @@ Constraints:
   }
 
   res.status(201).json({ caseStudy: inserted, sourcesCount: sources.length, content });
+});
+
+// ── Featured case study scheduling + auto-rotation admin API ────────────
+//
+// Backs the UI at /admin/case-studies. The cron in
+// services/featured-case-study-rotation.ts reads from these tables every
+// 10 minutes and applies any work that's due. Both tables have a single
+// concrete writer: this router (admin-gated).
+
+router.get("/admin/case-studies/policy", requireAdmin, async (_req, res) => {
+  const [row] = await db.select().from(featuredCaseStudyPolicyTable).orderBy(asc(featuredCaseStudyPolicyTable.id)).limit(1);
+  res.json({ policy: row ?? null });
+});
+
+const PolicyBody = z.object({
+  mode: z.enum(["manual", "rotation"]),
+  rotationDays: z.number().int().min(1).max(365).nullable().optional(),
+  rotationSource: z.enum(["existing_rotate", "anthropic_new"]).nullable().optional(),
+  industryFilter: z.string().max(80).nullable().optional(),
+});
+
+router.put("/admin/case-studies/policy", requireAdmin, async (req, res) => {
+  const parsed = PolicyBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+  const { mode, rotationDays, rotationSource, industryFilter } = parsed.data;
+  const now = new Date();
+  const nextAt = mode === "rotation" && rotationDays
+    ? new Date(now.getTime() + rotationDays * 24 * 60 * 60 * 1000)
+    : null;
+  const updatedBy = (req.headers["x-user-email"] as string | undefined) ?? "admin";
+
+  const [existing] = await db.select().from(featuredCaseStudyPolicyTable).orderBy(asc(featuredCaseStudyPolicyTable.id)).limit(1);
+  if (existing) {
+    const [updated] = await db.update(featuredCaseStudyPolicyTable)
+      .set({ mode, rotationDays: rotationDays ?? null, rotationSource: rotationSource ?? null, industryFilter: industryFilter ?? null, nextRotationAt: nextAt, updatedBy, updatedAt: now })
+      .where(eq(featuredCaseStudyPolicyTable.id, existing.id))
+      .returning();
+    res.json({ policy: updated });
+    return;
+  }
+  const [created] = await db.insert(featuredCaseStudyPolicyTable).values({
+    mode, rotationDays: rotationDays ?? null, rotationSource: rotationSource ?? null, industryFilter: industryFilter ?? null, nextRotationAt: nextAt, updatedBy,
+  }).returning();
+  res.status(201).json({ policy: created });
+});
+
+router.get("/admin/case-studies/schedule", requireAdmin, async (_req, res) => {
+  const rows = await db.select().from(featuredCaseStudyScheduleTable).orderBy(asc(featuredCaseStudyScheduleTable.scheduledFor)).limit(100);
+  res.json({ schedule: rows });
+});
+
+const ScheduleBody = z.object({
+  scheduledFor: z.string().min(1),
+  caseStudyId: z.number().int().positive().optional(),
+  generateForIndustryId: z.number().int().positive().optional(),
+  generateCompanyName: z.string().min(1).max(200).optional(),
+}).refine(b => Boolean(b.caseStudyId) !== Boolean(b.generateForIndustryId), {
+  message: "Exactly one of caseStudyId or generateForIndustryId must be set",
+});
+
+router.post("/admin/case-studies/schedule", requireAdmin, async (req, res) => {
+  const parsed = ScheduleBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
+  const when = new Date(parsed.data.scheduledFor);
+  if (isNaN(when.getTime())) { res.status(400).json({ error: "Invalid scheduledFor — must be a parseable timestamp" }); return; }
+
+  const createdBy = (req.headers["x-user-email"] as string | undefined) ?? "admin";
+  const [row] = await db.insert(featuredCaseStudyScheduleTable).values({
+    scheduledFor: when,
+    caseStudyId: parsed.data.caseStudyId ?? null,
+    generateForIndustryId: parsed.data.generateForIndustryId ?? null,
+    generateCompanyName: parsed.data.generateCompanyName ?? null,
+    createdBy,
+  }).returning();
+  res.status(201).json({ schedule: row });
+});
+
+router.delete("/admin/case-studies/schedule/:id", requireAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "bad id" }); return; }
+  const [updated] = await db.update(featuredCaseStudyScheduleTable)
+    .set({ status: "cancelled", executedAt: new Date() })
+    .where(and(eq(featuredCaseStudyScheduleTable.id, id), eq(featuredCaseStudyScheduleTable.status, "pending")))
+    .returning();
+  if (!updated) { res.status(409).json({ error: "Schedule not found or already executed" }); return; }
+  res.json({ ok: true, cancelled: updated });
 });
 
 export default router;

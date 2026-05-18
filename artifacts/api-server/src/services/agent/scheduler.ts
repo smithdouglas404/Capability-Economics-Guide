@@ -18,6 +18,7 @@ import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
 import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
+import { featuredCaseStudyTick } from "../featured-case-study-rotation";
 import { runDigestSweep } from "../digest";
 import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
@@ -114,6 +115,7 @@ let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
 let synthesisAgentTimer: ReturnType<typeof setInterval> | null = null;
 let temporalShiftTimer: ReturnType<typeof setInterval> | null = null;
 let memoryRelationSnapshotTimer: ReturnType<typeof setInterval> | null = null;
+let featuredCaseStudyTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
 let isScanning = false;
@@ -576,6 +578,20 @@ export function startScheduler(): void {
   startConsolidator();
   startMarketplaceAutoArchive();
 
+  // Featured-case-study scheduling + auto-rotation. 10-minute cadence is
+  // fine — scheduled changes are minute-precision in the UI and rotation
+  // intervals are measured in days. Cheap: one indexed SELECT per tick
+  // unless work is actually due.
+  featuredCaseStudyTimer = setInterval(() => {
+    featuredCaseStudyTick()
+      .then(r => {
+        if (r.schedulesExecuted > 0 || r.schedulesFailed > 0 || r.rotated) {
+          console.log(`[FeaturedCaseStudy] tick: executed=${r.schedulesExecuted} failed=${r.schedulesFailed} rotated=${r.rotated}`);
+        }
+      })
+      .catch(err => console.warn("[FeaturedCaseStudy] tick failed:", err instanceof Error ? err.message : err));
+  }, 10 * 60 * 1000);
+
   // Push the latest economic_rules table content into the Letta block.
   // Slight delay so Letta init (in letta.ts module load) has time to
   // settle. Non-fatal on failure — rules remain authoritative in
@@ -686,6 +702,7 @@ export function stopScheduler(): void {
   if (memoryRelationSnapshotTimer) { clearInterval(memoryRelationSnapshotTimer); memoryRelationSnapshotTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
+  if (featuredCaseStudyTimer) { clearInterval(featuredCaseStudyTimer); featuredCaseStudyTimer = null; }
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
 }

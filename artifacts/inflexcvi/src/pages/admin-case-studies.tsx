@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, RefreshCw, Star, StarOff, Loader2, ExternalLink, KeyRound, Copy, CheckCircle2, Eye } from "lucide-react";
+import { ArrowLeft, RefreshCw, Star, StarOff, Loader2, ExternalLink, KeyRound, Copy, CheckCircle2, Eye, Calendar, X, Save, Sparkles } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +43,28 @@ interface EconomicsBreakdown {
   sources: Array<{ url: string; title: string }>;
 }
 
+interface RotationPolicy {
+  id: number;
+  mode: "manual" | "rotation";
+  rotationDays: number | null;
+  rotationSource: "existing_rotate" | "anthropic_new" | null;
+  industryFilter: string | null;
+  lastRotatedAt: string | null;
+  nextRotationAt: string | null;
+}
+
+interface ScheduleRow {
+  id: number;
+  scheduledFor: string;
+  caseStudyId: number | null;
+  generateForIndustryId: number | null;
+  generateCompanyName: string | null;
+  status: "pending" | "executed" | "failed" | "cancelled";
+  executedAt: string | null;
+  resultCaseStudyId: number | null;
+  errorMessage: string | null;
+}
+
 const ADMIN_KEY_STORAGE = "ce.admin-key";
 
 function getAdminKey(): string | null {
@@ -66,6 +88,13 @@ export default function AdminCaseStudiesPage() {
   const [copied, setCopied] = useState(false);
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [previewBreakdown, setPreviewBreakdown] = useState<EconomicsBreakdown | null>(null);
+  const [policy, setPolicy] = useState<RotationPolicy | null>(null);
+  const [policyDraft, setPolicyDraft] = useState<{ mode: "manual" | "rotation"; rotationDays: string; rotationSource: "existing_rotate" | "anthropic_new"; industryFilter: string }>({ mode: "manual", rotationDays: "7", rotationSource: "existing_rotate", industryFilter: "" });
+  const [savingPolicy, setSavingPolicy] = useState(false);
+  const [schedule, setSchedule] = useState<ScheduleRow[]>([]);
+  const [scheduleDraftId, setScheduleDraftId] = useState<number | null>(null); // case study being scheduled
+  const [scheduleDraftWhen, setScheduleDraftWhen] = useState<string>("");
+  const [scheduleSaving, setScheduleSaving] = useState(false);
 
   function persistAdminKey(v: string) {
     setAdminKey(v);
@@ -92,7 +121,77 @@ export default function AdminCaseStudiesPage() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [adminKey]);
+  async function loadPolicy() {
+    try {
+      const res = await fetch("/api/admin/case-studies/policy", { headers: adminHeaders() });
+      if (!res.ok) return;
+      const data = await res.json() as { policy: RotationPolicy | null };
+      setPolicy(data.policy);
+      if (data.policy) {
+        setPolicyDraft({
+          mode: data.policy.mode,
+          rotationDays: String(data.policy.rotationDays ?? 7),
+          rotationSource: (data.policy.rotationSource ?? "existing_rotate"),
+          industryFilter: data.policy.industryFilter ?? "",
+        });
+      }
+    } catch { /* silent */ }
+  }
+
+  async function loadSchedule() {
+    try {
+      const res = await fetch("/api/admin/case-studies/schedule", { headers: adminHeaders() });
+      if (!res.ok) return;
+      const data = await res.json() as { schedule: ScheduleRow[] };
+      setSchedule(data.schedule);
+    } catch { /* silent */ }
+  }
+
+  async function savePolicy() {
+    setSavingPolicy(true);
+    setError(null);
+    try {
+      const body = {
+        mode: policyDraft.mode,
+        rotationDays: policyDraft.mode === "rotation" ? Number(policyDraft.rotationDays) : null,
+        rotationSource: policyDraft.mode === "rotation" ? policyDraft.rotationSource : null,
+        industryFilter: policyDraft.industryFilter.trim() || null,
+      };
+      const res = await fetch("/api/admin/case-studies/policy", { method: "PUT", headers: adminHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) { setError(`Save policy failed: HTTP ${res.status}`); return; }
+      await loadPolicy();
+    } finally { setSavingPolicy(false); }
+  }
+
+  async function submitSchedule(caseStudyId: number | null, generateForIndustryId: number | null) {
+    if (!scheduleDraftWhen) { setError("Pick a date/time first"); return; }
+    setScheduleSaving(true);
+    setError(null);
+    try {
+      const body = {
+        scheduledFor: new Date(scheduleDraftWhen).toISOString(),
+        ...(caseStudyId ? { caseStudyId } : {}),
+        ...(generateForIndustryId ? { generateForIndustryId } : {}),
+      };
+      const res = await fetch("/api/admin/case-studies/schedule", { method: "POST", headers: adminHeaders(), body: JSON.stringify(body) });
+      if (!res.ok) {
+        const b = await res.json().catch(() => ({}));
+        setError(`Schedule failed: ${b.error ?? res.status}`);
+        return;
+      }
+      setScheduleDraftId(null);
+      setScheduleDraftWhen("");
+      await loadSchedule();
+    } finally { setScheduleSaving(false); }
+  }
+
+  async function cancelSchedule(id: number) {
+    const res = await fetch(`/api/admin/case-studies/schedule/${id}`, { method: "DELETE", headers: adminHeaders() });
+    if (!res.ok) { setError(`Cancel failed: HTTP ${res.status}`); return; }
+    await loadSchedule();
+  }
+
+  useEffect(() => { load(); loadPolicy(); loadSchedule(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [adminKey]);
 
   async function regenerate(id: number) {
     const companyName = (companyInputs[id] ?? "").trim();
@@ -266,6 +365,81 @@ export default function AdminCaseStudiesPage() {
         </div>
       )}
 
+      {/* Auto-rotation policy panel */}
+      <Card className="rounded-none border-border/60 mb-4">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Auto-rotation
+            {policy?.mode === "rotation" && (
+              <Badge className="rounded-none font-mono text-[10px] uppercase tracking-wider bg-emerald-500/15 text-emerald-700 border-emerald-500/30">Active</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-[140px_120px_1fr_160px_auto] gap-2 items-end">
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Mode</Label>
+              <select
+                className="rounded-none w-full h-9 border border-border bg-background px-2 text-sm"
+                value={policyDraft.mode}
+                onChange={e => setPolicyDraft(d => ({ ...d, mode: e.target.value as "manual" | "rotation" }))}
+              >
+                <option value="manual">Manual</option>
+                <option value="rotation">Auto-rotate</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Every (days)</Label>
+              <Input
+                type="number"
+                min={1}
+                max={365}
+                disabled={policyDraft.mode === "manual"}
+                value={policyDraft.rotationDays}
+                onChange={e => setPolicyDraft(d => ({ ...d, rotationDays: e.target.value }))}
+                className="rounded-none h-9 text-sm"
+              />
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Source</Label>
+              <select
+                className="rounded-none w-full h-9 border border-border bg-background px-2 text-sm disabled:opacity-50"
+                disabled={policyDraft.mode === "manual"}
+                value={policyDraft.rotationSource}
+                onChange={e => setPolicyDraft(d => ({ ...d, rotationSource: e.target.value as "existing_rotate" | "anthropic_new" }))}
+              >
+                <option value="existing_rotate">Cycle existing case studies (LRU by industry)</option>
+                <option value="anthropic_new">Anthropic generates a fresh one each rotation</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Industry filter</Label>
+              <Input
+                placeholder="(all industries)"
+                disabled={policyDraft.mode === "manual"}
+                value={policyDraft.industryFilter}
+                onChange={e => setPolicyDraft(d => ({ ...d, industryFilter: e.target.value }))}
+                className="rounded-none h-9 text-sm"
+              />
+            </div>
+            <Button onClick={savePolicy} disabled={savingPolicy} className="rounded-none h-9 text-[11px]">
+              {savingPolicy ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Save className="w-3 h-3 mr-1" />}
+              Save
+            </Button>
+          </div>
+          {policy?.mode === "rotation" && policy.nextRotationAt && (
+            <div className="text-xs text-muted-foreground font-mono">
+              Next rotation: {new Date(policy.nextRotationAt).toLocaleString()}
+              {policy.lastRotatedAt && ` · last: ${new Date(policy.lastRotatedAt).toLocaleString()}`}
+            </div>
+          )}
+          <div className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+            <Sparkles className="w-3 h-3 mt-0.5 flex-shrink-0" />
+            <span>The cron checks every 10 minutes. With <code>anthropic_new</code>, each rotation generates a fresh case study and features it — costs ~1 Anthropic call per rotation.</span>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="rounded-none border-border/60">
         <CardHeader>
           <CardTitle className="text-base">Case studies ({rows?.length ?? 0})</CardTitle>
@@ -345,7 +519,35 @@ export default function AdminCaseStudiesPage() {
                             ? <><StarOff className="w-3 h-3 mr-1" /> Unfeature</>
                             : <><Star className="w-3 h-3 mr-1" /> Feature</>}
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-none text-[11px]"
+                          onClick={() => { setScheduleDraftId(r.id); setScheduleDraftWhen(""); }}
+                          title="Schedule a date to feature this case study"
+                        >
+                          <Calendar className="w-3 h-3 mr-1" /> Schedule
+                        </Button>
                       </div>
+                      {scheduleDraftId === r.id && (
+                        <div className="border border-border bg-muted/40 p-2 space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="datetime-local"
+                              value={scheduleDraftWhen}
+                              onChange={e => setScheduleDraftWhen(e.target.value)}
+                              className="rounded-none text-xs h-8 flex-1"
+                            />
+                            <Button size="sm" disabled={scheduleSaving || !scheduleDraftWhen} className="rounded-none text-[11px]" onClick={() => submitSchedule(r.id, null)}>
+                              {scheduleSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                            </Button>
+                            <Button size="sm" variant="ghost" className="rounded-none text-[11px]" onClick={() => { setScheduleDraftId(null); setScheduleDraftWhen(""); }}>
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground">At the scheduled time, this case study becomes featured (cron runs every 10 minutes).</div>
+                        </div>
+                      )}
                       {r.hasEconomicsBreakdown && (
                         <Button
                           size="sm"
@@ -365,6 +567,47 @@ export default function AdminCaseStudiesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Pending + recent scheduled changes */}
+      {schedule.length > 0 && (
+        <Card className="rounded-none border-border/60 mt-4">
+          <CardHeader>
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Calendar className="w-4 h-4" /> Scheduled feature changes ({schedule.filter(s => s.status === "pending").length} pending)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/40">
+              {schedule.map(s => {
+                const target = s.caseStudyId
+                  ? `Promote case study #${s.caseStudyId}`
+                  : `Generate new for industry #${s.generateForIndustryId}${s.generateCompanyName ? ` (${s.generateCompanyName})` : ""}`;
+                const statusBadge = {
+                  pending: { label: "Pending", cls: "bg-blue-500/15 text-blue-700 border-blue-500/30" },
+                  executed: { label: "Executed", cls: "bg-emerald-500/15 text-emerald-700 border-emerald-500/30" },
+                  failed: { label: "Failed", cls: "bg-destructive/15 text-destructive border-destructive/30" },
+                  cancelled: { label: "Cancelled", cls: "bg-muted text-muted-foreground border-border" },
+                }[s.status];
+                return (
+                  <div key={s.id} className="p-3 flex items-center gap-3 text-sm">
+                    <Badge className={`rounded-none font-mono text-[10px] uppercase tracking-wider ${statusBadge.cls}`}>
+                      {statusBadge.label}
+                    </Badge>
+                    <div className="font-mono text-xs">{new Date(s.scheduledFor).toLocaleString()}</div>
+                    <div className="flex-1 text-xs text-muted-foreground">{target}</div>
+                    {s.errorMessage && <div className="text-xs text-destructive max-w-md truncate" title={s.errorMessage}>{s.errorMessage}</div>}
+                    {s.status === "pending" && (
+                      <Button size="sm" variant="ghost" className="rounded-none text-[11px]" onClick={() => cancelSchedule(s.id)}>
+                        <X className="w-3 h-3 mr-1" /> Cancel
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Preview pane — renders the analogy-card layout for the selected row. */}
       {previewId !== null && (
