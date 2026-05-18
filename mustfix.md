@@ -179,3 +179,98 @@ mustfix.md                                          this commit
 Plus the two pre-existing unpushed commits (`87d6b71`, `d6d0760`) that were already on local main before this session.
 
 Nothing was touched in `lib/*`, `artifacts/api-server/`, `scripts/`, or anywhere else. UI-only run.
+
+---
+
+## Section 7 — Site-wide API path audit (added 2026-05-18 morning after the original autonomous run crashed mid-write)
+
+**Why this exists**: the prior autonomous run had two tasks in flight when it stopped — finishing this audit doc AND running a full site-wide audit of frontend `/api/*` fetches against backend routes. Only the doc landed. This section is the missing audit conclusion.
+
+**Methodology**:
+1. Extracted every backend route from `artifacts/api-server/src/routes/*.ts` using a Python regex that matches every `*Router.<verb>(...)` (not just `router.<verb>(...)` — the first naive pass missed alias routers like `enrichmentAliasRouter` and produced false positives).
+2. Accounted for the two routers mounted under prefixes in `routes/index.ts`: `router.use("/alpha", alphaRouter)` and `router.use("/enrichment", enrichmentRouter)`. All other routers are mounted at the root of `/api`.
+3. Extracted every frontend fetch path matching `"/api/..."` or `` `/api/...` `` literals across `artifacts/inflexcvi/src/**/*.{ts,tsx}`. Normalized `${variable}` template placeholders to `:param` so paths like `` `/api/foo/${id}` `` match backend `/api/foo/:id`.
+4. Diffed the two sets with segment-by-segment matching that respects `:param` substitution.
+
+**Raw counts**:
+- 461 backend routes (deduped on verb+path)
+- 73 distinct frontend fetch paths
+
+**Result**: **0 real mismatches.**
+
+The only API path bug in the codebase right now was the `/api/cei/*` → `/api/cvi/*` rename that commit `d6d0760` already fixed (cvi-dashboard.tsx + demo.tsx). Once that's deployed, every frontend `/api/*` call resolves to a backend handler.
+
+**False positive worth noting** (so future audit runs don't repeat the mistake): `knowledge-graph.tsx:113` calls `/api/ontology/graph`. My first audit pass flagged this as a mismatch because the route is defined in `enrichmentAliasRouter` not `router`, so a regex matching only `router.<verb>(` misses it. The route is real: `enrichment.ts:248` defines `enrichmentAliasRouter.get("/ontology/graph", graphHandler)`, mounted at root via `router.use(enrichmentAliasRouter)` in `routes/index.ts:89`.
+
+---
+
+## Section 8 — Per-page coverage map (every page in `pages/` was inspected)
+
+Validates that the audit reached all 68 pages. Each is in exactly one bucket.
+
+### Totally clean (51 pages — no findings in any audit pass)
+
+```
+accept-invite.tsx           dashboard.tsx               marketplace-workspace.tsx   roi-tracker.tsx
+account.tsx                 developers.tsx              marketplace.tsx             scorecard.tsx
+admin-agent-proposals.tsx   exports.tsx                 methodology.tsx             search.tsx
+admin-audit-chain.tsx       innovation-pipeline.tsx     nl-query.tsx                security.tsx
+admin-economic-rules.tsx    innovation-wedge.tsx        not-found.tsx               simulation.tsx
+admin-payments.tsx          insights.tsx                onboarding.tsx              system-status.tsx
+admin-source-quality.tsx    insurance-example.tsx       organization.tsx            trade-signals.tsx
+admin.tsx                   knowledge-graph.tsx         patterns.tsx                usage.tsx
+backtest.tsx                lifecycle-docs.tsx          projects.tsx                watchlist.tsx
+benchmarking.tsx            marketplace-library.tsx     proof.tsx                   whatif.tsx
+capability-detail.tsx       marketplace-listing.tsx     regulations.tsx
+case-studies.tsx            marketplace-sell.tsx        review-queue.tsx
+collaboration.tsx           companies.tsx*              compare.tsx                 console.tsx
+coverage.tsx
+```
+
+`*` `companies.tsx` is in this list because the only finding (a 9px non-eyebrow status Badge at line 539) was fixed in this morning's pass. See Section 6 file list update below.
+
+### Only intentional patterns (15 pages — findings classified as documented design language, no fix warranted)
+
+| Page | Pattern present | Why intentional |
+|---|---|---|
+| `admin-case-studies.tsx` | `text-foreground/40` on `$XXM` amount, 9px mono eyebrows | Ghosted-cost metaphor (1.3) + eyebrow labels |
+| `alpha.tsx` | `text-[9px]` on SVG chart axis labels (`<text>` elements) | Chart axis labels — small by design |
+| `assess.tsx` | `text-foreground/60` italic serif lead-in, `text-muted-foreground/40` on future progress steps, text-xs italic empty-state hints | Editorial lead-in + step-progress UX + universal empty-state pattern (1.5) |
+| `c-suite.tsx` | 9px mono eyebrows everywhere, `text-foreground/60-70` italic serif lead-ins, decorative Brain icons at `/40-/50` | Editorial design language |
+| `case-study.tsx` | 9px mono eyebrows ("Traditional view" / "Economic view"), 9px tabular-nums for numbered prefixes | Editorial redesign (May 10) markers |
+| `demo.tsx` | 9px mono eyebrows on KPI labels and Badge variants | Editorial markers |
+| `disruption.tsx` | No new findings after `555c9aa` | (already fixed last night) |
+| `embed-capability.tsx` | `text-zinc-*` palette + 9px disclaimer | Iframe isolation + legal fine print (Section 2) |
+| `embed-cvi.tsx` | Same as embed-capability | Same |
+| `explore.tsx` | 9px uppercase tracking-wider on labels | Eyebrow |
+| `home.tsx` | 9px mono eyebrows, `text-foreground/40` on ghosted `$XXM`, `text-foreground/60-70` on italic serif hero lead-ins | All documented intentional patterns |
+| `kyc.tsx` | `text-muted-foreground/40` on `"skipped"` state | Status indicator (Section 2) |
+| `vcr.tsx` | Decorative Bot icons at `/40` in empty states | Decorative iconography (Section 2) |
+| `workbench-example.tsx` | 9px font-mono Badge with uppercase tracking-wider | Eyebrow-style badge |
+| `workbench.tsx` | No new findings after `555c9aa` | (already fixed last night) |
+
+### Real content findings remaining after this audit (2 pages)
+
+| Page | Findings | Disposition |
+|---|---|---|
+| `cvi-dashboard.tsx` | 7× `text-[9px]` chip/text spans in macro-event and capability-tree tables (lines 269, 1104, 1111, 1114, 1381, 1387, 1903). These are CONTENT (industry / capability names, "+N more" overflow labels) not eyebrow labels. | **Already documented as judgment call in Section 1.1.** Confirmed not a clear-win — bumping to 10px breaks table density. Awaits your call. |
+| `membership.tsx` | L348 `<span className="text-muted-foreground/40">/</span>` — a `/` separator character between two adjacent values. | **Effectively decorative.** This is a punctuation character used as a visual separator, not body text. Same family as the `text-foreground/40` ghosted-cost pattern (Section 1.3) — the muted look IS the design intent (it should read as "between" not "on top of"). Leaving alone. |
+
+### Summary
+- **51 clean + 15 intentional-only + 2 documented = 68/68 pages audited.** Full coverage. No "haven't gotten to yet" gap.
+
+---
+
+## Section 9 — Additional fix applied in this audit run
+
+`companies.tsx:539` — was `<Badge className="text-[9px]">{it.status}</Badge>` (9px sans, no tracking, content-not-label). Now `<Badge className="text-[10px] font-mono uppercase tracking-wider">{it.status}</Badge>`. Promotes the status pill into the documented eyebrow pattern — readable at 10px when font-mono + uppercase + tracking, which is the rest of the codebase's convention for short status pills.
+
+---
+
+## Section 10 — What the original autonomous run did NOT do (full transparency)
+
+To complete the handoff:
+- The prior run's "Apply clear-win fixes" task did land (commits `555c9aa`, `464151a`, `01607b6`).
+- The prior run's "Write mustfix.md" task landed Sections 0–6 (commit `051e0f7`).
+- The prior run's "Site-wide API path audit" task **did not land** — `/tmp/backend-paths.txt` was produced but the comparison + write-up never happened. Sections 7–10 here fill that gap.
+- The prior run's "Push to origin/main" never executed (gh auth doesn't persist between Claude Code sessions on this Replit). Branch is still 7 commits ahead of origin at the start of this morning's run; will be 8 or 9 after this commit lands. Push remains a manual step from a real Shell tab with `GH_TOKEN` exported, or `git push` directly via the credential-helper-backed `GITHUB_TOKEN`.
