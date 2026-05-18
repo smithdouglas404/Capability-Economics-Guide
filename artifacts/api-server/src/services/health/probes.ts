@@ -17,11 +17,11 @@
 import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing, getRegisteredAgents } from "../agent/letta";
 import { storePing } from "../agent/store";
-import { AGENT_REGISTRY } from "../agent/agent-registry";
+import { AGENT_REGISTRY, type AgentRegistryEntry } from "../agent/agent-registry";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
-import { organizationsTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
-import { sql } from "drizzle-orm";
+import { organizationsTable, capabilitiesTable, cviComponentsTable, enrichmentRunsTable } from "@workspace/db";
+import { sql, desc } from "drizzle-orm";
 
 export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured";
 
@@ -496,13 +496,162 @@ const probeAgentRegistry: Probe = async () => {
   }
 };
 
+/**
+ * Per-agent probe builder — surfaces each of the 7 AGENT_REGISTRY agents
+ * individually instead of just an aggregate count. Reports:
+ *   - not_configured if not registered in Letta Cloud yet (init still running
+ *     or LETTA_API_KEY unset)
+ *   - degraded if registered without an attached archive (archival memory partial)
+ *   - ok if both agent_id and archive_id are present
+ */
+function makeAgentProbe(entry: AgentRegistryEntry): Probe {
+  return async () => {
+    const registered = getRegisteredAgents();
+    const found = registered.find((r) => r.shortName === entry.shortName);
+    if (!found) {
+      return {
+        status: "not_configured",
+        latencyMs: null,
+        lastError: "Not registered in Letta Cloud (init may still be running or LETTA_API_KEY unset)",
+      };
+    }
+    if (!found.archiveId) {
+      return {
+        status: "degraded",
+        latencyMs: null,
+        lastError: `Registered (agent_id=${found.agentId.slice(0, 8)}…) but archive not attached — archival memory partial`,
+      };
+    }
+    return { status: "ok", latencyMs: null, lastError: null };
+  };
+}
+
+/**
+ * The enrichment agent lives in its own LangGraph (services/enrichment/graph.ts)
+ * and writes to enrichment_runs instead of the Letta registry. Probe the most
+ * recent run row for status + recency.
+ */
+const probeAgentEnrichment: Probe = async () => {
+  try {
+    const [latest] = await db
+      .select({
+        id: enrichmentRunsTable.id,
+        status: enrichmentRunsTable.status,
+        startedAt: enrichmentRunsTable.startedAt,
+        completedAt: enrichmentRunsTable.completedAt,
+      })
+      .from(enrichmentRunsTable)
+      .orderBy(desc(enrichmentRunsTable.id))
+      .limit(1);
+    if (!latest) {
+      return { status: "not_configured", latencyMs: null, lastError: "No enrichment runs recorded yet" };
+    }
+    if (latest.status === "running") {
+      const runFor = Date.now() - new Date(latest.startedAt).getTime();
+      if (runFor > 30 * 60 * 1000) {
+        return { status: "degraded", latencyMs: null, lastError: `Run #${latest.id} has been running for ${Math.round(runFor / 60000)}m — may be stuck` };
+      }
+      return { status: "ok", latencyMs: null, lastError: `Run #${latest.id} in progress` };
+    }
+    if (latest.status === "failed" || latest.status === "interrupted") {
+      return { status: "degraded", latencyMs: null, lastError: `Last run #${latest.id} ${latest.status}` };
+    }
+    if (latest.completedAt) {
+      const ageHours = (Date.now() - new Date(latest.completedAt).getTime()) / 3600000;
+      if (ageHours > 7 * 24) {
+        return { status: "degraded", latencyMs: null, lastError: `Last successful run was ${Math.round(ageHours / 24)}d ago` };
+      }
+    }
+    return { status: "ok", latencyMs: null, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
+};
+
+/**
+ * Framework probes — the LLM-agent stack itself. Don't catch runtime
+ * failures (those show up in per-agent probes above) but do catch broken
+ * installs / missing exports that would otherwise crash agents at first
+ * tool call.
+ */
+const probeLangChain: Probe = async () => {
+  try {
+    const mod = await import("@langchain/anthropic");
+    if (!mod.ChatAnthropic) {
+      return { status: "down", latencyMs: null, lastError: "@langchain/anthropic loaded but ChatAnthropic export missing" };
+    }
+    return { status: "ok", latencyMs: null, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: `@langchain/anthropic import failed: ${describeError(err).slice(0, 160)}` };
+  }
+};
+
+const probeLangGraph: Probe = async () => {
+  try {
+    const mod = await import("@langchain/langgraph");
+    if (!mod.StateGraph) {
+      return { status: "down", latencyMs: null, lastError: "@langchain/langgraph loaded but StateGraph export missing" };
+    }
+    return { status: "ok", latencyMs: null, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: `@langchain/langgraph import failed: ${describeError(err).slice(0, 160)}` };
+  }
+};
+
+const probeLangSmith: Probe = async () => {
+  const tracing = process.env.LANGCHAIN_TRACING_V2;
+  const key = process.env.LANGCHAIN_API_KEY;
+  const project = process.env.LANGCHAIN_PROJECT ?? "inflexcvi";
+  if (tracing !== "true" || !key) {
+    return {
+      status: "not_configured",
+      latencyMs: null,
+      lastError: "LANGCHAIN_TRACING_V2=true and LANGCHAIN_API_KEY required — trace shipping disabled",
+    };
+  }
+  try {
+    const { value, latencyMs } = await timed(() =>
+      withTimeout(
+        fetch(`https://api.smith.langchain.com/api/v1/sessions?name=${encodeURIComponent(project)}`, {
+          headers: { "X-API-Key": key },
+        }),
+        PROBE_TIMEOUT_MS,
+        "langsmith",
+      ),
+    );
+    if (!value.ok) return { status: "down", latencyMs, lastError: `LangSmith API → ${value.status}` };
+    const sessions = (await value.json().catch(() => [])) as Array<{ name?: string }>;
+    if (!Array.isArray(sessions) || sessions.length === 0) {
+      return { status: "degraded", latencyMs, lastError: `Project "${project}" not found in workspace — no traces will land` };
+    }
+    return { status: "ok", latencyMs, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
+};
+
+// Per-agent probe registration: one entry per AGENT_REGISTRY row + the
+// enrichment agent. Keys are normalised to `agent_<short>` so the JSON
+// shape stays stable.
+const perAgentProbes: Record<string, Probe> = Object.fromEntries(
+  AGENT_REGISTRY.map((entry) => {
+    const key = "agent_" + entry.shortName.replace(/-agent$/, "").replace(/-/g, "_");
+    return [key, makeAgentProbe(entry)] as const;
+  }),
+);
+
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
   agent_store: probeAgentStore,
   agent_registry: probeAgentRegistry,
+  ...perAgentProbes,
+  agent_enrichment: probeAgentEnrichment,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
+  langchain: probeLangChain,
+  langgraph: probeLangGraph,
+  langsmith: probeLangSmith,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,
   perplexity: probePerplexity,
