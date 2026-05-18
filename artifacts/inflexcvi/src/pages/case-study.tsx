@@ -197,20 +197,20 @@ export default function CaseStudy() {
                     <h3 className="font-serif text-3xl lg:text-[2rem] leading-tight tracking-tight mb-3">
                       {cap.capabilityName}
                     </h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed mb-6">{cap.description}</p>
+                    <p className="text-base text-muted-foreground leading-relaxed mb-6">{cap.description}</p>
 
                     <div className="space-y-4">
                       <div>
                         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
                           Traditional view
                         </div>
-                        <p className="text-sm text-foreground/75 leading-relaxed">{cap.traditionalView}</p>
+                        <p className="text-base text-foreground/75 leading-relaxed">{cap.traditionalView}</p>
                       </div>
                       <div className="pl-4 border-l-2 border-accent">
                         <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">
                           Economic view
                         </div>
-                        <p className="text-sm text-foreground leading-relaxed">{cap.economicView}</p>
+                        <p className="text-base text-foreground leading-relaxed">{cap.economicView}</p>
                       </div>
                     </div>
                   </div>
@@ -291,9 +291,9 @@ export default function CaseStudy() {
                       </span>
                       <div>
                         <div className="font-serif text-lg lg:text-xl text-foreground leading-snug mb-1.5">{r.title}</div>
-                        <p className="text-sm text-muted-foreground leading-relaxed mb-2">{r.rationale}</p>
+                        <p className="text-base text-muted-foreground leading-relaxed mb-2">{r.rationale}</p>
                         <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-accent">
-                          Impact — <span className="normal-case tracking-normal text-foreground/80">{r.impact}</span>
+                          Impact — <span className="font-sans normal-case tracking-normal text-sm text-foreground/80">{r.impact}</span>
                         </div>
                       </div>
                     </div>
