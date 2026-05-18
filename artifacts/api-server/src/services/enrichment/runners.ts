@@ -16,6 +16,7 @@ import {
   companyCapabilityMappingsTable,
 } from "@workspace/db";
 import { logger as log } from "../../lib/logger";
+import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
 
 interface PerplexityResult {
@@ -43,67 +44,69 @@ async function tryWorkflowResearch(
 async function perplexitySearch(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
-  const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "sonar",
-      messages: [
-        {
-          role: "system",
-          content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
-        },
-        { role: "user", content: query },
-      ],
-    }),
-  });
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Perplexity error ${resp.status}: ${errText}`);
-  }
-  const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-  const content = data.choices[0]?.message?.content ?? "";
-  const sources = data.citations ?? [];
-  return { content, sources };
+  return retry(async () => {
+    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar",
+        messages: [
+          {
+            role: "system",
+            content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
+          },
+          { role: "user", content: query },
+        ],
+      }),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      throw new Error(`Perplexity error ${resp.status}: ${errText}`);
+    }
+    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+    const content = data.choices[0]?.message?.content ?? "";
+    const sources = data.citations ?? [];
+    return { content, sources };
+  }, { label: "enrich.perplexity" });
 }
 
 async function openrouterSynthesize(prompt: string, maxTokens = 4096): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
   const model = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6";
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
-
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => "unknown");
-      throw new Error(`OpenRouter HTTP ${resp.status} (model=${model}): ${errText.substring(0, 200)}`);
+  return retry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180000);
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        const errText = await resp.text().catch(() => "unknown");
+        throw new Error(`OpenRouter HTTP ${resp.status} (model=${model}): ${errText.substring(0, 200)}`);
+      }
+      const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+      if (data.error) throw new Error(`OpenRouter error (model=${model}): ${data.error.message}`);
+      return data.choices?.[0]?.message?.content ?? "";
+    } finally {
+      clearTimeout(timeout);
     }
-    const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`OpenRouter error (model=${model}): ${data.error.message}`);
-    return data.choices?.[0]?.message?.content ?? "";
-  } finally {
-    clearTimeout(timeout);
-  }
+  }, { label: "enrich.openrouter" });
 }
 
 function extractJson(text: string): unknown {

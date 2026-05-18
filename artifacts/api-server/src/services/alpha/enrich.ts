@@ -12,6 +12,7 @@ import {
 } from "@workspace/db";
 import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
+import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
 
 interface PerplexityResult { content: string; sources: string[]; }
@@ -31,25 +32,27 @@ async function tryAlphaWorkflowResearch(capabilityId: number, prompt: string): P
 async function perplexity(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 60000);
-  try {
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
-          { role: "user", content: query },
-        ],
-      }),
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`Perplexity ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-    return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
-  } finally { clearTimeout(timeout); }
+  return retry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    try {
+      const resp = await fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [
+            { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
+            { role: "user", content: query },
+          ],
+        }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error(`Perplexity ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
+      const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+      return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
+    } finally { clearTimeout(timeout); }
+  }, { label: "alpha.perplexity" });
 }
 
 const DEFAULT_LLM_MODEL = "anthropic/claude-sonnet-4.6";
@@ -58,30 +61,32 @@ async function openrouterChatJson(prompt: string, maxTokens = 2000): Promise<str
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
   const model = process.env.LLM_MODEL || DEFAULT_LLM_MODEL;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000);
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi Alpha",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-    if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
-    const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
-    return data.choices?.[0]?.message?.content ?? "";
-  } finally { clearTimeout(timeout); }
+  return retry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+    try {
+      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi Alpha",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          response_format: { type: "json_object" },
+          messages: [{ role: "user", content: prompt }],
+        }),
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
+      const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
+      if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
+      return data.choices?.[0]?.message?.content ?? "";
+    } finally { clearTimeout(timeout); }
+  }, { label: "alpha.openrouter" });
 }
 
 function extractJson(text: string): unknown {
@@ -486,7 +491,12 @@ export async function backfillAiNarratives(opts: { limit?: number; capabilityIds
 
   log.info(`[AiBackfill] regenerating ai_narrative for ${targets.length} capabilities`);
 
-  const concurrency = Math.max(1, Math.min(4, opts.concurrency ?? 2));
+  // Default concurrency 1 — concurrent OpenRouter calls trigger 429s under
+  // the default free-tier rate limit and there's no internal backoff between
+  // workers; serialised retries-with-backoff finish faster end-to-end than
+  // parallel-with-burst-failures. Admin can opt back into higher concurrency
+  // via the body param when running against a paid OpenRouter account.
+  const concurrency = Math.max(1, Math.min(4, opts.concurrency ?? 1));
   let cursor = 0;
   async function worker() {
     while (cursor < targets.length) {

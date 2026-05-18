@@ -11,6 +11,7 @@ import {
   caseStudyContentTable,
   agentRunsTable,
   agentMemoriesTable,
+  capabilityAlphaTable,
 } from "@workspace/db";
 import { desc, count, gte, sql, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -31,8 +32,17 @@ import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
 
-let aiBackfillState: { running: boolean; updated: number; failed: number; total: number; startedAt: string | null; finishedAt: string | null; lastError: string | null } = {
-  running: false, updated: 0, failed: 0, total: 0, startedAt: null, finishedAt: null, lastError: null,
+let aiBackfillState: {
+  running: boolean;
+  updated: number;
+  failed: number;
+  total: number;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastError: string | null;
+  recentErrors: string[]; // first 20 per-capability error messages, so the admin UI can see WHAT failed
+} = {
+  running: false, updated: 0, failed: 0, total: 0, startedAt: null, finishedAt: null, lastError: null, recentErrors: [],
 };
 
 router.use("/admin", requireAdmin);
@@ -199,12 +209,16 @@ router.post("/admin/backfill-ai-narratives", async (req, res) => {
     res.status(409).json({ error: "already running", state: aiBackfillState });
     return;
   }
-  const { limit, capabilityIds } = req.body as { limit?: number; capabilityIds?: number[] };
-  aiBackfillState = { running: true, updated: 0, failed: 0, total: 0, startedAt: new Date().toISOString(), finishedAt: null, lastError: null };
+  const { limit, capabilityIds, concurrency } = req.body as { limit?: number; capabilityIds?: number[]; concurrency?: number };
+  aiBackfillState = { running: true, updated: 0, failed: 0, total: 0, startedAt: new Date().toISOString(), finishedAt: null, lastError: null, recentErrors: [] };
   res.json({ started: true, state: aiBackfillState });
   (async () => {
     try {
-      const result = await backfillAiNarratives({ limit, capabilityIds, concurrency: 2 });
+      // `concurrency` is optional — backfillAiNarratives defaults to 1 (see
+      // services/alpha/enrich.ts). Higher values bring back the burst-429
+      // failure mode unless OpenRouter is on a paid plan; we leave it
+      // operator-controlled rather than guessing.
+      const result = await backfillAiNarratives({ limit, capabilityIds, concurrency });
       aiBackfillState = {
         running: false,
         updated: result.updated,
@@ -213,6 +227,7 @@ router.post("/admin/backfill-ai-narratives", async (req, res) => {
         startedAt: aiBackfillState.startedAt,
         finishedAt: new Date().toISOString(),
         lastError: result.errors[0] ?? null,
+        recentErrors: result.errors,
       };
       log.info(`[AiBackfill] route done: ${result.updated} updated, ${result.failed} failed in ${(result.durationMs / 1000).toFixed(1)}s`);
     } catch (e) {
@@ -259,7 +274,60 @@ router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res)
   }).catch(() => null);
 
   if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
-  res.json({ status: result.status, payload: result.payload });
+
+  // Persist the fresh payload when the workflow returned ok. Without this
+  // step the admin sees a payload in the response but the next page load
+  // still shows the broken capability — the bug that made the "enhance"
+  // feature feel like it never worked.
+  let persisted: { capabilities: boolean; capability_alpha: boolean } = { capabilities: false, capability_alpha: false };
+  if (result.status === "ok") {
+    const p = result.payload as {
+      narratives?: { traditional?: string; economic?: string; ai?: string };
+      moatTier?: string;
+      tamUsd?: number | null;
+      evarBp?: number | null;
+      citations?: Array<{ url: string; title: string }>;
+    };
+
+    // Update capabilities.traditional_view / economic_view if the LLM gave
+    // us new ones (better than what's there). enrichmentError is cleared
+    // on a successful retry — the row is no longer "failed".
+    const capUpdates: Record<string, string | null> = { enrichmentError: null };
+    if (p.narratives?.traditional && p.narratives.traditional.length > 20) {
+      capUpdates.traditionalView = p.narratives.traditional;
+    }
+    if (p.narratives?.economic && p.narratives.economic.length > 20) {
+      capUpdates.economicView = p.narratives.economic;
+    }
+    if (Object.keys(capUpdates).length > 0) {
+      await db.update(capabilitiesTable).set(capUpdates).where(eq(capabilitiesTable.id, id));
+      persisted.capabilities = true;
+    }
+
+    // Upsert into capability_alpha — the table that holds TAM/EVaR/moat
+    // tier + narratives. We update the most-recent row for this capability
+    // (the wrapper doesn't know the run id, so just patch latest).
+    const [latestAlpha] = await db
+      .select({ id: capabilityAlphaTable.id })
+      .from(capabilityAlphaTable)
+      .where(eq(capabilityAlphaTable.capabilityId, id))
+      .orderBy(desc(capabilityAlphaTable.generatedAt))
+      .limit(1);
+    if (latestAlpha) {
+      const alphaUpdates: Record<string, unknown> = {};
+      if (typeof p.tamUsd === "number") alphaUpdates.tamUsdMm = p.tamUsd / 1_000_000;
+      if (p.narratives?.traditional) alphaUpdates.traditionalNarrative = p.narratives.traditional;
+      if (p.narratives?.economic) alphaUpdates.alphaNarrative = p.narratives.economic;
+      if (p.narratives?.ai) alphaUpdates.aiNarrative = p.narratives.ai;
+      if (Object.keys(alphaUpdates).length > 0) {
+        await db.update(capabilityAlphaTable).set(alphaUpdates).where(eq(capabilityAlphaTable.id, latestAlpha.id));
+        persisted.capability_alpha = true;
+      }
+    }
+    log.info({ capabilityId: id, persisted }, "[capability-enrichment-retry] payload persisted");
+  }
+
+  res.json({ status: result.status, payload: result.payload, persisted });
 });
 
 /**
