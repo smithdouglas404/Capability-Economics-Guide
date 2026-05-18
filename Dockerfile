@@ -37,9 +37,4 @@ EXPOSE 8080
 # Each phase fails fast if a step fails; api-server boot is gated on the
 # whole chain succeeding. Per-seed skip flags + whole-phase skip flags
 # documented in scripts/src/deploy-migrate.ts.
-#
-# seed:case-study-economics is INTENTIONALLY NOT in the chain — it makes
-# live Perplexity calls per company (~60s each) and can push boot past
-# Railway's health-check window. Run manually when needed:
-#   pnpm --filter @workspace/scripts run seed:case-study-economics
 CMD ["sh", "-c", "pnpm run start"]

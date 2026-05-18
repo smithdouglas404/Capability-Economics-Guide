@@ -4,7 +4,6 @@
  * card (and any other featured-case-study surface).
  *
  * Backs:
- *   - scripts/src/seed-case-study-economics.ts (idempotent seed for 6 cos)
  *   - POST /api/admin/case-studies/:id/regenerate-economics-breakdown
  *
  * The Perplexity API doesn't have native JSON mode, so we ask the model to

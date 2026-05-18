@@ -68,10 +68,6 @@
  *        seed:disruption-events     — 25 historical disruption events
  *                                     across industries.
  *
- *      INTENTIONALLY NOT in the chain:
- *        seed:case-study-economics — live Perplexity calls per company,
- *          can blow past Railway's health-check window. Run manually.
- *
  *      Per-seed skip flags (set in env to bypass):
  *        SKIP_KNOWLEDGE_GRAPH_SEED, SKIP_GDP_WEIGHTS_SEED,
  *        SKIP_REFERENCE_ORG_RULE_SEED, SKIP_REFERENCE_ORGS_SEED,

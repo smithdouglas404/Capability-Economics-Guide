@@ -9,7 +9,7 @@ import {
   featuredCaseStudyPolicyTable,
   featuredCaseStudyScheduleTable,
 } from "@workspace/db";
-import { and, asc, eq, desc } from "drizzle-orm";
+import { and, asc, eq, desc, ne, or, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
@@ -30,6 +30,9 @@ const GenerateBody = z.object({
  * Returns a compact payload — the homepage only needs industry slug/name + title + blurb.
  */
 router.get("/featured-case-study", async (_req, res) => {
+  // Exclude seed-stub rows ("Sunrun Inc. — Technology capability transformation",
+  // etc.). Real generated rows have model = "anthropic/claude-sonnet-4.6" or
+  // similar; seed-stub rows are tagged model = "seed:case-study-economics".
   const rows = await db
     .select({
       id: caseStudiesTable.id,
@@ -43,6 +46,7 @@ router.get("/featured-case-study", async (_req, res) => {
     })
     .from(caseStudiesTable)
     .innerJoin(industriesTable, eq(industriesTable.id, caseStudiesTable.industryId))
+    .where(or(isNull(caseStudiesTable.model), ne(caseStudiesTable.model, "seed:case-study-economics")))
     .orderBy(desc(caseStudiesTable.isFeatured), desc(caseStudiesTable.generatedAt))
     .limit(1);
   if (rows.length === 0) { res.json({ featured: null }); return; }

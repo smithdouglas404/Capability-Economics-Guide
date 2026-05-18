@@ -27,7 +27,7 @@ import {
   featuredCaseStudyPolicyTable,
   featuredCaseStudyScheduleTable,
 } from "@workspace/db";
-import { and, eq, lte, desc, asc } from "drizzle-orm";
+import { and, eq, lte, desc, asc, ne, or, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { sonnet, generateObject, NoObjectGeneratedError } from "./workflows/models";
 import { logger as log } from "../lib/logger";
@@ -210,11 +210,16 @@ async function runRotationIfDue(): Promise<{ rotated: boolean; reason?: string }
     targetId = await generateAndInsertCaseStudy(targetIndustryId, null);
   } else {
     // existing_rotate: pick the most recently generated case study in this
-    // industry that ISN'T currently featured.
+    // industry that ISN'T currently featured. Skip seed-stub rows so the
+    // rotation never lands on placeholder content.
     const [pick] = await db
       .select({ id: caseStudiesTable.id })
       .from(caseStudiesTable)
-      .where(and(eq(caseStudiesTable.industryId, targetIndustryId), eq(caseStudiesTable.isFeatured, false)))
+      .where(and(
+        eq(caseStudiesTable.industryId, targetIndustryId),
+        eq(caseStudiesTable.isFeatured, false),
+        or(isNull(caseStudiesTable.model), ne(caseStudiesTable.model, "seed:case-study-economics")),
+      ))
       .orderBy(desc(caseStudiesTable.generatedAt))
       .limit(1);
     targetId = pick?.id ?? null;
