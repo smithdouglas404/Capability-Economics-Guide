@@ -686,11 +686,11 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
 }
 
 export default function CVIDashboard() {
-  const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cei/current`);
-  const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cei/history?limit=30`);
+  const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cvi/current`);
+  const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cvi/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
-  const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cei/freshness`);
-  const { data: exemplars } = useApi<ExemplarsResponse>(`${API_BASE}/cei/exemplars`);
+  const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cvi/freshness`);
+  const { data: exemplars } = useApi<ExemplarsResponse>(`${API_BASE}/cvi/exemplars`);
   const { data: macroEvents, refetch: refetchMacroEvents } = useApi<MacroEventsResponse>(`${API_BASE}/macro-events/active`);
   const { data: allMacroEvents } = useApi<{ events: MacroEvent[]; total: number }>(`${API_BASE}/macro-events`);
   const { data: industryList } = useApi<IndustryListItem[]>(`${API_BASE}/industries`);
@@ -772,8 +772,8 @@ export default function CVIDashboard() {
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<number>>(new Set());
   const selectedIndustryId = selectedIndustry ? industryList?.find(i => i.slug === selectedIndustry)?.id ?? null : null;
-  const treeUrl = selectedIndustryId ? `${API_BASE}/cei/capability-tree?industryId=${selectedIndustryId}` : null;
-  const { data: capabilityTree } = useApi<CapabilityTreeResponse>(treeUrl ?? `${API_BASE}/cei/capability-tree?industryId=__none__`);
+  const treeUrl = selectedIndustryId ? `${API_BASE}/cvi/capability-tree?industryId=${selectedIndustryId}` : null;
+  const { data: capabilityTree } = useApi<CapabilityTreeResponse>(treeUrl ?? `${API_BASE}/cvi/capability-tree?industryId=__none__`);
   useEffect(() => { setExpandedParents(new Set()); }, [selectedIndustry]);
   const [showAgentActivity, setShowAgentActivity] = useState(true);
   const viewsApi = useSavedView<CEIViewState>("cei");

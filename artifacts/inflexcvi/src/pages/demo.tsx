@@ -132,7 +132,7 @@ export default function DemoPage() {
   const [listings, setListings] = useState<MarketplaceListing[] | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/cei/current`).then(r => r.ok ? r.json() : null).then(setCei).catch(() => setCei(null));
+    fetch(`${API_BASE}/cvi/current`).then(r => r.ok ? r.json() : null).then(setCei).catch(() => setCei(null));
     fetch(`${API_BASE}/proof/backtest`).then(r => r.ok ? r.json() : null).then(setBacktest).catch(() => setBacktest(null));
     fetch(`${API_BASE}/disruption/watch?limit=4`).then(r => r.ok ? r.json() : null).then((d) => setDisruption(d?.rows ?? [])).catch(() => setDisruption([]));
     fetch(`${API_BASE}/capabilities/new?maxAgeMonths=24&minScore=30&limit=4`).then(r => r.ok ? r.json() : null).then((d) => setNewCaps(d?.rows ?? [])).catch(() => setNewCaps([]));
