@@ -1,8 +1,9 @@
 import { logLlmCall } from "../llm-usage";
+import { modelFor, generateText } from "../workflows/models";
 
 /**
- * LLM helper for bot actions. Wraps the standard OpenRouter chat completion
- * with two bot-specific concerns:
+ * LLM helper for bot actions. Wraps the LangSmith-traced Vercel AI SDK
+ * `generateText` with two bot-specific concerns:
  *   1. Returns the computed cost in cents alongside the response, so the
  *      caller can attribute it to a bot_actions row.
  *   2. Logs to llm_usage with an endpoint convention `bot:<persona>:<action>`
@@ -36,80 +37,48 @@ export interface BotLlmResult {
 }
 
 export async function botLlmCall(opts: BotLlmCallOpts): Promise<BotLlmResult> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not set");
   const startedAt = Date.now();
   const endpoint = `bot:${opts.personaKey}:${opts.actionType}`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 90_000);
-  let resp: Response;
-  let responseJson: unknown = null;
-  let httpStatus: number | undefined;
-  let errorMessage: string | undefined;
 
   try {
-    resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": `Inflexcvi Bot · ${opts.personaKey}`,
-      },
-      body: JSON.stringify({
-        model: opts.model,
-        max_tokens: opts.maxTokens ?? 1024,
-        ...(opts.jsonMode ? { response_format: { type: "json_object" } } : {}),
-        messages: [
-          { role: "system", content: opts.systemPrompt },
-          { role: "user", content: opts.userPrompt },
-        ],
-      }),
-      signal: controller.signal,
+    const { text, usage } = await generateText({
+      model: modelFor(opts.model),
+      system: opts.systemPrompt,
+      prompt: opts.userPrompt,
+      maxTokens: opts.maxTokens ?? 1024,
+      abortSignal: controller.signal,
+      // OpenRouter JSON mode is propagated via providerOptions when needed.
+      ...(opts.jsonMode ? { providerOptions: { openrouter: { response_format: { type: "json_object" } } } } : {}),
     });
-    httpStatus = resp.status;
-    if (!resp.ok) {
-      const bodyText = await resp.text().catch(() => "");
-      errorMessage = `OpenRouter ${resp.status}: ${bodyText.slice(0, 200)}`;
-      throw new Error(errorMessage);
-    }
-    responseJson = await resp.json();
+
+    const inputTokens = usage?.promptTokens ?? 0;
+    const outputTokens = usage?.completionTokens ?? 0;
+    const price = PRICING_PER_MTOK[opts.model] ?? { input: 1, output: 3 };
+    const costUsd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
+    const costCents = Math.ceil(costUsd * 100);
+
+    // Shim a snake_case usage object so logLlmCall's existing reader keeps working.
+    const responseJson = { usage: { prompt_tokens: inputTokens, completion_tokens: outputTokens, total_tokens: inputTokens + outputTokens } };
+    logLlmCall({ provider: "openrouter", model: opts.model, endpoint, responseJson, startedAt });
+
+    return {
+      content: text,
+      costCents,
+      inputTokens,
+      outputTokens,
+      durationMs: Date.now() - startedAt,
+    };
   } catch (err) {
-    errorMessage = errorMessage ?? (err instanceof Error ? err.message : String(err));
-    logLlmCall({ provider: "openrouter", model: opts.model, endpoint, responseJson, startedAt, httpStatus, errorMessage });
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    logLlmCall({ provider: "openrouter", model: opts.model, endpoint, startedAt, errorMessage });
     throw err;
   } finally {
     clearTimeout(timeout);
   }
-
-  const r = responseJson as {
-    choices?: Array<{ message: { content?: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
-    error?: { message?: string };
-  };
-  if (r.error) {
-    logLlmCall({ provider: "openrouter", model: opts.model, endpoint, responseJson, startedAt, httpStatus, errorMessage: r.error.message });
-    throw new Error(`OpenRouter error: ${r.error.message ?? "unknown"}`);
-  }
-
-  const content = r.choices?.[0]?.message?.content ?? "";
-  const inputTokens = r.usage?.prompt_tokens ?? 0;
-  const outputTokens = r.usage?.completion_tokens ?? 0;
-  const price = PRICING_PER_MTOK[opts.model] ?? { input: 1, output: 3 };
-  const costUsd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
-  const costCents = Math.ceil(costUsd * 100);
-
-  // Mirror to llm_usage so the existing admin dashboard sees bot spend.
-  logLlmCall({ provider: "openrouter", model: opts.model, endpoint, responseJson, startedAt, httpStatus });
-
-  return {
-    content,
-    costCents,
-    inputTokens,
-    outputTokens,
-    durationMs: Date.now() - startedAt,
-  };
 }
 
 /**

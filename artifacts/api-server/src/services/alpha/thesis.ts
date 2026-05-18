@@ -10,6 +10,8 @@ import {
   companyCapabilityProfilesTable,
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
+import { z } from "zod";
+import { modelFor, generateObject } from "../workflows/models";
 
 export interface ThesisMemo {
   capabilityId: number;
@@ -27,42 +29,22 @@ export interface ThesisMemo {
 }
 
 const DEFAULT_LLM_MODEL = "anthropic/claude-sonnet-4.6";
+const ThesisSchema = z.object({ memoMarkdown: z.string().min(1) });
 
-async function openrouterChatJson(prompt: string, maxTokens = 3000): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
-  const model = process.env.LLM_MODEL || DEFAULT_LLM_MODEL;
+async function generateThesisMarkdown(prompt: string, maxTokens = 3000): Promise<string> {
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not set");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180000);
+  const timeout = setTimeout(() => controller.abort(), 180_000);
   try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi Thesis",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" },
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
+    const { object } = await generateObject({
+      model: modelFor(process.env.LLM_MODEL || DEFAULT_LLM_MODEL),
+      schema: ThesisSchema,
+      prompt,
+      maxTokens,
+      abortSignal: controller.signal,
     });
-    if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
-    const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
-    return data.choices?.[0]?.message?.content ?? "";
+    return object.memoMarkdown;
   } finally { clearTimeout(timeout); }
-}
-
-function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
-  const m = cleaned.match(/\{[\s\S]*\}/);
-  if (m) { try { return JSON.parse(m[0]); } catch {} }
-  throw new Error("Bad JSON from OpenRouter");
 }
 
 export async function generateThesisMemo(capabilityId: number): Promise<ThesisMemo> {
@@ -161,16 +143,14 @@ Two specific observations that would invalidate this thesis.
 
 Be concrete. Use real numbers from the data. Do not hedge. Do not add disclaimers. Output ONLY the JSON object with the "memoMarkdown" key.`;
 
-  const raw = await openrouterChatJson(prompt, 3500);
-  const parsed = extractJson(raw) as { memoMarkdown?: string };
-  if (!parsed.memoMarkdown) throw new Error("OpenRouter returned no memo content");
+  const memoMarkdown = await generateThesisMarkdown(prompt, 3500);
 
   return {
     capabilityId,
     capabilityName: cap.name,
     industryName: ind?.name ?? "",
     generatedAt: new Date().toISOString(),
-    memoMarkdown: parsed.memoMarkdown,
+    memoMarkdown,
     inputs: {
       economics: econ ?? null,
       quadrant: quad ?? null,

@@ -34,6 +34,8 @@ import {
 import { consolidationRunsTable } from "@workspace/db";
 import { generateOntologyTool } from "../services/agent/tools";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { modelFor, generateObject } from "../services/workflows/models";
+import { z } from "zod";
 
 const router: IRouter = Router();
 
@@ -183,43 +185,41 @@ router.get("/agent/model-compare", async (req, res) => {
 Available capabilities:
 ${caps.map(c => `- ${c.name} (slug: ${c.slug})`).join("\n")}
 
-Return JSON array of 4 relationships:
-[{
+Return JSON of the form { "relationships": [4 entries] } where each entry has:
+{
   "sourceSlug": "slug",
   "targetSlug": "slug",
   "relationshipType": "enables|depends_on|competes_with|substitutes",
   "strength": "strong|moderate|weak",
   "description": "Precise 1-sentence explanation with real-world strategic context",
   "industryInsight": "Why this relationship specifically matters for ${industry.name} performance and ROI"
-}]
+}
 
 Be specific, strategic, and grounded in real ${industry.name} industry dynamics. No generic responses.`;
 
+    const RelSchema = z.object({
+      sourceSlug: z.string(),
+      targetSlug: z.string(),
+      relationshipType: z.enum(["enables", "depends_on", "competes_with", "substitutes"]),
+      strength: z.enum(["strong", "moderate", "weak"]),
+      description: z.string(),
+      industryInsight: z.string(),
+    });
+
     const runViaOpenRouter = async (model: string) => {
       const start = Date.now();
-      const apiKey = process.env.OPENROUTER_API_KEY;
-      if (!apiKey) return { model, latencyMs: 0, result: null, rawLength: 0, error: "No OPENROUTER_API_KEY" };
+      if (!process.env.OPENROUTER_API_KEY) {
+        return { model, latencyMs: 0, result: null, rawLength: 0, error: "No OPENROUTER_API_KEY" };
+      }
       try {
-        const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://inflexcvi.ai",
-            "X-Title": "Inflexcvi",
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: 1024,
-            messages: [{ role: "user", content: prompt }],
-          }),
+        const { object } = await generateObject({
+          model: modelFor(model),
+          schema: z.object({ relationships: z.array(RelSchema) }),
+          prompt,
+          maxTokens: 1024,
         });
-        const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-        if (data.error) throw new Error(data.error.message);
-        const text = data.choices?.[0]?.message?.content ?? "";
-        const match = text.match(/\[[\s\S]*\]/);
-        const parsed = match ? JSON.parse(match[0]) : null;
-        return { model, latencyMs: Date.now() - start, result: parsed, rawLength: text.length, error: null };
+        const result = object.relationships;
+        return { model, latencyMs: Date.now() - start, result, rawLength: JSON.stringify(result).length, error: null };
       } catch (err) {
         return { model, latencyMs: Date.now() - start, result: null, rawLength: 0, error: err instanceof Error ? err.message : String(err) };
       }

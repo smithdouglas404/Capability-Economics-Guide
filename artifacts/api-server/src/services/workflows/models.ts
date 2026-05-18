@@ -47,3 +47,12 @@ export const sonnet = openrouter(process.env.LLM_MODEL || "anthropic/claude-sonn
 
 /** Haiku 4.5 — fast classification (moderation, recovery action picks). */
 export const haiku = openrouter("anthropic/claude-haiku-4.5");
+
+/**
+ * Escape hatch for the rare callsite that needs a model slug at runtime
+ * (e.g. the admin model-comparison endpoint that runs Sonnet vs DeepSeek
+ * side-by-side). Prefer `sonnet` / `haiku` exports for everything else.
+ */
+export function modelFor(slug: string) {
+  return openrouter(slug);
+}

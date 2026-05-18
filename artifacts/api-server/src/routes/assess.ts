@@ -5,6 +5,8 @@ import { deductCredits } from "../middlewares/deductCredits";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { runAssessmentAnalyzer } from "../services/workflows";
+import { sonnet, generateObject, generateText } from "../services/workflows/models";
+import { z } from "zod";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let anthropicClient: AnthropicClient | null = null;
@@ -247,31 +249,17 @@ Return ONLY valid JSON in this format, no commentary:
   ]
 }`;
 
-  // GLM 5.1 — strategic interrogation, challenges assumptions, produces sharp gap-revealing questions
-  const glmQResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://inflexcvi.ai",
-      "X-Title": "Inflexcvi",
-    },
-    body: JSON.stringify({ model: "anthropic/claude-sonnet-4.6", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
-  });
-  const glmQData = await glmQResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-  if (glmQData.error) throw new Error(`Synthesis error: ${glmQData.error.message}`);
-  const response = { content: [{ type: "text" as const, text: glmQData.choices?.[0]?.message?.content ?? "" }] };
-
   let questions: string[] = [];
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]) as { questions?: string[] };
-      questions = parsed.questions ?? [];
-    } catch {
-      questions = ["What are the top 2 capabilities that differentiate you from your closest competitors today?"];
-    }
+  try {
+    const { object } = await generateObject({
+      model: sonnet,
+      schema: z.object({ questions: z.array(z.string()).min(1).max(3) }),
+      prompt,
+      maxTokens: 4096,
+    });
+    questions = object.questions;
+  } catch {
+    questions = ["What are the top 2 capabilities that differentiate you from your closest competitors today?"];
   }
 
   await db.update(capabilityAssessmentsTable)
@@ -493,20 +481,8 @@ Rules:
   if (analyzerResult?.payload) {
     rawText = JSON.stringify(analyzerResult.payload);
   } else {
-    // GLM 5.1 — deep reasoning for gap identification, roadmap planning, competitor scoring, SEC interpretation
-    const glmAResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi",
-      },
-      body: JSON.stringify({ model: "anthropic/claude-sonnet-4.6", max_tokens: 8192, messages: [{ role: "user", content: prompt }] }),
-    });
-    const glmAData = await glmAResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (glmAData.error) throw new Error(`Synthesis error: ${glmAData.error.message}`);
-    rawText = glmAData.choices?.[0]?.message?.content ?? "{}";
+    const { text } = await generateText({ model: sonnet, prompt, maxTokens: 8192 });
+    rawText = text || "{}";
   }
 
   const jsonMatch = rawText.match(/\{[\s\S]*\}/);

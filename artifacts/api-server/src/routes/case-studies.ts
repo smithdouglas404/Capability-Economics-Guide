@@ -15,6 +15,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
 import { logger } from "../lib/logger";
 import { runCaseStudyGenerator } from "../services/workflows";
+import { sonnet, generateObject } from "../services/workflows/models";
 
 const router: IRouter = Router();
 
@@ -378,46 +379,31 @@ Constraints:
 - Use specific numbers from the research where possible
 - Output ONLY the JSON object. No markdown, no commentary.`;
 
-  let studyJson: {
-    title: string;
-    executiveSummary: string;
-    situation: string;
-    challenges: string[];
-    recommendations: { title: string; rationale: string; impact: string }[];
-    fiveYearOutlook: string;
-    kpis: { name: string; baseline: string; target: string }[];
-  };
+  const CaseStudySchema = z.object({
+    title: z.string(),
+    executiveSummary: z.string(),
+    situation: z.string(),
+    challenges: z.array(z.string()),
+    recommendations: z.array(z.object({ title: z.string(), rationale: z.string(), impact: z.string() })).min(4).max(6),
+    fiveYearOutlook: z.string(),
+    kpis: z.array(z.object({ name: z.string(), baseline: z.string(), target: z.string() })).min(4).max(6),
+  });
+  let studyJson: z.infer<typeof CaseStudySchema>;
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180_000);
-    let gResp: Response;
     try {
-      gResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${openrouterKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://inflexcvi.ai",
-          "X-Title": "Inflexcvi",
-        },
-        body: JSON.stringify({
-          model: "anthropic/claude-sonnet-4.6",
-          max_tokens: 8192,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: controller.signal,
+      const { object } = await generateObject({
+        model: sonnet,
+        schema: CaseStudySchema,
+        prompt,
+        maxTokens: 8192,
+        abortSignal: controller.signal,
       });
+      studyJson = object;
     } finally {
       clearTimeout(timeout);
     }
-    const gData = (await gResp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (gData.error) throw new Error(gData.error.message);
-    const text = gData.choices?.[0]?.message?.content ?? "";
-    const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-    const start = cleaned.indexOf("{");
-    const end = cleaned.lastIndexOf("}");
-    if (start === -1 || end === -1) throw new Error("No JSON object in synthesis response");
-    studyJson = JSON.parse(cleaned.substring(start, end + 1));
   } catch (err) {
     res.status(502).json({ error: "Synthesis failed", details: String(err) });
     return;
