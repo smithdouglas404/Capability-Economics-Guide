@@ -28,7 +28,7 @@ import { MobileNotice } from "@/components/mobile";
 // Pages explicitly tuned for mobile. Everything else gets the
 // "best on desktop" notice on small screens.
 const MOBILE_TUNED_PREFIXES = [
-  "/cei", "/alpha", "/knowledge-graph", "/companies",
+  "/cvi", "/alpha", "/knowledge-graph", "/companies",
   "/scorecard", "/insights", "/membership", "/account",
   "/methodology", "/coverage", "/marketplace",
 ];
@@ -43,9 +43,9 @@ type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPath
 const navGroups: NavGroup[] = [
   {
     label: "Index",
-    matchPaths: ["/cei", "/knowledge-graph", "/regulations"],
+    matchPaths: ["/cvi", "/knowledge-graph", "/regulations"],
     children: [
-      { href: "/cei", label: "CVI Dashboard", icon: Activity, description: "Live composite index & macro events" },
+      { href: "/cvi", label: "CVI Dashboard", icon: Activity, description: "Live composite index & macro events" },
       { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network, description: "Capability relationships & dependencies" },
       { href: "/regulations", label: "Regulations", icon: Scale, description: "Compliance & regulatory landscape" },
     ],

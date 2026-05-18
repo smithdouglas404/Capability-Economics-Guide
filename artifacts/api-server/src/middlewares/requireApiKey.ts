@@ -23,6 +23,12 @@ import { logger } from "../lib/logger";
 
 const DEFAULT_RATE_LIMIT_PER_MIN = 1500;
 
+// Backward-compat: legacy keys minted before the CEI→CVI rename carry
+// "read:cei" in their scopes array. Accept it wherever "read:cvi" is required.
+const SCOPE_ALIASES: Record<string, string> = {
+  "read:cvi": "read:cei",
+};
+
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
@@ -114,7 +120,7 @@ function buildMiddleware(scope: string | null) {
       return;
     }
 
-    if (scope !== null && !resolved.scopes.includes(scope)) {
+    if (scope !== null && !resolved.scopes.includes(scope) && !resolved.scopes.includes(SCOPE_ALIASES[scope] ?? "")) {
       res.status(403).json({
         error: "insufficient_scope",
         requiredScope: scope,

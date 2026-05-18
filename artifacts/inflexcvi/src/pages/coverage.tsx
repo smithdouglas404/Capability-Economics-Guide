@@ -332,7 +332,7 @@ export default function CoveragePage() {
         <Separator className="my-8" />
         <div className="text-[11px] text-muted-foreground leading-relaxed max-w-3xl">
           <strong className="text-foreground">How &ldquo;Full economics&rdquo; is computed:</strong>{" "}
-          a capability counts when its <code>cei_components</code> row has at least one
+          a capability counts when its <code>cvi_components</code> row has at least one
           triangulated source (i.e. real Perplexity-cited evidence rather than the
           prior-only fallback). See the{" "}
           <Link href="/methodology" className="text-primary hover:underline">methodology white paper</Link>{" "}

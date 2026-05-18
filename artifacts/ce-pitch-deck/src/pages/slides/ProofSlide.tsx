@@ -25,7 +25,7 @@ export default function ProofSlide() {
           <p className="font-body font-medium text-muted uppercase tracking-widest" style={{ fontSize: "0.95vw" }}>Aggregate directional accuracy</p>
           <p className="font-display font-bold" style={{ color: "#10b981", fontSize: "7vw", lineHeight: 1, marginTop: "1vh" }}>74%</p>
           <p className="font-body text-text" style={{ fontSize: "1.1vw", marginTop: "1.5vh" }}>
-            Across four curated historical events. Each event replayed twice through <span style={{ fontFamily: "monospace" }}>computeCEI()</span> — once baseline, once with the shock injected.
+            Across four curated historical events. Each event replayed twice through <span style={{ fontFamily: "monospace" }}>computeCVI()</span> — once baseline, once with the shock injected.
           </p>
         </div>
       </div>

@@ -33,7 +33,7 @@ const API_BASE = "/api";
 
 // ─── Data shapes (just what each slide needs) ─────────────────────────────────
 
-interface CEIData {
+interface CVIData {
   overallIndex: number;
   overallCiLow: number | null;
   overallCiHigh: number | null;
@@ -101,7 +101,7 @@ interface SlideDef {
 
 const SLIDES: SlideDef[] = [
   { key: "intro",       durationMs: 18000, liveLink: null,            liveLabel: null },
-  { key: "cei",         durationMs: 35000, liveLink: "/cei",          liveLabel: "Open the live CVI" },
+  { key: "cei",         durationMs: 35000, liveLink: "/cvi",          liveLabel: "Open the live CVI" },
   { key: "proof",       durationMs: 32000, liveLink: "/proof",        liveLabel: "See the proof gallery" },
   { key: "disruption",  durationMs: 32000, liveLink: "/disruption",   liveLabel: "Open Disruption Watch" },
   { key: "newcaps",     durationMs: 28000, liveLink: "/disruption",   liveLabel: "See net-new capabilities" },
@@ -124,7 +124,7 @@ export default function DemoPage() {
   const pausedAtRef = useRef<number | null>(null);
 
   // Data state — one fetch per source
-  const [cei, setCei] = useState<CEIData | null>(null);
+  const [cei, setCei] = useState<CVIData | null>(null);
   const [backtest, setBacktest] = useState<BacktestSummary | null>(null);
   const [disruption, setDisruption] = useState<DisruptionEntry[] | null>(null);
   const [newCaps, setNewCaps] = useState<NewCapEntry[] | null>(null);
@@ -259,7 +259,7 @@ export default function DemoPage() {
       <main className="flex-1 flex items-center">
         <div className="max-w-6xl mx-auto w-full px-4 py-10">
           {slide.key === "intro" && <IntroSlide />}
-          {slide.key === "cei" && <CeiSlide data={cei} />}
+          {slide.key === "cei" && <CviSlide data={cei} />}
           {slide.key === "proof" && <ProofSlide data={backtest} />}
           {slide.key === "disruption" && <DisruptionSlide rows={disruption} />}
           {slide.key === "newcaps" && <NewCapsSlide rows={newCaps} />}
@@ -351,7 +351,7 @@ function IntroSlide() {
   );
 }
 
-function CeiSlide({ data }: { data: CEIData | null }) {
+function CviSlide({ data }: { data: CVIData | null }) {
   const topIndustries = data
     ? Object.values(data.industryBreakdowns).sort((a, b) => b.indexValue - a.indexValue).slice(0, 5)
     : [];

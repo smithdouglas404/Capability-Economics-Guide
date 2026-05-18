@@ -195,7 +195,7 @@ type HomeTiles = {
   topROI: { capabilityName: string; annualMarginUsdMm: number; formatted: string } | null;
   quarterlyDelta: { pts: number; direction: "up" | "down" } | null;
 };
-type CeiCurrent = { overallIndex: number };
+type CviCurrent = { overallIndex: number };
 
 export default function Home() {
   const heroSlot = useSlot("homepage_hero");
@@ -240,7 +240,7 @@ export default function Home() {
   // ── Live metrics for hero tiles + principle stats ──────────────────────
   const [principleStats, setPrincipleStats] = useState<PrincipleStats | null>(null);
   const [homeTiles, setHomeTiles] = useState<HomeTiles | null>(null);
-  const [ceiCurrent, setCeiCurrent] = useState<CeiCurrent | null>(null);
+  const [cviCurrent, setCviCurrent] = useState<CviCurrent | null>(null);
   const [capCount, setCapCount] = useState<number | null>(null);
   const [economicsBreakdown, setEconomicsBreakdown] = useState<{
     companyName: string;
@@ -261,7 +261,7 @@ export default function Home() {
       .catch(() => {});
     fetch("/api/cvi/current")
       .then(r => r.ok ? r.json() : null)
-      .then((d: CeiCurrent | null) => setCeiCurrent(d))
+      .then((d: CviCurrent | null) => setCviCurrent(d))
       .catch(() => {});
     fetch("/api/capabilities")
       .then(r => r.ok ? r.json() : [])
@@ -432,7 +432,7 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <MetricTile
                   label="Avg CVI Score"
-                  value={ceiCurrent ? ceiCurrent.overallIndex.toFixed(1) : "—"}
+                  value={cviCurrent ? cviCurrent.overallIndex.toFixed(1) : "—"}
                   sub={homeTiles?.quarterlyDelta
                     ? `${homeTiles.quarterlyDelta.direction === "up" ? "↑" : "↓"} ${Math.abs(homeTiles.quarterlyDelta.pts)} pts this quarter`
                     : "live composite"}

@@ -11,8 +11,8 @@ export const simulationScenariosTable = pgTable("simulation_scenarios", {
   sessionToken: text("session_token"),
   name: text("name").notNull(),
   description: text("description"),
-  baselineCei: real("baseline_cei"),
-  projectedCei: real("projected_cei"),
+  baselineCvi: real("baseline_cei"),
+  projectedCvi: real("projected_cei"),
   investments: jsonb("investments").$type<Array<{
     capabilityId: number;
     capabilityName: string;
@@ -21,7 +21,7 @@ export const simulationScenariosTable = pgTable("simulation_scenarios", {
     timelineMonths: number;
   }>>().notNull().default([]),
   results: jsonb("results").$type<{
-    ceiDelta: number;
+    cviDelta: number;
     moatChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
     fragilitChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
     evarReduction: Array<{ capabilityId: number; name: string; before12mo: number; after12mo: number }>;

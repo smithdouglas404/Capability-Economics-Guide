@@ -55,24 +55,24 @@ router.use("/embed", embedFrameHeaders);
  * Live CVI snapshot for embedding. Tiny payload — overall index, CI,
  * methodology id, timestamp. No industry breakdown to keep widgets light.
  */
-router.get("/embed/cei", async (req, res) => {
+const cviEmbedHandler = async (req: import("express").Request, res: import("express").Response) => {
   try {
-    const cei = await getCVICurrent();
-    if (!cei) {
+    const cvi = await getCVICurrent();
+    if (!cvi) {
       res.status(503).json({ error: "CVI not yet computed" });
       return;
     }
     // CVI is a model-derived rollup, not a per-source aggregate, so its
     // provenance is the engine + the count of contributing industries
     // (each backed by Perplexity-cited GDP weights via industry_gdp_weights).
-    const industryCount = Object.keys(cei.industryBreakdowns ?? {}).length;
-    const ts = typeof cei.timestamp === "string" ? cei.timestamp : new Date(cei.timestamp).toISOString();
+    const industryCount = Object.keys(cvi.industryBreakdowns ?? {}).length;
+    const ts = typeof cvi.timestamp === "string" ? cvi.timestamp : new Date(cvi.timestamp).toISOString();
     res.json({
-      overallIndex: cei.overallIndex,
-      ciLow: cei.overallCiLow,
-      ciHigh: cei.overallCiHigh,
-      marketSentiment: cei.marketSentiment,
-      volatility: cei.volatility,
+      overallIndex: cvi.overallIndex,
+      ciLow: cvi.overallCiLow,
+      ciHigh: cvi.overallCiHigh,
+      marketSentiment: cvi.marketSentiment,
+      volatility: cvi.volatility,
       timestamp: ts,
       citations: [
         {
@@ -91,10 +91,12 @@ router.get("/embed/cei", async (req, res) => {
       branding: resolveBranding(req.query["token"]),
     });
   } catch (err) {
-    console.error("embed cei failed:", err);
+    console.error("embed cvi failed:", err);
     res.status(500).json({ error: "Failed to load CVI" });
   }
-});
+};
+router.get("/embed/cvi", cviEmbedHandler);
+router.get("/embed/cei", cviEmbedHandler); // backward-compat alias for external embedders
 
 /**
  * Embeddable capability summary. Only succeeds for capabilities with

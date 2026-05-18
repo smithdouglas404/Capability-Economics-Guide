@@ -70,7 +70,7 @@ import DemoPage from "@/pages/demo";
 import MarketplaceWorkspacePage from "@/pages/marketplace-workspace";
 import WorkbenchExamplePage from "@/pages/workbench-example";
 import OnboardingPage from "@/pages/onboarding";
-import EmbedCei from "@/pages/embed-cvi";
+import EmbedCvi from "@/pages/embed-cvi";
 import EmbedCapability from "@/pages/embed-capability";
 
 const queryClient = new QueryClient();
@@ -130,6 +130,7 @@ function Router() {
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/" component={Home} />
       <Route path="/alpha" component={Alpha} />
+      <Route path="/cvi" component={CVIDashboard} />
       <Route path="/cei" component={CVIDashboard} />
       <Route path="/methodology" component={Methodology} />
       <Route path="/coverage" component={CoveragePage} />
@@ -149,7 +150,7 @@ function Router() {
       <Route path="/marketplace/workspace" component={MarketplaceWorkspacePage} />
       <Route path="/workbench/example">{() => <RequireAuth component={WorkbenchExamplePage} />}</Route>
       <Route path="/onboarding" component={OnboardingPage} />
-      <Route path="/embed/cvi" component={EmbedCei} />
+      <Route path="/embed/cvi" component={EmbedCvi} />
       <Route path="/embed/capability/:id" component={EmbedCapability} />
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />

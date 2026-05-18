@@ -619,7 +619,7 @@ paths:
               schema:
                 type: object
                 properties:
-                  cei:
+                  cvi:
                     $ref: "#/components/schemas/CVIData"
                   triangulations:
                     type: array
@@ -1725,10 +1725,10 @@ components:
           type: integer
         memoriesStored:
           type: integer
-        ceiBeforeIndex:
+        cviBeforeIndex:
           type: number
           nullable: true
-        ceiAfterIndex:
+        cviAfterIndex:
           type: number
           nullable: true
         startedAt:

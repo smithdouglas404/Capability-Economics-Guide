@@ -174,12 +174,12 @@ router.get("/workbench/value-chain/:industryId", async (req, res) => {
     .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
     .where(eq(capabilitiesTable.industryId, industryId));
 
-  const stageMetrics = new Map<string, { ceiSum: number; confSum: number; velSum: number; n: number }>();
+  const stageMetrics = new Map<string, { cviSum: number; confSum: number; velSum: number; n: number }>();
   for (const c of caps) {
     const s = c.stage ?? "enable";
-    if (!stageMetrics.has(s)) stageMetrics.set(s, { ceiSum: 0, confSum: 0, velSum: 0, n: 0 });
+    if (!stageMetrics.has(s)) stageMetrics.set(s, { cviSum: 0, confSum: 0, velSum: 0, n: 0 });
     const m = stageMetrics.get(s)!;
-    m.ceiSum += c.score ?? 50;
+    m.cviSum += c.score ?? 50;
     m.confSum += c.confidence ?? 0.5;
     m.velSum += c.velocity ?? 0;
     m.n++;
@@ -203,7 +203,7 @@ router.get("/workbench/value-chain/:industryId", async (req, res) => {
     const m = stageMetrics.get(p.stage);
     return {
       ...p,
-      avgCei: m && m.n ? Math.round((m.ceiSum / m.n) * 10) / 10 : null,
+      avgCvi: m && m.n ? Math.round((m.cviSum / m.n) * 10) / 10 : null,
       avgConfidence: m && m.n ? Math.round((m.confSum / m.n) * 100) / 100 : null,
       avgVelocity: m && m.n ? Math.round((m.velSum / m.n) * 1000) / 1000 : null,
       companyCount: companyByStage.get(p.stage) ?? 0,

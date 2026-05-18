@@ -9,6 +9,6 @@ import type { CVIData } from "./cVIData";
 import type { RefreshCVI200TriangulationsItem } from "./refreshCVI200TriangulationsItem";
 
 export type RefreshCVI200 = {
-  cei?: CVIData;
+  cvi?: CVIData;
   triangulations?: RefreshCVI200TriangulationsItem[];
 };

@@ -47,7 +47,7 @@ interface ExampleCard {
   industry: string;
   description: string;
   lifecycle: "emerging" | "adopted" | "mature" | "decaying" | "obsolete";
-  cei: number | null;
+  cvi: number | null;
   velocity: number | null;
   notes?: string;
   insights: ExampleInsight[];
@@ -89,7 +89,7 @@ type ApiCard = {
   capabilityName: string;
   industry: string;
   lifecycle: ExampleCard["lifecycle"];
-  cei: number;
+  cvi: number;
   velocity: number;
   annualMarginUsdMm: number | null;
   summaryNarrative: string | null;
@@ -114,7 +114,7 @@ function apiCardToExample(c: ApiCard): ExampleCard {
     industry: c.industry,
     description: c.summaryNarrative ?? "Capability under active enrichment — narrative pending.",
     lifecycle: c.lifecycle,
-    cei: c.cei,
+    cvi: c.cvi,
     velocity: c.velocity,
     notes: c.annualMarginUsdMm != null
       ? `Estimated annual margin captured: $${c.annualMarginUsdMm.toFixed(1)}M`
@@ -210,8 +210,8 @@ export default function WorkbenchExamplePage() {
                           <Badge variant="outline" className={`rounded-none font-mono text-[10px] uppercase tracking-wider px-1 py-0 ${LIFECYCLE_TONE[card.lifecycle]}`}>
                             {card.lifecycle}
                           </Badge>
-                          {card.cei !== null && (
-                            <span className="font-mono text-[10px] tabular-nums ml-auto">{card.cei}</span>
+                          {card.cvi !== null && (
+                            <span className="font-mono text-[10px] tabular-nums ml-auto">{card.cvi}</span>
                           )}
                         </div>
                         {card.insights.length > 0 && (
@@ -241,8 +241,8 @@ export default function WorkbenchExamplePage() {
                   <Badge variant="outline" className={`rounded-none font-mono text-[10px] uppercase tracking-wider ${LIFECYCLE_TONE[activeCard.lifecycle]}`}>
                     {activeCard.lifecycle}
                   </Badge>
-                  {activeCard.cei !== null && (
-                    <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">CVI {activeCard.cei}</Badge>
+                  {activeCard.cvi !== null && (
+                    <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">CVI {activeCard.cvi}</Badge>
                   )}
                   {activeCard.velocity !== null && (
                     <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider">v {(activeCard.velocity > 0 ? "+" : "") + activeCard.velocity.toFixed(1)}</Badge>

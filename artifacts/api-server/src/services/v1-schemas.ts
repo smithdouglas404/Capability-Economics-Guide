@@ -13,7 +13,7 @@ extendZodWithOpenApi(z);
 // ---------- Reusable param schemas ----------
 const LimitQuery = z.coerce.number().int().min(1).max(500).default(100).openapi({
   param: { name: "limit", in: "query" },
-  description: "Page size (1–500; /cei/history allows up to 1000).",
+  description: "Page size (1–500; /cvi/history allows up to 1000).",
 });
 const OffsetQuery = z.coerce.number().int().min(0).default(0).openapi({
   param: { name: "offset", in: "query" },
@@ -48,7 +48,7 @@ const Capability = z
   })
   .openapi("Capability");
 
-const CeiSnapshot = z
+const CviSnapshot = z
   .object({
     id: z.number().int(),
     overallIndex: z.number(),
@@ -60,7 +60,7 @@ const CeiSnapshot = z
     snapshotAt: z.string().datetime(),
     industryBreakdowns: z.record(z.string(), z.unknown()).optional(),
   })
-  .openapi("CeiSnapshot");
+  .openapi("CviSnapshot");
 
 const MacroEvent = z
   .object({
@@ -122,7 +122,7 @@ const PaginatedCapabilities = z.object({
   data: z.array(Capability),
   total: z.number().int(),
 });
-const CeiHistoryResponse = z.object({ data: z.array(CeiSnapshot) });
+const CviHistoryResponse = z.object({ data: z.array(CviSnapshot) });
 const PaginatedMacroEvents = z.object({
   data: z.array(MacroEvent),
   total: z.number().int(),
@@ -199,15 +199,15 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
     },
   });
   r.registerPath({
-    method: "get", path: "/v1/cei/current", tags: ["CVI"],
+    method: "get", path: "/v1/cvi/current", tags: ["CVI"],
     summary: "Latest Capability Economic Index snapshot",
     responses: {
-      200: { description: "OK", ...jsonContent(CeiSnapshot) },
+      200: { description: "OK", ...jsonContent(CviSnapshot) },
       401: errors[401], 403: errors[403], 429: errors[429], 503: errors[503],
     },
   });
   r.registerPath({
-    method: "get", path: "/v1/cei/history", tags: ["CVI"],
+    method: "get", path: "/v1/cvi/history", tags: ["CVI"],
     summary: "Historical CVI snapshots",
     request: {
       query: z.object({
@@ -220,7 +220,7 @@ export function buildOpenApiSpec(serverUrl: string): Record<string, unknown> {
       }),
     },
     responses: {
-      200: { description: "OK", ...jsonContent(CeiHistoryResponse) },
+      200: { description: "OK", ...jsonContent(CviHistoryResponse) },
       401: errors[401], 403: errors[403], 429: errors[429], 503: errors[503],
     },
   });

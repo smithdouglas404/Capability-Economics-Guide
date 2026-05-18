@@ -394,7 +394,7 @@ router.post("/benchmarking/run", async (req, res) => {
       myScore: number | null;
       companyStrengths: Array<{ companyId: number; companyName: string; weight: number; evidence: string | null }>;
       avgCompanyWeight: number;
-      ceiScore: number | null;
+      cviScore: number | null;
       aiExposure: number | null;
       moatHalfLife: number | null;
     };
@@ -414,7 +414,7 @@ router.post("/benchmarking/run", async (req, res) => {
           myScore: myScores.get(f.fp.capabilityId) ?? null,
           companyStrengths: [],
           avgCompanyWeight: 0,
-          ceiScore: comp?.consensusScore ?? null,
+          cviScore: comp?.consensusScore ?? null,
           aiExposure: econ?.aiExposureScore ?? null,
           moatHalfLife: econ?.halfLifeMonths ?? null,
         });

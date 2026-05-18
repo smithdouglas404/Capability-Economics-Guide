@@ -68,11 +68,11 @@ router.post("/cvi/refresh", requireAdmin, async (req, res) => {
         triangulations.push(result);
       }
 
-      const cei = await computeCVI();
-      res.json({ cei, triangulations });
+      const cvi = await computeCVI();
+      res.json({ cvi, triangulations });
     } else {
-      const cei = await computeCVI();
-      res.json({ cei, triangulations: [] });
+      const cvi = await computeCVI();
+      res.json({ cvi, triangulations: [] });
     }
   } catch (err: unknown) {
     console.error("CVI refresh failed:", err);
@@ -89,8 +89,8 @@ router.get("/cvi/methodology", async (_req, res) => {
  * GET /api/cvi/exemplars
  *
  * Top + bottom scoring leaf capabilities right now. Replaces the hardcoded
- * "Agentic AI ~26, AML/KYC ~42" call-outs in the cei-dashboard "How to read
- * the CVI right now" dialog (pages/cei-dashboard.tsx:597). Both are single
+ * "Agentic AI ~26, AML/KYC ~42" call-outs in the cvi-dashboard "How to read
+ * the CVI right now" dialog (pages/cvi-dashboard.tsx). Both are single
  * rows — cheap query, no caching.
  */
 router.get("/cvi/exemplars", async (_req, res) => {

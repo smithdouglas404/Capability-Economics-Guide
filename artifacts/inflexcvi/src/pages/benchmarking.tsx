@@ -26,7 +26,7 @@ type CompanyListing = {
   composite: number | null;
   moatScore: number | null;
   aiDisruptability: number | null;
-  ceiWeighted: number | null;
+  cviWeighted: number | null;
 };
 
 type BenchmarkResult = {
@@ -40,7 +40,7 @@ type BenchmarkResult = {
   capabilities: Array<{
     capabilityId: number; capabilityName: string; benchmark: number | null; myScore: number | null;
     companyStrengths: Array<{ companyId: number; companyName: string; weight: number; evidence: string | null }>;
-    avgCompanyWeight: number; ceiScore: number | null; aiExposure: number | null; moatHalfLife: number | null;
+    avgCompanyWeight: number; cviScore: number | null; aiExposure: number | null; moatHalfLife: number | null;
   }>;
   totalCapabilities: number;
   totalCompanies: number;
@@ -390,7 +390,7 @@ export default function Benchmarking() {
                             <span className={cap.benchmark != null && cap.myScore >= cap.benchmark ? "text-emerald-500 font-medium" : cap.benchmark != null ? "text-destructive font-medium" : ""}>{cap.myScore.toFixed(0)}</span>
                           ) : "—"}
                         </td>
-                        <td className="text-right py-2 px-2 text-muted-foreground">{cap.ceiScore?.toFixed(0) ?? "—"}</td>
+                        <td className="text-right py-2 px-2 text-muted-foreground">{cap.cviScore?.toFixed(0) ?? "—"}</td>
                         {result.companies.map(co => {
                           const s = cap.companyStrengths.find(x => x.companyId === co.id);
                           return (

@@ -15,7 +15,7 @@ const API_BASE = "/api";
 const ALL_SCOPES = [
   { id: "read:industries", label: "Industries" },
   { id: "read:capabilities", label: "Capabilities" },
-  { id: "read:cei", label: "CVI Snapshots" },
+  { id: "read:cvi", label: "CVI Snapshots" },
   { id: "read:macro-events", label: "Macro Events" },
   { id: "read:value-chain", label: "Value Chain Stages" },
 ] as const;

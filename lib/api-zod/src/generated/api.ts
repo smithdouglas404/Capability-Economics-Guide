@@ -747,7 +747,7 @@ export const RefreshCVIBody = zod.object({
 });
 
 export const RefreshCVIResponse = zod.object({
-  cei: zod
+  cvi: zod
     .object({
       overallIndex: zod.number(),
       industryBreakdowns: zod.record(
@@ -833,8 +833,8 @@ export const GetAgentStatusResponse = zod.object({
       perplexityCalls: zod.number().optional(),
       memoriesRecalled: zod.number().optional(),
       memoriesStored: zod.number().optional(),
-      ceiBeforeIndex: zod.number().nullish(),
-      ceiAfterIndex: zod.number().nullish(),
+      cviBeforeIndex: zod.number().nullish(),
+      cviAfterIndex: zod.number().nullish(),
       startedAt: zod.string().optional(),
       completedAt: zod.string().nullish(),
       errorMessage: zod.string().nullish(),
@@ -861,8 +861,8 @@ export const TriggerAgentRunResponse = zod.object({
   perplexityCalls: zod.number().optional(),
   memoriesRecalled: zod.number().optional(),
   memoriesStored: zod.number().optional(),
-  ceiBeforeIndex: zod.number().nullish(),
-  ceiAfterIndex: zod.number().nullish(),
+  cviBeforeIndex: zod.number().nullish(),
+  cviAfterIndex: zod.number().nullish(),
   startedAt: zod.string().optional(),
   completedAt: zod.string().nullish(),
   errorMessage: zod.string().nullish(),
@@ -888,8 +888,8 @@ export const GetAgentHistoryResponseItem = zod.object({
   perplexityCalls: zod.number().optional(),
   memoriesRecalled: zod.number().optional(),
   memoriesStored: zod.number().optional(),
-  ceiBeforeIndex: zod.number().nullish(),
-  ceiAfterIndex: zod.number().nullish(),
+  cviBeforeIndex: zod.number().nullish(),
+  cviAfterIndex: zod.number().nullish(),
   startedAt: zod.string().optional(),
   completedAt: zod.string().nullish(),
   errorMessage: zod.string().nullish(),

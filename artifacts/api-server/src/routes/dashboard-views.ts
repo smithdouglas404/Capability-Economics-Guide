@@ -15,8 +15,12 @@ const router: IRouter = Router();
 router.use("/me/dashboard-views", requireSession());
 
 const MAX_VIEWS_PER_DASHBOARD = 10;
-const DASHBOARD_KEYS = ["cei", "alpha", "knowledge-graph", "companies"] as const;
+// "cei" is a backward-compat alias for "cvi" — legacy clients (and legacy DB
+// rows from before the CEI→CVI rename) keep working. Server normalises to
+// "cvi" on write via normaliseKey() so storage converges over time.
+const DASHBOARD_KEYS = ["cvi", "cei", "alpha", "knowledge-graph", "companies"] as const;
 const DashboardKey = z.enum(DASHBOARD_KEYS);
+function normaliseKey<T extends string>(k: T): T { return (k === "cei" ? "cvi" : k) as T; }
 
 const CreateBody = z.object({
   dashboardKey: DashboardKey,
@@ -34,8 +38,12 @@ router.get("/me/dashboard-views", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const dashRaw = typeof req.query.dashboard === "string" ? req.query.dashboard : null;
-  const where = dashRaw
-    ? and(eq(dashboardViewsTable.userId, auth.userId), eq(dashboardViewsTable.dashboardKey, dashRaw))
+  // When the client asks for "cvi", also return any legacy "cei" rows. When
+  // they ask for "cei" (old client), return "cvi" rows too. Bidirectional
+  // alias so both old and new clients see the same data during transition.
+  const aliasedKeys = dashRaw === "cvi" || dashRaw === "cei" ? ["cvi", "cei"] : dashRaw ? [dashRaw] : null;
+  const where = aliasedKeys
+    ? and(eq(dashboardViewsTable.userId, auth.userId), sql`${dashboardViewsTable.dashboardKey} = ANY(${aliasedKeys})`)
     : eq(dashboardViewsTable.userId, auth.userId);
   const rows = await db.select().from(dashboardViewsTable).where(where).orderBy(dashboardViewsTable.dashboardKey, dashboardViewsTable.name);
   res.json({ views: rows });
@@ -46,7 +54,8 @@ router.post("/me/dashboard-views", async (req, res) => {
   if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
   const parsed = CreateBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid body", details: parsed.error.issues }); return; }
-  const { dashboardKey, name, stateJson, isDefault } = parsed.data;
+  const { name, stateJson, isDefault } = parsed.data;
+  const dashboardKey = normaliseKey(parsed.data.dashboardKey);
 
   try {
     // Race-safe cap + insert. Take a per-(user, dashboard) advisory lock so two

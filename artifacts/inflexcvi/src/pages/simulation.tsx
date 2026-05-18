@@ -12,11 +12,11 @@ type Capability = { id: number; name: string; benchmarkScore: number; industryId
 type Scenario = {
   id: number;
   name: string;
-  baselineCei: number;
-  projectedCei: number;
+  baselineCvi: number;
+  projectedCvi: number;
   investments: Array<{ capabilityId: number; capabilityName: string; investmentUsdMm: number; targetMaturityDelta: number; timelineMonths: number }>;
   results: {
-    ceiDelta: number;
+    cviDelta: number;
     moatChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
     fragilitChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
     evarReduction: Array<{ capabilityId: number; name: string; before12mo: number; after12mo: number }>;
@@ -155,19 +155,19 @@ export default function Simulation() {
                   <div className="grid grid-cols-3 gap-4 text-center">
                     <div>
                       <p className="text-sm text-muted-foreground">Baseline CVI</p>
-                      <p className="text-3xl font-mono font-bold">{activeScenario.baselineCei?.toFixed(1)}</p>
+                      <p className="text-3xl font-mono font-bold">{activeScenario.baselineCvi?.toFixed(1)}</p>
                     </div>
                     <div className="flex items-center justify-center">
                       <ArrowRight className="w-8 h-8 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Projected CVI</p>
-                      <p className="text-3xl font-mono font-bold text-primary">{activeScenario.projectedCei?.toFixed(1)}</p>
+                      <p className="text-3xl font-mono font-bold text-primary">{activeScenario.projectedCvi?.toFixed(1)}</p>
                     </div>
                   </div>
                   <div className="text-center mt-2">
-                    <Badge variant={r.ceiDelta >= 0 ? "default" : "destructive"}>
-                      {r.ceiDelta >= 0 ? "+" : ""}{r.ceiDelta.toFixed(1)} CVI points
+                    <Badge variant={r.cviDelta >= 0 ? "default" : "destructive"}>
+                      {r.cviDelta >= 0 ? "+" : ""}{r.cviDelta.toFixed(1)} CVI points
                     </Badge>
                   </div>
                 </CardContent>
@@ -284,8 +284,8 @@ export default function Simulation() {
                     <span className="text-xs text-muted-foreground ml-2">{s.investments.length} investment(s)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={s.results?.ceiDelta >= 0 ? "default" : "destructive"}>
-                      {s.results?.ceiDelta >= 0 ? "+" : ""}{s.results?.ceiDelta?.toFixed(1)} CVI
+                    <Badge variant={s.results?.cviDelta >= 0 ? "default" : "destructive"}>
+                      {s.results?.cviDelta >= 0 ? "+" : ""}{s.results?.cviDelta?.toFixed(1)} CVI
                     </Badge>
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); deleteScenario(s.id); }}>
                       <Trash2 className="w-4 h-4" />

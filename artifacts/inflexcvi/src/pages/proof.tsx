@@ -253,7 +253,7 @@ export default function ProofPage() {
                 <h3 className="font-serif text-xl tracking-tight">Methodology</h3>
               </div>
               <ol className="list-decimal list-outside ml-5 space-y-2 text-sm leading-relaxed text-muted-foreground">
-                <li>For each historical event, the harness invokes <code className="font-mono text-xs bg-muted px-1">computeCEI()</code> twice: once with no event injected (baseline) and once with the event injected as an extra active <code className="font-mono text-xs bg-muted px-1">macro_event</code>.</li>
+                <li>For each historical event, the harness invokes <code className="font-mono text-xs bg-muted px-1">computeCVI()</code> twice: once with no event injected (baseline) and once with the event injected as an extra active <code className="font-mono text-xs bg-muted px-1">macro_event</code>.</li>
                 <li>The predicted delta per capability is the engine-output score difference — not a hand-derived sign. It flows through the real Bayesian posterior, parent/child rollup, velocity smoothing, and economic multiplier code paths.</li>
                 <li>Expected directions are stored separately and allowed to disagree with the event's overall sentiment. COVID is globally negative but positive for telehealth; the EU AI Act is a cost burden but positive for AI-governance tooling. A naive engine misses these — the harness surfaces those gaps.</li>
                 <li>Replay runs in dry-run mode (<code className="font-mono text-xs bg-muted px-1">persist: false</code>); the live CVI and snapshots are untouched.</li>

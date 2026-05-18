@@ -28,8 +28,8 @@ interface AgentStatusData {
     memoriesStored: number;
     capabilitiesResearched: number;
     perplexityCalls: number;
-    ceiBeforeIndex: number | null;
-    ceiAfterIndex: number | null;
+    cviBeforeIndex: number | null;
+    cviAfterIndex: number | null;
     completedAt: string | null;
   } | null;
   memory: { totalMemories: number; byType: Record<string, number>; mem0Connected: boolean };
@@ -126,7 +126,7 @@ export default function AgentMemoryShowcase() {
       pushHistory(h, "recalled", run.memoriesRecalled);
       pushHistory(h, "stored", run.memoriesStored);
       pushHistory(h, "perplexity", run.perplexityCalls);
-      if (run.ceiAfterIndex != null) pushHistory(h, "ceiAfter", run.ceiAfterIndex);
+      if (run.cviAfterIndex != null) pushHistory(h, "cviAfter", run.cviAfterIndex);
       saveHistory(h);
       return h;
     });
@@ -228,13 +228,13 @@ export default function AgentMemoryShowcase() {
               <StatCard
                 label="CVI Impact"
                 value={
-                  agentStatus.latestRun.ceiBeforeIndex != null && agentStatus.latestRun.ceiAfterIndex != null
-                    ? `${agentStatus.latestRun.ceiBeforeIndex}→${agentStatus.latestRun.ceiAfterIndex}`
+                  agentStatus.latestRun.cviBeforeIndex != null && agentStatus.latestRun.cviAfterIndex != null
+                    ? `${agentStatus.latestRun.cviBeforeIndex}→${agentStatus.latestRun.cviAfterIndex}`
                     : "—"
                 }
                 icon={Zap}
                 colorClass="text-primary"
-                history={statHistory.ceiAfter}
+                history={statHistory.cviAfter}
                 tooltip="Capability Value Index before and after this run. Shows how the agent's research shifted the overall assessment — a rising number means improving competitive positioning."
               />
             </div>

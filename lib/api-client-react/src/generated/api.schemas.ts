@@ -548,8 +548,8 @@ export interface AgentRunResult {
   perplexityCalls?: number;
   memoriesRecalled?: number;
   memoriesStored?: number;
-  ceiBeforeIndex?: number | null;
-  ceiAfterIndex?: number | null;
+  cviBeforeIndex?: number | null;
+  cviAfterIndex?: number | null;
   startedAt?: string;
   completedAt?: string | null;
   errorMessage?: string | null;
@@ -643,7 +643,7 @@ export type RefreshCVIBody = {
 export type RefreshCVI200TriangulationsItem = { [key: string]: unknown };
 
 export type RefreshCVI200 = {
-  cei?: CVIData;
+  cvi?: CVIData;
   triangulations?: RefreshCVI200TriangulationsItem[];
 };
 

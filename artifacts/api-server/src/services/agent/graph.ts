@@ -409,7 +409,7 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
           skipCount,
           memoryCount,
           industries,
-          ceiDelta: (state.cviAfterIndex || 0) - (state.cviBeforeIndex || 0),
+          cviDelta: (state.cviAfterIndex || 0) - (state.cviBeforeIndex || 0),
         },
         {
           category: "decision",
@@ -559,7 +559,7 @@ async function finalizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
     memoriesRecalled: state.memoriesRecalled,
     memoriesStored: state.memoriesStored,
     reflection: state.reflection,
-    ceiIndex: state.cviAfterIndex,
+    cviIndex: state.cviAfterIndex,
     mem0Connected: !!process.env.MEM0_API_KEY,
   });
 

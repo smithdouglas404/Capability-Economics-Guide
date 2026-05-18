@@ -331,31 +331,31 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
     .where(eq(companyCapabilityFingerprintTable.companyId, companyId));
   if (!fpRows.length) return;
 
-  const ceiCaps = await getIndustryCapMetrics(company.industryId);
-  const ceiByCap = new Map(ceiCaps.map(c => [c.id, c]));
+  const cviCaps = await getIndustryCapMetrics(company.industryId);
+  const cviByCap = new Map(cviCaps.map(c => [c.id, c]));
 
   let weightSum = 0;
-  let ceiNumerator = 0;
+  let cviNumerator = 0;
   let confidenceSum = 0;
   let velocityNumerator = 0;
-  let coveredHighCei = 0;
-  let totalHighCei = 0;
-  for (const c of ceiCaps) {
-    if ((c.score ?? 0) >= 60) totalHighCei++;
+  let coveredHighCvi = 0;
+  let totalHighCvi = 0;
+  for (const c of cviCaps) {
+    if ((c.score ?? 0) >= 60) totalHighCvi++;
   }
   for (const r of fpRows) {
-    const m = ceiByCap.get(r.cap.id);
+    const m = cviByCap.get(r.cap.id);
     if (!m) continue;
     weightSum += r.fp.weight;
-    ceiNumerator += r.fp.weight * (m.score ?? 50);
+    cviNumerator += r.fp.weight * (m.score ?? 50);
     confidenceSum += m.confidence ?? 0.5;
     velocityNumerator += r.fp.weight * (m.velocity ?? 0);
-    if ((m.score ?? 0) >= 60) coveredHighCei++;
+    if ((m.score ?? 0) >= 60) coveredHighCvi++;
   }
-  const cviWeighted = weightSum ? ceiNumerator / weightSum : 0;
+  const cviWeighted = weightSum ? cviNumerator / weightSum : 0;
   const avgConf = fpRows.length ? confidenceSum / fpRows.length : 0;
   const avgVelocity = weightSum ? velocityNumerator / weightSum : 0;
-  const capabilityCoverage = totalHighCei ? Math.min(100, (coveredHighCei / totalHighCei) * 100 * 2) : 0;
+  const capabilityCoverage = totalHighCvi ? Math.min(100, (coveredHighCvi / totalHighCvi) * 100 * 2) : 0;
 
   // Aged Index: 100 = freshly formed (≤3y); 0 = ≥40y. Lower aged index = "younger / hungrier" upside.
   const yrs = company.foundedYear ? new Date().getFullYear() - company.foundedYear : 15;
@@ -371,7 +371,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   // Moat: average CVI of caps where confidence > 0.65 AND velocity > 0; weighted.
   let moatNum = 0; let moatDen = 0;
   for (const r of fpRows) {
-    const m = ceiByCap.get(r.cap.id);
+    const m = cviByCap.get(r.cap.id);
     if (!m) continue;
     if ((m.confidence ?? 0) > 0.65 && (m.velocity ?? 0) > 0) {
       moatNum += r.fp.weight * (m.score ?? 50);

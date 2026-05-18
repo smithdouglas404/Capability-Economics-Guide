@@ -17,8 +17,8 @@ export interface AgentRunResult {
   perplexityCalls?: number;
   memoriesRecalled?: number;
   memoriesStored?: number;
-  ceiBeforeIndex?: number | null;
-  ceiAfterIndex?: number | null;
+  cviBeforeIndex?: number | null;
+  cviAfterIndex?: number | null;
   startedAt?: string;
   completedAt?: string | null;
   errorMessage?: string | null;

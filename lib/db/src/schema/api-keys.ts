@@ -9,10 +9,11 @@ import { pgTable, serial, text, integer, timestamp, jsonb, index } from "drizzle
  * ("ce_live_abCd...") without exposing the full secret.
  *
  * Scopes (jsonb string[]): controls which v1 endpoint families a key may call.
- * Recognised values: "read:industries", "read:capabilities", "read:cei",
+ * Recognised values: "read:industries", "read:capabilities", "read:cvi",
  * "read:macro-events", "read:value-chain". A key without a matching scope on
  * a request gets a 403. Defaults to all read scopes for backwards compat with
- * legacy keys minted before the v1 surface existed.
+ * legacy keys minted before the v1 surface existed. "read:cei" is accepted
+ * as a backward-compat alias for "read:cvi" by the requireApiKey middleware.
  *
  * rateLimitPerMin (int, nullable): per-key sliding-minute ceiling enforced by
  * the v1 middleware via Redis. Null = use the tier default (1500/min for
@@ -40,7 +41,7 @@ export const apiKeysTable = pgTable(
     scopes: jsonb("scopes").$type<string[]>().notNull().default([
       "read:industries",
       "read:capabilities",
-      "read:cei",
+      "read:cvi",
       "read:macro-events",
       "read:value-chain",
     ]),

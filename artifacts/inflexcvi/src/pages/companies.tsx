@@ -39,7 +39,7 @@ type CompanyRow = {
     awarenessScore: number;
     agedIndex: number;
     capabilityCoverage: number;
-    ceiWeighted: number;
+    cviWeighted: number;
     riskProfile: number;
     lastComputedAt?: string | null;
     details?: { avgConf?: number; avgVelocity?: number; capCount?: number } | null;
@@ -51,7 +51,7 @@ type StageRow = {
   patents: number;
   vcUsd: number;
   startups: number;
-  avgCei: number | null;
+  avgCvi: number | null;
   avgConfidence: number | null;
   avgVelocity: number | null;
   companyCount: number;
@@ -452,7 +452,7 @@ export default function Companies() {
                                       { sourceLabel: "Quality of asset", rawScore: s.qualityOfAsset, weight: 0.20 },
                                       { sourceLabel: "Moat", rawScore: s.moatScore, weight: 0.20 },
                                       { sourceLabel: "Actionability", rawScore: s.actionability, weight: 0.15 },
-                                      { sourceLabel: "CVI-weighted", rawScore: s.ceiWeighted, weight: 0.20 },
+                                      { sourceLabel: "CVI-weighted", rawScore: s.cviWeighted, weight: 0.20 },
                                     ]}
                                     className="font-mono text-xs"
                                   />
@@ -583,7 +583,7 @@ export default function Companies() {
                       <tr key={s.stage} className="border-b hover:bg-muted/30">
                         <td className="py-2 pr-2 font-medium capitalize">{s.stage}</td>
                         <td className="py-2 pr-2 font-mono text-xs">{s.capCount}</td>
-                        <td className="py-2 pr-2 font-mono text-xs">{s.avgCei ?? "—"}</td>
+                        <td className="py-2 pr-2 font-mono text-xs">{s.avgCvi ?? "—"}</td>
                         <td className="py-2 pr-2 font-mono text-xs">{s.avgConfidence ?? "—"}</td>
                         <td className="py-2 pr-2 font-mono text-xs">{s.avgVelocity ?? "—"}</td>
                         <td className="py-2 pr-2 font-mono text-xs">{s.companyCount}</td>

@@ -161,7 +161,7 @@ export default function Methodology() {
               <p>
                 These weights live in <code>artifacts/api-server/src/services/triangulation.ts</code>
                 (the <code>PERSPECTIVES</code> array) and are versioned via{" "}
-                <code>methodology_version</code> on every <code>cei_snapshots</code> row, so historical
+                <code>methodology_version</code> on every <code>cvi_snapshots</code> row, so historical
                 scores remain reproducible against the methodology that produced them. The two
                 quantitative perspectives (consulting + market data) are intentionally the highest-weighted
                 because they ground the score in observable benchmarks, while academic + practitioner
@@ -202,7 +202,7 @@ export default function Methodology() {
                 {"\n"}σ_post² = 1 / τ_post
               </Formula>
               <p>
-                The <code>consensusScore</code> stored on each <code>cei_components</code> row is{" "}
+                The <code>consensusScore</code> stored on each <code>cvi_components</code> row is{" "}
                 <code>μ_post</code>, clamped to <code>[0, 100]</code>. The{" "}
                 <code>posteriorVariance</code> column is <code>σ_post²</code>, used to derive the
                 credible interval below.
@@ -265,7 +265,7 @@ export default function Methodology() {
                 GDP-share-weighted mean of industry indices:
               </p>
               <Formula>
-                CEI_global = ( Σ_industry industryIndex · gdpShare ) / ( Σ_industry gdpShare )
+                CVI_global = ( Σ_industry industryIndex · gdpShare ) / ( Σ_industry gdpShare )
               </Formula>
               <p>
                 Industries with no cited GDP weight are <strong>excluded from both numerator and

@@ -11,7 +11,7 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 
-type CEIViewState = {
+type CVIViewState = {
   selectedIndustry: string | null;
   freshnessStageFilter: LifecycleStage | "all";
   showFreshness: boolean;
@@ -48,7 +48,7 @@ interface IndustryBreakdown {
   topMoverDelta: number;
 }
 
-interface CEIData {
+interface CVIData {
   overallIndex: number;
   // 95% credible interval on the overall (GDP-weighted) CVI. null when no
   // industries have a Perplexity-cited weight.
@@ -61,7 +61,7 @@ interface CEIData {
   timestamp: string;
 }
 
-interface CEIHistory {
+interface CVIHistory {
   overallIndex: number;
   timestamp: string;
 }
@@ -178,8 +178,8 @@ interface AgentStatus {
     perplexityCalls: number;
     memoriesRecalled: number;
     memoriesStored: number;
-    ceiBeforeIndex: number | null;
-    ceiAfterIndex: number | null;
+    cviBeforeIndex: number | null;
+    cviAfterIndex: number | null;
     startedAt: string;
     completedAt: string | null;
     errorMessage: string | null;
@@ -454,6 +454,7 @@ function AgentEventIcon({ type }: { type: string }) {
   switch (type) {
     case "phase": return <Eye className="w-3.5 h-3.5 text-indigo-400" />;
     case "research": return <Search className="w-3.5 h-3.5 text-amber-400" />;
+    case "cvi_updated":
     case "cei_updated": return <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />;
     case "cycle_complete": return <Activity className="w-3.5 h-3.5 text-green-400" />;
     case "error": return <Info className="w-3.5 h-3.5 text-red-400" />;
@@ -464,17 +465,17 @@ function AgentEventIcon({ type }: { type: string }) {
 function formatEventMessage(event: AgentSSEEvent): string {
   if (event.message) return event.message;
   if (event.type === "research") return `Researching ${event.capability} in ${event.industry}`;
-  if (event.type === "cei_updated") return `CVI updated to ${event.overallIndex}`;
+  if (event.type === "cvi_updated" || event.type === "cei_updated") return `CVI updated to ${event.overallIndex}`;
   if (event.type === "cycle_complete") return `Cycle complete: ${event.researched} researched, ${event.skipped} skipped`;
   if (event.type === "run_started") return `Agent run #${event.runId} started`;
   return event.type;
 }
 
-type CeiExemplar = { capabilityId: number; name: string; score: number; industryName: string };
-type ExemplarsResponse = { topLeaf: CeiExemplar | null; bottomLeaf: CeiExemplar | null };
+type CviExemplar = { capabilityId: number; name: string; score: number; industryName: string };
+type ExemplarsResponse = { topLeaf: CviExemplar | null; bottomLeaf: CviExemplar | null };
 
-function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars }: {
-  cei: CEIData;
+function CVIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars }: {
+  cei: CVIData;
   historyData: { time: string; timestamp: number; index: number }[];
   macroEvents: MacroEventsResponse | null;
   freshness: FreshnessResponse | null;
@@ -686,8 +687,8 @@ function CEIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
 }
 
 export default function CVIDashboard() {
-  const { data: cei, loading: loadingCei, refetch: refetchCei } = useApi<CEIData>(`${API_BASE}/cvi/current`);
-  const { data: history } = useApi<CEIHistory[]>(`${API_BASE}/cvi/history?limit=30`);
+  const { data: cei, loading: loadingCvi, refetch: refetchCvi } = useApi<CVIData>(`${API_BASE}/cvi/current`);
+  const { data: history } = useApi<CVIHistory[]>(`${API_BASE}/cvi/history?limit=30`);
   const { data: agentStatus, refetch: refetchAgent } = useApi<AgentStatus>(`${API_BASE}/agent/status`);
   const { data: freshness, refetch: refetchFreshness } = useApi<FreshnessResponse>(`${API_BASE}/cvi/freshness`);
   const { data: exemplars } = useApi<ExemplarsResponse>(`${API_BASE}/cvi/exemplars`);
@@ -728,13 +729,13 @@ export default function CVIDashboard() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
       setShowAddEvent(false);
       setEventForm({ ...eventForm, title: "", description: "", affectedIndustryIds: [], affectedCapabilityIds: [], source: "admin" });
-      await Promise.all([refetchMacroEvents(), refetchCei()]);
+      await Promise.all([refetchMacroEvents(), refetchCvi()]);
     } catch (err) {
       alert(`Failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSubmittingEvent(false);
     }
-  }, [eventForm, adminKey, refetchMacroEvents, refetchCei]);
+  }, [eventForm, adminKey, refetchMacroEvents, refetchCvi]);
 
   const deleteEvent = useCallback(async (id: number) => {
     if (!confirm("Delete this macro event? CVI will recompute without its shock.")) return;
@@ -744,11 +745,11 @@ export default function CVIDashboard() {
         headers: { "X-Admin-Key": adminKey },
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
-      await Promise.all([refetchMacroEvents(), refetchCei()]);
+      await Promise.all([refetchMacroEvents(), refetchCvi()]);
     } catch (err) {
       alert(`Failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-  }, [adminKey, refetchMacroEvents, refetchCei]);
+  }, [adminKey, refetchMacroEvents, refetchCvi]);
 
   const triggerWorldScan = useCallback(async () => {
     setScanningWorld(true);
@@ -759,14 +760,14 @@ export default function CVIDashboard() {
       });
       if (!res.ok) { const e = await res.json(); throw new Error(e.error || `HTTP ${res.status}`); }
       const data = await res.json();
-      await Promise.all([refetchMacroEvents(), refetchCei()]);
+      await Promise.all([refetchMacroEvents(), refetchCvi()]);
       alert(`World scan complete: ${data.totalInserted} events ingested across ${data.perIndustry.length} industries.`);
     } catch (err) {
       alert(`Scan failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setScanningWorld(false);
     }
-  }, [adminKey, refetchMacroEvents, refetchCei]);
+  }, [adminKey, refetchMacroEvents, refetchCvi]);
   const { events: agentEvents, connected: sseConnected } = useAgentEvents();
   const [showMethodology, setShowMethodology] = useState(false);
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
@@ -776,7 +777,7 @@ export default function CVIDashboard() {
   const { data: capabilityTree } = useApi<CapabilityTreeResponse>(treeUrl ?? `${API_BASE}/cvi/capability-tree?industryId=__none__`);
   useEffect(() => { setExpandedParents(new Set()); }, [selectedIndustry]);
   const [showAgentActivity, setShowAgentActivity] = useState(true);
-  const viewsApi = useSavedView<CEIViewState>("cei");
+  const viewsApi = useSavedView<CVIViewState>("cvi");
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [defaultApplied, setDefaultApplied] = useState(false);
   useEffect(() => {
@@ -792,7 +793,7 @@ export default function CVIDashboard() {
     }
     setDefaultApplied(true);
   }, [viewsApi.ready, viewsApi.defaultView, defaultApplied]);
-  const applyCEIView = (s: CEIViewState) => {
+  const applyCVIView = (s: CVIViewState) => {
     if (s.selectedIndustry !== undefined) setSelectedIndustry(s.selectedIndustry);
     if (s.freshnessStageFilter) setFreshnessStageFilter(s.freshnessStageFilter);
     if (typeof s.showFreshness === "boolean") setShowFreshness(s.showFreshness);
@@ -801,14 +802,14 @@ export default function CVIDashboard() {
   };
 
   useEffect(() => {
-    const cycleEvent = agentEvents.find(e => e.type === "cei_updated" || e.type === "cycle_complete");
+    const cycleEvent = agentEvents.find(e => e.type === "cvi_updated" || e.type === "cei_updated" || e.type === "cycle_complete");
     if (cycleEvent) {
-      refetchCei();
+      refetchCvi();
       refetchAgent();
     }
-  }, [agentEvents, refetchCei, refetchAgent]);
+  }, [agentEvents, refetchCvi, refetchAgent]);
 
-  if (loadingCei && !cei) {
+  if (loadingCvi && !cei) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
@@ -901,7 +902,7 @@ export default function CVIDashboard() {
                   viewsApi={viewsApi}
                   currentState={{ selectedIndustry, freshnessStageFilter, showFreshness, showMacroPanel, showAgentActivity }}
                   onApply={(s, id) => {
-                    if (s && typeof s === "object") applyCEIView(s);
+                    if (s && typeof s === "object") applyCVIView(s);
                     setActiveViewId(id);
                   }}
                   activeViewId={activeViewId}
@@ -1524,7 +1525,7 @@ export default function CVIDashboard() {
                             type="button"
                             onClick={() => setFreshnessStageFilter("all")}
                             className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === "all" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
-                            data-testid="cei-freshness-stage-all"
+                            data-testid="cvi-freshness-stage-all"
                           >All</button>
                           {LIFECYCLE_STAGES.map(s => (
                             <button
@@ -1532,7 +1533,7 @@ export default function CVIDashboard() {
                               type="button"
                               onClick={() => setFreshnessStageFilter(s)}
                               className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === s ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
-                              data-testid={`cei-freshness-stage-${s}`}
+                              data-testid={`cvi-freshness-stage-${s}`}
                             >{lifecycleLabel(s)}</button>
                           ))}
                           <a href="/lifecycle" className="text-[10px] px-2 py-0.5 text-muted-foreground hover:text-foreground underline">Methodology →</a>
@@ -2112,16 +2113,16 @@ export default function CVIDashboard() {
                             <div className="text-[10px] text-muted-foreground">Stored</div>
                           </div>
                         </div>
-                        {agentStatus.latestRun.ceiBeforeIndex != null && agentStatus.latestRun.ceiAfterIndex != null && (
+                        {agentStatus.latestRun.cviBeforeIndex != null && agentStatus.latestRun.cviAfterIndex != null && (
                           <div className="mt-2 text-xs text-center text-muted-foreground">
-                            CVI: {agentStatus.latestRun.ceiBeforeIndex} → {agentStatus.latestRun.ceiAfterIndex}
+                            CVI: {agentStatus.latestRun.cviBeforeIndex} → {agentStatus.latestRun.cviAfterIndex}
                             {" "}
                             <span className={
-                              agentStatus.latestRun.ceiAfterIndex > agentStatus.latestRun.ceiBeforeIndex ? "text-primary" :
-                              agentStatus.latestRun.ceiAfterIndex < agentStatus.latestRun.ceiBeforeIndex ? "text-muted-foreground" : ""
+                              agentStatus.latestRun.cviAfterIndex > agentStatus.latestRun.cviBeforeIndex ? "text-primary" :
+                              agentStatus.latestRun.cviAfterIndex < agentStatus.latestRun.cviBeforeIndex ? "text-muted-foreground" : ""
                             }>
-                              ({agentStatus.latestRun.ceiAfterIndex >= agentStatus.latestRun.ceiBeforeIndex ? "+" : ""}
-                              {(agentStatus.latestRun.ceiAfterIndex - agentStatus.latestRun.ceiBeforeIndex).toFixed(1)})
+                              ({agentStatus.latestRun.cviAfterIndex >= agentStatus.latestRun.cviBeforeIndex ? "+" : ""}
+                              {(agentStatus.latestRun.cviAfterIndex - agentStatus.latestRun.cviBeforeIndex).toFixed(1)})
                             </span>
                           </div>
                         )}
@@ -2180,7 +2181,7 @@ export default function CVIDashboard() {
                     </CardTitle>
                     <CardDescription>Historical index movement over time</CardDescription>
                   </div>
-                  <CEIAnalysisDialog
+                  <CVIAnalysisDialog
                     cei={cei}
                     historyData={historyData}
                     macroEvents={macroEvents}
@@ -2194,7 +2195,7 @@ export default function CVIDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={historyData}>
                       <defs>
-                        <linearGradient id="ceiGrad" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="cviGrad" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#6366f1" stopOpacity={0.2} />
                           <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
                         </linearGradient>
@@ -2203,7 +2204,7 @@ export default function CVIDashboard() {
                       <XAxis dataKey="time" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                       <YAxis domain={["auto", "auto"]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
                       <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 4, fontSize: 12 }} />
-                      <Area type="monotone" dataKey="index" stroke="#6366f1" fill="url(#ceiGrad)" strokeWidth={2} name="CVI" />
+                      <Area type="monotone" dataKey="index" stroke="#6366f1" fill="url(#cviGrad)" strokeWidth={2} name="CVI" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>

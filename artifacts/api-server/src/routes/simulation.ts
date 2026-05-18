@@ -140,25 +140,25 @@ router.post("/simulation/run", async (req, res) => {
 
     // Get baseline CVI
     const allComponents = await db.select().from(cviComponentsTable);
-    const baselineCei = allComponents.length
+    const baselineCvi = allComponents.length
       ? allComponents.reduce((s, c) => s + c.consensusScore * c.economicMultiplier, 0) / allComponents.length * 10
       : 500;
 
-    const projectedCei = Math.min(1000, Math.max(0, baselineCei + totalScoreDelta * 10));
+    const projectedCvi = Math.min(1000, Math.max(0, baselineCvi + totalScoreDelta * 10));
 
     const enrichedInvestments = investments.map((i) => ({
       ...i,
       capabilityName: capMap.get(i.capabilityId)?.name ?? `Capability ${i.capabilityId}`,
     }));
 
-    const results = { ceiDelta: Math.round((projectedCei - baselineCei) * 10) / 10, moatChanges, fragilitChanges: fragilityChanges, evarReduction, cascadeEffects };
+    const results = { cviDelta: Math.round((projectedCvi - baselineCvi) * 10) / 10, moatChanges, fragilitChanges: fragilityChanges, evarReduction, cascadeEffects };
 
     const [scenario] = await db.insert(simulationScenariosTable).values({
       sessionToken: sessionToken || null,
       name: name || "Untitled Scenario",
       description,
-      baselineCei: Math.round(baselineCei * 10) / 10,
-      projectedCei: Math.round(projectedCei * 10) / 10,
+      baselineCvi: Math.round(baselineCvi * 10) / 10,
+      projectedCvi: Math.round(projectedCvi * 10) / 10,
       investments: enrichedInvestments,
       results,
     }).returning();

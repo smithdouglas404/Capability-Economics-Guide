@@ -49,7 +49,7 @@ const REGRESSION_WINDOW = 5;
  *    will MISS these — the harness is designed to surface that gap.
  *
  * 3. Dry-run mode is achieved by passing `persist: false` to `computeCVI`,
- *    which skips all writes to ceiSnapshots / cviComponents. Replay never
+ *    which skips all writes to cviSnapshots / cviComponents. Replay never
  *    pollutes live state, so admins can re-run as often as they like.
  *
  * Time anchoring caveat: per-capability score history is not retained

@@ -17,7 +17,7 @@ interface Branding {
   tenant: string | null;
 }
 
-interface CeiPayload {
+interface CviPayload {
   overallIndex: number;
   ciLow: number | null;
   ciHigh: number | null;
@@ -35,8 +35,8 @@ interface CeiPayload {
  * does NOT carry a `hideBranding` flag the client trusts. This stops
  * an anonymous embedder from stripping our branding by URL editing.
  */
-export default function EmbedCei() {
-  const [data, setData] = useState<CeiPayload | null>(null);
+export default function EmbedCvi() {
+  const [data, setData] = useState<CviPayload | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const params = new URLSearchParams(window.location.search);

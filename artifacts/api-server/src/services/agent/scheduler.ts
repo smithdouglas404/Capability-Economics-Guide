@@ -105,7 +105,7 @@ let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
-let ceiSignalsTimer: ReturnType<typeof setInterval> | null = null;
+let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
 let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
@@ -301,7 +301,7 @@ async function executeWorldScan(trigger: string): Promise<void> {
 
     if (result.totalInserted > 0) {
       const cei = await computeCVI();
-      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after world scan: ${cei.overallIndex}` });
+      emitAgentEvent({ type: "cvi_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after world scan: ${cei.overallIndex}` });
     }
   } catch (err) {
     console.error("[World Scan] failed:", err);
@@ -342,7 +342,7 @@ async function executeRotation(trigger: string): Promise<void> {
     });
     if (result.succeeded > 0) {
       const cei = await computeCVI();
-      emitAgentEvent({ type: "cei_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after rotation: ${cei.overallIndex}` });
+      emitAgentEvent({ type: "cvi_updated", overallIndex: cei.overallIndex, message: `CVI recomputed after rotation: ${cei.overallIndex}` });
     }
   } catch (err) {
     console.error("[Triangulation Rotation] failed:", err);
@@ -409,7 +409,7 @@ async function edgarRssTick(): Promise<void> {
  * window and inserts them as cvi_signal_events for the predictive backtest
  * framework (Task #5).
  */
-async function ceiSignalsTick(): Promise<void> {
+async function cviSignalsTick(): Promise<void> {
   if (isDetectingSignals) return;
   isDetectingSignals = true;
   try {
@@ -423,7 +423,7 @@ async function ceiSignalsTick(): Promise<void> {
     // detected this tick should bias the next cycle's prioritization.
     syncMarketContextToLetta().catch(() => {});
   } catch (err) {
-    console.warn("[CeiSignals] detection / attribution failed:", err);
+    console.warn("[CviSignals] detection / attribution failed:", err);
   } finally {
     isDetectingSignals = false;
   }
@@ -508,7 +508,7 @@ export function startScheduler(): void {
   creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
   peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
   edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
-  ceiSignalsTimer = setInterval(() => ceiSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
+  cviSignalsTimer = setInterval(() => cviSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
   mem0PruneTimer = setInterval(() => {
     mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
   }, MEM0_PRUNE_INTERVAL_MS);
@@ -630,7 +630,7 @@ export function startScheduler(): void {
   // other startup tasks; subsequent runs hit the 15-min interval.
   setTimeout(() => edgarRssTick(), 240_000);
   // CVI signals detector — 5 min stagger, then daily.
-  setTimeout(() => ceiSignalsTick(), 300_000);
+  setTimeout(() => cviSignalsTick(), 300_000);
   // Foundry token expiry check: scheduler hook reserved. The
   // `foundryTokenExpiryCheck` helper that this block tried to call was never
   // implemented or imported — wiring it would require building the helper
@@ -689,7 +689,7 @@ export function stopScheduler(): void {
   if (creditExpiryTimer) { clearInterval(creditExpiryTimer); creditExpiryTimer = null; }
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
-  if (ceiSignalsTimer) { clearInterval(ceiSignalsTimer); ceiSignalsTimer = null; }
+  if (cviSignalsTimer) { clearInterval(cviSignalsTimer); cviSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   // optimizerTimer removed with the optimizer module
   if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }

@@ -45,7 +45,7 @@ export type UseSavedViewResult<S> = {
   remove: (id: number) => Promise<void>;
 };
 
-export function useSavedView<S>(dashboardKey: "cei" | "alpha" | "knowledge-graph" | "companies"): UseSavedViewResult<S> {
+export function useSavedView<S>(dashboardKey: "cvi" | "cei" | "alpha" | "knowledge-graph" | "companies"): UseSavedViewResult<S> {
   const [views, setViews] = useState<SavedView<S>[]>([]);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);

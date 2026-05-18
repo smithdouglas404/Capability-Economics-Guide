@@ -1,7 +1,7 @@
 /**
  * Render the most-recent macro events (CVI signal events + SEC 8-K
  * filings) into the Letta "market_context" core memory block. Called
- * from the scheduler after edgarRssTick + ceiSignalsTick run, so the
+ * from the scheduler after edgarRssTick + cviSignalsTick run, so the
  * Letta agent sees the latest news within minutes of detection.
  *
  * Block content is intentionally a small rolling window — the block
