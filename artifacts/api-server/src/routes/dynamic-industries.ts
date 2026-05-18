@@ -13,6 +13,40 @@ import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { runIndustryBootstrap } from "../services/workflows";
+import { generateObject } from "ai";
+import { sonnet } from "../services/workflows/models";
+
+const CapabilitySchema = z.object({
+  name: z.string().min(2).max(40),
+  slug: z.string().min(2).max(60),
+  description: z.string(),
+  traditionalView: z.string(),
+  economicView: z.string(),
+  benchmarkScore: z.number().int().min(30).max(85),
+  greenMin: z.number().int().min(0).max(100),
+  yellowMin: z.number().int().min(0).max(100),
+  redMax: z.number().int().min(0).max(100),
+});
+const CapabilitiesSchema = z.object({ capabilities: z.array(CapabilitySchema).min(6).max(8) });
+
+const ProjectSchema = z.object({
+  name: z.string(),
+  slug: z.string(),
+  category: z.enum(["Modernization", "AI", "Data", "Customer", "Risk", "Operations"]),
+  description: z.string(),
+  businessCase: z.string(),
+  typicalTimeline: z.string(),
+  investmentRange: z.string(),
+  complexityLevel: z.enum(["low", "medium", "high"]),
+  icon: z.string(),
+  capabilityImpacts: z.array(z.object({
+    capabilityId: z.number().int(),
+    maturityUplift: z.number().int().min(5).max(30),
+    timeToImpactMonths: z.number().int().min(3).max(24),
+    impactDescription: z.string(),
+  })).min(2).max(4),
+});
+const ProjectsSchema = z.object({ projects: z.array(ProjectSchema) });
 
 const router: IRouter = Router();
 
@@ -20,34 +54,8 @@ function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 }
 
-async function callGlm(prompt: string, maxTokens = 6000): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY missing");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180_000);
-  try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi",
-      },
-      body: JSON.stringify({
-        model: process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6",
-        max_tokens: maxTokens,
-        messages: [{ role: "user", content: prompt }],
-      }),
-      signal: controller.signal,
-    });
-    const data = (await resp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(data.error.message);
-    return data.choices?.[0]?.message?.content ?? "";
-  } finally {
-    clearTimeout(timeout);
-  }
-}
+// `callGlm` helper retired 2026-05-18 — replaced by `generateObject` from
+// the AI SDK at both call sites in this file.
 
 async function callPerplexity(query: string): Promise<{ content: string; citations: string[] }> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
@@ -71,23 +79,8 @@ async function callPerplexity(query: string): Promise<{ content: string; citatio
   };
 }
 
-function extractJson<T>(text: string): T {
-  const cleaned = text.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-  // Try object then array
-  const oStart = cleaned.indexOf("{");
-  const aStart = cleaned.indexOf("[");
-  let start = -1;
-  let end = -1;
-  if (aStart !== -1 && (oStart === -1 || aStart < oStart)) {
-    start = aStart;
-    end = cleaned.lastIndexOf("]");
-  } else {
-    start = oStart;
-    end = cleaned.lastIndexOf("}");
-  }
-  if (start === -1 || end === -1) throw new Error("No JSON in response");
-  return JSON.parse(cleaned.substring(start, end + 1));
-}
+// `extractJson` helper retired 2026-05-18 — generateObject validates output
+// against the Zod schema directly.
 
 const CreateIndustryBody = z.object({
   name: z.string().min(2).max(80),
@@ -157,21 +150,17 @@ Each capability MUST have these fields:
 
 Output ONLY the JSON array. No markdown, no commentary.`;
 
-  let caps: Array<{
-    name: string;
-    slug: string;
-    description: string;
-    traditionalView: string;
-    economicView: string;
-    benchmarkScore: number;
-    greenMin: number;
-    yellowMin: number;
-    redMax: number;
-  }>;
+  let caps: z.infer<typeof CapabilitySchema>[];
   try {
-    const text = await callGlm(prompt, 6000);
-    caps = extractJson(text);
-    if (!Array.isArray(caps) || caps.length === 0) throw new Error("Empty capability list");
+    const { object } = await generateObject({
+      model: sonnet,
+      schema: CapabilitiesSchema,
+      system: `You design industry-specific capability sets. Each capability has a benchmarkScore (30-85). greenMin typically benchmarkScore + 10; yellowMin benchmarkScore - 5; redMax yellowMin - 1. Slugs are kebab-case.`,
+      prompt: `Industry: ${name}\n\nResearch:\n${research.content}\n\nProduce 6-8 capabilities for this industry.`,
+      temperature: 0.2,
+      maxTokens: 6000,
+    });
+    caps = object.capabilities;
   } catch (err) {
     res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
     return;
@@ -332,27 +321,18 @@ Each project MUST have these fields:
 Each project MUST impact 2-4 capabilities from the list above.
 Output ONLY the JSON array. No markdown, no commentary.`;
 
-  let projects: Array<{
-    name: string;
-    slug: string;
-    category: string;
-    description: string;
-    businessCase: string;
-    typicalTimeline: string;
-    investmentRange: string;
-    complexityLevel: string;
-    icon: string;
-    capabilityImpacts: Array<{
-      capabilityId: number;
-      maturityUplift: number;
-      timeToImpactMonths: number;
-      impactDescription: string;
-    }>;
-  }>;
+  let projects: z.infer<typeof ProjectSchema>[];
   try {
-    const text = await callGlm(prompt, 8000);
-    projects = extractJson(text);
-    if (!Array.isArray(projects) || projects.length === 0) throw new Error("Empty project list");
+    const { object } = await generateObject({
+      model: sonnet,
+      schema: ProjectsSchema,
+      system: `You produce technology investment projects for an industry. Each project impacts 2-4 capabilities from the supplied list; capabilityImpacts.capabilityId must come from that list. Icon is a lucide icon name (Zap, Database, Shield, etc.).`,
+      prompt: `Industry: ${industry.name}\n\nINDUSTRY CAPABILITIES (use these IDs in capabilityImpacts):\n${capList}\n\nRESEARCH:\n${research.content}\n\nProduce exactly ${count} projects.`,
+      temperature: 0.2,
+      maxTokens: 8000,
+    });
+    projects = object.projects;
+    if (projects.length === 0) throw new Error("Empty project list");
   } catch (err) {
     res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
     return;

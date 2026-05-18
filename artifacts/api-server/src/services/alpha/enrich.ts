@@ -14,6 +14,56 @@ import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { sonnet } from "../workflows/models";
+
+// ── Zod schemas for each enrichment LLM call ───────────────────────────────
+// These replace the legacy `openrouterChatJson` + `extractJson` pattern with
+// SDK-validated structured output. Field names match the legacy snake_case
+// the consumers downstream still expect.
+
+const EconomicsSchema = z.object({
+  tam_usd_mm: z.number().nullable(),
+  sam_usd_mm: z.number().nullable(),
+  margin_structure_pct: z.number().min(0).max(100).nullable(),
+  half_life_months: z.number().min(6).max(120).nullable(),
+  commoditization_velocity: z.number().min(0).max(1).nullable(),
+  revenue_exposure_mm: z.number().nullable(),
+  consensus_quadrant: z.enum(["hot", "emerging", "cooling", "table_stakes"]).nullable(),
+  consensus_confidence: z.number().min(0).max(1).nullable(),
+  consensus_summary: z.string().nullable(),
+  rationale: z.string().nullable(),
+});
+
+const EdgeSchema = z.object({
+  disruption_probability: z.number().min(0).max(1).nullable(),
+  time_to_impact_months: z.number().min(1).max(60).nullable(),
+  dollar_impact_mm: z.number().nullable(),
+  rationale: z.string().nullable(),
+});
+
+const DetailSchema = z.object({
+  summary_narrative: z.string(),
+  traditional_narrative: z.string(),
+  alpha_narrative: z.string(),
+  metric_interpretations: z.array(z.object({ name: z.string(), interpretation: z.string() })).max(12),
+  dependency_rationales: z.array(z.object({ dependsOnName: z.string(), rationale: z.string() })).max(20),
+  role_consequences: z.array(z.object({ roleTitle: z.string(), consequence: z.string() })).max(12),
+  playbook: z.array(z.string()).length(3),
+  benchmark_interpretation: z.string(),
+  ai_exposure_score: z.number().min(0).max(100),
+  ai_time_to_displacement_months: z.number().min(6).max(60),
+  ai_substitutes: z.array(z.string()).min(2).max(8),
+  ai_narrative: z.string(),
+});
+
+const AiSectionSchema = z.object({
+  ai_exposure_score: z.number().min(0).max(100),
+  ai_time_to_displacement_months: z.number().min(6).max(60),
+  ai_substitutes: z.array(z.string()).min(2).max(8),
+  ai_narrative: z.string().min(50),
+});
 
 interface PerplexityResult { content: string; sources: string[]; }
 
@@ -55,48 +105,8 @@ async function perplexity(query: string): Promise<PerplexityResult> {
   }, { label: "alpha.perplexity" });
 }
 
-const DEFAULT_LLM_MODEL = "anthropic/claude-sonnet-4.6";
-
-async function openrouterChatJson(prompt: string, maxTokens = 2000): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
-  const model = process.env.LLM_MODEL || DEFAULT_LLM_MODEL;
-  return retry(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 120000);
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://inflexcvi.ai",
-          "X-Title": "Inflexcvi Alpha",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          response_format: { type: "json_object" },
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${model}): ${(await resp.text()).substring(0, 200)}`);
-      const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-      if (data.error) throw new Error(`OpenRouter (model=${model}): ${data.error.message}`);
-      return data.choices?.[0]?.message?.content ?? "";
-    } finally { clearTimeout(timeout); }
-  }, { label: "alpha.openrouter" });
-}
-
-function extractJson(text: string): unknown {
-  const cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
-  const objMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (objMatch) { try { return JSON.parse(objMatch[0]); } catch {} }
-  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-  if (arrMatch) { try { return JSON.parse(arrMatch[0]); } catch {} }
-  throw new Error("No JSON in OpenRouter response");
-}
+// `openrouterChatJson` + `extractJson` helpers retired 2026-05-18 — replaced
+// by `generateObject({ schema })` from the AI SDK at every call site.
 
 async function enrichOneCapabilityEconomics(
   cap: { id: number; name: string; industryId: number },
@@ -115,39 +125,14 @@ async function enrichOneCapabilityEconomics(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const llmText = await openrouterChatJson(
-      `Analyst research on "${cap.name}" in ${industryName}:\n\n${research.content}\n\n` +
-      `Return ONLY a JSON object with keys:\n` +
-      `"tam_usd_mm" (number, null if unknown), ` +
-      `"sam_usd_mm" (number, null if unknown), ` +
-      `"margin_structure_pct" (number 0-100), ` +
-      `"half_life_months" (number 6-120, shorter = faster commoditization), ` +
-      `"commoditization_velocity" (number 0-1, fraction of differentiation lost per year), ` +
-      `"revenue_exposure_mm" (number, enterprise revenue currently dependent on this capability in this industry), ` +
-      `"consensus_quadrant" (one of "hot","emerging","cooling","table_stakes"), ` +
-      `"consensus_confidence" (number 0-1), ` +
-      `"consensus_summary" (2 sentences of what the street / analyst consensus says), ` +
-      `"rationale" (2-3 sentences on the economics reasoning)\n` +
-      `Output strict JSON, no prose.`
-    );
-
-    const parsed = extractJson(llmText) as {
-      tam_usd_mm?: number | null;
-      sam_usd_mm?: number | null;
-      margin_structure_pct?: number;
-      half_life_months?: number;
-      commoditization_velocity?: number;
-      revenue_exposure_mm?: number;
-      consensus_quadrant?: string;
-      consensus_confidence?: number;
-      consensus_summary?: string;
-      rationale?: string;
-    };
-
-    if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad JSON" };
-    if (parsed.consensus_quadrant && !["hot", "emerging", "cooling", "table_stakes"].includes(parsed.consensus_quadrant)) {
-      parsed.consensus_quadrant = undefined;
-    }
+    const { object: parsed } = await generateObject({
+      model: sonnet,
+      schema: EconomicsSchema,
+      system: "You extract capability-economics estimates from analyst research. Return null for any field you can't ground in the research; never fabricate. consensus_summary is 2 sentences; rationale is 2-3.",
+      prompt: `Analyst research on "${cap.name}" in ${industryName}:\n\n${research.content}`,
+      temperature: 0.2,
+      maxTokens: 2000,
+    });
 
     // Snapshot previous consensus quadrant so we can fire quadrant_transition
     // subscriptions if it changes after this insert.
@@ -210,23 +195,14 @@ async function enrichOneEdge(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const llmText = await openrouterChatJson(
-      `Research on cascade edge "${from}" → "${to}":\n\n${research.content}\n\n` +
-      `Return ONLY a JSON object with keys:\n` +
-      `"disruption_probability" (0-1), ` +
-      `"time_to_impact_months" (number 1-60), ` +
-      `"dollar_impact_mm" (number), ` +
-      `"rationale" (1-2 sentences citing real companies or tech).\n` +
-      `Output strict JSON only.`,
-      1200,
-    );
-
-    const parsed = extractJson(llmText) as {
-      disruption_probability?: number;
-      time_to_impact_months?: number;
-      dollar_impact_mm?: number;
-      rationale?: string;
-    };
+    const { object: parsed } = await generateObject({
+      model: sonnet,
+      schema: EdgeSchema,
+      system: "You score how disruption propagates across a capability dependency edge. Return null fields when the research doesn't support a confident number.",
+      prompt: `Research on cascade edge "${from}" → "${to}":\n\n${research.content}`,
+      temperature: 0.2,
+      maxTokens: 1200,
+    });
 
     await db.insert(dependencyEdgeScoresTable).values({
       dependencyId: edge.id,
@@ -268,67 +244,43 @@ async function enrichOneCapabilityDetail(
     const depList = deps.map(d => ({ name: d.dependsOnName, strength: d.strength }));
     const roleList = roles.map(r => ({ title: r.roleTitle, name: r.roleName, relevance: r.relevance }));
 
-    const llmText = await openrouterChatJson(
-      `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
-      `Existing context:\n` +
-      `- traditional view: "${cap.traditionalView ?? ""}"\n` +
-      `- economic view: "${cap.economicView ?? ""}"\n` +
-      `- benchmark score: ${cap.benchmarkScore ?? "?"} / 100\n` +
-      `- CE quadrant (street consensus): ${econ.consensusQuadrant ?? "?"}\n` +
-      `- half-life months: ${econ.halfLifeMonths ?? "?"}\n` +
-      `- margin %: ${econ.marginStructurePct ?? "?"}\n` +
-      `- revenue exposure $M: ${econ.revenueExposureMm ?? "?"}\n` +
-      `- metrics: ${JSON.stringify(metricList)}\n` +
-      `- dependencies: ${JSON.stringify(depList)}\n` +
-      `- c-suite roles: ${JSON.stringify(roleList)}\n\n` +
-      `Return ONLY a JSON object with these keys:\n\n` +
-      `"summary_narrative" (string, 2-3 sentences in plain English explaining what THIS capability actually does inside a ${industryName} company — name a concrete activity, a tool category, and a typical outcome a non-expert executive would recognize. Definitional, no jargon, no $ figures), ` +
-      `"traditional_narrative" (string, 2-3 sentences "consequence-style" explaining WHY the conventional view is wrong with a concrete number or example — must include a $ figure, regulator, or competitor name), ` +
-      `"alpha_narrative" (string, 2-3 sentences quantifying the dollar value of treating this as a real capability, include a specific multiplier or $ figure), ` +
-      `"metric_interpretations" (array of {name: string, interpretation: string} — interpretation is 1-2 sentences explaining what crossing the benchmark means in money or risk; one entry per metric in input order), ` +
-      `"dependency_rationales" (array of {dependsOnName: string, rationale: string} — rationale is 1-2 sentences naming the real-world risk if the upstream cap is disrupted, mention a vendor or regulation; one per dependency), ` +
-      `"role_consequences" (array of {roleTitle: string, consequence: string} — 1-2 sentences naming what this exec must do or explain this quarter; one per role), ` +
-      `"playbook" (array of exactly 3 strings — concrete actions a buyer should take this week, ≤ 18 words each, no fluff), ` +
-      `"benchmark_interpretation" (string, 1-2 sentences telling the user what their benchmark score means in dollars vs the median), ` +
-      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months), ` +
-      `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
-      `"ai_substitutes" (array of 2-6 strings — real vendor, open-source project, regulator, or new-entrant names that credibly substitute or augment this capability; can include AI vendors, embedded-finance rails, vertical SaaS, marketplaces, RPA tools, IoT/edge platforms, etc., not only LLM vendors), ` +
-      `"ai_narrative" (string, 3-4 sentences on how AI AND OTHER INNOVATIVE IDEAS reshape this capability. Cover (a) which AI techniques apply (GenAI/LLMs, classical ML, agents, automation) AND (b) which adjacent innovations apply — only the ones that genuinely matter for this capability (e.g., embedded finance, open banking, low-code, IoT/edge, digital twins, synthetic data, vertical SaaS, marketplace models, outcome-based pricing, regulatory sandboxes). Name 2-3 specific real vendors/projects/regulators and at least one probability or $ figure. Do NOT shoehorn innovations that aren't relevant.)\n\n` +
-      (revisionGuidance ? `\n\nREVIEWER FEEDBACK ON PRIOR DRAFT (must address): "${revisionGuidance}"\n` : "") +
-      `Output strict JSON only, no prose.`,
-      4000,
-    );
+    const detailSystem = `You produce inflexcvi capability-detail narratives grounded in the supplied research.
 
-    const parsed = extractJson(llmText) as {
-      summary_narrative?: string;
-      traditional_narrative?: string;
-      alpha_narrative?: string;
-      economic_narrative?: string; // back-compat: older LLM outputs still use the old key
-      metric_interpretations?: Array<{ name: string; interpretation: string }>;
-      dependency_rationales?: Array<{ dependsOnName: string; rationale: string }>;
-      role_consequences?: Array<{ roleTitle: string; consequence: string }>;
-      playbook?: string[];
-      benchmark_interpretation?: string;
-      ai_exposure_score?: number;
-      ai_time_to_displacement_months?: number;
-      ai_substitutes?: string[];
-      ai_narrative?: string;
-    };
-    if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad detail JSON" };
+Rules:
+- summary_narrative: 2-3 sentences in plain English; concrete activity + tool category + outcome; no $ figures.
+- traditional_narrative: 2-3 sentences "consequence-style" with a $ figure, regulator, or competitor name showing why the conventional view is wrong.
+- alpha_narrative: 2-3 sentences quantifying the dollar value of treating this as a real capability.
+- metric_interpretations: one entry per input metric in input order.
+- dependency_rationales: one per dependency.
+- role_consequences: one per role.
+- playbook: exactly 3 strings, each ≤ 18 words.
+- ai_substitutes: real vendor/project/regulator names (AI vendors, embedded-finance rails, vertical SaaS, marketplaces, RPA, IoT/edge, etc.) — only those that genuinely apply.
+- ai_narrative: 3-4 sentences naming 2-3 specific vendors/projects/regulators and at least one probability or $ figure.${revisionGuidance ? `\n\nREVIEWER FEEDBACK ON PRIOR DRAFT (must address): "${revisionGuidance}"` : ""}`;
+
+    const detailUserPrompt = `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\nExisting context:\n- traditional view: "${cap.traditionalView ?? ""}"\n- economic view: "${cap.economicView ?? ""}"\n- benchmark score: ${cap.benchmarkScore ?? "?"} / 100\n- CE quadrant: ${econ.consensusQuadrant ?? "?"}\n- half-life months: ${econ.halfLifeMonths ?? "?"}\n- margin %: ${econ.marginStructurePct ?? "?"}\n- revenue exposure $M: ${econ.revenueExposureMm ?? "?"}\n- metrics: ${JSON.stringify(metricList)}\n- dependencies: ${JSON.stringify(depList)}\n- c-suite roles: ${JSON.stringify(roleList)}`;
+
+    const { object: parsed } = await generateObject({
+      model: sonnet,
+      schema: DetailSchema,
+      system: detailSystem,
+      prompt: detailUserPrompt,
+      temperature: 0.2,
+      maxTokens: 4000,
+    });
 
     await db.update(capabilityAlphaTable).set({
-      summaryNarrative: parsed.summary_narrative ?? null,
-      traditionalNarrative: parsed.traditional_narrative ?? null,
-      alphaNarrative: parsed.alpha_narrative ?? parsed.economic_narrative ?? null,
-      metricInterpretations: Array.isArray(parsed.metric_interpretations) ? parsed.metric_interpretations.slice(0, 12) : null,
-      dependencyRationales: Array.isArray(parsed.dependency_rationales) ? parsed.dependency_rationales.slice(0, 20) : null,
-      roleConsequences: Array.isArray(parsed.role_consequences) ? parsed.role_consequences.slice(0, 12) : null,
-      playbook: Array.isArray(parsed.playbook) ? parsed.playbook.slice(0, 3) : null,
-      benchmarkInterpretation: parsed.benchmark_interpretation ?? null,
-      aiExposureScore: parsed.ai_exposure_score != null ? Math.min(100, Math.max(0, parsed.ai_exposure_score)) : null,
-      aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
-      aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
-      aiNarrative: parsed.ai_narrative ?? null,
+      summaryNarrative: parsed.summary_narrative,
+      traditionalNarrative: parsed.traditional_narrative,
+      alphaNarrative: parsed.alpha_narrative,
+      metricInterpretations: parsed.metric_interpretations.slice(0, 12),
+      dependencyRationales: parsed.dependency_rationales.slice(0, 20),
+      roleConsequences: parsed.role_consequences.slice(0, 12),
+      playbook: parsed.playbook.slice(0, 3),
+      benchmarkInterpretation: parsed.benchmark_interpretation,
+      aiExposureScore: Math.min(100, Math.max(0, parsed.ai_exposure_score)),
+      aiTimeToDisplacementMonths: Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)),
+      aiSubstitutes: parsed.ai_substitutes.slice(0, 8),
+      aiNarrative: parsed.ai_narrative,
     }).where(eq(capabilityAlphaTable.id, econRowId));
 
     return { ok: true };
@@ -440,30 +392,19 @@ async function regenerateOneAiSection(
     );
     if (!research.content) return { ok: false, error: "empty research" };
 
-    const llmText = await openrouterChatJson(
-      `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}\n\n` +
-      `Return ONLY a JSON object with these keys:\n` +
-      `"ai_exposure_score" (number 0-100, % of incumbent revenue at risk from AI + adjacent-innovation substitution within 36 months), ` +
-      `"ai_time_to_displacement_months" (number 6-60, months until ≥50% of revenue is at risk), ` +
-      `"ai_substitutes" (array of 2-6 strings — real vendor, open-source project, regulator, or new-entrant names that credibly substitute or augment this capability; can include AI vendors, embedded-finance rails, vertical SaaS, marketplaces, RPA tools, IoT/edge platforms, etc., not only LLM vendors), ` +
-      `"ai_narrative" (string, 3-4 sentences on how AI AND OTHER INNOVATIVE IDEAS reshape this capability. Cover (a) which AI techniques apply (GenAI/LLMs, classical ML, agents, automation) AND (b) which adjacent innovations apply — only the ones that genuinely matter for this capability (e.g., embedded finance, open banking, low-code, IoT/edge, digital twins, synthetic data, vertical SaaS, marketplace models, outcome-based pricing, regulatory sandboxes). Name 2-3 specific real vendors/projects/regulators and at least one probability or $ figure. Do NOT shoehorn innovations that aren't relevant to this capability.)\n` +
-      `Output strict JSON only, no prose.`,
-      2000,
-    );
-
-    const parsed = extractJson(llmText) as {
-      ai_exposure_score?: number;
-      ai_time_to_displacement_months?: number;
-      ai_substitutes?: string[];
-      ai_narrative?: string;
-    };
-    if (!parsed || typeof parsed !== "object") return { ok: false, error: "bad JSON" };
-    if (!parsed.ai_narrative || parsed.ai_narrative.length < 50) return { ok: false, error: "narrative too short" };
+    const { object: parsed } = await generateObject({
+      model: sonnet,
+      schema: AiSectionSchema,
+      system: "You describe how AI + adjacent innovations reshape an enterprise capability. ai_substitutes lists real vendor/project/regulator names — only those that genuinely apply. ai_narrative is 3-4 sentences with 2-3 specific names and at least one probability or $ figure. Don't shoehorn innovations that aren't relevant.",
+      prompt: `Research on "${cap.name}" (${industryName}):\n\n${research.content.substring(0, 6000)}`,
+      temperature: 0.2,
+      maxTokens: 2000,
+    });
 
     await db.update(capabilityAlphaTable).set({
-      aiExposureScore: parsed.ai_exposure_score != null ? Math.min(100, Math.max(0, parsed.ai_exposure_score)) : null,
-      aiTimeToDisplacementMonths: parsed.ai_time_to_displacement_months != null ? Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)) : null,
-      aiSubstitutes: Array.isArray(parsed.ai_substitutes) ? parsed.ai_substitutes.slice(0, 8) : null,
+      aiExposureScore: Math.min(100, Math.max(0, parsed.ai_exposure_score)),
+      aiTimeToDisplacementMonths: Math.min(60, Math.max(6, parsed.ai_time_to_displacement_months)),
+      aiSubstitutes: parsed.ai_substitutes.slice(0, 8),
       aiNarrative: parsed.ai_narrative,
     }).where(eq(capabilityAlphaTable.id, econRowId));
     return { ok: true };

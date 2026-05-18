@@ -18,6 +18,54 @@ import {
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { sonnet } from "../workflows/models";
+
+// ── Zod schemas for the three enrichment LLM calls ─────────────────────────
+
+const QuadrantItemSchema = z.object({
+  name: z.string(),
+  quadrant: z.enum(["hot", "emerging", "cooling", "table_stakes"]),
+  economic_impact_score: z.number().min(0).max(100),
+  adoption_momentum_score: z.number().min(0).max(100),
+  disruption_intensity: z.number().min(0).max(1),
+  rationale: z.string(),
+});
+const QuadrantListSchema = z.object({ items: z.array(QuadrantItemSchema) });
+
+const ValueChainStageSchema = z.object({
+  stage_name: z.string(),
+  stage_order: z.number().int().min(1).max(10),
+  num_sectors: z.number().int().nullable(),
+  hhi_score: z.number().min(0).max(1).nullable(),
+  patent_count: z.number().int().nullable(),
+  patent_trend_pct: z.number().nullable(),
+  startup_count: z.number().int().nullable(),
+  startup_trend_pct: z.number().nullable(),
+  capital_flow_mm: z.number().nullable(),
+  capital_trend_pct: z.number().nullable(),
+  disruption_summary: z.string(),
+  shifts: z.array(z.string()).max(6).default([]),
+  risks: z.array(z.string()).max(6).default([]),
+  key_capabilities: z.array(z.string()).default([]),
+  key_companies: z.array(z.string()).default([]),
+});
+const ValueChainListSchema = z.object({ stages: z.array(ValueChainStageSchema).min(4).max(10) });
+
+const CompanyProfileSchema = z.object({
+  name: z.string(),
+  country: z.string(),
+  naics_code: z.string().nullable(),
+  naics_sector: z.string(),
+  fevi_score: z.number().min(0).max(1),
+  cdi_score: z.number().min(0).max(1),
+  quadrant: z.enum(["hot", "emerging", "cooling", "table_stakes"]),
+  funding_stage: z.enum(["seed", "series_a", "series_b", "growth", "public", "private"]),
+  description: z.string(),
+  primary_capabilities: z.array(z.string()).max(3),
+});
+const CompanyListSchema = z.object({ companies: z.array(CompanyProfileSchema).min(10).max(25) });
 
 interface PerplexityResult {
   content: string;
@@ -73,69 +121,8 @@ async function perplexitySearch(query: string): Promise<PerplexityResult> {
   }, { label: "enrich.perplexity" });
 }
 
-async function openrouterSynthesize(prompt: string, maxTokens = 4096): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
-  const model = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6";
-  return retry(async () => {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180000);
-    try {
-      const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://inflexcvi.ai",
-          "X-Title": "Inflexcvi",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: maxTokens,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: controller.signal,
-      });
-      if (!resp.ok) {
-        const errText = await resp.text().catch(() => "unknown");
-        throw new Error(`OpenRouter HTTP ${resp.status} (model=${model}): ${errText.substring(0, 200)}`);
-      }
-      const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-      if (data.error) throw new Error(`OpenRouter error (model=${model}): ${data.error.message}`);
-      return data.choices?.[0]?.message?.content ?? "";
-    } finally {
-      clearTimeout(timeout);
-    }
-  }, { label: "enrich.openrouter" });
-}
-
-function extractJson(text: string): unknown {
-  let cleaned = text.replace(/```(?:json)?\s*/g, "").replace(/```\s*/g, "").trim();
-
-  const arrMatch = cleaned.match(/\[[\s\S]*\]/);
-  if (arrMatch) {
-    try { return JSON.parse(arrMatch[0]); } catch {}
-  }
-
-  const arrStart = cleaned.indexOf("[");
-  if (arrStart >= 0) {
-    let candidate = cleaned.substring(arrStart);
-    try { return JSON.parse(candidate); } catch {}
-
-    const lastBrace = candidate.lastIndexOf("}");
-    if (lastBrace > 0) {
-      candidate = candidate.substring(0, lastBrace + 1) + "]";
-      try { return JSON.parse(candidate); } catch {}
-    }
-  }
-
-  const objMatch = cleaned.match(/\{[\s\S]*\}/);
-  if (objMatch) {
-    try { return JSON.parse(objMatch[0]); } catch {}
-  }
-
-  throw new Error("No JSON found in LLM response");
-}
+// `openrouterSynthesize` + `extractJson` helpers retired 2026-05-18 —
+// replaced by `generateObject({ schema })` from the AI SDK at every call site.
 
 export async function enrichCapabilityQuadrants(
   industryId: number,
@@ -167,18 +154,17 @@ For each of these capabilities, produce a JSON array where each element has:
 
 Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 
-  const llmText = await openrouterSynthesize(llmPrompt);
-  let parsed: Array<{
-    name: string;
-    quadrant: string;
-    economic_impact_score: number;
-    adoption_momentum_score: number;
-    disruption_intensity: number;
-    rationale: string;
-  }>;
+  let parsed: z.infer<typeof QuadrantListSchema>["items"];
   try {
-    parsed = extractJson(llmText) as typeof parsed;
-    if (!Array.isArray(parsed)) throw new Error("Not an array");
+    const result = await generateObject({
+      model: sonnet,
+      schema: QuadrantListSchema,
+      system: `You classify enterprise capabilities into Hot / Emerging / Cooling / Table Stakes quadrants based on analyst research. Capability names MUST exactly match one of: ${JSON.stringify(capabilities.map(c => c.name))}`,
+      prompt: `Industry: ${industryName}\n\nResearch:\n${researchResult.content}`,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+    parsed = result.object.items;
   } catch (e) {
     errors.push(`LLM parse error for ${industryName} quadrants: ${e}`);
     return { classified, errors };
@@ -265,40 +251,20 @@ Produce a JSON array of 6-8 value chain stages, each with:
 Return ONLY a JSON array. No markdown.`;
 
   log.info(`  Value chain: calling Perplexity done, calling LLM for ${industryName}...`);
-  let llmText: string;
+  let parsed: z.infer<typeof ValueChainListSchema>["stages"];
   try {
-    llmText = await openrouterSynthesize(llmPrompt, 8192);
+    const result = await generateObject({
+      model: sonnet,
+      schema: ValueChainListSchema,
+      system: `You produce structured value chain stages for an industry from analyst research. Stage names are 3-5 words; stage_order is sequential 1-N.`,
+      prompt: `Industry: ${industryName}\n\nResearch:\n${researchResult.content}`,
+      temperature: 0.2,
+      maxTokens: 8192,
+    });
+    parsed = result.object.stages;
   } catch (e) {
     log.error(`  Value chain LLM FAILED for ${industryName}: ${e}`);
     errors.push(`LLM call failed for ${industryName} value chain: ${e}`);
-    return { created, errors };
-  }
-
-  log.info(`  Value chain LLM response length: ${llmText.length} chars`);
-
-  let parsed: Array<{
-    stage_name: string;
-    stage_order: number;
-    num_sectors: number;
-    hhi_score: number;
-    patent_count: number;
-    patent_trend_pct: number;
-    startup_count: number;
-    startup_trend_pct: number;
-    capital_flow_mm: number;
-    capital_trend_pct: number;
-    disruption_summary: string;
-    shifts?: string[];
-    risks?: string[];
-    key_capabilities: string[];
-    key_companies: string[];
-  }>;
-  try {
-    parsed = extractJson(llmText) as typeof parsed;
-    if (!Array.isArray(parsed)) throw new Error("Not an array");
-  } catch (e) {
-    log.error(`  Value chain parse failed. First 500 chars of LLM text: ${llmText.substring(0, 500)}`);
-    errors.push(`LLM parse error for ${industryName} value chain: ${e}`);
     return { created, errors };
   }
 
@@ -378,22 +344,17 @@ Produce a JSON array of 15-25 real companies, each with:
 
 Return ONLY a JSON array. No markdown.`;
 
-  const llmText = await openrouterSynthesize(llmPrompt, 6144);
-  let parsed: Array<{
-    name: string;
-    country: string;
-    naics_code: string | null;
-    naics_sector: string;
-    fevi_score: number;
-    cdi_score: number;
-    quadrant: string;
-    funding_stage: string;
-    description: string;
-    primary_capabilities: string[];
-  }>;
+  let parsed: z.infer<typeof CompanyListSchema>["companies"];
   try {
-    parsed = extractJson(llmText) as typeof parsed;
-    if (!Array.isArray(parsed)) throw new Error("Not an array");
+    const result = await generateObject({
+      model: sonnet,
+      schema: CompanyListSchema,
+      system: `You profile real companies (startups, scaleups, public players) in an industry from analyst research. primary_capabilities entries MUST match from: ${JSON.stringify(capabilities.map(c => c.name))}`,
+      prompt: `Industry: ${industryName}\n\nResearch:\n${researchResult.content}`,
+      temperature: 0.2,
+      maxTokens: 6144,
+    });
+    parsed = result.object.companies;
   } catch (e) {
     errors.push(`LLM parse error for ${industryName} companies: ${e}`);
     return { profiled, mapped, errors };

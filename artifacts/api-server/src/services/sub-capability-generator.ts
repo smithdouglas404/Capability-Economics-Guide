@@ -1,29 +1,28 @@
 import { db, capabilitiesTable, industriesTable, cviComponentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { haiku } from "./workflows/models";
 import { triangulateCapability } from "./triangulation";
 
-export interface GeneratedSubCap {
-  name: string;
-  description: string;
-  traditionalView: string;
-  economicView: string;
-}
+const SubCapSchema = z.object({
+  name: z.string().min(3).max(60),
+  description: z.string().min(15).max(280),
+  traditionalView: z.string(),
+  economicView: z.string(),
+});
+
+export type GeneratedSubCap = z.infer<typeof SubCapSchema>;
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
 }
 
-function safeJsonExtract<T>(text: string): T | null {
-  const start = text.indexOf("[");
-  const end = text.lastIndexOf("]");
-  if (start === -1 || end === -1) return null;
-  try { return JSON.parse(text.slice(start, end + 1)) as T; }
-  catch { return null; }
-}
-
 /**
- * Use Haiku to decompose a parent capability into 4-6 distinct, factual sub-capabilities.
+ * Use Haiku to decompose a parent capability into N distinct, factual sub-capabilities.
  * Haiku is the right model here: structured JSON, fast, cheap (~$0.001 per call).
+ * Vercel AI SDK's generateObject auto-validates against the Zod schema and
+ * retries once with a corrective re-prompt on schema mismatch.
  */
 export async function generateSubCapabilities(
   parentName: string,
@@ -31,52 +30,27 @@ export async function generateSubCapabilities(
   industryName: string,
   count = 5,
 ): Promise<GeneratedSubCap[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
-  const prompt = `Decompose the capability "${parentName}" (in the ${industryName} industry) into ${count} distinct, non-overlapping sub-capabilities.
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY not set");
 
-Parent description: ${parentDescription}
-
-Each sub-capability MUST:
+  const system = `You decompose enterprise capabilities into distinct sub-capabilities for the inflexcvi CVI engine. Each sub-capability MUST:
 - Be a real, named practice or function used in the industry today (not invented)
 - Be measurably distinct from siblings (so they can diverge in maturity scoring)
 - Reflect at least one modern shift (AI, regulation, platform model) where applicable
 - Have a "traditional view" (how legacy orgs treat it as cost/checklist) and an "economic view" (how leaders treat it as a compounding capability)
+- Use a 3-60 char name with no parent name repetition; 15-280 char description.`;
 
-Return ONLY a JSON array of ${count} objects. No prose, no markdown. Schema:
-[
-  {
-    "name": "string (3-60 chars, specific, no parent name repetition)",
-    "description": "string (15-280 chars, factual, what it actually IS)",
-    "traditionalView": "string (one sentence, how laggards approach it)",
-    "economicView": "string (one sentence, how leaders treat it as economic value)"
-  }
-]`;
+  const prompt = `Decompose "${parentName}" (in the ${industryName} industry) into exactly ${count} sub-capabilities.\n\nParent description: ${parentDescription}`;
 
-  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "HTTP-Referer": "https://inflexcvi.ai",
-      "X-Title": "Inflexcvi",
-    },
-    body: JSON.stringify({
-      model: "anthropic/claude-haiku-4.5",
-      max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: AbortSignal.timeout(60_000),
+  const { object } = await generateObject({
+    model: haiku,
+    schema: z.object({ subCapabilities: z.array(SubCapSchema).min(1).max(count) }),
+    system,
+    prompt,
+    temperature: 0.2,
+    maxTokens: 2048,
   });
-  if (!resp.ok) throw new Error(`OpenRouter ${resp.status}: ${(await resp.text()).slice(0, 200)}`);
-  const data = await resp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-  if (data.error) throw new Error(`OpenRouter error: ${data.error.message}`);
-  const text = data.choices?.[0]?.message?.content ?? "";
-  const arr = safeJsonExtract<GeneratedSubCap[]>(text);
-  if (!arr || !Array.isArray(arr) || arr.length === 0) {
-    throw new Error(`Haiku returned no valid sub-cap JSON for ${parentName}`);
-  }
-  return arr.slice(0, count).filter(c => c?.name && c?.description);
+
+  return object.subCapabilities.slice(0, count);
 }
 
 /**

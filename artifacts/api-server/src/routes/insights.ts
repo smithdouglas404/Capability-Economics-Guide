@@ -23,6 +23,18 @@ import {
   ResearchCapabilityBody,
 } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
+import { generateObject, NoObjectGeneratedError } from "ai";
+import { z } from "zod";
+import { haiku } from "../services/workflows/models";
+
+const InsightsSchema = z.object({
+  insights: z.array(z.object({
+    title: z.string().max(80),
+    content: z.string(),
+    recommendation: z.string(),
+    severity: z.enum(["critical", "warning", "info"]),
+  })).length(3),
+});
 
 const router: IRouter = Router();
 
@@ -247,65 +259,32 @@ router.post("/insights/generate", requireAdmin, async (req, res) => {
     return `- ${c.name} (Score: ${c.benchmarkScore}, Status: ${status}): ${c.economicView}`;
   }).join("\n");
 
-  const prompt = `You are a capability economics advisor analyzing the ${industry.name} industry.
+  const system = `You are a capability economics advisor. Produce strategic insights about an industry's capabilities. Each insight has a concise title (≤ 80 chars), 2-3 sentence content explaining the economic impact, 1-2 sentence recommendation, and a severity ("critical" = immediate, "warning" = address within 6 months, "info" = strategic opportunity).`;
+  const userPrompt = `Industry: ${industry.name}\n\nCurrent capabilities and maturity scores:\n${capSummary}\n\n${context ? `Additional context: ${context}\n\n` : ""}${capabilityId ? `Focus specifically on capability ID ${capabilityId}.\n` : ""}Produce exactly 3 actionable insights.`;
 
-Here are the current capabilities and their maturity scores:
-${capSummary}
-
-${context ? `Additional context: ${context}` : ""}
-${capabilityId ? `Focus specifically on capability ID ${capabilityId}.` : ""}
-
-Provide a strategic analysis with exactly 3 actionable insights. For each insight, provide:
-1. A concise title (max 10 words)
-2. A detailed analysis (2-3 sentences) explaining the economic impact
-3. A specific recommendation (1-2 sentences)
-4. A severity level: "critical" (requires immediate action), "warning" (address within 6 months), or "info" (strategic opportunity)
-
-Format your response as JSON array:
-[{"title": "...", "content": "...", "recommendation": "...", "severity": "..."}]
-
-Only output the JSON array, no other text.`;
-
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) {
+  if (!process.env.OPENROUTER_API_KEY) {
     res.status(503).json({ error: "AI service not configured" });
     return;
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 180_000);
-    let resp: Response;
+    let insights: z.infer<typeof InsightsSchema>["insights"];
     try {
-      resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://inflexcvi.ai",
-          "X-Title": "Inflexcvi",
-        },
-        body: JSON.stringify({
-          model: process.env.LLM_MODEL || "anthropic/claude-haiku-4.5",
-          max_tokens: 4096,
-          messages: [{ role: "user", content: prompt }],
-        }),
-        signal: controller.signal,
+      const { object } = await generateObject({
+        model: haiku,
+        schema: InsightsSchema,
+        system,
+        prompt: userPrompt,
+        temperature: 0.2,
+        maxTokens: 4096,
       });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    const data = (await resp.json()) as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
-    if (data.error) throw new Error(`OpenRouter error: ${data.error.message}`);
-    const text = data.choices?.[0]?.message?.content ?? "";
-
-    let insights;
-    try {
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      insights = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-    } catch {
-      insights = [{ title: "Analysis Complete", content: text, recommendation: "Review the detailed analysis above.", severity: "info" }];
+      insights = object.insights;
+    } catch (err) {
+      if (err instanceof NoObjectGeneratedError) {
+        insights = [{ title: "Analysis Complete", content: err.text?.slice(0, 1000) ?? "", recommendation: "Review the detailed analysis above.", severity: "info" as const }];
+      } else {
+        throw err;
+      }
     }
 
     for (const insight of insights) {

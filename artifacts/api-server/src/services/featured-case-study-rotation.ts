@@ -28,21 +28,31 @@ import {
   featuredCaseStudyScheduleTable,
 } from "@workspace/db";
 import { and, eq, lte, desc, asc } from "drizzle-orm";
-import { anthropic, resolveModel } from "@workspace/integrations-anthropic-ai";
+import { generateObject, NoObjectGeneratedError } from "ai";
+import { z } from "zod";
+import { sonnet } from "./workflows/models";
 import { logger as log } from "../lib/logger";
 
 const TICK_NAME = "[featured-case-study-rotation]";
 
-interface GeneratedCaseStudy {
-  title: string;
-  executiveSummary: string;
-  situation: string;
-  challenges: string[];
-  recommendations: Array<{ title: string; rationale: string; impact: string }>;
-  fiveYearOutlook: string;
-  kpis: Array<{ name: string; baseline: string; target: string }>;
-  sources: Array<{ url: string; title: string }>;
-}
+const CaseStudySchema = z.object({
+  title: z.string().max(80),
+  executiveSummary: z.string(),
+  situation: z.string(),
+  challenges: z.array(z.string()).min(3).max(5),
+  recommendations: z.array(z.object({
+    title: z.string(),
+    rationale: z.string(),
+    impact: z.string(),
+  })).min(3).max(5),
+  fiveYearOutlook: z.string(),
+  kpis: z.array(z.object({
+    name: z.string(),
+    baseline: z.string(),
+    target: z.string(),
+  })).min(3).max(5),
+  sources: z.array(z.object({ url: z.string(), title: z.string() })),
+});
 
 /**
  * Ask Anthropic for a complete case study JSON for the given industry +
@@ -66,55 +76,38 @@ async function generateAndInsertCaseStudy(industryId: number, companyName?: stri
     chosenCompany = topOrg?.name ?? industry.name;
   }
 
-  const system = `You are an inflexcvi consultant. Produce a single executive case study about ${chosenCompany} in the ${industry.name} industry. Output ONLY JSON, no fences:
-
-{
-  "title": "<= 80 chars, like 'Acme Co — Industry capability transformation'",
-  "executiveSummary": "2-3 sentences",
-  "situation": "1-2 paragraphs framing the company's position and what's at stake",
-  "challenges": ["bullet 1", "bullet 2", "bullet 3"],
-  "recommendations": [
-    {"title": "string", "rationale": "string", "impact": "string"}
-  ],
-  "fiveYearOutlook": "1 paragraph",
-  "kpis": [
-    {"name": "string", "baseline": "string", "target": "string"}
-  ],
-  "sources": [{"url": "string", "title": "string"}]
-}
-
-Rules: ground in publicly knowable facts about ${chosenCompany}. No fabricated revenue figures. 3-5 challenges, 3-5 recommendations, 3-5 KPIs. Be specific to ${industry.name}.`;
+  const system = `You are an inflexcvi consultant. Produce a single executive case study about ${chosenCompany} in the ${industry.name} industry. Title format: "Acme Co — Industry capability transformation" (<= 80 chars). Ground in publicly knowable facts; no fabricated revenue figures. Be specific to ${industry.name}.`;
 
   try {
-    const resp = await anthropic.messages.create({
-      model: resolveModel("claude-sonnet-4-6"),
-      max_tokens: 5000,
-      temperature: 0.3,
+    const { object: parsed } = await generateObject({
+      model: sonnet,
+      schema: CaseStudySchema,
       system,
-      messages: [{ role: "user", content: `Generate the case study for ${chosenCompany} (${industry.name}).` }],
+      prompt: `Generate the case study for ${chosenCompany} (${industry.name}).`,
+      temperature: 0.3,
+      maxTokens: 5000,
     });
-    const text = resp.content[0]?.type === "text" ? resp.content[0].text : "";
-    const m = text.match(/\{[\s\S]*\}/);
-    if (!m) return null;
-    const parsed = JSON.parse(m[0]) as GeneratedCaseStudy;
-    if (!parsed.title || !parsed.executiveSummary) return null;
 
     const [row] = await db.insert(caseStudiesTable).values({
       industryId,
       title: parsed.title,
       executiveSummary: parsed.executiveSummary,
-      situation: parsed.situation ?? "",
-      challenges: parsed.challenges ?? [],
-      recommendations: parsed.recommendations ?? [],
-      fiveYearOutlook: parsed.fiveYearOutlook ?? "",
-      kpis: parsed.kpis ?? [],
-      sources: parsed.sources ?? [],
+      situation: parsed.situation,
+      challenges: parsed.challenges,
+      recommendations: parsed.recommendations,
+      fiveYearOutlook: parsed.fiveYearOutlook,
+      kpis: parsed.kpis,
+      sources: parsed.sources,
       model: "anthropic/claude-sonnet-4.6",
       isFeatured: false, // featured flag is flipped separately by the caller
     }).returning({ id: caseStudiesTable.id });
     return row?.id ?? null;
   } catch (err) {
-    log.warn({ err: err instanceof Error ? err.message : String(err), industryId, companyName }, `${TICK_NAME} generate failed`);
+    if (err instanceof NoObjectGeneratedError) {
+      log.warn({ err: err.message, text: err.text?.slice(0, 400), industryId, companyName }, `${TICK_NAME} schema mismatch after retry`);
+    } else {
+      log.warn({ err: err instanceof Error ? err.message : String(err), industryId, companyName }, `${TICK_NAME} generate failed`);
+    }
     return null;
   }
 }

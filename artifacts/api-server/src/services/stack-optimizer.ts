@@ -192,7 +192,17 @@ async function batchHaikuRecommend(
   if (items.length === 0) return out;
 
   try {
-    const { anthropic } = await import("@workspace/integrations-anthropic-ai");
+    const { generateObject } = await import("ai");
+    const { z } = await import("zod");
+    const { haiku } = await import("./workflows/models");
+
+    const RecommendationsSchema = z.object({
+      recommendations: z.array(z.object({
+        capabilityId: z.number().int(),
+        approach: z.enum(["build", "buy", "outsource"]),
+        rationale: z.string().min(20),
+      })),
+    });
 
     const capabilityBlocks = items.map(({ args, context }, idx) => {
       const blockerText = context.upstreamBlockers.length > 0
@@ -210,13 +220,7 @@ ${blockerText}
 ${patternText}`;
     }).join("\n\n");
 
-    const prompt = `You are a capability economics advisor making build/buy/outsource recommendations for ${items.length} capabilities in one batch.
-
-CAPABILITIES:
-
-${capabilityBlocks}
-
-For EACH capability, recommend ONE of: build, buy, or outsource.
+    const system = `You are a capability economics advisor making build/buy/outsource recommendations.
 
 Reasoning rules per capability:
 - If upstream blockers with strength > 60% exist, the rationale should call out addressing those first.
@@ -226,29 +230,19 @@ Reasoning rules per capability:
 - Small gap (<10pts) + outsource listings → outsource.
 - Low difficulty (<50) → build regardless of gap.
 
-Respond with ONLY a valid JSON array — one object per capability in the same order, no markdown:
-[
-  {
-    "capabilityId": <number, matching the capabilityId above>,
-    "approach": "build" | "buy" | "outsource",
-    "rationale": "2-3 sentences. Reference upstream blockers if any. Reference historical patterns if they confirm or contradict."
-  }
-]`;
+Each rationale is 2-3 sentences referencing upstream blockers and historical patterns when present. Return one recommendation per input capability in the same order.`;
 
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: Math.min(8000, 400 * items.length + 200),
-      messages: [{ role: "user", content: prompt }],
+    const { object } = await generateObject({
+      model: haiku,
+      schema: RecommendationsSchema,
+      system,
+      prompt: `Make build/buy/outsource recommendations for ${items.length} capabilities:\n\n${capabilityBlocks}`,
+      temperature: 0.2,
+      maxTokens: Math.min(8000, 400 * items.length + 200),
     });
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const arrayMatch = text.match(/\[[\s\S]*\]/);
-    if (!arrayMatch) return out;
-    const parsed = JSON.parse(arrayMatch[0]) as Array<{ capabilityId: number; approach: Approach; rationale: string }>;
-    for (const row of parsed) {
-      if (typeof row?.capabilityId === "number" && ["build", "buy", "outsource"].includes(row.approach) && typeof row.rationale === "string") {
-        out.set(row.capabilityId, { approach: row.approach, rationale: row.rationale });
-      }
+    for (const row of object.recommendations) {
+      out.set(row.capabilityId, { approach: row.approach, rationale: row.rationale });
     }
   } catch {
     // Non-fatal — caller falls back to heuristicRecommend for any missing IDs
