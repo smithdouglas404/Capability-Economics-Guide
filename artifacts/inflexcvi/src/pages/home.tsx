@@ -201,15 +201,13 @@ export default function Home() {
   const heroSlot = useSlot("homepage_hero");
   const cardSlot = useSlot("homepage_case_card");
 
-  const hero = heroSlot?.content;
-  const heroSlug = hero?.industrySlug ?? "insurance";
-  const heroName = hero?.industryName ?? "Insurance";
-  const heroHref = `/case-study/${heroSlug}`;
-
   // Featured case study — driven by the admin "Feature" toggle (PATCH
   // /api/admin/case-studies/:id/feature, surfaced in /admin/case-studies).
-  // Falls back to the slot system, then to the hero industry. This is the
-  // source of truth for which case study the analogy card displays.
+  // The server endpoint /api/featured-case-study ALWAYS returns a row when
+  // any case study exists in the DB (orders by isFeatured DESC, generatedAt
+  // DESC, limit 1) — so featuredCS is the durable source of truth for the
+  // homepage's industry context. No hardcoded "Insurance" defaults: if no
+  // case study exists yet the hero/card sections just don't render.
   const [featuredCS, setFeaturedCS] = useState<{ industrySlug: string; industryName: string; title?: string; executiveSummary?: string } | null>(null);
   useEffect(() => {
     fetch("/api/featured-case-study")
@@ -220,12 +218,24 @@ export default function Home() {
       .catch(() => {});
   }, []);
 
+  // Hero industry: prefer the admin-pinned slot, otherwise mirror the
+  // featured case study. Empty strings while data is loading — link sites
+  // below guard against this with `heroReady`/`cardReady` truthiness
+  // checks, so we never render a broken `/case-study/` URL.
+  const hero = heroSlot?.content;
+  const heroSlug = hero?.industrySlug ?? featuredCS?.industrySlug ?? "";
+  const heroName = hero?.industryName ?? featuredCS?.industryName ?? "";
+  const heroHref = heroSlug ? `/case-study/${heroSlug}` : "#";
+  const heroReady = !!heroSlug;
+
+  // Analogy card: featured case study first, then admin-pinned card slot,
+  // then mirror the hero industry (which itself derives from featuredCS).
   const card = cardSlot?.content;
   const cardSlug = featuredCS?.industrySlug ?? card?.industrySlug ?? heroSlug;
   const cardName = featuredCS?.industryName ?? card?.industryName ?? heroName;
-  const cardBlurb = featuredCS?.executiveSummary ?? card?.executiveSummary
-    ?? "See capability economics in action. Watch how an organization optimized its core operating capabilities.";
-  const cardHref = `/case-study/${cardSlug}`;
+  const cardBlurb = featuredCS?.executiveSummary ?? card?.executiveSummary ?? "";
+  const cardHref = cardSlug ? `/case-study/${cardSlug}` : "#";
+  const cardReady = !!cardSlug;
 
   // ── Live metrics for hero tiles + principle stats ──────────────────────
   const [principleStats, setPrincipleStats] = useState<PrincipleStats | null>(null);
