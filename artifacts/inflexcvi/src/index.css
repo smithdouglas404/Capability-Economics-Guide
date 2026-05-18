@@ -30,6 +30,7 @@
 
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted-foreground-soft: hsl(var(--muted-foreground-soft));
   --color-muted-border: var(--muted-border);
 
   --color-accent: hsl(var(--accent));
@@ -104,6 +105,7 @@
 
   --muted: 210 40% 96%;
   --muted-foreground: 215 16% 35%; /* Slate 700 — bumped from 47% so the ~1900 `text-muted-foreground` callsites meet WCAG AA against the Slate-50 background */
+  --muted-foreground-soft: 215 16% 50%; /* For secondary-metadata text where hierarchy depends on it sitting BELOW `text-muted-foreground`. Replaces ad-hoc `text-muted-foreground/70` callsites. */
 
   --accent: 38 92% 50%; /* Amber 500 */
   --accent-foreground: 222 47% 11%;
@@ -179,6 +181,7 @@
 
   --muted: 217 33% 17%;
   --muted-foreground: 215 20% 75%; /* dark-mode body/caption — bumped from 65% for white-on-dark readability */
+  --muted-foreground-soft: 215 20% 60%; /* dark-mode soft variant — sits visibly below `--muted-foreground` for hierarchy */
 
   --accent: 38 92% 50%;
   --accent-foreground: 222 47% 6%;

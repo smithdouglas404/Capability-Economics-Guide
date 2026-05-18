@@ -266,7 +266,7 @@ function DeltaInterpreter({ delta, childScore, parentScore, childName }: { delta
   return (
     <HoverCard openDelay={120} closeDelay={80}>
       <HoverCardTrigger asChild>
-        <span className={`text-[9px] font-mono ml-1 px-1 rounded shrink-0 cursor-help ${
+        <span className={`text-[10px] font-mono ml-1 px-1 rounded shrink-0 cursor-help ${
           delta > 0 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
           : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
         }`}>
@@ -376,7 +376,7 @@ function IndexTicker({ value, label, trend, size = "lg" }: {
   size?: "lg" | "sm";
 }) {
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendColor = trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground/70";
+  const trendColor = trend === "up" ? "text-emerald-400" : trend === "down" ? "text-red-400" : "text-muted-foreground-soft";
 
   return (
     <div className="text-center">
@@ -385,7 +385,7 @@ function IndexTicker({ value, label, trend, size = "lg" }: {
       </div>
       <div className="flex items-center justify-center gap-1.5 mt-1">
         {trend && <TrendIcon className={`w-4 h-4 ${trendColor}`} />}
-        <span className="text-sm text-muted-foreground/70 uppercase tracking-wider">{label}</span>
+        <span className="text-sm text-muted-foreground-soft uppercase tracking-wider">{label}</span>
       </div>
     </div>
   );
@@ -457,7 +457,7 @@ function AgentEventIcon({ type }: { type: string }) {
     case "cei_updated": return <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />;
     case "cycle_complete": return <Activity className="w-3.5 h-3.5 text-green-400" />;
     case "error": return <Info className="w-3.5 h-3.5 text-red-400" />;
-    default: return <Bot className="w-3.5 h-3.5 text-muted-foreground/70" />;
+    default: return <Bot className="w-3.5 h-3.5 text-muted-foreground-soft" />;
   }
 }
 
@@ -892,7 +892,7 @@ export default function CVIDashboard() {
                 <h1 className="text-3xl md:text-4xl font-serif tracking-tight">
                   Capability Value Index
                 </h1>
-                <p className="text-muted-foreground/70 mt-1 max-w-xl">
+                <p className="text-muted-foreground-soft mt-1 max-w-xl">
                   The world's first composite index measuring organizational capability maturity across industries — powered by multi-source Bayesian triangulation.
                 </p>
               </div>
@@ -906,7 +906,7 @@ export default function CVIDashboard() {
                   }}
                   activeViewId={activeViewId}
                 />
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-muted-foreground/70">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-muted-foreground-soft">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Autonomous
                 </div>
@@ -949,7 +949,7 @@ export default function CVIDashboard() {
               <div className="md:col-span-1 space-y-4">
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground/70 uppercase tracking-wider">Volatility</span>
+                    <span className="text-xs text-muted-foreground-soft uppercase tracking-wider">Volatility</span>
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{(cei.volatility * 100).toFixed(1)}%</div>
@@ -957,7 +957,7 @@ export default function CVIDashboard() {
                 </div>
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground/70 uppercase tracking-wider">Industries Tracked</span>
+                    <span className="text-xs text-muted-foreground-soft uppercase tracking-wider">Industries Tracked</span>
                     <Globe className="w-3.5 h-3.5 text-indigo-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{industries.length}</div>
@@ -1101,17 +1101,17 @@ export default function CVIDashboard() {
                                       {t.affectedIndustryNames.length > 0 && (
                                         <div className="flex flex-wrap gap-1">
                                           {t.affectedIndustryNames.map(n => (
-                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded">{n.split(" ")[0]}</span>
+                                            <span key={n} className="text-[10px] px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded">{n.split(" ")[0]}</span>
                                           ))}
                                         </div>
                                       )}
                                       {t.affectedCapabilityNames.length > 0 && (
                                         <div className="flex flex-wrap gap-1">
                                           {t.affectedCapabilityNames.slice(0, 6).map(n => (
-                                            <span key={n} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded">{n}</span>
+                                            <span key={n} className="text-[10px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded">{n}</span>
                                           ))}
                                           {t.affectedCapabilityNames.length > 6 && (
-                                            <span className="text-[9px] text-muted-foreground">+{t.affectedCapabilityNames.length - 6}</span>
+                                            <span className="text-[10px] text-muted-foreground">+{t.affectedCapabilityNames.length - 6}</span>
                                           )}
                                         </div>
                                       )}
@@ -1378,13 +1378,13 @@ export default function CVIDashboard() {
                                           {ev.affectedCapabilityIds.slice(0, 4).map(cid => {
                                             const cap = capabilityList?.find(c => c.id === cid);
                                             return (
-                                              <span key={cid} className="text-[9px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded" title={cap?.name ?? `#${cid}`}>
+                                              <span key={cid} className="text-[10px] px-1 py-0.5 bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 rounded" title={cap?.name ?? `#${cid}`}>
                                                 {cap?.name ?? `#${cid}`}
                                               </span>
                                             );
                                           })}
                                           {ev.affectedCapabilityIds.length > 4 && (
-                                            <span className="text-[9px] text-muted-foreground" title={ev.affectedCapabilityIds.slice(4).map(cid => capabilityList?.find(c => c.id === cid)?.name ?? `#${cid}`).join(", ")}>
+                                            <span className="text-[10px] text-muted-foreground" title={ev.affectedCapabilityIds.slice(4).map(cid => capabilityList?.find(c => c.id === cid)?.name ?? `#${cid}`).join(", ")}>
                                               +{ev.affectedCapabilityIds.length - 4}
                                             </span>
                                           )}
@@ -1784,7 +1784,7 @@ export default function CVIDashboard() {
                         side="left"
                       />
                       {ind.ciLow !== null && ind.ciHigh !== null && (
-                        <div className="text-[10px] font-mono text-muted-foreground/70" title="95% credible interval">
+                        <div className="text-[10px] font-mono text-muted-foreground-soft" title="95% credible interval">
                           95% CI {ind.ciLow.toFixed(0)}–{ind.ciHigh.toFixed(0)}
                         </div>
                       )}
@@ -1798,7 +1798,7 @@ export default function CVIDashboard() {
                       ) : ind.velocity < 0 ? (
                         <ArrowDownRight className="w-3.5 h-3.5 text-red-500" />
                       ) : (
-                        <Minus className="w-3.5 h-3.5 text-muted-foreground/70" />
+                        <Minus className="w-3.5 h-3.5 text-muted-foreground-soft" />
                       )}
                       <span className={ind.velocity > 0 ? "text-emerald-600" : ind.velocity < 0 ? "text-red-600" : "text-muted-foreground"}>
                         {ind.velocity > 0 ? "+" : ""}{(ind.velocity * 100).toFixed(1)}% velocity
@@ -1900,7 +1900,7 @@ export default function CVIDashboard() {
                                           )}
                                           <span className="font-medium truncate">{root.name}</span>
                                           {hasChildren && (
-                                            <span className="text-[9px] text-muted-foreground ml-1 shrink-0">
+                                            <span className="text-[10px] text-muted-foreground ml-1 shrink-0">
                                               {root.children.length} sub{spread !== null ? ` · σ ${spread.toFixed(0)}pt` : ""}
                                             </span>
                                           )}
