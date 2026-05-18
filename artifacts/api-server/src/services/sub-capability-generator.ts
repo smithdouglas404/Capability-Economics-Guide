@@ -1,8 +1,7 @@
 import { db, capabilitiesTable, industriesTable, cviComponentsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { generateObject } from "ai";
 import { z } from "zod";
-import { haiku } from "./workflows/models";
+import { haiku, generateObject } from "./workflows/models";
 import { triangulateCapability } from "./triangulation";
 
 const SubCapSchema = z.object({

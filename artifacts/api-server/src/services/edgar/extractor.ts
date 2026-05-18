@@ -1,8 +1,7 @@
 import { db, capabilityFilingsTable, capabilitiesTable } from "@workspace/db";
 import { eq, and, sql } from "drizzle-orm";
-import { generateObject } from "ai";
 import { z } from "zod";
-import { haiku } from "../workflows/models";
+import { haiku, generateObject } from "../workflows/models";
 import { logger } from "../../lib/logger";
 
 /**

@@ -16,12 +16,13 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { generateObject, NoObjectGeneratedError } from "ai";
 // AI SDK v4 is typed against Zod v3 classic — don't switch to "zod/v4" here
 // or `generateObject({ schema })` falls back to the no-schema overload.
 import { z } from "zod";
 import pino from "pino";
-import { sonnet, haiku } from "./models";
+// `generateObject` is the LangSmith-wrapped version re-exported from `./models`
+// — importing from "ai" directly bypasses tracing.
+import { sonnet, haiku, generateObject, NoObjectGeneratedError } from "./models";
 import { retry } from "../../lib/llm-retry";
 
 const logger = pino({ name: "workflows" });

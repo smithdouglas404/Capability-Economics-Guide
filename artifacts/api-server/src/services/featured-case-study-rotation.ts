@@ -28,9 +28,8 @@ import {
   featuredCaseStudyScheduleTable,
 } from "@workspace/db";
 import { and, eq, lte, desc, asc } from "drizzle-orm";
-import { generateObject, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
-import { sonnet } from "./workflows/models";
+import { sonnet, generateObject, NoObjectGeneratedError } from "./workflows/models";
 import { logger as log } from "../lib/logger";
 
 const TICK_NAME = "[featured-case-study-rotation]";

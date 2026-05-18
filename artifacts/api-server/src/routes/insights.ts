@@ -23,9 +23,8 @@ import {
   ResearchCapabilityBody,
 } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { generateObject, NoObjectGeneratedError } from "ai";
 import { z } from "zod";
-import { haiku } from "../services/workflows/models";
+import { haiku, generateObject, NoObjectGeneratedError } from "../services/workflows/models";
 
 const InsightsSchema = z.object({
   insights: z.array(z.object({

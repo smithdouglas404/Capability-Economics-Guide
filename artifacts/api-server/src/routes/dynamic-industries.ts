@@ -13,8 +13,7 @@ import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { runIndustryBootstrap } from "../services/workflows";
-import { generateObject } from "ai";
-import { sonnet } from "../services/workflows/models";
+import { sonnet, generateObject } from "../services/workflows/models";
 
 const CapabilitySchema = z.object({
   name: z.string().min(2).max(40),

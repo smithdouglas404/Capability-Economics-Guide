@@ -14,9 +14,8 @@ import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
-import { generateObject } from "ai";
 import { z } from "zod";
-import { sonnet } from "../workflows/models";
+import { sonnet, generateObject } from "../workflows/models";
 
 // ── Zod schemas for each enrichment LLM call ───────────────────────────────
 // These replace the legacy `openrouterChatJson` + `extractJson` pattern with

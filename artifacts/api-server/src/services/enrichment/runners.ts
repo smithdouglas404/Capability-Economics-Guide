@@ -18,9 +18,8 @@ import {
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
-import { generateObject } from "ai";
 import { z } from "zod";
-import { sonnet } from "../workflows/models";
+import { sonnet, generateObject } from "../workflows/models";
 
 // ── Zod schemas for the three enrichment LLM calls ─────────────────────────
 

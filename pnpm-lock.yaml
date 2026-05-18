@@ -166,6 +166,9 @@ importers:
       langchain:
         specifier: ^1.3.1
         version: 1.3.1(@langchain/core@1.1.39(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)))(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(zod-to-json-schema@3.25.2(zod@3.25.76))
+      langsmith:
+        specifier: ^0.7.1
+        version: 0.7.1(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
       mem0ai:
         specifier: ^2.4.6
         version: 2.4.6(@anthropic-ai/sdk@0.91.1(zod@3.25.76))(@langchain/core@1.1.39(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)))(@types/pg@8.18.0)(neo4j-driver@5.28.3)(pg@8.20.0)(redis@5.12.1(@opentelemetry/api@1.9.0))
@@ -3752,8 +3755,8 @@ packages:
     peerDependencies:
       '@langchain/core': ^1.1.39
 
-  langsmith@0.5.18:
-    resolution: {integrity: sha512-3zuZUWffTHQ+73EAwnodADtf534VNEZUpXr9jC12qyG8/IQuJET7PRsCpTb9wX2lmBspakwLUpqpj3tNm/0bVA==}
+  langsmith@0.7.1:
+    resolution: {integrity: sha512-Wjk90UjNoY5cBHMlNAC/eZx5clI8jnjBOBW8uJu8+MWBtx0QesNjsUiLtjI+I3UnrpxFFpDqGXcnhBjH654Mqg==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -5693,7 +5696,7 @@ snapshots:
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.5.18(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
+      langsmith: 0.7.1(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 11.1.0
@@ -8238,7 +8241,7 @@ snapshots:
       '@langchain/core': 1.1.39(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
       '@langchain/langgraph': 1.2.8(@langchain/core@1.1.39(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(zod-to-json-schema@3.25.2(zod@3.25.76))(zod@4.3.6)
       '@langchain/langgraph-checkpoint': 1.0.1(@langchain/core@1.1.39(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)))
-      langsmith: 0.5.18(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
+      langsmith: 0.7.1(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76))
       uuid: 11.1.0
       zod: 4.3.6
     transitivePeerDependencies:
@@ -8253,10 +8256,9 @@ snapshots:
       - ws
       - zod-to-json-schema
 
-  langsmith@0.5.18(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)):
+  langsmith@0.7.1(@opentelemetry/api@1.9.0)(openai@4.104.0(zod@3.25.76)):
     dependencies:
       p-queue: 6.6.2
-      uuid: 10.0.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.0
       openai: 4.104.0(zod@3.25.76)
