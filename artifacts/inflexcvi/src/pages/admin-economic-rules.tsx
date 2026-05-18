@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
-import { ArrowLeft, RefreshCw, Save, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Save, Loader2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AdminPageShell } from "@/components/admin-page-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -131,26 +131,16 @@ export default function AdminEconomicRulesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link href="/admin">
-            <Button variant="ghost" size="sm" className="mb-2">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to admin
-            </Button>
-          </Link>
-          <h1 className="text-3xl font-bold">Economic Rules</h1>
-          <p className="text-muted-foreground mt-1">
-            Strategic thresholds the Letta agent reasons against. Changes here re-sync to the agent&apos;s economic_rules core memory block immediately.
-          </p>
-        </div>
-        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+    <AdminPageShell
+      title="Economic Rules"
+      description="Strategic thresholds the Letta agent reasons against. Changes here re-sync to the agent's economic_rules core memory block immediately."
+      actions={
+        <Button variant="outline" size="sm" onClick={load} disabled={loading} className="rounded-none">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
           Refresh
         </Button>
-      </div>
-
+      }
+    >
       {error && (
         <Card className="mb-4 border-rose-500/40">
           <CardContent className="pt-4">
@@ -223,6 +213,6 @@ export default function AdminEconomicRulesPage() {
           );
         })}
       </div>
-    </div>
+    </AdminPageShell>
   );
 }

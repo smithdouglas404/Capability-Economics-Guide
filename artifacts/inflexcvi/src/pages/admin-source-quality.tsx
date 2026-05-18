@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import {
-  ArrowLeft,
   RefreshCw,
   AlertTriangle,
   AlertCircle,
@@ -11,6 +10,7 @@ import {
   Layers,
   ShieldAlert,
 } from "lucide-react";
+import { AdminPageShell } from "@/components/admin-page-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -200,18 +200,10 @@ export default function AdminSourceQualityPage() {
   }, [data, severityFilter, flagFilter, industryFilter, leafOnly]);
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <Link href="/admin" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-2">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Admin
-          </Link>
-          <h1 className="font-serif text-3xl tracking-tight">Source Quality Audit</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Capabilities flagged for thin evidence, single-source dependence, stale triangulations, or wide credible intervals.
-          </p>
-        </div>
+    <AdminPageShell
+      title="Source Quality Audit"
+      description="Capabilities flagged for thin evidence, single-source dependence, stale triangulations, or wide credible intervals."
+      actions={
         <Button
           variant="outline"
           size="sm"
@@ -222,8 +214,8 @@ export default function AdminSourceQualityPage() {
           <RefreshCw className={`w-3.5 h-3.5 mr-2 ${refreshing ? "animate-spin" : ""}`} />
           Refresh
         </Button>
-      </div>
-
+      }
+    >
       {err && (
         <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-3 mb-6 text-sm font-mono">
           {err}
@@ -393,6 +385,6 @@ export default function AdminSourceQualityPage() {
       {loading && !data && (
         <div className="text-sm text-muted-foreground py-8">Loading source quality audit…</div>
       )}
-    </div>
+    </AdminPageShell>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, RefreshCw, Star, StarOff, Loader2, ExternalLink, KeyRound, Copy, CheckCircle2, Eye, Calendar, X, Save, Sparkles } from "lucide-react";
+import { RefreshCw, Star, StarOff, Loader2, ExternalLink, KeyRound, Copy, CheckCircle2, Eye, Calendar, X, Save, Sparkles } from "lucide-react";
+import { AdminPageShell } from "@/components/admin-page-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,18 +289,10 @@ export default function AdminCaseStudiesPage() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-6">
-        <Link href="/admin" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-2">
-          <ArrowLeft className="w-3.5 h-3.5" /> Admin home
-        </Link>
-        <h1 className="font-serif text-3xl tracking-tight">Case-study rotation</h1>
-        <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
-          Manage which case study renders on the homepage analogy card. Each case study can have a Perplexity-researched economics breakdown (revenue exposure, cost allocation, value generated, unlocked value) attached.
-          Only one case study is featured at a time — flipping the star moves the spotlight.
-        </p>
-      </div>
-
+    <AdminPageShell
+      title="Case-study rotation"
+      description="Manage which case study renders on the homepage analogy card. Each case study can have a Perplexity-researched economics breakdown attached. Only one case study is featured at a time — flipping the star moves the spotlight."
+    >
       <Card className="rounded-none border-border/60 mb-4">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -685,6 +678,6 @@ export default function AdminCaseStudiesPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </AdminPageShell>
   );
 }
