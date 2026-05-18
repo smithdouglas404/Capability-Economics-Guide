@@ -7,6 +7,7 @@ packages:
 autoInstallPeers: false
 
 catalog:
+  '@ai-sdk/openai-compatible': ^0.2.10
   '@replit/vite-plugin-cartographer': ^0.5.1
   '@replit/vite-plugin-dev-banner': ^0.1.1
   '@replit/vite-plugin-runtime-error-modal': ^0.0.6
@@ -16,6 +17,7 @@ catalog:
   '@types/react': ^19.2.0
   '@types/react-dom': ^19.2.0
   '@vitejs/plugin-react': ^5.0.4
+  ai: ^4.3.16
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
   drizzle-orm: ^0.45.1
