@@ -117,7 +117,13 @@ type Probe = () => Promise<Omit<ServiceHealth, "service" | "checkedAt">>;
 // past the perceptible-latency budget). Flag these as `degraded` so
 // operators see "ok but slow" before "down". Tighter on Mem0 since it's
 // hit per-recall; looser on Letta since it only sees end-of-cycle traffic.
-const MEM0_LATENCY_WARN_MS = 2000;
+// 2026-05-19: bumped Mem0 from 2000→3500ms. Cross-internet RTT from
+// Railway US-East → api.mem0.ai routinely sits in the 200–3000ms band
+// under normal load (local sample: 653ms, prod sample under contention:
+// 2120ms). The 2000ms cap was triggering false-alarm "degraded" status
+// during the service-page banner cycle while the service itself was
+// healthy. 3500ms still catches genuine slowness without paging on jitter.
+const MEM0_LATENCY_WARN_MS = 3500;
 const LETTA_LATENCY_WARN_MS = 5000;
 
 // ── Per-service probes ────────────────────────────────────────────────────
