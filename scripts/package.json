@@ -35,6 +35,7 @@
     "seed:disruption-events": "tsx ./src/seed-disruption-events.ts",
     "seed:regulations": "tsx ./src/seed-regulations.ts",
     "seed:hipaa-requirements": "tsx ./src/seed-hipaa-requirements.ts",
+    "seed:gdpr-requirements": "tsx ./src/seed-gdpr-requirements.ts",
     "cei:replay-history": "tsx ./src/replay-cei-history.ts",
     "generate:case-studies": "tsx ./src/generate-case-studies.ts",
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",

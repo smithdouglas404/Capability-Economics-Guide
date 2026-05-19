@@ -208,6 +208,7 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "economic rules (Letta block source)", script: "seed:economic-rules" },
   { name: "regulations starter pack (17 well-known frameworks)", script: "seed:regulations" },
   { name: "HIPAA → Healthcare capability requirements (13 mappings)", script: "seed:hipaa-requirements" },
+  { name: "GDPR → cross-industry capability requirements (12 mappings)", script: "seed:gdpr-requirements" },
 ];
 
 async function runSeeds(): Promise<void> {
