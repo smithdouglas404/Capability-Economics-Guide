@@ -209,6 +209,7 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "regulations starter pack (17 well-known frameworks)", script: "seed:regulations" },
   { name: "HIPAA → Healthcare capability requirements (13 mappings)", script: "seed:hipaa-requirements" },
   { name: "GDPR → cross-industry capability requirements (12 mappings)", script: "seed:gdpr-requirements" },
+  { name: "SOX → 5-industry ICFR capability requirements (16 mappings)", script: "seed:sox-requirements" },
 ];
 
 async function runSeeds(): Promise<void> {
