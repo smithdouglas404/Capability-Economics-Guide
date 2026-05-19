@@ -68,7 +68,7 @@ router.get("/metrics/home-ticker", async (_req: Request, res: Response) => {
 
     const items = rows.map(r => ({
       capabilityName: r.capabilityName,
-      valueText: `${(r.velocity ?? 0) >= 0 ? "+" : ""}${(r.velocity ?? 0).toFixed(1)} pts`,
+      valueText: `${(r.velocity ?? 0) >= 0 ? "+" : ""}${(r.velocity ?? 0).toFixed(2)} pts`,
       direction: (r.velocity ?? 0) >= 0 ? "up" : "down",
       score: r.score,
     }));
