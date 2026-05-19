@@ -322,6 +322,35 @@ router.delete("/admin/case-studies/:id", requireAdmin, async (req, res) => {
   res.status(204).end();
 });
 
+/**
+ * POST /api/admin/case-studies/regenerate-content/:industrySlug
+ *
+ * Targeted regen: ONLY rewrites case_study_content (the per-capability
+ * metric cards). Leaves the study narrative (challenges, recommendations,
+ * KPIs in caseStudiesTable) untouched. Use this after a generator-prompt
+ * change to roll new metric shape through the existing industries.
+ */
+router.post("/admin/case-studies/regenerate-content/:industrySlug", requireAdmin, async (req, res) => {
+  const rawSlug = req.params.industrySlug;
+  const industrySlug = typeof rawSlug === "string" ? rawSlug : "";
+  if (!industrySlug || industrySlug.length < 2 || industrySlug.length > 80) {
+    res.status(400).json({ error: "Invalid industrySlug" });
+    return;
+  }
+  try {
+    const raw = (await generateCaseStudyContentTool.invoke({ industrySlug, force: true })) as string;
+    const parsed = JSON.parse(raw) as { success: boolean; skipped?: boolean; capabilitiesGenerated?: number; error?: string };
+    if (!parsed.success) {
+      res.status(parsed.error?.includes("not found") ? 404 : 500).json(parsed);
+      return;
+    }
+    res.json(parsed);
+  } catch (err) {
+    logger.warn({ err, industrySlug }, "[case-studies] targeted content regen failed");
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 router.post("/case-studies/generate", requireAdmin, async (req, res) => {
   const parsed = GenerateBody.safeParse(req.body);
   if (!parsed.success) {

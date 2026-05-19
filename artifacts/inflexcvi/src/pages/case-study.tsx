@@ -13,35 +13,6 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/h
 
 const API_BASE = "/api";
 
-function splitMetricValue(value: string): { headline: string; detail: string | null } {
-  const trimmed = value.trim();
-  const parenIdx = trimmed.search(/\s\(/);
-  if (parenIdx > 0 && parenIdx <= 130) {
-    return {
-      headline: trimmed.slice(0, parenIdx).trim().replace(/[.,;:]$/, ""),
-      detail: trimmed,
-    };
-  }
-  const dashMatch = trimmed.match(/^(.{6,130}?)\s[—–-]\s/);
-  if (dashMatch) {
-    return { headline: dashMatch[1].trim(), detail: trimmed };
-  }
-  const sentMatch = trimmed.match(/^(.{6,130}?[.!?])\s+/);
-  if (sentMatch) {
-    return { headline: sentMatch[1].trim().replace(/[.!?]$/, ""), detail: trimmed };
-  }
-  const commaMatch = trimmed.match(/^(.{20,95}?),\s/);
-  if (commaMatch) {
-    return { headline: commaMatch[1].trim(), detail: trimmed };
-  }
-  if (trimmed.length > 95) {
-    const slice = trimmed.slice(0, 95);
-    const lastSpace = slice.lastIndexOf(" ");
-    const cut = lastSpace > 40 ? lastSpace : 95;
-    return { headline: slice.slice(0, cut).trim().replace(/[.,;:]$/, "") + "…", detail: trimmed };
-  }
-  return { headline: trimmed, detail: null };
-}
 
 const fade = {
   hidden: { opacity: 0, y: 16 },
@@ -57,6 +28,7 @@ interface Metric {
   name: string;
   value: string;
   trend: "up" | "down" | "neutral";
+  detail?: string;
 }
 
 interface RoiRow {
@@ -250,25 +222,24 @@ export default function CaseStudy() {
                     <h4 className="font-serif text-lg lg:text-xl text-foreground mb-6">Economic impact measured</h4>
                     <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-8">
                       {cap.metrics.map((metric, idx) => {
-                        const { headline, detail } = splitMetricValue(metric.value);
                         const cell = (
-                          <div className={`${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-6" : ""} ${detail ? "cursor-help" : ""}`}>
+                          <div className={`${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-6" : ""} ${metric.detail ? "cursor-help" : ""}`}>
                             <div className="flex items-center gap-1.5 mb-2">
                               <TrendArrow trend={metric.trend} />
                               <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground leading-snug">{metric.name}</span>
                             </div>
                             <dd className="font-serif text-xl lg:text-2xl text-foreground leading-tight tracking-tight">
-                              {headline}
+                              {metric.value}
                             </dd>
                           </div>
                         );
-                        if (!detail) return <div key={idx}>{cell}</div>;
+                        if (!metric.detail) return <div key={idx}>{cell}</div>;
                         return (
                           <HoverCard key={idx} openDelay={120} closeDelay={80}>
                             <HoverCardTrigger asChild>{cell}</HoverCardTrigger>
                             <HoverCardContent align="start" className="w-80">
                               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">{metric.name}</div>
-                              <p className="text-sm text-foreground/85 leading-relaxed">{detail}</p>
+                              <p className="text-sm text-foreground/85 leading-relaxed">{metric.detail}</p>
                             </HoverCardContent>
                           </HoverCard>
                         );

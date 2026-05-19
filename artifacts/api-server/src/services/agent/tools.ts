@@ -406,7 +406,7 @@ Return ONLY valid JSON:
 );
 
 export const generateCaseStudyContentTool = tool(
-  async ({ industrySlug }) => {
+  async ({ industrySlug, force }) => {
     const openrouterKey = process.env.OPENROUTER_API_KEY;
     if (!openrouterKey) return JSON.stringify({ success: false, error: "OPENROUTER_API_KEY not configured" });
 
@@ -433,7 +433,7 @@ export const generateCaseStudyContentTool = tool(
       .orderBy(desc(caseStudyContentTable.generatedAt));
 
     const allFresh = existing.length >= allCaps.length && existing.every(e => !isContentStale(e.generatedAt));
-    if (allFresh) return JSON.stringify({ success: true, skipped: true, reason: "Content is fresh" });
+    if (allFresh && !force) return JSON.stringify({ success: true, skipped: true, reason: "Content is fresh" });
 
     const capSummaries = allCaps.map(c =>
       `- ${c.name} (slug: ${c.slug}): Traditional view: "${c.traditionalView}" | Economic view: "${c.economicView}" | Benchmark: ${c.benchmarkScore}/100`
@@ -454,6 +454,15 @@ ${capSummaries}
 ${contextSection}
 Use the research context above to ensure metrics and ROI data reflect real ${industry.name} industry benchmarks.
 
+CRITICAL FORMAT RULES for each metric — these are non-negotiable:
+- "value" MUST be ≤ 40 characters. It is rendered as a scoreboard headline cell.
+  GOOD: "Reduced from 48h to 2h", "Improved by 4.2%", "+$25M per $1B", "20–35% improvement", "Decreased by 65%", "+28 points post-claim", "Reduced by $12M/yr"
+  BAD (too long, do NOT write like this): "Up to $25M incremental revenue per $1B vs. lower-maturity peers", "FCR improvement of 20–35% when service staff are equipped with unified order and customer data"
+- "detail" carries the source, methodology, and elaboration. ≤ 180 chars, one sentence. Put benchmark names, sample sizes, comparison cohorts, and qualifying conditions HERE — never in "value".
+  GOOD detail: "Manhattan Associates / Incisiv Unified Commerce Benchmark 2026, n=250 retailers; leading-maturity vs. lower-maturity peers"
+- "name" is the KPI label. Title-case, ≤ 50 chars.
+- "trend" is "up", "down", or "neutral".
+
 Return ONLY valid JSON:
 {
   "capabilities": [
@@ -461,12 +470,12 @@ Return ONLY valid JSON:
       "capabilitySlug": "${allCaps[0]?.slug}",
       "capabilityName": "${allCaps[0]?.name}",
       "description": "2 sentence description of the economic value of this capability in ${industry.name}.",
-      "traditionalView": "How insurers/firms historically viewed this capability as a cost center.",
+      "traditionalView": "How firms historically viewed this capability as a cost center.",
       "economicView": "How Inflexcvi reframes it as a quantifiable revenue and value driver.",
       "metrics": [
-        {"name": "Specific KPI Name", "value": "Measured outcome with real numbers", "trend": "up"},
-        {"name": "Specific KPI Name 2", "value": "Measured outcome with real numbers", "trend": "down"},
-        {"name": "Specific KPI Name 3", "value": "Measured outcome with real numbers", "trend": "up"}
+        {"name": "<≤50c KPI Name>", "value": "<≤40c outcome, no citations>", "detail": "<≤180c source + methodology>", "trend": "up"},
+        {"name": "<≤50c KPI Name>", "value": "<≤40c outcome, no citations>", "detail": "<≤180c source + methodology>", "trend": "down"},
+        {"name": "<≤50c KPI Name>", "value": "<≤40c outcome, no citations>", "detail": "<≤180c source + methodology>", "trend": "up"}
       ]
     },
     {
@@ -476,9 +485,9 @@ Return ONLY valid JSON:
       "traditionalView": "Traditional view as cost.",
       "economicView": "Economic reframe as value.",
       "metrics": [
-        {"name": "KPI Name", "value": "Number-backed outcome", "trend": "up"},
-        {"name": "KPI Name 2", "value": "Number-backed outcome", "trend": "up"},
-        {"name": "KPI Name 3", "value": "Number-backed outcome", "trend": "down"}
+        {"name": "<≤50c>", "value": "<≤40c>", "detail": "<≤180c>", "trend": "up"},
+        {"name": "<≤50c>", "value": "<≤40c>", "detail": "<≤180c>", "trend": "up"},
+        {"name": "<≤50c>", "value": "<≤40c>", "detail": "<≤180c>", "trend": "down"}
       ]
     }
   ],
@@ -491,7 +500,7 @@ Return ONLY valid JSON:
   ]
 }
 
-Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be real ${industry.name} KPIs. Value generated should show compelling compounding ROI.`;
+All ROI numbers are $M. Metrics must be real ${industry.name} KPIs grounded in the research context above. Value generated should show compelling compounding ROI. If you violate the 40-char "value" cap, the response is invalid.`;
 
     try {
       const controller = new AbortController();
@@ -530,10 +539,17 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
           description: string;
           traditionalView: string;
           economicView: string;
-          metrics: Array<{ name: string; value: string; trend: "up" | "down" | "neutral" }>;
+          metrics: Array<{ name: string; value: string; trend: "up" | "down" | "neutral"; detail?: string }>;
         }>;
         roiData: Array<{ year: string; traditionalCost: number; capabilityCost: number; valueGenerated: number }>;
       };
+
+      const oversizeValues = parsed.capabilities.flatMap(c =>
+        c.metrics.filter(m => !m.value || m.value.length > 40).map(m => `${c.capabilityName} / ${m.name}: "${m.value}" (${m.value?.length ?? 0}c)`)
+      );
+      if (oversizeValues.length > 0) {
+        return JSON.stringify({ success: false, error: `LLM violated value-length contract (≤40c): ${oversizeValues.join("; ")}` });
+      }
 
       await db.delete(caseStudyContentTable).where(eq(caseStudyContentTable.industryId, industry.id));
 
@@ -562,6 +578,7 @@ Trend must be "up", "down", or "neutral". All numbers in $M. Metrics must be rea
     description: "Generate AI-powered case study content (capability descriptions, metrics, 5-year ROI data) for an industry using Perplexity (real industry benchmarks) + Claude (structured output). Stores results in the database for the frontend to display. Call once per research cycle for each featured industry.",
     schema: z.object({
       industrySlug: z.string().describe("Slug of the industry to generate case study content for (e.g. 'insurance')"),
+      force: z.boolean().optional().describe("If true, bypass the staleness check and regenerate even when content is fresh"),
     }),
   },
 );

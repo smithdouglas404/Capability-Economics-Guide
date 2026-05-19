@@ -24,7 +24,7 @@ export const caseStudyContentTable = pgTable("case_study_content", {
   description: text("description").notNull(),
   traditionalView: text("traditional_view").notNull(),
   economicView: text("economic_view").notNull(),
-  metrics: jsonb("metrics").$type<{ name: string; value: string; trend: "up" | "down" | "neutral" }[]>().notNull(),
+  metrics: jsonb("metrics").$type<{ name: string; value: string; trend: "up" | "down" | "neutral"; detail?: string }[]>().notNull(),
   roiData: jsonb("roi_data").$type<{ year: string; traditionalCost: number; capabilityCost: number; valueGenerated: number }[]>(),
   generatedAt: timestamp("generated_at").defaultNow().notNull(),
 });
