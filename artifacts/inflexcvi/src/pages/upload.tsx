@@ -19,9 +19,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "wouter";
 import { useUser, SignInButton } from "@clerk/react";
+import { useCompletion } from "@ai-sdk/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Upload, FileText, Loader2, AlertCircle, CheckCircle2, Sparkles, Download, History } from "lucide-react";
+import { Upload, FileText, Loader2, AlertCircle, CheckCircle2, Sparkles, Download, History, Zap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,37 +81,57 @@ export default function UploadPage() {
     } catch { /* non-fatal */ }
   }, [isSignedIn]);
 
+  // ── Vercel AI SDK streaming (paste-text path) ────────────────────────
+  // useCompletion is the streaming-text equivalent of useChat. We point it
+  // at our /api/upload-analysis/text-stream endpoint, which streams the
+  // composed markdown report token-by-token via the AI SDK protocol. The
+  // `completion` field below is the live, growing string — re-renders on
+  // every chunk so the report appears progressively (ChatGPT-style),
+  // making the SDK's presence visible instead of hiding behind a fake
+  // progress bar.
+  const {
+    completion: streamingReport,
+    complete: streamReport,
+    isLoading: streaming,
+    error: streamError,
+  } = useCompletion({
+    api: "/api/upload-analysis/text-stream",
+    streamProtocol: "text",
+    onFinish: () => { void refreshHistory(); },
+  });
+
   useEffect(() => { void refreshHistory(); }, [refreshHistory]);
 
   const submit = async (): Promise<void> => {
     setError(null);
     setReport(null);
     setReportId(null);
+
+    // ── Paste-text path → streaming via Vercel AI SDK ──────────────
+    // Skips the local progress-bar / fake-tick UX in favor of useCompletion's
+    // live `streamingReport` string. The body chunks render token-by-token
+    // in the report card below as they arrive.
+    if (mode === "paste") {
+      if (pasteText.trim().length < 100) {
+        setError("Paste at least 100 characters.");
+        return;
+      }
+      void streamReport(pasteText, { body: { title: pasteTitle || "Pasted text" } });
+      return;
+    }
+
+    // ── File path → one-shot (multipart isn't streamable cheaply) ──
     setSubmitting(true);
     setProgress(10);
-
-    // Fake-tick the progress bar — the server is one-shot but the user
-    // wants to see motion. Increments every 800ms up to 85% while the
-    // request is in flight; the final 100% comes from the response.
     const interval = setInterval(() => {
       setProgress(p => (p < 85 ? p + 5 : p));
     }, 800);
 
     try {
-      let resp: Response;
-      if (mode === "file") {
-        if (!file) throw new Error("Pick a file first.");
-        const formData = new FormData();
-        formData.append("file", file);
-        resp = await fetch("/api/upload-analysis", { method: "POST", body: formData });
-      } else {
-        if (pasteText.trim().length < 100) throw new Error("Paste at least 100 characters.");
-        resp = await fetch("/api/upload-analysis/text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: pasteText, title: pasteTitle || "Pasted text" }),
-        });
-      }
+      if (!file) throw new Error("Pick a file first.");
+      const formData = new FormData();
+      formData.append("file", file);
+      const resp = await fetch("/api/upload-analysis", { method: "POST", body: formData });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error ?? `HTTP ${resp.status}`);
@@ -263,29 +284,62 @@ export default function UploadPage() {
                 </div>
               )}
 
-              {error && (
+              {(error || streamError) && (
                 <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-3 py-2 rounded text-sm flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+                  <span>{error || streamError?.message}</span>
                 </div>
               )}
 
               <div className="flex items-center justify-between">
-                <p className="text-xs text-muted-foreground">
-                  Analyses use Claude Sonnet (~$0.05 per run). Free tier: {usage?.cap ?? 3}/month.
+                <p className="text-xs text-muted-foreground inline-flex items-center gap-1.5">
+                  <Zap className="w-3 h-3 text-accent" />
+                  Streaming via Vercel AI SDK · Claude Sonnet · Free tier: {usage?.cap ?? 3}/month
                 </p>
                 <Button
                   onClick={submit}
-                  disabled={submitting || (mode === "file" ? !file : pasteText.trim().length < 100)}
+                  disabled={submitting || streaming || (mode === "file" ? !file : pasteText.trim().length < 100)}
                 >
-                  {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                  {submitting || streaming ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
                   Analyze
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          {/* Report */}
+          {/* Live streaming report (paste-text path, Vercel AI SDK useCompletion).
+              Renders the markdown as tokens arrive so the user sees the
+              analysis being written instead of waiting for a single payload. */}
+          {(streaming || streamingReport) && mode === "paste" && (
+            <Card>
+              <CardHeader className="pb-2 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {streaming ? <Loader2 className="w-4 h-4 text-accent animate-spin" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                  <CardTitle className="text-base">
+                    {streaming ? "Writing your analysis…" : "Analysis report"}
+                  </CardTitle>
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+                    <Zap className="w-2.5 h-2.5 mr-0.5" /> Streaming · Vercel AI SDK
+                  </Badge>
+                </div>
+                {!streaming && streamingReport && (
+                  <Button variant="outline" size="sm" onClick={() => downloadFile(`capability-analysis-${new Date().toISOString().slice(0,10)}.md`, streamingReport, "text/markdown;charset=utf-8")}>
+                    <Download className="w-4 h-4 mr-1" /> Download Markdown
+                  </Button>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingReport || ""}</ReactMarkdown>
+                  {streaming && (
+                    <span className="inline-block w-2 h-4 bg-accent animate-pulse ml-1" aria-hidden />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* One-shot file-upload report (non-streaming path). */}
           {report && (
             <Card>
               <CardHeader className="pb-2 flex flex-row items-center justify-between">

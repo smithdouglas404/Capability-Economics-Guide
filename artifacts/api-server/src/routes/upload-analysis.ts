@@ -20,6 +20,8 @@ import {
   extractClaims,
   matchCapabilities,
   composeReport,
+  composeReportStream,
+  buildReportAppendix,
 } from "../services/upload-analysis";
 import { logger } from "../lib/logger";
 
@@ -173,6 +175,96 @@ router.post("/upload-analysis/text", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "[upload-analysis/text] failed");
     res.status(500).json({ error: err instanceof Error ? err.message : "analysis failed" });
+  }
+});
+
+/**
+ * Streaming text variant — runs extract + match synchronously, then streams
+ * the composed Markdown report token-by-token via the Vercel AI SDK's
+ * useCompletion protocol. Frontend renders progressively (ChatGPT-style)
+ * which makes the SDK presence visible instead of hidden behind a fake
+ * progress bar. The static capability-match table is appended after the
+ * model stream finishes — the table is deterministic data, no value in
+ * burning tokens on it.
+ */
+router.post("/upload-analysis/text-stream", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) { res.status(401).json({ error: "Sign in" }); return; }
+
+    // useCompletion sends { prompt, title? } in the body by default.
+    const text = typeof req.body?.prompt === "string" ? req.body.prompt : typeof req.body?.text === "string" ? req.body.text : "";
+    const title = typeof req.body?.title === "string" ? req.body.title.slice(0, 200) : "Pasted text";
+    if (text.trim().length < 100) { res.status(400).json({ error: "Paste at least 100 characters." }); return; }
+
+    const usedThisMonth = await countUploadsThisMonth(auth.userId);
+    if (usedThisMonth >= FREE_TIER_MONTHLY_CAP) {
+      res.status(429).json({ error: `Free tier limit reached (${FREE_TIER_MONTHLY_CAP}/month).` });
+      return;
+    }
+
+    // Insert the row up-front; status flips through extracting/matching/streaming
+    // so the user can refresh /upload-analysis later and see how far it got
+    // even if the connection drops mid-stream.
+    const [inserted] = await db.insert(uploadedAnalysesTable).values({
+      userId: auth.userId,
+      filename: title,
+      fileType: "paste",
+      fileSizeBytes: Buffer.byteLength(text, "utf-8"),
+      extractedText: text.slice(0, 50_000),
+      status: "extracting",
+    }).returning();
+
+    const claims = await extractClaims(text);
+    await db.update(uploadedAnalysesTable).set({
+      claims: [claims] as unknown[],
+      status: "matching",
+    }).where(eq(uploadedAnalysesTable.id, inserted.id));
+
+    const matches = await matchCapabilities(claims.claimedCapabilities, claims.industrySector);
+    await db.update(uploadedAnalysesTable).set({
+      status: "complete",
+    }).where(eq(uploadedAnalysesTable.id, inserted.id));
+
+    // Now stream the markdown body. composeReportStream returns a
+    // StreamTextResult from the Vercel AI SDK. We pipe it directly to
+    // the response using the AI SDK's data-stream protocol — useCompletion
+    // on the client parses it transparently.
+    const stream = composeReportStream({ claims, matches });
+
+    // Append the static table after the model stream ends. We can't
+    // do this inside pipeDataStreamToResponse easily, so we manually
+    // pipe and then write the appendix as a final delta chunk.
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("X-Analysis-Id", String(inserted.id));
+
+    // Stream the text deltas directly — useCompletion accepts plain text
+    // streaming via the `streamProtocol: "text"` option on the client.
+    let composed = "";
+    for await (const chunk of stream.textStream) {
+      composed += chunk;
+      res.write(chunk);
+    }
+    const appendix = "\n\n" + buildReportAppendix(matches);
+    composed += appendix;
+    res.write(appendix);
+    res.end();
+
+    // Persist the final composed report so it appears in the history list
+    // and can be re-rendered on detail navigation.
+    await db.update(uploadedAnalysesTable).set({
+      report: { markdown: composed, matches, claims },
+      completedAt: new Date(),
+    }).where(eq(uploadedAnalysesTable.id, inserted.id));
+  } catch (err) {
+    logger.error({ err }, "[upload-analysis/text-stream] failed");
+    if (!res.headersSent) {
+      res.status(500).json({ error: err instanceof Error ? err.message : "analysis failed" });
+    } else {
+      res.end();
+    }
   }
 });
 

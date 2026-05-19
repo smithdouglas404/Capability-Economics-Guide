@@ -14,6 +14,7 @@
  * three companies racing past you on it."
  */
 import { z } from "zod";
+import { streamText } from "ai";
 import { generateObject, sonnet } from "../services/workflows/models";
 import { db, capabilitiesTable, industriesTable, cviComponentsTable, dvxComponentsTable } from "@workspace/db";
 import { eq, ilike, or, sql } from "drizzle-orm";
@@ -303,5 +304,90 @@ Now write the structured analysis.`,
     }
   }
 
+  return lines.join("\n");
+}
+
+/**
+ * Streaming counterpart of composeReport — returns a StreamTextResult that
+ * the route layer can pipe directly to the HTTP response. The frontend
+ * uses @ai-sdk/react's useCompletion to render the markdown progressively
+ * (tokens appear as they arrive, ChatGPT-style) rather than waiting for
+ * the entire payload.
+ *
+ * Trade-off vs the structured composeReport: we lose schema-enforced
+ * section names (executiveSummary / strongestClaims / etc.) and instead
+ * instruct the model to write the Markdown directly. For a streaming
+ * UX the structural rigidity isn't worth the cost — and the prompt's
+ * required-headings list keeps the output shape consistent in practice.
+ */
+export function composeReportStream(args: {
+  claims: ExtractedClaims;
+  matches: MatchedClaim[];
+}) {
+  const digest = args.matches.map(m => {
+    if (!m.matchedCap) return `- "${m.claim.name}" (claimed ${m.claim.claimedMaturity ?? "unspecified"}) — NO MATCH in our capability graph`;
+    return `- "${m.claim.name}" → ${m.matchedCap.name} [${m.matchType}] · CVI=${m.matchedCap.cviScore?.toFixed(1) ?? "—"} · velocity=${m.matchedCap.cviVelocity?.toFixed(2) ?? "—"} · DVX=${m.matchedCap.dvxScore?.toFixed(1) ?? "—"} (${m.matchedCap.dvxBucket ?? "—"}) · industry=${m.matchedCap.industryName ?? "—"} · stage=${m.matchedCap.valueChainStage ?? "—"}`;
+  }).join("\n");
+
+  // Pre-compose the static appendix (match table) — the model doesn't
+  // need to generate this; we splice it onto the streamed body in the
+  // route handler after the model stream finishes.
+  return streamText({
+    model: sonnet,
+    system: `You write capability-gap analyses for investors and strategists. Output PURE MARKDOWN — no preamble, no code fences. Structure:
+
+# Capability Analysis — {org name or "Untitled"}
+> Industry: {sector} (if known)
+> {one-liner if available}
+
+## Executive summary
+{3-5 sentences. Lead with strengths, end with risk.}
+
+## Strongest claims
+- {bullet — capabilities with high CVI + low DVX from the digest}
+
+## Vulnerable claims
+- {bullet — capabilities flagged with high DVX or low CVI}
+
+## What's missing
+- {bullet — capabilities you'd expect in this industry that the document didn't claim}
+
+## Questions a sophisticated investor would ask
+- {bullet — sharp questions grounded in the capability gaps and DVX flags}
+
+Never invent capabilities not in the digest. Be skeptical but constructive. 4-section minimum, ~500-800 words total.`,
+    prompt: `Document context:
+Organization: ${args.claims.organizationName ?? "Untitled"}
+Industry: ${args.claims.industrySector ?? "unstated"}
+One-liner: ${args.claims.oneLineDescription ?? "—"}
+Competitors named: ${args.claims.competitors.join(", ") || "none"}
+
+Capability claims matched to our graph:
+${digest}
+
+Now write the markdown report.`,
+    temperature: 0.3,
+    maxTokens: 2000,
+  });
+}
+
+/**
+ * Build the static appendix (capability match table) that gets appended
+ * after the streamed body. Exported so the route layer can stitch it
+ * onto the end of the stream.
+ */
+export function buildReportAppendix(matches: MatchedClaim[]): string {
+  const lines: string[] = [];
+  lines.push("");
+  lines.push("## Capability match table");
+  lines.push("| Claimed | Matched | CVI | DVX | Industry | Stage |");
+  lines.push("| --- | --- | --- | --- | --- | --- |");
+  for (const m of matches) {
+    if (!m.matchedCap) {
+      lines.push(`| ${m.claim.name} | — | — | — | — | — |`);
+    } else {
+      lines.push(`| ${m.claim.name} | ${m.matchedCap.name} | ${m.matchedCap.cviScore?.toFixed(1) ?? "—"} | ${m.matchedCap.dvxScore?.toFixed(1) ?? "—"} (${m.matchedCap.dvxBucket ?? "—"}) | ${m.matchedCap.industryName ?? "—"} | ${m.matchedCap.valueChainStage ?? "—"} |`);
+    }
+  }
   return lines.join("\n");
 }
