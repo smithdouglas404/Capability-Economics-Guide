@@ -61,6 +61,8 @@ import MemberPage from "@/pages/member";
 import InboxPage from "@/pages/inbox";
 import AccountProfilePage from "@/pages/account-profile";
 import ForumPage from "@/pages/forum";
+import FeedPage from "@/pages/feed";
+import NetworkPage from "@/pages/network";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
@@ -148,6 +150,8 @@ function Router() {
       <Route path="/account/profile" component={AccountProfilePage} />
       <Route path="/forum/:industrySlug" component={ForumPage} />
       <Route path="/forum/thread/:id" component={ForumPage} />
+      <Route path="/feed" component={FeedPage} />
+      <Route path="/network" component={NetworkPage} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />
