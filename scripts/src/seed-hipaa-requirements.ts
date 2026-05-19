@@ -16,21 +16,12 @@
  *   0 — success (including idempotent no-op)
  *   1 — DB connection error or HIPAA row missing
  */
-import { db, regulationsTable, capabilitiesTable, regulationCapabilityRequirementsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-
-interface RequirementMap {
-  capabilitySlug: string;
-  requiredMaturity: number; // 0-100; what consensusScore the capability must hit
-  priority: "required" | "recommended" | "optional";
-  article: string;
-  evidenceNotes: string;
-}
+import { proposeRequirements, type RequirementSeed } from "./lib/propose-requirements";
 
 // Curated against the 54 Healthcare capabilities live in prod 2026-05-19.
 // Each maps the dominant HIPAA control family the capability satisfies.
 // Higher requiredMaturity = stricter threshold (compliance fails below it).
-const REQUIREMENTS: RequirementMap[] = [
+const REQUIREMENTS: RequirementSeed[] = [
   // ── Privacy Rule (45 CFR 164.502–164.534) ──
   {
     capabilitySlug: "privacy-consent-data-access-control-modw0ycl-bd",
@@ -135,65 +126,12 @@ const REQUIREMENTS: RequirementMap[] = [
   },
 ];
 
-async function main(): Promise<void> {
-  const [hipaa] = await db.select().from(regulationsTable).where(eq(regulationsTable.shortCode, "HIPAA"));
-  if (!hipaa) {
-    console.error("[seed:hipaa-reqs] FATAL: HIPAA regulation row not found. Run `pnpm run seed:regulations` first.");
-    process.exit(1);
-  }
-  console.log(`[seed:hipaa-reqs] HIPAA id=${hipaa.id}`);
-
-  let inserted = 0, updated = 0, skipped = 0, missing = 0;
-
-  for (const req of REQUIREMENTS) {
-    const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.slug, req.capabilitySlug));
-    if (!cap) {
-      console.warn(`[seed:hipaa-reqs] ⚠ capability not found: ${req.capabilitySlug} — skipping`);
-      missing++;
-      continue;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(regulationCapabilityRequirementsTable)
-      .where(
-        and(
-          eq(regulationCapabilityRequirementsTable.regulationId, hipaa.id),
-          eq(regulationCapabilityRequirementsTable.capabilityId, cap.id),
-        ),
-      );
-
-    if (existing) {
-      // Idempotent upsert — refresh fields, don't duplicate.
-      await db
-        .update(regulationCapabilityRequirementsTable)
-        .set({
-          requiredMaturity: req.requiredMaturity,
-          priority: req.priority,
-          article: req.article,
-          evidenceNotes: req.evidenceNotes,
-        })
-        .where(eq(regulationCapabilityRequirementsTable.id, existing.id));
-      updated++;
-      console.log(`[seed:hipaa-reqs] updated ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    } else {
-      await db.insert(regulationCapabilityRequirementsTable).values({
-        regulationId: hipaa.id,
-        capabilityId: cap.id,
-        requiredMaturity: req.requiredMaturity,
-        priority: req.priority,
-        article: req.article,
-        evidenceNotes: req.evidenceNotes,
-      });
-      inserted++;
-      console.log(`[seed:hipaa-reqs] inserted ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    }
-  }
-
-  console.log(`\n[seed:hipaa-reqs] done — inserted=${inserted} updated=${updated} skipped=${skipped} missing-caps=${missing}`);
-}
-
-main()
+proposeRequirements({
+  regulationShortCode: "HIPAA",
+  proposedBy: "seed:hipaa-requirements",
+  logLabel: "seed:hipaa-reqs",
+  requirements: REQUIREMENTS,
+})
   .then(() => process.exit(0))
   .catch(err => {
     console.error("[seed:hipaa-reqs] fatal:", err);

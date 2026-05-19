@@ -48,6 +48,7 @@ import membershipRouter from "./membership";
 import macroEventsRouter from "./macro-events";
 import companiesRouter from "./companies";
 import usageRouter from "./usage";
+import reviewQueueRouter from "./review-queue";
 import simulationRouter from "./simulation";
 import warRoomRouter from "./war-room";
 import tradeSignalsRouter from "./trade-signals";
@@ -142,6 +143,10 @@ router.use(exportsRouter);
 // apiVolumeRouter mounts BEFORE adminRouter — uses its own per-route requireAdmin
 // rather than the catch-all so the route key spelling stays consistent.
 router.use(apiVolumeRouter);
+// reviewQueueRouter mounts BEFORE adminRouter — uses its own per-route
+// requireReviewer rather than the catch-all requireAdmin. Approve/reject
+// of regulation + requirement proposals (the seed → review-queue cutover).
+router.use(reviewQueueRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
 router.use(backtestRouter);

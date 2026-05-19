@@ -39,6 +39,7 @@ export * from "./companies";
 export * from "./products";
 export * from "./llm-usage";
 export * from "./innovation";
+export * from "./review-queue";
 export * from "./kyc";
 export * from "./audit-log";
 export * from "./api-keys";

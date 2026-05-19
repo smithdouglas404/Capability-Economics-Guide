@@ -31,18 +31,9 @@
  *   0 — success (incl. idempotent no-op)
  *   1 — DB connection error or SOX row missing
  */
-import { db, regulationsTable, capabilitiesTable, regulationCapabilityRequirementsTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { proposeRequirements, type RequirementSeed } from "./lib/propose-requirements";
 
-interface RequirementMap {
-  capabilitySlug: string;
-  requiredMaturity: number;
-  priority: "required" | "recommended" | "optional";
-  article: string;
-  evidenceNotes: string;
-}
-
-const REQUIREMENTS: RequirementMap[] = [
+const REQUIREMENTS: RequirementSeed[] = [
   // ── Insurance (industry 1) ──
   {
     capabilitySlug: "regulatory-compliance-reporting-modvylw9-ow",
@@ -166,64 +157,12 @@ const REQUIREMENTS: RequirementMap[] = [
   },
 ];
 
-async function main(): Promise<void> {
-  const [sox] = await db.select().from(regulationsTable).where(eq(regulationsTable.shortCode, "SOX"));
-  if (!sox) {
-    console.error("[seed:sox-reqs] FATAL: SOX regulation row not found. Run `pnpm run seed:regulations` first.");
-    process.exit(1);
-  }
-  console.log(`[seed:sox-reqs] SOX id=${sox.id}`);
-
-  let inserted = 0, updated = 0, missing = 0;
-
-  for (const req of REQUIREMENTS) {
-    const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.slug, req.capabilitySlug));
-    if (!cap) {
-      console.warn(`[seed:sox-reqs] ⚠ capability not found: ${req.capabilitySlug} — skipping`);
-      missing++;
-      continue;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(regulationCapabilityRequirementsTable)
-      .where(
-        and(
-          eq(regulationCapabilityRequirementsTable.regulationId, sox.id),
-          eq(regulationCapabilityRequirementsTable.capabilityId, cap.id),
-        ),
-      );
-
-    if (existing) {
-      await db
-        .update(regulationCapabilityRequirementsTable)
-        .set({
-          requiredMaturity: req.requiredMaturity,
-          priority: req.priority,
-          article: req.article,
-          evidenceNotes: req.evidenceNotes,
-        })
-        .where(eq(regulationCapabilityRequirementsTable.id, existing.id));
-      updated++;
-      console.log(`[seed:sox-reqs] updated ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    } else {
-      await db.insert(regulationCapabilityRequirementsTable).values({
-        regulationId: sox.id,
-        capabilityId: cap.id,
-        requiredMaturity: req.requiredMaturity,
-        priority: req.priority,
-        article: req.article,
-        evidenceNotes: req.evidenceNotes,
-      });
-      inserted++;
-      console.log(`[seed:sox-reqs] inserted ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    }
-  }
-
-  console.log(`\n[seed:sox-reqs] done — inserted=${inserted} updated=${updated} missing-caps=${missing}`);
-}
-
-main()
+proposeRequirements({
+  regulationShortCode: "SOX",
+  proposedBy: "seed:sox-requirements",
+  logLabel: "seed:sox-reqs",
+  requirements: REQUIREMENTS,
+})
   .then(() => process.exit(0))
   .catch(err => {
     console.error("[seed:sox-reqs] fatal:", err);

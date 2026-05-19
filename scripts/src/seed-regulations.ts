@@ -1,21 +1,29 @@
 /**
- * One-shot seed for the regulations table — bulk-inserts ~15 well-known
- * regulations across the 6 industries so the /regulations page shows
- * something on first visit rather than a single GDPR row.
+ * Regulation PROPOSALS — writes to regulations_proposed for admin review.
  *
- * Idempotent: skips any regulation whose shortCode already exists. Re-run
- * safely. Pass FORCE=1 to overwrite existing rows.
+ * Cutover 2026-05-19: previously this script wrote directly into the live
+ * regulations table. That baked content decisions into a script that
+ * nobody re-validates. Now it writes proposals into the review queue;
+ * an admin approves at /admin/review-queue.
  *
- * Industry IDs are looked up by slug at runtime — no hardcoded FK numbers.
+ * Existing live rows (the 18 currently in regulations) are untouched.
+ * Re-running this script is idempotent against the proposed table on
+ * (shortCode, proposedBy) — re-runs refresh proposal content without
+ * duplicating rows.
+ *
+ * Each proposal carries provenance: proposedBy='seed:regulations',
+ * verificationNotes describing why it was proposed, sourceCitation
+ * pointing at the regulatory body where applicable.
  *
  * Exit codes:
- *   0 — success (including idempotent no-op when everything already exists)
+ *   0 — success (incl. idempotent no-op)
  *   1 — only on DB connection / catastrophic errors
  */
-import { db, regulationsTable, industriesTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, regulationsProposedTable, industriesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
 
 const FORCE = process.env.FORCE === "1" || process.env.FORCE === "true";
+const PROPOSED_BY = "seed:regulations";
 
 interface RegSeed {
   shortCode: string;
@@ -171,10 +179,14 @@ async function main(): Promise<void> {
   const slugToId = new Map<string, number>();
   for (const i of allIndustries) slugToId.set(i.slug, i.id);
 
-  const existing = await db.select({ shortCode: regulationsTable.shortCode }).from(regulationsTable);
-  const existingCodes = new Set(existing.map(r => r.shortCode));
+  // Existing PROPOSALS from this seeder (we own the proposedBy='seed:regulations'
+  // namespace — uniqueness is on (shortCode, proposedBy))
+  const existingProposals = await db.select()
+    .from(regulationsProposedTable)
+    .where(eq(regulationsProposedTable.proposedBy, PROPOSED_BY));
+  const proposalsByShortCode = new Map(existingProposals.map(p => [p.shortCode, p]));
 
-  let inserted = 0, updated = 0, skipped = 0;
+  let proposed = 0, refreshed = 0, alreadyApproved = 0;
 
   for (const reg of SEED) {
     const industries = reg.industrySlugs
@@ -182,42 +194,49 @@ async function main(): Promise<void> {
       .filter((id): id is number => typeof id === "number");
 
     if (industries.length === 0) {
-      console.warn(`[seed:regulations] ${reg.shortCode} — no matching industries (${reg.industrySlugs.join(", ")}); inserting with empty array`);
+      console.warn(`[seed:regulations] ${reg.shortCode} — no matching industries (${reg.industrySlugs.join(", ")}); proposing with empty array`);
     }
 
-    if (existingCodes.has(reg.shortCode)) {
-      if (FORCE) {
-        await db.update(regulationsTable)
-          .set({
-            name: reg.name,
-            description: reg.description,
-            jurisdiction: reg.jurisdiction,
-            effectiveDate: reg.effectiveDate,
-            industries,
-          })
-          .where(eq(regulationsTable.shortCode, reg.shortCode));
-        updated++;
-        console.log(`[seed:regulations] FORCE updated ${reg.shortCode}`);
-      } else {
-        skipped++;
-        console.log(`[seed:regulations] ${reg.shortCode} already exists — skipping (set FORCE=1 to overwrite)`);
+    const existing = proposalsByShortCode.get(reg.shortCode);
+    if (existing) {
+      // Don't re-propose if already approved/rejected — respect the reviewer
+      if (existing.reviewStatus === "approved") {
+        alreadyApproved++;
+        continue;
       }
+      if (existing.reviewStatus === "rejected" && !FORCE) {
+        console.log(`[seed:regulations] ${reg.shortCode} previously rejected — skip (set FORCE=1 to re-propose)`);
+        continue;
+      }
+      // Pending or needs-edit: refresh the content but keep the proposal id
+      await db.update(regulationsProposedTable).set({
+        name: reg.name,
+        description: reg.description,
+        jurisdiction: reg.jurisdiction,
+        effectiveDate: reg.effectiveDate,
+        industries,
+        verificationNotes: `Updated by ${PROPOSED_BY} on ${new Date().toISOString()}`,
+      }).where(eq(regulationsProposedTable.id, existing.id));
+      refreshed++;
       continue;
     }
 
-    await db.insert(regulationsTable).values({
+    await db.insert(regulationsProposedTable).values({
       name: reg.name,
       shortCode: reg.shortCode,
       description: reg.description,
       jurisdiction: reg.jurisdiction,
       effectiveDate: reg.effectiveDate,
       industries,
+      proposedBy: PROPOSED_BY,
+      verificationNotes: `Well-known regulation, content seeded from the starter pack. Admin to verify scope + current jurisdiction.`,
     });
-    inserted++;
-    console.log(`[seed:regulations] inserted ${reg.shortCode} (${industries.length} industries)`);
+    proposed++;
+    console.log(`[seed:regulations] proposed ${reg.shortCode} → review queue (${industries.length} industries)`);
   }
 
-  console.log(`\n[seed:regulations] done — inserted=${inserted} updated=${updated} skipped=${skipped}`);
+  console.log(`\n[seed:regulations] done — proposed=${proposed} refreshed=${refreshed} already-approved=${alreadyApproved}`);
+  console.log(`[seed:regulations] Review at /admin/review-queue`);
 }
 
 main()

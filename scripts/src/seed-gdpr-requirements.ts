@@ -21,21 +21,14 @@
  *   0 — success (incl. idempotent no-op)
  *   1 — DB connection error or GDPR row missing
  */
-import { db, regulationsTable, capabilitiesTable, regulationCapabilityRequirementsTable, industriesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-
-interface RequirementMap {
-  capabilitySlug: string;
-  requiredMaturity: number;
-  priority: "required" | "recommended" | "optional";
-  article: string;
-  evidenceNotes: string;
-}
+import { db, regulationsTable, industriesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
+import { proposeRequirements, type RequirementSeed } from "./lib/propose-requirements";
 
 // One or two strong-fit caps per industry. GDPR applies broadly; this
 // captures the dominant data-protection capability in each sector
 // rather than mapping every loosely-related cap.
-const REQUIREMENTS: RequirementMap[] = [
+const REQUIREMENTS: RequirementSeed[] = [
   // ── Insurance (industry 1) ──
   {
     capabilitySlug: "consumer-data-privacy-security-modvz7y6-9q",
@@ -137,14 +130,16 @@ const REQUIREMENTS: RequirementMap[] = [
 ];
 
 async function main(): Promise<void> {
+  // Step 1: GDPR row's industries[] backfill (in-place LIVE update — this
+  // is a metadata correction, not new content, so it bypasses the review
+  // queue. The original row was created with industries=[] which is
+  // factually wrong, not a curation choice. If we made this a proposal
+  // it'd block all GDPR requirement reviews until approved.)
   const [gdpr] = await db.select().from(regulationsTable).where(eq(regulationsTable.shortCode, "GDPR"));
   if (!gdpr) {
-    console.error("[seed:gdpr-reqs] FATAL: GDPR regulation row not found. Run `pnpm run seed:regulations` first.");
+    console.error("[seed:gdpr-reqs] FATAL: GDPR regulation row not found. Approve its proposal first.");
     process.exit(1);
   }
-  console.log(`[seed:gdpr-reqs] GDPR id=${gdpr.id}, current industries=${JSON.stringify(gdpr.industries)}`);
-
-  // Step 1: ensure GDPR's industries[] covers all 6.
   const allIndustries = await db.select().from(industriesTable);
   const allIds = allIndustries.map(i => i.id).sort((a, b) => a - b);
   const currentIds = (gdpr.industries ?? []).slice().sort((a, b) => a - b);
@@ -153,8 +148,6 @@ async function main(): Promise<void> {
     await db.update(regulationsTable)
       .set({
         industries: allIds,
-        // Backfill the placeholder name/description from the initial seed if
-        // they're still the trivial "GDPR" placeholder.
         name: gdpr.name === "GDPR" ? "General Data Protection Regulation" : gdpr.name,
         description: gdpr.description === "GDPR" || !gdpr.description
           ? "EU regulation (2016/679) governing personal-data processing of EU residents. Establishes lawful bases, data subject rights (access, erasure, portability, restriction, objection), privacy by design, breach notification (72h), DPIAs for high-risk processing, and extraterritorial application."
@@ -163,58 +156,16 @@ async function main(): Promise<void> {
         effectiveDate: gdpr.effectiveDate ?? new Date("2018-05-25"),
       })
       .where(eq(regulationsTable.id, gdpr.id));
-    console.log(`[seed:gdpr-reqs] updated GDPR row — industries now ${JSON.stringify(allIds)}, name/desc/jurisdiction/effectiveDate normalized`);
-  } else {
-    console.log(`[seed:gdpr-reqs] GDPR industries already cover all 6 — skipping row update`);
+    console.log(`[seed:gdpr-reqs] backfilled GDPR row — industries=${JSON.stringify(allIds)}, name/desc/jurisdiction normalized`);
   }
 
-  // Step 2: requirement mappings.
-  let inserted = 0, updated = 0, missing = 0;
-  for (const req of REQUIREMENTS) {
-    const [cap] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.slug, req.capabilitySlug));
-    if (!cap) {
-      console.warn(`[seed:gdpr-reqs] ⚠ capability not found: ${req.capabilitySlug} — skipping`);
-      missing++;
-      continue;
-    }
-
-    const [existing] = await db
-      .select()
-      .from(regulationCapabilityRequirementsTable)
-      .where(
-        and(
-          eq(regulationCapabilityRequirementsTable.regulationId, gdpr.id),
-          eq(regulationCapabilityRequirementsTable.capabilityId, cap.id),
-        ),
-      );
-
-    if (existing) {
-      await db
-        .update(regulationCapabilityRequirementsTable)
-        .set({
-          requiredMaturity: req.requiredMaturity,
-          priority: req.priority,
-          article: req.article,
-          evidenceNotes: req.evidenceNotes,
-        })
-        .where(eq(regulationCapabilityRequirementsTable.id, existing.id));
-      updated++;
-      console.log(`[seed:gdpr-reqs] updated ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    } else {
-      await db.insert(regulationCapabilityRequirementsTable).values({
-        regulationId: gdpr.id,
-        capabilityId: cap.id,
-        requiredMaturity: req.requiredMaturity,
-        priority: req.priority,
-        article: req.article,
-        evidenceNotes: req.evidenceNotes,
-      });
-      inserted++;
-      console.log(`[seed:gdpr-reqs] inserted ${cap.slug} → ${req.priority} @ ${req.requiredMaturity}`);
-    }
-  }
-
-  console.log(`\n[seed:gdpr-reqs] done — inserted=${inserted} updated=${updated} missing-caps=${missing}`);
+  // Step 2: requirement mappings → review queue.
+  await proposeRequirements({
+    regulationShortCode: "GDPR",
+    proposedBy: "seed:gdpr-requirements",
+    logLabel: "seed:gdpr-reqs",
+    requirements: REQUIREMENTS,
+  });
 }
 
 main()
