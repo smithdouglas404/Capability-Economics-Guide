@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { DegradedServiceBanner } from "@/components/degraded-banner";
 import { VoiceAdvisor } from "@/components/voice-advisor";
 import { MobileNotice } from "@/components/mobile";
+import { AITourGuide } from "@/components/ai-tour-guide";
 
 // Pages explicitly tuned for mobile. Everything else gets the
 // "best on desktop" notice on small screens.
@@ -595,6 +596,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </footer>
       {hasAccess && <VoiceAdvisor />}
+      <AITourGuide />
     </div>
   );
 }

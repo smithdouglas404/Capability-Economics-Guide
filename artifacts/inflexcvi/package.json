@@ -2,6 +2,7 @@
   "name": "@workspace/inflexcvi",
   "version": "0.0.0",
   "dependencies": {
+    "@ai-sdk/react": "^1.2.12",
     "@clerk/react": "^6.4.1",
     "d3": "^7.9.0",
     "react-markdown": "^10.1.0"
