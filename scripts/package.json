@@ -33,6 +33,7 @@
     "seed:economic-rules": "tsx ./src/seed-economic-rules.ts",
     "seed:disruption-patterns": "tsx ./src/seed-disruption-patterns.ts",
     "seed:disruption-events": "tsx ./src/seed-disruption-events.ts",
+    "seed:regulations": "tsx ./src/seed-regulations.ts",
     "cei:replay-history": "tsx ./src/replay-cei-history.ts",
     "generate:case-studies": "tsx ./src/generate-case-studies.ts",
     "init:hedera-topic": "tsx ./src/init-hedera-topic.ts",

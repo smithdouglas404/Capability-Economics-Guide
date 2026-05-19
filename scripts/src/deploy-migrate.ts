@@ -206,6 +206,7 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "DVX disruption patterns", script: "seed:disruption-patterns" },
   { name: "disruption events catalog", script: "seed:disruption-events" },
   { name: "economic rules (Letta block source)", script: "seed:economic-rules" },
+  { name: "regulations starter pack (17 well-known frameworks)", script: "seed:regulations" },
 ];
 
 async function runSeeds(): Promise<void> {
