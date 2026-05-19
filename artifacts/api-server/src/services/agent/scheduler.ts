@@ -30,8 +30,9 @@ import { runEdgarRssTick } from "../edgar/rss-watcher";
 import { detectCviSignalEvents } from "../cvi-signals/detector";
 import { attributeSignalOutcomes } from "../cvi-signals/attribution";
 import { runEnrichmentGraph } from "../enrichment/graph";
+import { ingestExternalSignalsForIndustry } from "../external-signals";
 import { db } from "@workspace/db";
-import { cviComponentsTable, cviSnapshotsTable, enrichmentConfigTable, capabilitiesTable, capabilityAlphaTable } from "@workspace/db";
+import { cviComponentsTable, cviSnapshotsTable, enrichmentConfigTable, capabilitiesTable, capabilityAlphaTable, industriesTable } from "@workspace/db";
 import { desc, eq, or, isNull, lt } from "drizzle-orm";
 
 // Routine cadence is read from agent_tuning each tick — the only fixed
@@ -65,6 +66,14 @@ const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // BullMQ-based auto-enrich tick that was removed in Task #22 but whose UI
 // surface (enrichment_config.lastRunAt/lastRunEnqueued) was left in place.
 const AUTO_ENRICH_INTERVAL_MS = 60 * 60 * 1000;
+// External signals (patent_count_5y, vc_capital_usd_5y, startup_count_5y) are
+// scraped per capability from Perplexity and rolled up by the value-chain
+// stage profile view. The underlying writer (`ingestExternalSignalsForIndustry`)
+// already enforces a 30-day staleness window per capability — meaning a weekly
+// tick is mostly a no-op once a freshness pass has run, and never spams
+// Perplexity. Weekly cadence chosen because patent / VC / startup signals
+// change on monthly-to-quarterly timescales, not daily.
+const EXTERNAL_SIGNALS_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // Mem0 staleness sweep: deletes memories whose metadata.expiresAt has
 // passed. Without this, pgvector grows unbounded and stale observations
 // pollute semantic search. Runs daily.
@@ -116,6 +125,8 @@ let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let autoEnrichTimer: ReturnType<typeof setInterval> | null = null;
 let isAutoEnriching = false;
+let externalSignalsTimer: ReturnType<typeof setInterval> | null = null;
+let isIngestingExternalSignals = false;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
 let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
@@ -506,6 +517,55 @@ async function autoEnrichTick(): Promise<void> {
 }
 
 /**
+ * External-signals tick — for every industry, refresh per-capability
+ * patent_count_5y / vc_capital_usd_5y / startup_count_5y via Perplexity.
+ * `ingestExternalSignalsForIndustry` already filters to caps whose
+ * externalSignalsUpdatedAt is missing or > 30 days stale, so once the
+ * first pass completes a weekly tick is mostly idle. Each Perplexity call
+ * is gated by PERPLEXITY_API_KEY; absent key → ingester reports the error
+ * and we just log it without failing the tick.
+ *
+ * Guarded by isIngestingExternalSignals so a long-running pass (lots of
+ * stale caps after a cold start) doesn't overlap with the next weekly fire.
+ */
+async function externalSignalsTick(): Promise<void> {
+  if (isIngestingExternalSignals) {
+    console.log("[ExternalSignals] tick skipped — previous tick still in progress");
+    return;
+  }
+  if (await isSchedulerDisabledRuntime("externalSignals")) {
+    console.log("[ExternalSignals] tick skipped — disabled via scheduler_kill_switches");
+    return;
+  }
+  isIngestingExternalSignals = true;
+  try {
+    const industries = await db.select({ id: industriesTable.id, name: industriesTable.name }).from(industriesTable);
+    let totalScanned = 0;
+    let totalSucceeded = 0;
+    let industriesWithErrors = 0;
+    for (const ind of industries) {
+      try {
+        const r = await ingestExternalSignalsForIndustry(ind.id, { concurrency: 3, staleDays: 30 });
+        totalScanned += r.scanned;
+        totalSucceeded += r.succeeded;
+        if (r.errors.length > 0) industriesWithErrors++;
+        if (r.scanned > 0) {
+          console.log(`[ExternalSignals] industry ${ind.name}: scanned=${r.scanned} succeeded=${r.succeeded} errors=${r.errors.length}`);
+        }
+      } catch (err) {
+        industriesWithErrors++;
+        console.warn(`[ExternalSignals] industry ${ind.name} failed:`, err instanceof Error ? err.message : err);
+      }
+    }
+    console.log(`[ExternalSignals] tick complete — industries=${industries.length} scanned=${totalScanned} succeeded=${totalSucceeded} industriesWithErrors=${industriesWithErrors}`);
+  } catch (err) {
+    console.warn("[ExternalSignals] tick failed:", err);
+  } finally {
+    isIngestingExternalSignals = false;
+  }
+}
+
+/**
  * Bot loop tick: wake all active bots, run any actions due per persona
  * cadence, enforce budget caps. Guarded by isBotTicking so a slow tick
  * doesn't overlap with the next hourly fire.
@@ -646,6 +706,13 @@ export function startScheduler(): void {
   // Kick once on boot so a recently-deployed instance picks up any backlog
   // without waiting an hour. Runs in the background — does NOT block startup.
   sched("autoEnrich",       () => { setTimeout(() => autoEnrichTick(), 60_000); });
+  sched("externalSignals",  () => { externalSignalsTimer = setInterval(() => externalSignalsTick(),          EXTERNAL_SIGNALS_INTERVAL_MS); });
+  // Boot kickoff: 8 min after start (after autoEnrich at 60s and others have
+  // settled). Big upfront workload (one Perplexity call per stale cap × N
+  // industries) but the ingester runs ≤3 concurrent and skips fresh caps,
+  // so even a cold start finishes in minutes. Subsequent weekly fires are
+  // mostly no-ops thanks to the 30-day staleness filter.
+  sched("externalSignals",  () => { setTimeout(() => externalSignalsTick(), 8 * 60 * 1000); });
   sched("mem0Prune", () => {
     mem0PruneTimer = setInterval(() => {
       mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
@@ -839,6 +906,7 @@ export function stopScheduler(): void {
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (cviSignalsTimer) { clearInterval(cviSignalsTimer); cviSignalsTimer = null; }
   if (autoEnrichTimer) { clearInterval(autoEnrichTimer); autoEnrichTimer = null; }
+  if (externalSignalsTimer) { clearInterval(externalSignalsTimer); externalSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   // optimizerTimer removed with the optimizer module
   if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }
