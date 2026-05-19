@@ -213,11 +213,11 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 
   const dropped: Array<{ name: string; reason: string }> = [];
   for (const item of parsed) {
-    let cap = capMap.get(item.name?.toLowerCase());
+    const exactCap = capMap.get(item.name?.toLowerCase());
+    const cap = exactCap ?? fuzzyMatch(item.name);
     if (!cap) {
-      const fuzzy = fuzzyMatch(item.name);
-      if (fuzzy) cap = fuzzy;
-      else { dropped.push({ name: item.name, reason: "no exact or fuzzy match" }); continue; }
+      dropped.push({ name: item.name, reason: "no exact or fuzzy match" });
+      continue;
     }
     if (!["hot", "emerging", "cooling", "table_stakes"].includes(item.quadrant)) {
       errors.push(`Skipping ${item.name}: invalid quadrant "${item.quadrant}"`);
