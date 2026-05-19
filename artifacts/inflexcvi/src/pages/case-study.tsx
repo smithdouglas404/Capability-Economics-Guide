@@ -9,8 +9,32 @@ import {
   ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, Line, ComposedChart,
 } from "recharts";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 const API_BASE = "/api";
+
+function splitMetricValue(value: string): { headline: string; detail: string | null } {
+  const trimmed = value.trim();
+  const parenIdx = trimmed.search(/\s\(/);
+  if (parenIdx > 0 && parenIdx <= 90) {
+    return {
+      headline: trimmed.slice(0, parenIdx).trim().replace(/[.,;:]$/, ""),
+      detail: trimmed.slice(parenIdx + 1).trim().replace(/\)\s*$/, ""),
+    };
+  }
+  const dashMatch = trimmed.match(/^(.{6,90}?)\s[—–-]\s(.+)$/);
+  if (dashMatch) {
+    return { headline: dashMatch[1].trim(), detail: dashMatch[2].trim() };
+  }
+  const sentMatch = trimmed.match(/^(.{6,90}?[.!?])\s+(.+)$/);
+  if (sentMatch) {
+    return { headline: sentMatch[1].trim().replace(/[.!?]$/, ""), detail: sentMatch[2].trim() };
+  }
+  if (trimmed.length > 90) {
+    return { headline: trimmed.slice(0, 80).trim().replace(/[.,;:]$/, "") + "…", detail: trimmed };
+  }
+  return { headline: trimmed, detail: null };
+}
 
 const fade = {
   hidden: { opacity: 0, y: 16 },
@@ -122,7 +146,7 @@ export default function CaseStudy() {
           >
             <div className="inline-flex items-center gap-2 mb-6">
               <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">Case Study — Industry Briefing</span>
+              <span className="font-mono text-[13px] uppercase tracking-[0.28em] text-muted-foreground">Case Study — Industry Briefing</span>
             </div>
             <h1 className="font-serif text-5xl md:text-7xl lg:text-[5.5rem] leading-[0.95] tracking-tight max-w-5xl">
               {industryName}
@@ -201,13 +225,13 @@ export default function CaseStudy() {
 
                     <div className="space-y-4">
                       <div>
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground mb-1.5">
                           Traditional view
                         </div>
                         <p className="text-base text-foreground/75 leading-relaxed">{cap.traditionalView}</p>
                       </div>
                       <div className="pl-4 border-l-2 border-accent">
-                        <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1.5">
+                        <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent mb-1.5">
                           Economic view
                         </div>
                         <p className="text-base text-foreground leading-relaxed">{cap.economicView}</p>
@@ -216,19 +240,32 @@ export default function CaseStudy() {
                   </div>
 
                     <div>
-                    <h4 className="font-serif text-xl lg:text-2xl text-foreground mb-6">Economic impact measured</h4>
-                    <dl className="grid lg:grid-cols-3 gap-x-6 gap-y-6">
-                      {cap.metrics.map((metric, idx) => (
-                        <div key={idx} className={idx > 0 ? "lg:border-l lg:border-border/40 lg:pl-6" : ""}>
-                          <div className="flex items-center gap-2 mb-2">
-                            <TrendArrow trend={metric.trend} />
-                            <span className="font-serif text-lg lg:text-xl text-foreground leading-snug">{metric.name}</span>
+                    <h4 className="font-serif text-lg lg:text-xl text-foreground mb-6">Economic impact measured</h4>
+                    <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-8">
+                      {cap.metrics.map((metric, idx) => {
+                        const { headline, detail } = splitMetricValue(metric.value);
+                        const cell = (
+                          <div className={`${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-6" : ""} ${detail ? "cursor-help" : ""}`}>
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <TrendArrow trend={metric.trend} />
+                              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground leading-snug">{metric.name}</span>
+                            </div>
+                            <dd className="font-serif text-xl lg:text-2xl text-foreground leading-tight tracking-tight">
+                              {headline}
+                            </dd>
                           </div>
-                          <dd className="text-base text-foreground/80 leading-relaxed">
-                            {metric.value}
-                          </dd>
-                        </div>
-                      ))}
+                        );
+                        if (!detail) return <div key={idx}>{cell}</div>;
+                        return (
+                          <HoverCard key={idx} openDelay={120} closeDelay={80}>
+                            <HoverCardTrigger asChild>{cell}</HoverCardTrigger>
+                            <HoverCardContent align="start" className="w-80">
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">{metric.name}</div>
+                              <p className="text-sm text-foreground/85 leading-relaxed">{detail}</p>
+                            </HoverCardContent>
+                          </HoverCard>
+                        );
+                      })}
                     </dl>
                   </div>
                 </motion.article>
