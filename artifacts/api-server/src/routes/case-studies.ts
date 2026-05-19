@@ -13,6 +13,7 @@ import { and, asc, eq, desc, ne, or, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
+import { logLlmCall } from "../services/llm-usage";
 import { logger } from "../lib/logger";
 import { runCaseStudyGenerator } from "../services/workflows";
 import { sonnet, generateObject } from "../services/workflows/models";
@@ -384,6 +385,7 @@ router.post("/case-studies/generate", requireAdmin, async (req, res) => {
 
   let researchContent = "";
   let citations: string[] = [];
+  const _pStartedAt = Date.now();
   try {
     const pResp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -399,11 +401,15 @@ router.post("/case-studies/generate", requireAdmin, async (req, res) => {
         ],
       }),
     });
-    if (!pResp.ok) throw new Error(`Perplexity ${pResp.status}`);
+    if (!pResp.ok) {
+      logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "case-studies.generate", startedAt: _pStartedAt, httpStatus: pResp.status, errorMessage: `HTTP ${pResp.status}` });
+      throw new Error(`Perplexity ${pResp.status}`);
+    }
     const pData = (await pResp.json()) as {
       choices: Array<{ message: { content: string } }>;
       citations?: string[];
     };
+    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "case-studies.generate", startedAt: _pStartedAt, httpStatus: pResp.status, responseJson: pData });
     researchContent = pData.choices[0]?.message?.content ?? "";
     citations = pData.citations ?? [];
   } catch (err) {

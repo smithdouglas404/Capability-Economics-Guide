@@ -25,6 +25,7 @@ import {
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { z } from "zod";
 import { haiku, generateObject, NoObjectGeneratedError } from "../services/workflows/models";
+import { logLlmCall } from "../services/llm-usage";
 
 const InsightsSchema = z.object({
   insights: z.array(z.object({
@@ -350,6 +351,7 @@ router.post("/research", requireAdmin, async (req, res) => {
 
   try {
     const contextLine = contextParts.length > 0 ? `\nContext: ${contextParts.join(", ")}` : "";
+    const startedAt = Date.now();
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
@@ -378,10 +380,12 @@ Base answers on real reports from Gartner, McKinsey, Forrester, Deloitte, Accent
     });
 
     if (!resp.ok) {
+      logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "insights.research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
       throw new Error(`Perplexity API error: ${resp.status}`);
     }
 
     const data = (await resp.json()) as { choices: Array<{ message: { content: string } }>; citations: string[] };
+    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "insights.research", startedAt, httpStatus: resp.status, responseJson: data });
     const rawAnalysis = data.choices[0]?.message?.content ?? "";
     const citations = data.citations ?? [];
 

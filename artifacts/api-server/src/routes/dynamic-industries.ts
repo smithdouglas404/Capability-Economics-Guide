@@ -14,6 +14,7 @@ import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { runIndustryBootstrap } from "../services/workflows";
 import { sonnet, generateObject } from "../services/workflows/models";
+import { logLlmCall } from "../services/llm-usage";
 
 const CapabilitySchema = z.object({
   name: z.string().min(2).max(40),
@@ -59,6 +60,7 @@ function slugify(s: string): string {
 async function callPerplexity(query: string): Promise<{ content: string; citations: string[] }> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY missing");
+  const startedAt = Date.now();
   const resp = await fetch("https://api.perplexity.ai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -70,8 +72,12 @@ async function callPerplexity(query: string): Promise<{ content: string; citatio
       ],
     }),
   });
-  if (!resp.ok) throw new Error(`Perplexity ${resp.status}`);
+  if (!resp.ok) {
+    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "dynamic-industries", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+    throw new Error(`Perplexity ${resp.status}`);
+  }
   const data = (await resp.json()) as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+  logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "dynamic-industries", startedAt, httpStatus: resp.status, responseJson: data });
   return {
     content: data.choices[0]?.message?.content ?? "",
     citations: data.citations ?? [],

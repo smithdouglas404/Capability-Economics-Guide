@@ -11,6 +11,7 @@
  * carry sources is rejected — we never persist made-up numbers.
  */
 import { logger } from "../lib/logger";
+import { logLlmCall } from "./llm-usage";
 
 export interface EconomicsBreakdown {
   companyName: string;
@@ -115,6 +116,7 @@ export async function researchEconomicsBreakdown(req: ResearchRequest): Promise<
     logger.warn("[case-study-economics-research] PERPLEXITY_API_KEY not set — skipping");
     return null;
   }
+  const startedAt = Date.now();
   try {
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -133,6 +135,7 @@ export async function researchEconomicsBreakdown(req: ResearchRequest): Promise<
     });
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
+      logLlmCall({ provider: "perplexity", model: "sonar-deep-research", endpoint: "case-study-economics-research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${text.slice(0, 200)}` });
       logger.error(
         { status: resp.status, body: text.slice(0, 240), company: req.companyName },
         "[case-study-economics-research] Perplexity returned non-2xx",
@@ -140,6 +143,7 @@ export async function researchEconomicsBreakdown(req: ResearchRequest): Promise<
       return null;
     }
     const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    logLlmCall({ provider: "perplexity", model: "sonar-deep-research", endpoint: "case-study-economics-research", startedAt, httpStatus: resp.status, responseJson: data });
     const content = data?.choices?.[0]?.message?.content ?? "";
     const jsonStr = extractJsonObject(content);
     if (!jsonStr) {

@@ -16,6 +16,7 @@ import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
+import { logLlmCall } from "../llm-usage";
 
 // ── Zod schemas for each enrichment LLM call ───────────────────────────────
 // These replace the legacy `openrouterChatJson` + `extractJson` pattern with
@@ -84,6 +85,7 @@ async function perplexity(query: string): Promise<PerplexityResult> {
   return retry(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
+    const startedAt = Date.now();
     try {
       const resp = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
@@ -97,8 +99,13 @@ async function perplexity(query: string): Promise<PerplexityResult> {
         }),
         signal: controller.signal,
       });
-      if (!resp.ok) throw new Error(`Perplexity ${resp.status}: ${(await resp.text()).substring(0, 200)}`);
+      if (!resp.ok) {
+        const body = (await resp.text()).substring(0, 200);
+        logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "alpha.enrich", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${body}` });
+        throw new Error(`Perplexity ${resp.status}: ${body}`);
+      }
       const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "alpha.enrich", startedAt, httpStatus: resp.status, responseJson: data });
       return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
     } finally { clearTimeout(timeout); }
   }, { label: "alpha.perplexity" });

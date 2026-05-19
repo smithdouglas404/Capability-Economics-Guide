@@ -24,6 +24,7 @@ import { computeCVI } from "../cvi-engine";
 import { recallMemories, storeMemory } from "./memory";
 import { findCorrelations, findRelated } from "./graphMemory";
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
+import { logLlmCall } from "../llm-usage";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let _anthropic: AnthropicClient | null = null;
@@ -45,9 +46,11 @@ function isContentStale(generatedAt: Date): boolean {
   return Date.now() - generatedAt.getTime() > CONTENT_STALE_HOURS * 60 * 60 * 1000;
 }
 
-async function perplexityContextSearch(query: string): Promise<string> {
+async function perplexityContextSearch(query: string, callerLabel: string = "agent.unspecified"): Promise<string> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) return "";
+  const startedAt = Date.now();
+  const endpoint = `agent.${callerLabel}`;
   try {
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
@@ -66,10 +69,15 @@ async function perplexityContextSearch(query: string): Promise<string> {
         ],
       }),
     });
-    if (!resp.ok) return "";
+    if (!resp.ok) {
+      logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+      return "";
+    }
     const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, httpStatus: resp.status, responseJson: data });
     return data.choices[0]?.message?.content ?? "";
-  } catch {
+  } catch (err) {
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
     return "";
   }
 }
@@ -304,7 +312,8 @@ export const generateCsuitePerspectivesTool = tool(
 
       try {
         const researchContext = await perplexityContextSearch(
-          `What are the most important capability economics metrics, decision frameworks, and real-world outcomes relevant to a ${role.title} (${role.name}) in 2024-2026? Include specific benchmarks, percentages, and named KPIs that ${role.title}s track when evaluating capability investments. Focus on: ${role.focus}`
+          `What are the most important capability economics metrics, decision frameworks, and real-world outcomes relevant to a ${role.title} (${role.name}) in 2024-2026? Include specific benchmarks, percentages, and named KPIs that ${role.title}s track when evaluating capability investments. Focus on: ${role.focus}`,
+          "csuite-perspectives",
         );
 
         const contextSection = researchContext
@@ -440,7 +449,8 @@ export const generateCaseStudyContentTool = tool(
     ).join("\n");
 
     const researchContext = await perplexityContextSearch(
-      `Provide real-world benchmarks, ROI data, and case study evidence for capability economics in the ${industry.name} industry (2023-2026). Specifically cover: (1) ${allCaps[0]?.name} — measurable outcomes, KPIs, cost reductions, revenue impacts; (2) ${allCaps[1]?.name} — measurable outcomes, KPIs, NPS impacts, efficiency gains. Include specific percentages, dollar amounts, and named metrics from real insurers or comparable companies.`
+      `Provide real-world benchmarks, ROI data, and case study evidence for capability economics in the ${industry.name} industry (2023-2026). Specifically cover: (1) ${allCaps[0]?.name} — measurable outcomes, KPIs, cost reductions, revenue impacts; (2) ${allCaps[1]?.name} — measurable outcomes, KPIs, NPS impacts, efficiency gains. Include specific percentages, dollar amounts, and named metrics from real insurers or comparable companies.`,
+      "case-study-generator",
     );
 
     const contextSection = researchContext
@@ -618,7 +628,8 @@ export const generateInsightsTool = tool(
     }).join("\n");
 
     const researchContext = await perplexityContextSearch(
-      `What are the most urgent capability gaps, market disruptions, and strategic opportunities facing the ${industry.name} industry in 2024-2026? Include specific companies, percentages, dollar amounts, and real analyst data from McKinsey, Gartner, Deloitte, or Forrester. Focus on operational risks and economic impact.`
+      `What are the most urgent capability gaps, market disruptions, and strategic opportunities facing the ${industry.name} industry in 2024-2026? Include specific companies, percentages, dollar amounts, and real analyst data from McKinsey, Gartner, Deloitte, or Forrester. Focus on operational risks and economic impact.`,
+      "insights-generator",
     );
 
     // ── AI-FIRST: Pull institutional memory from Mem0 ──────────────────────
@@ -758,7 +769,8 @@ export const generateLeaderboardTool = tool(
     const anthropic = await getAnthropic();
 
     const researchContext = await perplexityContextSearch(
-      `Who are the top 4-5 companies in the ${industry.name} industry ranked by operational capability maturity, digital transformation, and innovation investment in 2024-2026? Include specific capability strengths and weaknesses, maturity scores, investment levels, and whether they are improving or declining. Use real data from analyst reports.`
+      `Who are the top 4-5 companies in the ${industry.name} industry ranked by operational capability maturity, digital transformation, and innovation investment in 2024-2026? Include specific capability strengths and weaknesses, maturity scores, investment levels, and whether they are improving or declining. Use real data from analyst reports.`,
+      "leaderboard-generator",
     );
 
     const prompt = `You are a Inflexcvi analyst. Based on this research, generate a leaderboard of the top companies in ${industry.name}.
@@ -846,7 +858,8 @@ export const generateWhitePapersTool = tool(
     const anthropic = await getAnthropic();
 
     const researchContext = await perplexityContextSearch(
-      `What are the most important and cited industry research reports, white papers, and analyst publications on capability maturity, digital transformation ROI, and operational excellence in the ${industry.name} sector published 2022-2026? Include actual titles, authors, organizations (McKinsey, Gartner, Deloitte, Forrester, Accenture, BCG, WEF, etc.) and key findings.`
+      `What are the most important and cited industry research reports, white papers, and analyst publications on capability maturity, digital transformation ROI, and operational excellence in the ${industry.name} sector published 2022-2026? Include actual titles, authors, organizations (McKinsey, Gartner, Deloitte, Forrester, Accenture, BCG, WEF, etc.) and key findings.`,
+      "white-papers-generator",
     );
 
     const prompt = `You are a research librarian for a Inflexcvi platform. Generate 3 real research paper entries for the ${industry.name} industry.
@@ -941,7 +954,8 @@ export const generateOntologyTool = tool(
     const anthropic = await getAnthropic();
 
     const researchContext = await perplexityContextSearch(
-      `How do these ${industry.name} industry capabilities relate to each other in practice? Which capabilities enable others, which depend on others, which compete for investment, and which can substitute for each other? Capabilities: ${capNames}. Focus on real strategic and operational dependencies used by industry leaders.`
+      `How do these ${industry.name} industry capabilities relate to each other in practice? Which capabilities enable others, which depend on others, which compete for investment, and which can substitute for each other? Capabilities: ${capNames}. Focus on real strategic and operational dependencies used by industry leaders.`,
+      "ontology-adapter",
     );
 
     const relationshipsPrompt = `You are a capability economics ontologist. Based on Perplexity research, generate ontology relationships for the ${industry.name} industry.

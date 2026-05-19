@@ -20,6 +20,7 @@ import { retry } from "../../lib/llm-retry";
 import { runResearchPipeline } from "../workflows";
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
+import { logLlmCall } from "../llm-usage";
 
 // ── Zod schemas for the three enrichment LLM calls ─────────────────────────
 
@@ -92,6 +93,7 @@ async function perplexitySearch(query: string): Promise<PerplexityResult> {
   const apiKey = process.env.PERPLEXITY_API_KEY;
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
   return retry(async () => {
+    const startedAt = Date.now();
     const resp = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
@@ -111,9 +113,11 @@ async function perplexitySearch(query: string): Promise<PerplexityResult> {
     });
     if (!resp.ok) {
       const errText = await resp.text();
+      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "enrichment.runners", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${errText.slice(0, 200)}` });
       throw new Error(`Perplexity error ${resp.status}: ${errText}`);
     }
     const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
+    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "enrichment.runners", startedAt, httpStatus: resp.status, responseJson: data });
     const content = data.choices[0]?.message?.content ?? "";
     const sources = data.citations ?? [];
     return { content, sources };

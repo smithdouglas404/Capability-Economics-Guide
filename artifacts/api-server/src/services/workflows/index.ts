@@ -24,6 +24,7 @@ import pino from "pino";
 // — importing from "ai" directly bypasses tracing.
 import { sonnet, haiku, generateObject, NoObjectGeneratedError } from "./models";
 import { retry } from "../../lib/llm-retry";
+import { logLlmCall } from "../llm-usage";
 
 const logger = pino({ name: "workflows" });
 
@@ -43,6 +44,7 @@ async function perplexity(query: string, model = "sonar-pro"): Promise<Perplexit
   if (!apiKey) return null;
   try {
     return await retry(async () => {
+      const startedAt = Date.now();
       const resp = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
@@ -55,12 +57,16 @@ async function perplexity(query: string, model = "sonar-pro"): Promise<Perplexit
           ],
         }),
       });
-      if (!resp.ok) throw new Error(`Perplexity ${resp.status}`);
+      if (!resp.ok) {
+        logLlmCall({ provider: "perplexity", model, endpoint: "workflows", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
+        throw new Error(`Perplexity ${resp.status}`);
+      }
       const data = (await resp.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
         citations?: string[];
         search_results?: Array<{ url?: string }>;
       };
+      logLlmCall({ provider: "perplexity", model, endpoint: "workflows", startedAt, httpStatus: resp.status, responseJson: data });
       const content = data.choices?.[0]?.message?.content ?? "";
       const citations = data.citations ?? (data.search_results ?? []).map((s) => s.url ?? "").filter(Boolean);
       return { content, citations };
