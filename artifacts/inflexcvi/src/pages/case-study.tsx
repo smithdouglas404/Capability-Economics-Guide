@@ -16,22 +16,29 @@ const API_BASE = "/api";
 function splitMetricValue(value: string): { headline: string; detail: string | null } {
   const trimmed = value.trim();
   const parenIdx = trimmed.search(/\s\(/);
-  if (parenIdx > 0 && parenIdx <= 90) {
+  if (parenIdx > 0 && parenIdx <= 130) {
     return {
       headline: trimmed.slice(0, parenIdx).trim().replace(/[.,;:]$/, ""),
-      detail: trimmed.slice(parenIdx + 1).trim().replace(/\)\s*$/, ""),
+      detail: trimmed,
     };
   }
-  const dashMatch = trimmed.match(/^(.{6,90}?)\s[—–-]\s(.+)$/);
+  const dashMatch = trimmed.match(/^(.{6,130}?)\s[—–-]\s/);
   if (dashMatch) {
-    return { headline: dashMatch[1].trim(), detail: dashMatch[2].trim() };
+    return { headline: dashMatch[1].trim(), detail: trimmed };
   }
-  const sentMatch = trimmed.match(/^(.{6,90}?[.!?])\s+(.+)$/);
+  const sentMatch = trimmed.match(/^(.{6,130}?[.!?])\s+/);
   if (sentMatch) {
-    return { headline: sentMatch[1].trim().replace(/[.!?]$/, ""), detail: sentMatch[2].trim() };
+    return { headline: sentMatch[1].trim().replace(/[.!?]$/, ""), detail: trimmed };
   }
-  if (trimmed.length > 90) {
-    return { headline: trimmed.slice(0, 80).trim().replace(/[.,;:]$/, "") + "…", detail: trimmed };
+  const commaMatch = trimmed.match(/^(.{20,95}?),\s/);
+  if (commaMatch) {
+    return { headline: commaMatch[1].trim(), detail: trimmed };
+  }
+  if (trimmed.length > 95) {
+    const slice = trimmed.slice(0, 95);
+    const lastSpace = slice.lastIndexOf(" ");
+    const cut = lastSpace > 40 ? lastSpace : 95;
+    return { headline: slice.slice(0, cut).trim().replace(/[.,;:]$/, "") + "…", detail: trimmed };
   }
   return { headline: trimmed, detail: null };
 }
