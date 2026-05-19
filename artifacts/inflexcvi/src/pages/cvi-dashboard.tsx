@@ -360,9 +360,9 @@ function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
           style={{ left: `calc(${markerPct}% - 1.5px)`, background: color }}
         />
       </div>
-      <div className="flex justify-between text-[10px] text-muted-foreground/80 mt-1 font-mono">
+      <div className="flex justify-between text-[10px] text-white mt-1 font-mono">
         <span>{ciLow.toFixed(1)}</span>
-        <span className="text-muted-foreground">95% CI · ±{half.toFixed(1)}</span>
+        <span className="text-white">95% CI · ±{half.toFixed(1)}</span>
         <span>{ciHigh.toFixed(1)}</span>
       </div>
     </div>
@@ -385,7 +385,7 @@ function IndexTicker({ value, label, trend, size = "lg" }: {
       </div>
       <div className="flex items-center justify-center gap-1.5 mt-1">
         {trend && <TrendIcon className={`w-4 h-4 ${trendColor}`} />}
-        <span className="text-sm text-muted-foreground-soft uppercase tracking-wider">{label}</span>
+        <span className="text-sm text-amber-500 uppercase tracking-wider">{label}</span>
       </div>
     </div>
   );
@@ -950,7 +950,7 @@ export default function CVIDashboard() {
               <div className="md:col-span-1 space-y-4">
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground-soft uppercase tracking-wider">Volatility</span>
+                    <span className="text-xs text-amber-500 uppercase tracking-wider">Volatility</span>
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{(cei.volatility * 100).toFixed(1)}%</div>
@@ -958,7 +958,7 @@ export default function CVIDashboard() {
                 </div>
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-muted-foreground-soft uppercase tracking-wider">Industries Tracked</span>
+                    <span className="text-xs text-amber-500 uppercase tracking-wider">Industries Tracked</span>
                     <Globe className="w-3.5 h-3.5 text-indigo-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{industries.length}</div>
