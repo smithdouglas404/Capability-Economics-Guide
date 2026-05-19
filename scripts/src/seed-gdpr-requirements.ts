@@ -137,8 +137,10 @@ async function main(): Promise<void> {
   // it'd block all GDPR requirement reviews until approved.)
   const [gdpr] = await db.select().from(regulationsTable).where(eq(regulationsTable.shortCode, "GDPR"));
   if (!gdpr) {
-    console.error("[seed:gdpr-reqs] FATAL: GDPR regulation row not found. Approve its proposal first.");
-    process.exit(1);
+    // Graceful skip — admin needs to approve the GDPR proposal at
+    // /admin/review-queue first. Next deploy or manual re-run picks it up.
+    console.warn("[seed:gdpr-reqs] GDPR not yet in live regulations table — skipping industry backfill + requirement proposals. Approve at /admin/review-queue first.");
+    return;
   }
   const allIndustries = await db.select().from(industriesTable);
   const allIds = allIndustries.map(i => i.id).sort((a, b) => a - b);

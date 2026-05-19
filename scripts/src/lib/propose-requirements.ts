@@ -37,8 +37,12 @@ export async function proposeRequirements(opts: ProposeRequirementsOptions): Pro
 
   const [reg] = await db.select().from(regulationsTable).where(eq(regulationsTable.shortCode, opts.regulationShortCode));
   if (!reg) {
-    console.error(`[${label}] FATAL: regulation shortCode=${opts.regulationShortCode} not found in live regulations table. Approve its proposal first.`);
-    process.exit(1);
+    // Graceful skip — not a fatal deploy error. The regulation may still be a
+    // pending proposal in regulations_proposed; once an admin approves it
+    // at /admin/review-queue, the next deploy (or a manual `pnpm run
+    // seed:*-requirements`) will pick it up and re-propose the mappings.
+    console.warn(`[${label}] regulation shortCode=${opts.regulationShortCode} not yet in live regulations table — skip. Approve its proposal at /admin/review-queue first.`);
+    return;
   }
   console.log(`[${label}] regulation id=${reg.id} (${opts.regulationShortCode})`);
 
