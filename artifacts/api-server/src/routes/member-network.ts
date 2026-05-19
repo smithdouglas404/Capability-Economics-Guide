@@ -19,9 +19,10 @@ import {
   memberPostReactionsTable,
   memberPostCommentsTable,
   memberConnectionsTable,
+  memberNotificationsTable,
   connectionPairFor,
 } from "@workspace/db";
-import { eq, and, or, desc, sql, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, inArray, ilike } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -195,7 +196,68 @@ router.post("/posts", async (req, res) => {
     capabilityTags: Array.isArray(req.body?.capabilityTags) ? req.body.capabilityTags.slice(0, 10).map(String) : [],
     industrySlugs: Array.isArray(req.body?.industrySlugs) ? req.body.industrySlugs.slice(0, 5).map(String) : [],
   }).returning();
+
+  // Parse @mentions from the body. Slugs match member_profiles.slug shape:
+  // [a-z0-9-]+. Resolve to user ids and push notifications. Dedupe so the
+  // same handle appearing twice doesn't notify twice. Author of the post
+  // never gets a self-mention notification (filtered in pushNotification).
+  try {
+    const mentionMatches: string[] = body.match(/@[a-z0-9-]{2,}/gi) ?? [];
+    const slugs: string[] = Array.from(new Set(mentionMatches.map((m: string) => m.slice(1).toLowerCase())));
+    if (slugs.length > 0) {
+      const mentioned = await db.select({
+        userId: memberProfilesTable.userId,
+        slug: memberProfilesTable.slug,
+        displayName: memberProfilesTable.displayName,
+      }).from(memberProfilesTable).where(inArray(memberProfilesTable.slug, slugs));
+      const [authorProfile] = await db.select({ displayName: memberProfilesTable.displayName })
+        .from(memberProfilesTable).where(eq(memberProfilesTable.userId, auth.userId)).limit(1);
+      const authorName = authorProfile?.displayName ?? "A member";
+      for (const m of mentioned) {
+        if (m.userId === auth.userId) continue;
+        await db.insert(memberNotificationsTable).values({
+          userId: m.userId,
+          type: "mention",
+          actorUserId: auth.userId,
+          targetType: "post",
+          targetId: row.id,
+          body: `${authorName} mentioned you in a post.`,
+        }).catch(() => {});
+      }
+    }
+  } catch { /* mention parsing failures are non-fatal */ }
+
   res.json({ post: row });
+});
+
+/**
+ * GET /hashtag/:tag — all posts whose body contains #<tag>. Case-insensitive
+ * match via ILIKE. Returns hydrated author profiles, like the feed handler.
+ * No write here; this is purely a discoverability surface for clicking a
+ * #tag in any rendered post.
+ */
+router.get("/hashtag/:tag", async (req, res) => {
+  const tag = String(req.params.tag).replace(/[^a-z0-9_-]/gi, "").slice(0, 60);
+  if (!tag) { res.status(400).json({ error: "bad tag" }); return; }
+  const rows = await db.select().from(memberPostsTable)
+    .where(ilike(memberPostsTable.body, `%#${tag}%`))
+    .orderBy(desc(memberPostsTable.createdAt))
+    .limit(50);
+  const authorIds = Array.from(new Set(rows.map(p => p.authorUserId)));
+  const authors = authorIds.length > 0
+    ? await db.select({
+        userId: memberProfilesTable.userId,
+        slug: memberProfilesTable.slug,
+        displayName: memberProfilesTable.displayName,
+        avatarUrl: memberProfilesTable.avatarUrl,
+        headline: memberProfilesTable.headline,
+      }).from(memberProfilesTable).where(inArray(memberProfilesTable.userId, authorIds))
+    : [];
+  const am = new Map(authors.map(a => [a.userId, a]));
+  res.json({
+    tag,
+    posts: rows.map(p => ({ ...p, author: am.get(p.authorUserId) ?? null })),
+  });
 });
 
 router.delete("/posts/:id", async (req, res) => {

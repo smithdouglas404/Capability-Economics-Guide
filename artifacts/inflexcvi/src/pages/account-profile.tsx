@@ -157,6 +157,10 @@ export default function AccountProfilePage() {
         </div>
       </div>
 
+      {/* Profile completion meter — counts populated profile fields + supporting
+          sections. Drives the user to fill in the parts that move the needle. */}
+      <ProfileCompletionMeter profile={profile} experienceCount={experience.length} educationCount={education.length} skillsCount={skills.length} />
+
       {/* IDENTITY */}
       <Card>
         <CardHeader className="pb-2"><CardTitle className="text-base">Identity</CardTitle></CardHeader>
@@ -366,6 +370,70 @@ export default function AccountProfilePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Profile completion meter — counts populated profile fields + supporting
+ * sections. Each filled field adds one point to a max of 12. Drives the
+ * user to fill in the high-impact sections by listing the next missing one.
+ */
+function ProfileCompletionMeter({
+  profile, experienceCount, educationCount, skillsCount,
+}: {
+  profile: Profile; experienceCount: number; educationCount: number; skillsCount: number;
+}) {
+  const checks = [
+    { key: "avatar", label: "Avatar image", done: !!profile.avatarUrl },
+    { key: "cover", label: "Cover image", done: !!profile.coverImageUrl },
+    { key: "headline", label: "Headline", done: !!profile.headline && profile.headline.length > 0 },
+    { key: "currentRole", label: "Current role", done: !!profile.currentRole && profile.currentRole.length > 0 },
+    { key: "location", label: "Location", done: !!profile.location && profile.location.length > 0 },
+    { key: "bio", label: "About / bio (≥80 chars)", done: !!profile.bio && profile.bio.length >= 80 },
+    { key: "links", label: "Website or external profile", done: !!(profile.websiteUrl || profile.linkedinUrl) },
+    { key: "industries", label: "At least one industry", done: profile.industrySlugs.length > 0 },
+    { key: "capabilities", label: "Capability tags", done: profile.capabilityTags.length > 0 },
+    { key: "experience", label: "At least one experience entry", done: experienceCount > 0 },
+    { key: "education", label: "At least one education entry", done: educationCount > 0 },
+    { key: "skills", label: "At least three skills", done: skillsCount >= 3 },
+  ];
+  const total = checks.length;
+  const done = checks.filter(c => c.done).length;
+  const pct = Math.round((done / total) * 100);
+  const nextMissing = checks.find(c => !c.done);
+  const tone = pct >= 80 ? "text-emerald-500" : pct >= 50 ? "text-amber-500" : "text-rose-500";
+  const bar = pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-rose-500";
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Profile completion</div>
+            <div className="font-serif text-2xl tabular-nums inline-flex items-baseline gap-2">
+              <span className={tone}>{pct}%</span>
+              <span className="text-xs text-muted-foreground">{done} of {total} sections</span>
+            </div>
+          </div>
+          {nextMissing ? (
+            <span className="text-xs text-muted-foreground">Next: <span className="text-foreground font-medium">{nextMissing.label}</span></span>
+          ) : (
+            <span className="text-xs text-emerald-500 font-medium">Complete</span>
+          )}
+        </div>
+        <div className="h-2 bg-muted rounded-full overflow-hidden">
+          <div className={`h-full ${bar} transition-all`} style={{ width: `${pct}%` }} />
+        </div>
+        {pct < 100 && (
+          <div className="grid sm:grid-cols-2 gap-1 mt-2">
+            {checks.filter(c => !c.done).slice(0, 6).map(c => (
+              <div key={c.key} className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                <span className="w-3 h-3 rounded-full border border-border/60" /> {c.label}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

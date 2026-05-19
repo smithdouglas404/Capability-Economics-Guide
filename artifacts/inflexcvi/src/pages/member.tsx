@@ -14,7 +14,7 @@ import { useUser } from "@clerk/react";
 import {
   Globe, Linkedin, MessageCircle, MapPin, Briefcase, GraduationCap, Award,
   ThumbsUp, MessageSquare, Calendar, ArrowLeft, FileText, Share2, UserPlus, Check,
-  Loader2, Building2, Sparkles,
+  Loader2, Building2, Sparkles, Eye,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -56,6 +56,12 @@ interface Post {
   id: number; body: string; linkUrl: string | null; imageUrl: string | null;
   capabilityTags: string[]; industrySlugs: string[]; likeCount: number;
   commentCount: number; createdAt: string;
+}
+interface Recommendation {
+  id: number; giverUserId: string; relationship: string | null; body: string;
+  createdAt: string;
+  giverSlug: string | null; giverDisplayName: string | null;
+  giverAvatarUrl: string | null; giverHeadline: string | null;
 }
 
 const OPEN_TO_LABELS: Record<string, { label: string; tone: string }> = {
@@ -100,9 +106,15 @@ export default function MemberPage() {
   const [education, setEducation] = useState<Education[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [profileStats, setProfileStats] = useState<{ profileViews: number; connections: number; posts: number } | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<"none" | "pending" | "connected" | "self">("none");
   const [pendingRequestedByMe, setPendingRequestedByMe] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [recComposerOpen, setRecComposerOpen] = useState(false);
+  const [recBody, setRecBody] = useState("");
+  const [recRelationship, setRecRelationship] = useState("worked-together");
+  const [submittingRec, setSubmittingRec] = useState(false);
 
   useEffect(() => {
     if (!slug) return;
@@ -121,12 +133,21 @@ export default function MemberPage() {
       fetch(`/api/member/${uid}/education`).then(r => r.ok ? r.json() : { education: [] }),
       fetch(`/api/member/${uid}/skills`).then(r => r.ok ? r.json() : { skills: [] }),
       fetch(`/api/member/${uid}/posts`).then(r => r.ok ? r.json() : { posts: [] }),
-    ]).then(([e, ed, s, p]) => {
+      fetch(`/api/member/${uid}/recommendations`).then(r => r.ok ? r.json() : { recommendations: [] }),
+    ]).then(([e, ed, s, p, rec]) => {
       setExperience(e.experience ?? []);
       setEducation(ed.education ?? []);
       setSkills(s.skills ?? []);
       setPosts(p.posts ?? []);
+      setRecommendations(rec.recommendations ?? []);
     });
+    // Track this view (no-op for anon viewers + self). Background fire.
+    if (profile.slug) void fetch(`/api/member/${profile.slug}/view`, { method: "POST" });
+    // If this is the signed-in user's own profile, pull stats for the badge.
+    if (isSignedIn && uid === user?.id) {
+      void fetch("/api/me/profile-stats").then(r => r.ok ? r.json() : null)
+        .then((d: { profileViews: number; connections: number; posts: number } | null) => { if (d) setProfileStats(d); });
+    }
     // Connection state
     if (isSignedIn && uid !== user?.id) {
       void fetch(`/api/connections/status/${uid}`).then(r => r.ok ? r.json() : null).then((d: { status: string; requestedByMe?: boolean } | null) => {
@@ -227,6 +248,17 @@ export default function MemberPage() {
                   <span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" /> {profile.location}</span>
                 )}
                 <span>Member since {new Date(profile.createdAt).toISOString().slice(0, 7)}</span>
+                {/* Self-only view-count + connection-count badges */}
+                {isSelf && profileStats && (
+                  <>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-accent/10 text-accent border border-accent/30 rounded-full">
+                      <Eye className="w-3 h-3" /> {profileStats.profileViews} profile view{profileStats.profileViews === 1 ? "" : "s"}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <UserPlus className="w-3 h-3" /> {profileStats.connections} connection{profileStats.connections === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
                 {profile.websiteUrl && (
                   <a href={profile.websiteUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-foreground">
                     <Globe className="w-3 h-3" /> Website
@@ -386,6 +418,100 @@ export default function MemberPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </Section>
+
+          {/* Recommendations — long-form peer testimonials, distinct from skill endorsements */}
+          <Section
+            title="Recommendations"
+            icon={<Award className="w-4 h-4" />}
+            empty={recommendations.length === 0 && !recComposerOpen}
+            emptyLabel={isSelf
+              ? "No recommendations yet. Ask a peer to write you one."
+              : `Be the first to recommend ${profile.displayName}.`}
+          >
+            <div className="space-y-3">
+              {recommendations.map(r => (
+                <div key={r.id} className="flex gap-3 p-3 border border-border/60 rounded-md">
+                  {r.giverAvatarUrl ? (
+                    <img src={r.giverAvatarUrl} alt="" className="w-10 h-10 rounded-full border border-border shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-medium shrink-0">{(r.giverDisplayName ?? "?").charAt(0).toUpperCase()}</div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                      {r.giverSlug ? (
+                        <Link href={`/member/${r.giverSlug}`} className="font-medium text-sm hover:text-accent">{r.giverDisplayName ?? "Member"}</Link>
+                      ) : (
+                        <span className="font-medium text-sm">{r.giverDisplayName ?? "Member"}</span>
+                      )}
+                      {r.relationship && (
+                        <Badge variant="outline" className="text-[10px] capitalize">{r.relationship.replace(/-/g, " ")}</Badge>
+                      )}
+                    </div>
+                    {r.giverHeadline && <div className="text-[11px] text-muted-foreground truncate">{r.giverHeadline}</div>}
+                    <p className="text-sm text-foreground/85 mt-1.5 whitespace-pre-wrap leading-relaxed">{r.body}</p>
+                    <div className="text-[10px] text-muted-foreground mt-1">{new Date(r.createdAt).toISOString().slice(0, 10)}</div>
+                  </div>
+                </div>
+              ))}
+              {!isSelf && isSignedIn && !recComposerOpen && (
+                <Button size="sm" variant="outline" onClick={() => setRecComposerOpen(true)}>
+                  <Award className="w-3.5 h-3.5 mr-1" /> Write a recommendation
+                </Button>
+              )}
+              {recComposerOpen && (
+                <div className="p-3 border border-accent/30 rounded-md bg-accent/5 space-y-2">
+                  <div className="text-xs text-muted-foreground">Recommend {profile.displayName}</div>
+                  <select
+                    value={recRelationship}
+                    onChange={e => setRecRelationship(e.target.value)}
+                    className="border rounded px-3 py-2 bg-background text-sm w-full"
+                  >
+                    <option value="worked-together">We worked together</option>
+                    <option value="managed-them">I managed {profile.displayName}</option>
+                    <option value="managed-by-them">{profile.displayName} managed me</option>
+                    <option value="client">I was their client</option>
+                    <option value="advisor">I advised / was advised by them</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <textarea
+                    value={recBody}
+                    onChange={e => setRecBody(e.target.value)}
+                    placeholder={`What is ${profile.displayName} great at? Anchor the testimonial in something specific.`}
+                    maxLength={4000}
+                    rows={5}
+                    className="w-full border rounded px-3 py-2 bg-background text-sm resize-none"
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => { setRecComposerOpen(false); setRecBody(""); }}>Cancel</Button>
+                    <Button
+                      size="sm"
+                      onClick={async () => {
+                        if (recBody.trim().length < 20) return;
+                        setSubmittingRec(true);
+                        try {
+                          const r = await fetch(`/api/member/${profile.userId}/recommendations`, {
+                            method: "POST", headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ body: recBody.trim(), relationship: recRelationship }),
+                          });
+                          if (r.ok) {
+                            setRecComposerOpen(false); setRecBody("");
+                            // Re-fetch
+                            const fresh = await fetch(`/api/member/${profile.userId}/recommendations`);
+                            if (fresh.ok) { const d = await fresh.json() as { recommendations: Recommendation[] }; setRecommendations(d.recommendations); }
+                          }
+                        } finally { setSubmittingRec(false); }
+                      }}
+                      disabled={submittingRec || recBody.trim().length < 20}
+                    >
+                      {submittingRec ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}
+                      Publish
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Recommendations need at least 20 characters. {profile.displayName} will be notified.</p>
+                </div>
+              )}
             </div>
           </Section>
 
