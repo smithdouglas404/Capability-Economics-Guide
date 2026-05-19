@@ -136,7 +136,8 @@ export async function ingestExternalSignalsForIndustry(industryId: number, opts:
 
 /**
  * Roll up patents / VC / startup counts to value-chain-stage level for an
- * industry — the table SunasiAI prints in their report (882, 1231, 2494, ...).
+ * industry. Standard industry-research table shape (patents, VC funding,
+ * startups per stage).
  */
 export async function valueChainStageProfile(industryId: number) {
   const caps = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId));

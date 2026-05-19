@@ -165,7 +165,7 @@ Production Visibility & Adaptive Replanning           31.6   ← coldest leaf
 
 ### 4.2 Why this matters for residential solar
 
-A SunasiAI-style single-score "Supply Chain Management = 52" tells you little. The CE decomposition tells you that **Supplier Risk & Resilience (39.1)** is the leaf that is actually cold — directly driven by the Iran / Strait of Hormuz event in §5 — while **Inventory Optimization (62.7)** is fine. A residential-solar installer's resilience thesis lives in one specific child, not the parent average. Any portfolio exposure should be re-underwritten at the leaf level, not the parent.
+A competitive benchmark-style single-score "Supply Chain Management = 52" tells you little. The CE decomposition tells you that **Supplier Risk & Resilience (39.1)** is the leaf that is actually cold — directly driven by the Iran / Strait of Hormuz event in §5 — while **Inventory Optimization (62.7)** is fine. A residential-solar installer's resilience thesis lives in one specific child, not the parent average. Any portfolio exposure should be re-underwritten at the leaf level, not the parent.
 
 ---
 
@@ -269,7 +269,7 @@ Every one of the 13 composites is a deterministic function read straight from `s
 - **forecastedValue** = ceiWeighted × avg velocity bonus × (1 + active positive-event boost).
 - **composite** = 0.30 × forecastedValue + 0.20 × qualityOfAsset + 0.15 × moatScore + 0.15 × actionability + 0.10 × acquisitionProbability + 0.10 × capabilityCoverage.
 
-A SunasiAI-style "Moneyball composite = 73" with no formula is an opinion. A CE composite = 65.9 with every weight queryable is a number you can re-underwrite.
+A competitive benchmark-style "Moneyball composite = 73" with no formula is an opinion. A CE composite = 65.9 with every weight queryable is a number you can re-underwrite.
 
 ---
 

@@ -425,7 +425,7 @@ export async function computeCompanyScores(companyId: number): Promise<void> {
   const topWeight = fpRows.reduce((m, r) => Math.max(m, r.fp.weight), 0);
   const sensitivityProfile = Math.max(0, Math.min(100, topWeight * 100));
 
-  // Composite (Sunasi calls this their "FEVI" — we make it transparent):
+  // Composite ("FEVI" = Forecasted Enterprise Value Index — transparent weighting):
   // 0.30 forecastedValue + 0.20 quality + 0.15 moat + 0.15 actionability + 0.10 acquisitionProbability + 0.10 (100-risk)
   const composite =
     forecastedValue * 0.30 +

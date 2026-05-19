@@ -1,6 +1,6 @@
 # Inflexcvi — Naming & Language Spec
 
-**Goal:** stop using SunasiAI's vocabulary (Moneyball, Aged Index, Moat, FEVI…)
+**Goal:** stop using competitive benchmark's vocabulary (Moneyball, Aged Index, Moat, FEVI…)
 which is borrowed, metaphorical, and backward-looking. Replace it with a coherent
 CE-native language built from four design rules:
 
@@ -23,7 +23,7 @@ CE-native language built from four design rules:
 
 **Capability Forward Index (CFI)**
 
-- A direct foil to SunasiAI's *FEVI* (Forecasted Enterprise Value Index).
+- A direct foil to competitive benchmark's *FEVI* (Forecasted Enterprise Value Index).
 - Says what it is in three words: a *capability* signal, *forward* (derivative,
   not level), *indexed* (composite, comparable, rank-ordered).
 - Pronounceable, three syllables, three-letter ticker. Goes on slides as
@@ -51,7 +51,7 @@ voice of the platform.
 | **Counterfactual** | output of a model run with a flag toggled | *Counterfactual Resilience* |
 
 **Banned vocabulary** (never used in CE product, deck, or code unless explicitly
-quoting SunasiAI): *Moneyball, Moat, Aged, Awareness, Quality of Asset,
+quoting competitive benchmark): *Moneyball, Moat, Aged, Awareness, Quality of Asset,
 Forecasted Value, FEVI, Sensitivity Profile, Risk Profile, Quadrant, Hot/Cool*.
 Each has a CE replacement listed below.
 
@@ -77,7 +77,7 @@ started — do not create that file until it is explicitly tasked.
   `company_capability_fingerprint.weight`.
 
 ### 3.2 Velocity Regime `velocityRegime`
-- **Was:** SunasiAI's *Forecasted Value* (linear extrapolation of level).
+- **Was:** competitive benchmark's *Forecasted Value* (linear extrapolation of level).
 - **Is now:** acceleration — `velocity_30d − velocity_90d`. Tells you the
   thesis is *speeding up* or *slowing down*, not its current speed.
 - **Reads like:** "Stripe's velocity regime is +18 (accelerating)."
@@ -85,7 +85,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `cei_components_history` (new table, daily snapshot).
 
 ### 3.3 Confidence Trajectory `confidenceTrajectory`
-- **New.** No SunasiAI equivalent.
+- **New.** No competitive benchmark equivalent.
 - **Is:** Δ confidence over 30 days, fingerprint-weighted. Score going up =
   thesis solidifying as evidence accumulates.
 - **Reads like:** "Stripe's confidence trajectory is +9 — the thesis is
@@ -104,7 +104,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `source_triangulations.queried_at`.
 
 ### 3.5 Tree Divergence `treeDivergence`
-- **Was:** SunasiAI's *Sensitivity Profile* (top-weight concentration — a
+- **Was:** competitive benchmark's *Sensitivity Profile* (top-weight concentration — a
   one-line proxy).
 - **Is now:** stddev of children scores within each fingerprint cap. High
   divergence = the firm fingerprinted on a parent that hides internal
@@ -124,7 +124,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `capabilities.parent_capability_id` (chain).
 
 ### 3.7 Shock Propagation `shockPropagation`
-- **Was:** SunasiAI's *AI Disruptability* + *Risk Profile* (direct-tag only,
+- **Was:** competitive benchmark's *AI Disruptability* + *Risk Profile* (direct-tag only,
   one event type).
 - **Is now:** generalises to all event types and propagates through the
   capability tree — direct hit (1.0×), via-parent (0.6×), via-child (0.8×).
@@ -136,7 +136,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `macro_events`, parent/child edges.
 
 ### 3.8 Crowd-Inverse Moat `crowdInverseMoat`
-- **Was:** SunasiAI's *Moat Score* (avg CVI of high-confidence positive caps —
+- **Was:** competitive benchmark's *Moat Score* (avg CVI of high-confidence positive caps —
   measures *industry strength*, not *firm uniqueness*).
 - **Is now:** inverse fingerprint-cosine density. If 25 peers in your
   industry share your fingerprint vector at cosine > 0.6, you have no moat
@@ -147,7 +147,7 @@ started — do not create that file until it is explicitly tasked.
 - **Trace:** `company_capability_fingerprint` across whole peer universe.
 
 ### 3.9 Counterfactual Resilience `counterfactualResilience`
-- **Was:** SunasiAI's *Risk Profile* (1 − confidence — a label, not a stress
+- **Was:** competitive benchmark's *Risk Profile* (1 − confidence — a label, not a stress
   test).
 - **Is now:** run the CFI twice — once with the active event set live, once
   with all events zeroed. The delta is the firm's transient buoyancy. Low
@@ -165,7 +165,7 @@ These are useful at IC stage but are not CE-differentiated; they could be
 bought from Crunchbase, SEC EDGAR, or PitchBook. They live on the company
 detail page but contribute **zero weight** to the CFI.
 
-| Old name (SunasiAI) | CE label name | Source |
+| Old name (competitive benchmark) | CE label name | Source |
 |---|---|---|
 | Aged Index | **Provenance Age** (years since founding) | `companies.founded_year` |
 | Awareness Score | **Public Footprint** (cite count, ticker, revenue scale) | static |
@@ -224,14 +224,14 @@ days" |
 
 ### Math
 Seven verbs, each a defined mathematical operation. Every score has a closed-form
-formula in §3. SunasiAI's vocabulary (Moat, Quality, Forecasted, Aged) names
+formula in §3. competitive benchmark's vocabulary (Moat, Quality, Forecasted, Aged) names
 *what the score should mean*; ours names *what the score does*. A reader can
 re-derive every CE term from the verb table — they cannot re-derive
-"Moat Score" without SunasiAI's permission.
+"Moat Score" without competitive benchmark's permission.
 
 ### Facts
 Every term cites a column or a function. No CE term exists that cannot be SQL'd
-— the §3 trace lines are the contract. SunasiAI's terms cite nothing; their
+— the §3 trace lines are the contract. competitive benchmark's terms cite nothing; their
 report shows numbers without showing the column they came from.
 
 ### Traceability
@@ -244,7 +244,7 @@ what kind of object to expect.
 ### Forward thinking
 Five of the nine CE-native scores are derivatives (Velocity Regime, Confidence
 Trajectory, Evidence Decay, Shock Propagation, Counterfactual Resilience).
-Only two of SunasiAI's eleven are derivatives (Forecasted Value, Sensitivity).
+Only two of competitive benchmark's eleven are derivatives (Forecasted Value, Sensitivity).
 By construction, our composite is **more than 50 % forward-tilted**; theirs
 is < 20 %.
 
@@ -256,7 +256,7 @@ is < 20 %.
   by CE composite" → **"Top 15 companies — ranked by CFI."** Column headers
   use the §3 names. Tooltip on each header shows the §3 one-line math.
 - **Deck:** the Inflexcvi slide deck replaces every instance of
-  "Moneyball" with "CFI." Replaces SunasiAI's quadrant slide with a
+  "Moneyball" with "CFI." Replaces competitive benchmark's quadrant slide with a
   velocity-regime × posterior-CVI scatter labelled "Posterior × Velocity
   Regime."
 - **Marketing copy:** "We do not run engagements. We expose a continuously
@@ -279,7 +279,7 @@ This is a vocabulary shift; the math is from the prior redesign spec
 | Rename `company_scores` columns to §3 names (drizzle migration) | 1 h |
 | Update `/companies` page column headers + subtitle + tooltips | 1 h |
 | Update CE pitch deck slide vocabulary (Moneyball → CFI) | 1 h |
-| Update `docs/sunasiai-vs-ce-comparison.md` to use CFI vocabulary | 0.5 h |
+| Update `docs/competitor-comparison.md` to use CFI vocabulary | 0.5 h |
 | Update `docs/ce-residential-solar-deep-dive.md` to use CFI vocabulary | 0.5 h |
 | **Total** | **~5 h** |
 
@@ -290,7 +290,7 @@ old route names to new ones for 30 days.
 
 ## 10. The one-line summary
 
-> SunasiAI says *Moneyball*. We say *Capability Forward Index*.
+> competitive benchmark says *Moneyball*. We say *Capability Forward Index*.
 > They name what the score should *feel like*; we name what the math *does*.
 > Every CE term is a verb you can SQL, a derivative that points forward, and a
 > posterior with a confidence band — by construction, on every page.

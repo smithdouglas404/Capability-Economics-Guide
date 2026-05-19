@@ -594,9 +594,6 @@ export default function Companies() {
                     ))}
                   </tbody>
                 </table>
-                <p className="text-xs text-muted-foreground mt-3">
-                  Replaces the SunasiAI value-chain table — but every cell is a live CE aggregation, not a one-off slide.
-                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -662,7 +659,7 @@ export default function Companies() {
                 </div>
                 <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
                   <TrendingUp className="w-4 h-4" />
-                  Replaces the SunasiAI 2×2 quadrant — but every dot is a live CVI score with confidence and velocity from triangulated sources.
+                  Every dot is a live CVI score with confidence and velocity from triangulated sources.
                 </div>
               </CardContent>
             </Card>

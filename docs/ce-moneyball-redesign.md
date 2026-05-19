@@ -1,6 +1,6 @@
 # CE Moneyball — Where It Is, What It Is Today, What It Should Be
 
-**Purpose:** Stop being a reskin of SunasiAI's metric list. Design a Moneyball
+**Purpose:** Stop being a reskin of competitive benchmark's metric list. Design a Moneyball
 score set that can only exist on the CE platform — because every score
 depends on something only CE has (sub-capability decomposition, velocity
 history, evidence-freshness timestamps, cross-industry spillover,
@@ -27,11 +27,11 @@ Trigger path today: Perplexity ingestion → fingerprint alignment → `computeC
 
 ## 2. What our formulas are today — line-by-line, with the "me-too vs CE-native" call
 
-| # | Score | Current formula | Uses SunasiAI's name? | Uses a signal only CE has? |
+| # | Score | Current formula | Uses competitive benchmark's name? | Uses a signal only CE has? |
 |---|---|---|---|---|
 | 1 | `capabilityCoverage` | `(#high-CVI caps covered / #high-CVI caps in industry) × 200`, clamped 100 | no (ours) | partial (uses CVI which is ours) |
 | 2 | `ceiWeighted` | `Σ(weight × CVI) / Σ weight` | no | partial |
-| 3 | **`agedIndex`** | `100 − (age − 3)/37 × 100` | **yes — SunasiAI name** | **no — pure foundedYear arithmetic** |
+| 3 | **`agedIndex`** | `100 − (age − 3)/37 × 100` | **yes — competitive benchmark name** | **no — pure foundedYear arithmetic** |
 | 4 | **`awarenessScore`** | `citations × 6 + (public?25:0) + log10(revenue) × 5` | **yes** | **no — SEC / press signals, not CE** |
 | 5 | **`moatScore`** | `weighted avg CVI of fingerprint caps where conf > 0.65 AND vel > 0` | **yes** | partial (uses CVI+conf+vel) |
 | 6 | **`aiDisruptability`** | `Σ (severity × decay × weight) over tech_shift events hitting the fingerprint` | **yes** | **yes** (uses our `macro_events`) |
@@ -43,7 +43,7 @@ Trigger path today: Perplexity ingestion → fingerprint alignment → `computeC
 | 12 | `sensitivityProfile` | `max fingerprint weight × 100` | yes | **no — just the top weight** |
 | 13 | `composite` | `0.30 FV + 0.20 QoA + 0.15 moat + 0.15 action + 0.10 acq + 0.10 (100 − risk)` | yes | partial |
 
-**Scorecard:** 10 / 13 names are SunasiAI's. Of the 13 formulas, **only one (aiDisruptability)** genuinely requires the CE live macro-event log. The other twelve could be reproduced by anyone with LinkedIn + Crunchbase + a static capability list. That is the me-too problem.
+**Scorecard:** 10 / 13 names are competitive benchmark's. Of the 13 formulas, **only one (aiDisruptability)** genuinely requires the CE live macro-event log. The other twelve could be reproduced by anyone with LinkedIn + Crunchbase + a static capability list. That is the me-too problem.
 
 What we are **leaving on the table** — signals that only CE can compute:
 
@@ -66,7 +66,7 @@ Every one of these is a free differentiation that the platform already stores bu
 
 ## 3. What the Moneyball *should* be — CE-native score set
 
-Rule: **every score must require a signal that only the CE platform produces.** If LinkedIn + Crunchbase + a static capability tree can reproduce it, it is a SunasiAI-me-too and it does not ship.
+Rule: **every score must require a signal that only the CE platform produces.** If LinkedIn + Crunchbase + a static capability tree can reproduce it, it is a competitive benchmark-me-too and it does not ship.
 
 The new set — 10 scores, every one tied to a platform-only signal:
 
@@ -319,7 +319,7 @@ Append-only snapshot taken at the end of each triangulation rotation. Enables 30
 
 ### 6.4 UI changes
 
-- Shortlist table: replace the 10 SunasiAI-name columns with the 10 new CE-native ones.
+- Shortlist table: replace the 10 competitive benchmark-name columns with the 10 new CE-native ones.
 - Company detail: two sections — "CE-native ranking" (the new 10) and "Reference labels" (aged / awareness / acquisition / actionability).
 - Each score shows a tooltip with the one-line formula and the signal it depends on.
 
@@ -337,12 +337,12 @@ Current subtitle says "transparent Moneyball composites" — change to:
 
 ## 7. Why this actually differentiates
 
-SunasiAI's pitch is "we have a proprietary list of composites." Our counter-pitch becomes: **"we have a set of composites that are *structurally impossible to produce* without a live capability platform with sub-capability decomposition, velocity history, and active-event propagation."**
+competitive benchmark's pitch is "we have a proprietary list of composites." Our counter-pitch becomes: **"we have a set of composites that are *structurally impossible to produce* without a live capability platform with sub-capability decomposition, velocity history, and active-event propagation."**
 
 A competitor wanting to reproduce this exact ranking has to build:
-1. A capability tree with parent/child edges (we have it; SunasiAI has flat).
-2. Continuous triangulation with timestamps (we have it; SunasiAI runs engagements).
-3. A live macro-event log with decay (we have it; SunasiAI has static slides).
+1. A capability tree with parent/child edges (we have it; competitive benchmark has flat).
+2. Continuous triangulation with timestamps (we have it; competitive benchmark runs engagements).
+3. A live macro-event log with decay (we have it; competitive benchmark has static slides).
 4. A full company universe in the same fingerprint space (we have 95 and growing).
 5. Cross-industry cap-name matching (we have it via our 8-stage taxonomy).
 
