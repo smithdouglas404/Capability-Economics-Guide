@@ -560,33 +560,80 @@ async function routineCheck(): Promise<void> {
   }
 }
 
+/**
+ * Kill switch — read SCHEDULERS_DISABLED env var at startup.
+ *
+ * Format:
+ *   SCHEDULERS_DISABLED=all       — disable every cron + every startup fire
+ *   SCHEDULERS_DISABLED=macroEvent,autoEnrich,featuredCaseStudy
+ *                                 — disable a comma-separated subset
+ *   SCHEDULERS_DISABLED unset / "" — normal behavior (everything runs)
+ *
+ * Names (case-sensitive):
+ *   routine, watchdog, rotation, worldScan, digest, botLoop,
+ *   creditExpiry, peerBenchmarks, edgarRss, cviSignals, autoEnrich,
+ *   mem0Prune, macroEvent, disruption, peerCoop, stackOptimizer,
+ *   ontology, synthesis, temporalShift, memoryRelationSnapshot,
+ *   featuredCaseStudy
+ *
+ * Applies to BOTH the setInterval cron AND the setTimeout startup fire.
+ * No redeploy needed to toggle — update the Railway env var and the
+ * service auto-redeploys; new boot picks up the change.
+ */
+function getDisabledSchedulers(): Set<string> {
+  const raw = process.env.SCHEDULERS_DISABLED;
+  if (!raw) return new Set<string>();
+  if (raw.trim().toLowerCase() === "all") return new Set<string>(["__all__"]);
+  return new Set(raw.split(",").map(s => s.trim()).filter(Boolean));
+}
+
+function isSchedulerEnabled(name: string, disabled: Set<string>): boolean {
+  if (disabled.has("__all__")) return false;
+  return !disabled.has(name);
+}
+
 export function startScheduler(): void {
   if (routineTimer) {
     console.log("[Agent] Autonomous monitoring already active");
     return;
   }
 
+  const disabled = getDisabledSchedulers();
+  if (disabled.size > 0) {
+    const label = disabled.has("__all__") ? "all" : [...disabled].join(",");
+    console.log(`[Agent] ⚠ SCHEDULERS_DISABLED=${label} — listed crons + startup fires will be SKIPPED`);
+  }
+  const sched = (name: string, start: () => void): void => {
+    if (!isSchedulerEnabled(name, disabled)) {
+      console.log(`[Agent] cron '${name}' DISABLED`);
+      return;
+    }
+    start();
+  };
+
   const checkMinutes = ROUTINE_CHECK_INTERVAL_MS / (60 * 1000);
   const watchdogMinutes = WATCHDOG_INTERVAL_MS / (60 * 1000);
   console.log(`[Agent] Autonomous monitoring started — routine cadence read from agent_tuning every ${checkMinutes}min, urgency watchdog every ${watchdogMinutes}min`);
 
-  routineTimer = setInterval(() => routineCheck(), ROUTINE_CHECK_INTERVAL_MS);
-  watchdogTimer = setInterval(() => watchdogCheck(), WATCHDOG_INTERVAL_MS);
-  rotationTimer = setInterval(() => executeRotation("daily"), ROTATION_INTERVAL_MS);
-  worldScanTimer = setInterval(() => executeWorldScan("daily"), WORLD_SCAN_INTERVAL_MS);
-  digestTimer = setInterval(() => executeDigestSweep("routine"), DIGEST_TICK_INTERVAL_MS);
-  botLoopTimer = setInterval(() => botLoopTick(), BOT_LOOP_INTERVAL_MS);
-  creditExpiryTimer = setInterval(() => creditExpiryTick(), CREDIT_EXPIRY_INTERVAL_MS);
-  peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(), PEER_BENCHMARKS_INTERVAL_MS);
-  edgarRssTimer = setInterval(() => edgarRssTick(), EDGAR_RSS_INTERVAL_MS);
-  cviSignalsTimer = setInterval(() => cviSignalsTick(), CVI_SIGNALS_INTERVAL_MS);
-  autoEnrichTimer = setInterval(() => autoEnrichTick(), AUTO_ENRICH_INTERVAL_MS);
+  sched("routine",          () => { routineTimer        = setInterval(() => routineCheck(),                  ROUTINE_CHECK_INTERVAL_MS); });
+  sched("watchdog",         () => { watchdogTimer       = setInterval(() => watchdogCheck(),                 WATCHDOG_INTERVAL_MS); });
+  sched("rotation",         () => { rotationTimer       = setInterval(() => executeRotation("daily"),        ROTATION_INTERVAL_MS); });
+  sched("worldScan",        () => { worldScanTimer      = setInterval(() => executeWorldScan("daily"),       WORLD_SCAN_INTERVAL_MS); });
+  sched("digest",           () => { digestTimer         = setInterval(() => executeDigestSweep("routine"),   DIGEST_TICK_INTERVAL_MS); });
+  sched("botLoop",          () => { botLoopTimer        = setInterval(() => botLoopTick(),                   BOT_LOOP_INTERVAL_MS); });
+  sched("creditExpiry",     () => { creditExpiryTimer   = setInterval(() => creditExpiryTick(),              CREDIT_EXPIRY_INTERVAL_MS); });
+  sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });
+  sched("edgarRss",         () => { edgarRssTimer       = setInterval(() => edgarRssTick(),                  EDGAR_RSS_INTERVAL_MS); });
+  sched("cviSignals",       () => { cviSignalsTimer     = setInterval(() => cviSignalsTick(),                CVI_SIGNALS_INTERVAL_MS); });
+  sched("autoEnrich",       () => { autoEnrichTimer     = setInterval(() => autoEnrichTick(),                AUTO_ENRICH_INTERVAL_MS); });
   // Kick once on boot so a recently-deployed instance picks up any backlog
   // without waiting an hour. Runs in the background — does NOT block startup.
-  setTimeout(() => autoEnrichTick(), 60_000);
-  mem0PruneTimer = setInterval(() => {
-    mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
-  }, MEM0_PRUNE_INTERVAL_MS);
+  sched("autoEnrich",       () => { setTimeout(() => autoEnrichTick(), 60_000); });
+  sched("mem0Prune", () => {
+    mem0PruneTimer = setInterval(() => {
+      mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
+    }, MEM0_PRUNE_INTERVAL_MS);
+  });
   // One-time best-effort: configure Mem0 Cloud with our custom_categories so
   // server-side fact extraction tags memories with our 11-string MemoryCategory
   // union instead of Mem0's defaults. Non-fatal if endpoint shape differs.
@@ -596,31 +643,41 @@ export function startScheduler(): void {
   // (Weekly prompt optimizer removed — was the LangMem-equivalent learning
   // code the user explicitly rejected when Letta was restored. Letta's own
   // sleeptime + core_memory_replace pattern handles learning autonomously.)
-  macroEventAgentTimer = setInterval(() => {
-    runMacroEventAgent()
-      .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-      .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
-  }, MACRO_EVENT_AGENT_INTERVAL_MS);
-  disruptionAgentTimer = setInterval(() => {
-    runDisruptionAgent()
-      .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-      .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
-  }, DISRUPTION_AGENT_INTERVAL_MS);
-  peerCoopAgentTimer = setInterval(() => {
-    runPeerCoopAgent()
-      .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-      .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
-  }, PEER_COOP_AGENT_INTERVAL_MS);
-  stackOptimizerAgentTimer = setInterval(() => {
-    runStackOptimizerAgent()
-      .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-      .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
-  }, STACK_OPTIMIZER_AGENT_INTERVAL_MS);
+  sched("macroEvent", () => {
+    macroEventAgentTimer = setInterval(() => {
+      runMacroEventAgent()
+        .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+        .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
+    }, MACRO_EVENT_AGENT_INTERVAL_MS);
+  });
+  sched("disruption", () => {
+    disruptionAgentTimer = setInterval(() => {
+      runDisruptionAgent()
+        .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+        .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
+    }, DISRUPTION_AGENT_INTERVAL_MS);
+  });
+  sched("peerCoop", () => {
+    peerCoopAgentTimer = setInterval(() => {
+      runPeerCoopAgent()
+        .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+        .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
+    }, PEER_COOP_AGENT_INTERVAL_MS);
+  });
+  sched("stackOptimizer", () => {
+    stackOptimizerAgentTimer = setInterval(() => {
+      runStackOptimizerAgent()
+        .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+        .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
+    }, STACK_OPTIMIZER_AGENT_INTERVAL_MS);
+  });
+  sched("ontology", () => {
     ontologyAgentTimer = setInterval(() => {
-    runOntologyAgent()
-      .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-      .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
-  }, ONTOLOGY_AGENT_INTERVAL_MS);
+      runOntologyAgent()
+        .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+        .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
+    }, ONTOLOGY_AGENT_INTERVAL_MS);
+  });
   // Synthesis Agent — daily, staggered 5 minutes after startup so all
   // other agents have had a chance to publish their first digests.
   //
@@ -638,16 +695,18 @@ export function startScheduler(): void {
     const r = await runSynthesisAgent();
     return { source: "in-process", duration: r.durationMs, toolCallCount: r.toolCallCount };
   };
-  setTimeout(() => {
-    runSynthesis()
-      .then(r => console.log(`[Agent] Synthesis agent (startup, source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-      .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-  }, 300_000);
-  synthesisAgentTimer = setInterval(() => {
-    runSynthesis()
-      .then(r => console.log(`[Agent] Synthesis agent (source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-      .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-  }, SYNTHESIS_AGENT_INTERVAL_MS);
+  sched("synthesis", () => {
+    setTimeout(() => {
+      runSynthesis()
+        .then(r => console.log(`[Agent] Synthesis agent (startup, source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
+        .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+    }, 300_000);
+    synthesisAgentTimer = setInterval(() => {
+      runSynthesis()
+        .then(r => console.log(`[Agent] Synthesis agent (source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
+        .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+    }, SYNTHESIS_AGENT_INTERVAL_MS);
+  });
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
   startConsolidator();
@@ -657,15 +716,17 @@ export function startScheduler(): void {
   // fine — scheduled changes are minute-precision in the UI and rotation
   // intervals are measured in days. Cheap: one indexed SELECT per tick
   // unless work is actually due.
-  featuredCaseStudyTimer = setInterval(() => {
-    featuredCaseStudyTick()
-      .then(r => {
-        if (r.schedulesExecuted > 0 || r.schedulesFailed > 0 || r.rotated) {
-          console.log(`[FeaturedCaseStudy] tick: executed=${r.schedulesExecuted} failed=${r.schedulesFailed} rotated=${r.rotated}`);
-        }
-      })
-      .catch(err => console.warn("[FeaturedCaseStudy] tick failed:", err instanceof Error ? err.message : err));
-  }, 10 * 60 * 1000);
+  sched("featuredCaseStudy", () => {
+    featuredCaseStudyTimer = setInterval(() => {
+      featuredCaseStudyTick()
+        .then(r => {
+          if (r.schedulesExecuted > 0 || r.schedulesFailed > 0 || r.rotated) {
+            console.log(`[FeaturedCaseStudy] tick: executed=${r.schedulesExecuted} failed=${r.schedulesFailed} rotated=${r.rotated}`);
+          }
+        })
+        .catch(err => console.warn("[FeaturedCaseStudy] tick failed:", err instanceof Error ? err.message : err));
+    }, 10 * 60 * 1000);
+  });
 
   // Push the latest economic_rules table content into the Letta block.
   // Slight delay so Letta init (in letta.ts module load) has time to
@@ -686,26 +747,14 @@ export function startScheduler(): void {
       .catch(err => console.warn("[Agent] Shared store setup failed (optimizer will be disabled):", err instanceof Error ? err.message : err));
   }, 15_000);
 
-  executeRun("startup");
-
-  setTimeout(() => executeRotation("startup"), 30_000);
-  // Run the digest sweep once at startup but staggered so we don't pile up
-  // outbound mail in the first minute after deploy.
-  setTimeout(() => executeDigestSweep("startup"), 90_000);
-  // Fire one bot tick shortly after boot so a freshly-provisioned bot
-  // doesn't have to wait an hour to take its first action.
-  setTimeout(() => botLoopTick(), 45_000);
-  // Run credit expiry once at startup (staggered) so post-deploy any newly-
-  // arrived expirations get processed without waiting 24h.
-  setTimeout(() => creditExpiryTick(), 120_000);
-  // Same for peer-benchmarks aggregator — staggered 3 min post-boot so it
-  // doesn't compete with the bot tick and credit expiry for resources.
-  setTimeout(() => peerBenchmarksTick(), 180_000);
-  // EDGAR RSS first fire staggered 4 min so it doesn't pile on top of the
-  // other startup tasks; subsequent runs hit the 15-min interval.
-  setTimeout(() => edgarRssTick(), 240_000);
-  // CVI signals detector — 5 min stagger, then daily.
-  setTimeout(() => cviSignalsTick(), 300_000);
+  sched("routine",        () => { executeRun("startup"); });
+  sched("rotation",       () => { setTimeout(() => executeRotation("startup"), 30_000); });
+  sched("digest",         () => { setTimeout(() => executeDigestSweep("startup"), 90_000); });
+  sched("botLoop",        () => { setTimeout(() => botLoopTick(), 45_000); });
+  sched("creditExpiry",   () => { setTimeout(() => creditExpiryTick(), 120_000); });
+  sched("peerBenchmarks", () => { setTimeout(() => peerBenchmarksTick(), 180_000); });
+  sched("edgarRss",       () => { setTimeout(() => edgarRssTick(), 240_000); });
+  sched("cviSignals",     () => { setTimeout(() => cviSignalsTick(), 300_000); });
   // Foundry token expiry check: scheduler hook reserved. The
   // `foundryTokenExpiryCheck` helper that this block tried to call was never
   // implemented or imported — wiring it would require building the helper
@@ -717,30 +766,34 @@ export function startScheduler(): void {
   // current graph weights against 30-day baselines. High-signal shifts are
   // written to Mem0 so all agents recall them in future cycles.
   const TEMPORAL_SHIFT_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  setTimeout(() => {
-    detectTemporalShifts()
-      .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-      .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-  }, 120_000);
-  temporalShiftTimer = setInterval(() => {
-    detectTemporalShifts()
-      .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-      .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-  }, TEMPORAL_SHIFT_INTERVAL_MS);
+  sched("temporalShift", () => {
+    setTimeout(() => {
+      detectTemporalShifts()
+        .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+        .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+    }, 120_000);
+    temporalShiftTimer = setInterval(() => {
+      detectTemporalShifts()
+        .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+        .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+    }, TEMPORAL_SHIFT_INTERVAL_MS);
+  });
   // Memory-relation snapshot — daily. Idempotent per (relation_id, day).
   // Once 30+ days of history accumulate, the temporal-shift detector uses
   // these snapshots instead of the legacy fictional 0.1 baseline.
   const MEMORY_REL_SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
-  setTimeout(() => {
-    writeMemoryRelationSnapshots()
-      .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-      .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-  }, 180_000);
-  memoryRelationSnapshotTimer = setInterval(() => {
-    writeMemoryRelationSnapshots()
-      .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-      .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-  }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
+  sched("memoryRelationSnapshot", () => {
+    setTimeout(() => {
+      writeMemoryRelationSnapshots()
+        .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+        .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+    }, 180_000);
+    memoryRelationSnapshotTimer = setInterval(() => {
+      writeMemoryRelationSnapshots()
+        .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+        .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+    }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
+  });
 }
 
 /**
