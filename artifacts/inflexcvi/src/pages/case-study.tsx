@@ -9,7 +9,6 @@ import {
   ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, Legend, Line, ComposedChart,
 } from "recharts";
-import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 const API_BASE = "/api";
 
@@ -221,29 +220,20 @@ export default function CaseStudy() {
                     <div>
                     <h4 className="font-serif text-lg lg:text-xl text-foreground mb-6">Economic impact measured</h4>
                     <dl className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-8">
-                      {cap.metrics.map((metric, idx) => {
-                        const cell = (
-                          <div className={`${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-6" : ""} ${metric.detail ? "cursor-help" : ""}`}>
-                            <div className="flex items-center gap-1.5 mb-2">
-                              <TrendArrow trend={metric.trend} />
-                              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground leading-snug">{metric.name}</span>
-                            </div>
-                            <dd className="font-serif text-xl lg:text-2xl text-foreground leading-tight tracking-tight">
-                              {metric.value}
-                            </dd>
+                      {cap.metrics.map((metric, idx) => (
+                        <div key={idx} className={idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-6" : ""}>
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <TrendArrow trend={metric.trend} />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground leading-snug">{metric.name}</span>
                           </div>
-                        );
-                        if (!metric.detail) return <div key={idx}>{cell}</div>;
-                        return (
-                          <HoverCard key={idx} openDelay={120} closeDelay={80}>
-                            <HoverCardTrigger asChild>{cell}</HoverCardTrigger>
-                            <HoverCardContent align="start" className="w-80">
-                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-2">{metric.name}</div>
-                              <p className="text-sm text-foreground/85 leading-relaxed">{metric.detail}</p>
-                            </HoverCardContent>
-                          </HoverCard>
-                        );
-                      })}
+                          <dd className="font-serif text-xl lg:text-2xl text-foreground leading-tight tracking-tight mb-2">
+                            {metric.value}
+                          </dd>
+                          {metric.detail && (
+                            <p className="text-xs text-muted-foreground leading-relaxed">{metric.detail}</p>
+                          )}
+                        </div>
+                      ))}
                     </dl>
                   </div>
                 </motion.article>
