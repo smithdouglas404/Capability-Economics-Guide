@@ -699,7 +699,7 @@ export default function CVIDashboard() {
   const { data: catalogData } = useApi<CatalogResponse>(`${API_BASE}/macro-events/catalog`);
   const [showFreshness, setShowFreshness] = useState(true);
   const [freshnessStageFilter, setFreshnessStageFilter] = useState<LifecycleStage | "all">("all");
-  const [showMacroPanel, setShowMacroPanel] = useState(true);
+  const [showMacroPanel, setShowMacroPanel] = useState(false);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [showCatalog, setShowCatalog] = useState(false);
   const [eventForm, setEventForm] = useState({
