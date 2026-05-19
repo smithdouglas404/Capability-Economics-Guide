@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Swords, AlertTriangle, Shield, Brain, TrendingDown, RefreshCw } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -116,6 +117,17 @@ export default function CapabilityScorecard() {
               </span>
             )}
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Each row is a capability with the organization's score, the industry benchmark, the gap, and the EVaR (enterprise value at risk if the gap stays open).",
+              pe: "Portfolio-co diligence view. Sort by EVaR descending to see the capabilities most exposed to value loss if uncorrected. Moat score on the right tells you whether the gap is defensible.",
+              vc: "Use this on a portfolio company to find the capability gaps a follow-on round could fund. Moat score predicts whether a gap is a defensibility risk or a routine catch-up.",
+              f500: "Your gap map. Rows in red are below cohort median; the EVaR column quantifies what's at stake. Pair with /alpha business-case-analyzer for the build/buy decision per row.",
+              student: "Concrete worked example of capability benchmarking. Each row links to the capability detail page where you can see how the score and confidence are computed.",
+              professor: "Replication-ready scorecard format. The methodology behind EVaR and moat scores is documented at /methodology — assign students to defend a row's gap-closure plan.",
+            }}
+            className="mt-3"
+          />
         </div>
         <div className="flex items-center gap-2">
           {mode === "industry-average" && industries.length > 0 && (

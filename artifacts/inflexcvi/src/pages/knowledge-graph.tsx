@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
+import { PersonaDescription } from "@/components/page-header";
 
 type KGViewState = { tab: "quadrant" | "network" | "industries" | "compare"; selectedIndustryId: number | null };
 import {
@@ -878,6 +879,17 @@ export default function KnowledgeGraph() {
           <p className="text-lg text-foreground/60 font-serif italic max-w-2xl">
             Explore the capability landscape across six key industries. Each industry has 8-12 core capabilities with benchmarks, metrics, dependencies, and C-suite relevance mappings.
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Browse industries → click capabilities → see how they depend on each other. The Quadrant tab is the high-level view; Dependencies shows the graph.",
+              pe: "Map the value chain before you write a check. Dependency edges tell you which capabilities are upstream — if you buy a downstream cap without its upstream, you've bought half a play.",
+              vc: "Find the wedge. Capabilities with many downstream dependents but few upstream ones are the platform moves; the graph shows you where leverage concentrates.",
+              f500: "Strategic dependency view. If you're below cohort on a capability, hover its upstreams — your build/buy plan needs to clear them first.",
+              student: "The clearest visual of capability-based strategy. Click around; every node and edge is real data with citations. Start with one industry, build a mental model.",
+              professor: "Citable taxonomy. The 8–12 capabilities per industry are the de-facto value-chain decomposition we use throughout; assign students to extend it with a new industry.",
+            }}
+            className="mt-4"
+          />
           <div className="flex gap-2 mt-6 flex-wrap">
             <Button
               variant={tab === "quadrant" ? "default" : "outline"}

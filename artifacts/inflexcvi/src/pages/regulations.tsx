@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Scale, Plus, ShieldCheck, ShieldAlert, AlertTriangle, ChevronRight, ArrowLeft } from "lucide-react";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -91,6 +92,17 @@ export default function Regulations() {
           </div>
           <h1 className="text-3xl font-serif tracking-tight">Regulatory Capability Mapping</h1>
           <p className="text-muted-foreground mt-1">Map regulatory requirements to capabilities and check your compliance posture.</p>
+          <PersonaDescription
+            descriptions={{
+              default: "Every active regulation (HIPAA, GDPR, SOX, …) is mapped to the capabilities it requires. Click a regulation to see compliance gaps.",
+              pe: "Regulatory risk view for portfolio cos. Click any regulation to see which target capabilities are below the required-maturity threshold — the precise gap your remediation plan needs to close.",
+              vc: "Defensibility moat. A startup that already has the capabilities mapped to HIPAA / SOC2 / GDPR has a lower customer-acquisition friction; this page tells you where they stand.",
+              f500: "Compliance gap board. Every regulation that applies to your industry shows your maturity gap; pair with /scorecard for the remediation priorities by EVaR.",
+              student: "Concrete worked example of why capability maturity matters. Regulations specify required maturity levels per capability — you can see the math.",
+              professor: "Citable regulation → capability mapping. Useful in compliance / risk-management curricula; mappings are exportable for assignments.",
+            }}
+            className="mt-3"
+          />
         </div>
         <Button onClick={() => setShowForm(!showForm)}><Plus className="w-4 h-4 mr-2" /> Add Regulation</Button>
       </div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { BarChart3, Search, Check, ArrowLeft, Building2, Shield, Globe, Sparkles, Loader2, Clock, RefreshCw } from "lucide-react";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -189,6 +190,17 @@ export default function Benchmarking() {
             {step === "select" && `${companies.length} companies found. Select the ones to benchmark — or discover more via AI research.`}
             {step === "results" && `${result?.myOrgName} vs ${result?.totalCompanies} companies across ${result?.totalCapabilities} capabilities.`}
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Pick competitors, pick the capabilities that matter, get the gap matrix back. Side-by-side scoring with citations.",
+              pe: "Benchmark a target against its 5–10 closest comps before you size the check. The matrix shows you which capabilities are price-of-entry vs which justify premium multiples.",
+              vc: "Quick competitor scan: pick the startup, pick its top 5 rivals, get a capability matrix. Pairs with /companies for finding rivals you didn't know existed.",
+              f500: "Cohort benchmark for board materials. Pick your 5 closest peers, get the gap matrix; columns rank-ordered by EVaR show your highest-priority closures.",
+              student: "Build-your-own-comparison exercise. The matrix is a transparent capability table; methodology behind each score is at /methodology.",
+              professor: "Live cross-company benchmarking dataset. Assignable in strategy / industry-analysis courses; matrix is exportable for student analysis.",
+            }}
+            className="mt-3"
+          />
         </div>
         {step !== "filter" && (
           <Button variant="outline" onClick={() => { setStep(step === "results" ? "select" : "filter"); setResult(null); }}>

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Loader2, Send, Sparkles, Inbox, FileText, CheckCircle2, XCircle, Mic, Upload, Type, RefreshCw, Play, Calendar, Activity, MessageCircle, Bot } from "lucide-react";
+import { PersonaDescription } from "@/components/page-header";
 
 const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -142,6 +143,17 @@ export default function VCRPage() {
             <p className="text-muted-foreground text-sm max-w-3xl">
               A LangGraph-orchestrated agent that runs a multi-day research campaign — planning each cycle, executing PhD-grade web research with Perplexity sonar-deep-research, cross-validating findings with GLM 5.1, and proposing follow-up questions to the client. Findings and questions land in a single review pane.
             </p>
+            <PersonaDescription
+              descriptions={{
+                default: "Give the engineer a brief; it researches multi-day, asks clarifying questions, and delivers a structured report with cited evidence.",
+                pe: "Replace the $20k boutique consulting brief. Hand the engineer your target's name + sector, get back a capability gap report in 24-48h with citations defensible at IC.",
+                vc: "Pre-meeting research. Feed it a startup name and a competing thesis; the engineer returns founder-question primers + a competitor-capability map you can use in diligence.",
+                f500: "Replace the McKinsey week-1 deck. The engineer profiles your industry's capability landscape, identifies your gaps, and proposes prioritized closures with cost ranges.",
+                student: "Demo of an agentic research workflow. Watch how the LangGraph state machine plans, executes, and re-plans — methodology + tool calls are exposed in the review pane.",
+                professor: "Case study generator. Give a brief, get a fully-cited capability report you can workshop with students. Real example of multi-agent orchestration in practice.",
+              }}
+              className="mt-3"
+            />
           </div>
           <Button variant="outline" size="sm" onClick={loadAll} disabled={loading}>
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} />

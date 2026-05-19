@@ -12,6 +12,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -123,6 +124,17 @@ export default function DisruptionPage() {
           showing meaningful CVI. Drop any of these onto the{" "}
           <Link href="/workbench" className="text-primary hover:underline">Capability Workbench</Link> to ideate against them.
         </p>
+        <PersonaDescription
+          descriptions={{
+            default: "Top feed is rising threats; bottom feed is brand-new capability categories. Click any row to see the underlying triggers.",
+            pe: "Risk radar for portfolio cos. The high-probability disruption band on the top feed is where you should be pressure-testing your existing positions before next quarter's review.",
+            vc: "Net-new capabilities (bottom feed) are the cleanest signal for fund-formation theses — capability categories younger than 24 months haven't had a winner picked yet.",
+            f500: "If your industry sits on any row in the top feed, you have ≤18 months. The bottom feed is where to look for partnership targets or early-stage acquisitions.",
+            student: "Worked example of how the system flags disruption — the probability bands and velocity metrics come from cited macro events. Read /methodology to see the model.",
+            professor: "Real-time disruption dataset. The probability formula + macro-event link structure is documented; the bottom feed is a ready-made case bank for emerging-tech courses.",
+          }}
+          className="mt-3"
+        />
       </div>
 
       {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-3 text-sm">{err}</div>}
