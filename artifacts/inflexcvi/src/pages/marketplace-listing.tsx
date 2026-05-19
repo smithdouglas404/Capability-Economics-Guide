@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText, Loader2, ShoppingCart, Sparkles, BadgeCheck, Star, Store, Globe } from "lucide-react";
 import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
+import { MarketplaceReviews } from "@/components/marketplace-reviews";
 
 const API_BASE = "/api";
 
@@ -164,6 +165,7 @@ export default function MarketplaceListingPage() {
           </div>
         </CardContent>
       </Card>
+      <MarketplaceReviews listingId={listing.id} />
     </div>
   );
 }

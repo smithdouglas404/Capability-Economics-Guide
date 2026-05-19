@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, Store, Sparkles, BadgeCheck, Star } from "lucide-react";
 import { MarketplaceNav } from "@/components/marketplace-nav";
 import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -124,6 +125,17 @@ export default function MarketplacePage() {
       <div className="mb-6">
         <h1 className="font-serif text-2xl sm:text-3xl flex items-center gap-2"><Store className="w-6 h-6 sm:w-7 sm:h-7 text-primary" /> Marketplace</h1>
         <p className="text-muted-foreground text-sm mt-1">Curated research and reports authored by platform members.</p>
+        <PersonaDescription
+          descriptions={{
+            default: "Search and filter the catalog; each listing links to a detail page with a free preview and the buy button.",
+            pe: "Diligence-grade research authored by analysts and firms. Filter to Reports + your sector; a sub-$200 report is often cheaper than one hour of associate time on the same question.",
+            vc: "Pre-meeting prep at thesis depth. Look for sector capability maps and disruption briefs; the Featured-author tier flags publications worth reading before founder meetings.",
+            f500: "Outside-in capability research authored by independent analysts — useful as input to internal strategy decks or as a second opinion on a McKinsey/BCG deliverable.",
+            student: "Browse for case studies and worked industry analyses. Free previews are linked on each listing — use them to see how professionals structure these reports.",
+            professor: "Many listings include source-cited methodology you can use in courses. Featured-author publications are peer-vetted by the moderation queue before they go live.",
+          }}
+          className="mt-3"
+        />
       </div>
 
       {/* Filters */}

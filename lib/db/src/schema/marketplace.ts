@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, boolean, jsonb, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, boolean, jsonb, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * Authors/sellers in the marketplace. One row per user who has started the
@@ -147,6 +147,48 @@ export const marketplacePurchasesTable = pgTable(
   ],
 );
 
+/**
+ * Buyer reviews. One review per (listing, buyer) pair — enforced by a
+ * unique index, not a check constraint, so re-purchases (rare) can
+ * UPDATE the existing review instead of stacking duplicates.
+ *
+ * A row is only writable if the same buyerUserId has a corresponding
+ * `marketplace_purchases` row with `status='paid' AND refundedAt IS NULL`
+ * for this listing. That check is enforced at the route level
+ * (services/marketplace-reviews.ts) rather than via SQL because the
+ * paid/refunded transition happens in the Stripe webhook handler and
+ * a CHECK constraint would race with it.
+ *
+ * Aggregations (avgRating, reviewCount) are computed on demand in the
+ * listing GET handler — small enough that a materialized view isn't
+ * worth the operational cost.
+ */
+export const marketplaceReviewsTable = pgTable(
+  "marketplace_reviews",
+  {
+    id: serial("id").primaryKey(),
+    listingId: integer("listing_id").notNull().references(() => marketplaceListingsTable.id, { onDelete: "cascade" }),
+    buyerUserId: text("buyer_user_id").notNull(),
+    // Display name captured at review time so the listing page doesn't
+    // need a Clerk lookup per render. Synced from clerkClient.users.getUser
+    // in the create handler; if Clerk lookup fails we fall back to the
+    // userId so the review is still saveable.
+    buyerDisplayName: text("buyer_display_name"),
+    rating: integer("rating").notNull(), // 1–5; validated at the route layer
+    body: text("body"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("marketplace_reviews_listing_idx").on(table.listingId),
+    index("marketplace_reviews_buyer_idx").on(table.buyerUserId),
+    // One review per (listing, buyer); a repeat review-of-the-same-listing
+    // is an update, not a new row.
+    uniqueIndex("marketplace_reviews_listing_buyer_unique").on(table.listingId, table.buyerUserId),
+  ],
+);
+
 export type MarketplaceSeller = typeof marketplaceSellersTable.$inferSelect;
 export type MarketplaceListing = typeof marketplaceListingsTable.$inferSelect;
 export type MarketplacePurchase = typeof marketplacePurchasesTable.$inferSelect;
+export type MarketplaceReview = typeof marketplaceReviewsTable.$inferSelect;

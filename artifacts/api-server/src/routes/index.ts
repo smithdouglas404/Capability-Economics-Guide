@@ -71,6 +71,7 @@ import invoicesRouter from "./invoices";
 import billingOrgsRouter from "./billing-orgs";
 import marketplaceSellersRouter from "./marketplace-sellers";
 import marketplaceListingsRouter from "./marketplace-listings";
+import marketplaceReviewsRouter from "./marketplace-reviews";
 import marketplacePurchasesRouter from "./marketplace-purchases";
 import featuredContentRouter from "./featured-content";
 import foundryAdminRouter from "./foundry-admin";
@@ -173,6 +174,7 @@ router.use(invoicesRouter);
 router.use(billingOrgsRouter);
 router.use(marketplaceSellersRouter);
 router.use(marketplaceListingsRouter);
+router.use(marketplaceReviewsRouter);
 router.use(marketplacePurchasesRouter);
 router.use(featuredContentRouter);
 
