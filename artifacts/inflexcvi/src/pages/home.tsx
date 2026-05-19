@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useMotionValue, useSpring, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
@@ -491,6 +491,53 @@ export default function Home() {
           <Link href="/disruption" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
             View Disruption Index → <ArrowRight className="w-2.5 h-2.5" />
           </Link>
+        </div>
+      </section>
+
+      {/* ── § 00 WHAT YOU CAN DO ──────────────────────────────────────────
+          Move 10 (Phase 2). New visitors land here unsure what the platform
+          actually does for them. Five action cards point at the marketplace +
+          network + analysis surfaces so each persona finds their wedge in
+          one scroll. */}
+      <section className="border-b border-border/40 bg-muted/5">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-12 sm:py-20">
+          <div className="mb-8">
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ What you can do here</span>
+            </div>
+            <h2 className="font-serif text-3xl sm:text-4xl tracking-tight">Five ways to use this platform</h2>
+            <p className="text-sm text-muted-foreground mt-2 max-w-2xl">
+              Capability Economics is a marketplace + network + analysis suite. Pick the door that fits why you came.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <Link href="/upload" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+              <Sparkles className="w-5 h-5 text-accent mb-2" />
+              <h3 className="font-serif text-base mb-1">Upload your plan</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">Drop a PDF; we extract capability claims and match them to the live graph.</p>
+            </Link>
+            <Link href="/marketplace" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+              <span className="text-xl">🏪</span>
+              <h3 className="font-serif text-base mb-1 mt-2">Browse the marketplace</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">Cited research, datasets, and templates authored by platform members.</p>
+            </Link>
+            <Link href="/disruption" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+              <span className="text-xl">⚡</span>
+              <h3 className="font-serif text-base mb-1 mt-2">Disruption Index</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">DVX score per industry — what's at active risk and what's net-new.</p>
+            </Link>
+            <Link href="/forum/banking" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+              <span className="text-xl">💬</span>
+              <h3 className="font-serif text-base mb-1 mt-2">Join the discussion</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">Per-industry forums and DMs with other capability strategists.</p>
+            </Link>
+            <Link href="/provenance" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+              <span className="text-xl">📚</span>
+              <h3 className="font-serif text-base mb-1 mt-2">See our sources</h3>
+              <p className="text-xs text-muted-foreground leading-relaxed">World Bank, Foundry, WEF, EDGAR. Not just an LLM wrapper.</p>
+            </Link>
+          </div>
         </div>
       </section>
 

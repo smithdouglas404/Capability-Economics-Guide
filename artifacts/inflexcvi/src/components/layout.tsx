@@ -104,6 +104,17 @@ const navGroups: NavGroup[] = [
       { href: "/alpha", label: "CE Alpha", icon: Activity, description: "Advanced analytics: EVaR, moat, dependency impact, M&A targets" },
     ],
   },
+  {
+    label: "Community",
+    matchPaths: ["/upload", "/marketplace", "/inbox", "/forum", "/member", "/provenance"],
+    children: [
+      { href: "/upload", label: "Upload Document", icon: Sparkles, description: "Drop your business plan / pitch deck — we extract capability claims and match them to the live graph" },
+      { href: "/marketplace", label: "Marketplace", icon: Store, description: "Buy and sell capability research, datasets, and templates" },
+      { href: "/inbox", label: "Messages", icon: MessageCircle, description: "Direct messages with other members" },
+      { href: "/forum/banking", label: "Forums", icon: Users, description: "Per-industry community discussion threads" },
+      { href: "/provenance", label: "Data sources", icon: Shield, description: "Where our data comes from — World Bank, Foundry, WEF, EDGAR, and more" },
+    ],
+  },
 ];
 
 function useMembershipStatus(): { loading: boolean; status: string | null } {
