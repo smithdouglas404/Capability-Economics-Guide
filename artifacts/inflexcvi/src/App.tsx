@@ -23,6 +23,7 @@ import AdminAuditChainPage from "@/pages/admin-audit-chain";
 import AdminAgentProposalsPage from "@/pages/admin-agent-proposals";
 import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
 import AdminReviewQueuePage from "@/pages/admin-review-queue";
+import SourcePage from "@/pages/source";
 import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
 import VCR from "@/pages/vcr";
@@ -66,6 +67,7 @@ import FeedPage from "@/pages/feed";
 import NetworkPage from "@/pages/network";
 import SearchMembersPage from "@/pages/search-members";
 import NotificationsPage from "@/pages/notifications";
+import HashtagPage from "@/pages/hashtag";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
@@ -158,6 +160,7 @@ function Router() {
       <Route path="/network" component={NetworkPage} />
       <Route path="/search/members" component={SearchMembersPage} />
       <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/hashtag/:tag" component={HashtagPage} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />
@@ -193,6 +196,7 @@ function Router() {
       <Route path="/admin/agent/proposals">{() => <AdminOnly component={AdminAgentProposalsPage} />}</Route>
       <Route path="/admin/economic-rules">{() => <AdminOnly component={AdminEconomicRulesPage} />}</Route>
       <Route path="/admin/review-queue">{() => <AdminOnly component={AdminReviewQueuePage} />}</Route>
+      <Route path="/source" component={SourcePage} />
       <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vcr" component={VCR} />
