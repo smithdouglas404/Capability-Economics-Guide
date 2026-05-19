@@ -92,8 +92,7 @@ export default function KnowledgeGraph() {
       .catch(() => { if (!abort) setCapImpacts({}); });
     return () => { abort = true; };
   }, [selectedIndustryId]);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [tab, setTab] = useState<"quadrant" | "network" | "industries" | "compare">(isMobile ? "industries" : "quadrant");
+  const [tab, setTab] = useState<"quadrant" | "network" | "industries" | "compare">("industries");
   interface GraphDataShape {
     industries: Array<{ id: number; name: string; slug: string; icon: string }>;
     capabilities: Array<{ id: number; name: string; industryId: number; benchmarkScore: number; quadrant: string; economicImpactScore: number; adoptionMomentumScore: number; disruptionIntensity: number }>;
