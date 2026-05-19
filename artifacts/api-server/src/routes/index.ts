@@ -56,6 +56,7 @@ import macroEventsRouter from "./macro-events";
 import companiesRouter from "./companies";
 import usageRouter from "./usage";
 import reviewQueueRouter from "./review-queue";
+import portfolioRouter from "./portfolio";
 import simulationRouter from "./simulation";
 import warRoomRouter from "./war-room";
 import tradeSignalsRouter from "./trade-signals";
@@ -163,6 +164,7 @@ router.use(apiVolumeRouter);
 // requireReviewer rather than the catch-all requireAdmin. Approve/reject
 // of regulation + requirement proposals (the seed → review-queue cutover).
 router.use(reviewQueueRouter);
+router.use(portfolioRouter);
 router.use(adminRouter);
 router.use(foundryAdminRouter);
 router.use(backtestRouter);

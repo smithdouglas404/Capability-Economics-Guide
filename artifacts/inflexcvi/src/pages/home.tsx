@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useMotionValue, useSpring, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
 import { useHasPickedPersona } from "@/lib/persona";
 import { DvxChip } from "@/components/dvx-hero";
+import { useAuth } from "@clerk/react";
+import { fetchLearningProfile } from "@/lib/learning";
+import { Badge } from "@/components/ui/badge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -165,6 +168,128 @@ function EducationalLibrary() {
           ))}
         </div>
       </div>
+    </section>
+  );
+}
+
+// ─── Learning Progress ──────────────────────────────────────────────────
+
+function LearningProgress() {
+  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const [profile, setProfile] = useState<{
+    totalAiGenerations: number;
+    totalPageViews: number;
+    topIndustries: Array<{ name: string; slug: string }>;
+    topCapabilities: Array<{ name: string }>;
+    lastVisitedAt: string | null;
+    persona: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!authLoaded || !isSignedIn) return;
+    void fetchLearningProfile().then(
+      d => d?.profile ? setProfile(d.profile) : null,
+    );
+  }, [authLoaded, isSignedIn]);
+
+  if (!isSignedIn || !profile) return null;
+
+  const hasActivity = profile.totalAiGenerations > 0 || profile.totalPageViews > 0 || profile.topIndustries.length > 0;
+  if (!hasActivity) return null;
+
+  const lastVisit = profile.lastVisitedAt ? new Date(profile.lastVisitedAt) : null;
+  const daysAgo = lastVisit ? Math.floor((Date.now() - lastVisit.getTime()) / 86400000) : null;
+
+  return (
+    <section className="border-t border-border/40 bg-muted/5">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-40px" }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+        className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 py-10 sm:py-14"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-6 mb-6">
+          <div>
+            <div className="inline-flex items-center gap-2 mb-3">
+              <span className="h-px w-5 bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Your learning</span>
+            </div>
+            <h2 className="font-serif text-2xl sm:text-3xl tracking-tight flex items-center gap-2">
+              <Brain className="w-5 h-5 text-foreground/50" />
+              What the system has learned from you
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+              {daysAgo !== null && daysAgo > 0
+                ? `Welcome back! It's been ${daysAgo} day${daysAgo > 1 ? "s" : ""} since your last visit. `
+                : ""}
+              Your activity shapes how the AI tailors briefs and recommendations.
+            </p>
+          </div>
+          <Link
+            href="/account/learning"
+            className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-accent hover:text-accent/70 transition-colors shrink-0"
+          >
+            See full profile <ArrowRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="border border-border/50 bg-background p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
+              {profile.persona ? `${profile.persona.toUpperCase()} persona` : "No persona set"}
+            </div>
+            <div className="font-mono text-lg font-medium tabular-nums text-foreground">
+              {profile.totalAiGenerations}
+            </div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">AI briefs generated</div>
+          </div>
+          <div className="border border-border/50 bg-background p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">Pages visited</div>
+            <div className="font-mono text-lg font-medium tabular-nums text-foreground">
+              {profile.totalPageViews}
+            </div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">Across all sessions</div>
+          </div>
+          <div className="border border-border/50 bg-background p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">Industries explored</div>
+            <div className="font-mono text-lg font-medium tabular-nums text-foreground">
+              {profile.topIndustries.length}
+            </div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">
+              {profile.topIndustries.length > 0
+                ? profile.topIndustries.slice(0, 2).map(i => i.name).join(", ")
+                : "—"}
+            </div>
+          </div>
+          <div className="border border-border/50 bg-background p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">Capabilities viewed</div>
+            <div className="font-mono text-lg font-medium tabular-nums text-foreground">
+              {profile.topCapabilities.length}
+            </div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">
+              {profile.topCapabilities.length > 0
+                ? profile.topCapabilities.slice(0, 2).map(c => c.name).join(", ")
+                : "—"}
+            </div>
+          </div>
+        </div>
+
+        {profile.topIndustries.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+           {profile.topIndustries.slice(0, 5).map(ind => (
+              <Link
+                key={ind.name}
+                href={`/case-study/${ind.slug ?? ind.name.toLowerCase()}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent hover:bg-muted/30 rounded-sm transition-colors"
+              >
+                <Activity className="w-2.5 h-2.5 text-accent" />
+                {ind.name}
+              </Link>
+            ))}
+          </div>
+        )}
+      </motion.div>
     </section>
   );
 }
@@ -703,6 +828,9 @@ export default function Home() {
 
       {/* ── AGENT MEMORY SHOWCASE ─────────────────────────────────────────── */}
       <AgentMemoryShowcase />
+
+      {/* ── LEARNING PROGRESS (signed-in users only) ─────────────────────── */}
+      <LearningProgress />
 
       {/* ── § NEXT — CTA ─────────────────────────────────────────────────── */}
       <section className="relative bg-foreground text-background overflow-hidden">

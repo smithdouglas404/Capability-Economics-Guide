@@ -13,17 +13,18 @@
  *   - download-as-markdown button once stream completes
  *   - visible "Streaming · Vercel AI SDK" badge so the SDK presence is felt
  */
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useCompletion } from "@ai-sdk/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Sparkles, Loader2, Zap, Download, AlertCircle } from "lucide-react";
+import { Sparkles, Loader2, Zap, Download, AlertCircle, ThumbsUp, ThumbsDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { usePersona } from "@/lib/persona";
 import { downloadFile } from "@/lib/exports";
+import { logInteraction, submitFeedback, useAutoLog } from "@/lib/learning";
 
 export interface StreamingBriefProps {
   /** API endpoint that streams text via the AI SDK text protocol. */
@@ -51,6 +52,10 @@ export function StreamingBrief({
   const { persona } = usePersona();
   const [context, setContext] = useState("");
 
+  const interactionLogIdRef = useRef<number | null>(null);
+  const [feedbackGiven, setFeedbackGiven] = useState<"liked" | "disliked" | null>(null);
+  const { onAiStream } = useAutoLog();
+
   const {
     completion,
     complete,
@@ -61,7 +66,12 @@ export function StreamingBrief({
     streamProtocol: "text",
   });
 
-  const handleGenerate = (): void => {
+  const handleGenerate = async (): Promise<void> => {
+    // Log the AI stream to the learning system
+    interactionLogIdRef.current = null;
+    setFeedbackGiven(null);
+    const logId = await onAiStream(api, { label: title, ...body });
+    interactionLogIdRef.current = logId;
     void complete(context, { body: { ...body, persona } });
   };
 
@@ -69,6 +79,22 @@ export function StreamingBrief({
     if (!completion) return;
     const today = new Date().toISOString().slice(0, 10);
     downloadFile(`${downloadFilename}-${today}.md`, completion, "text/markdown;charset=utf-8");
+  };
+
+  const handleFeedback = async (liked: boolean): Promise<void> => {
+    const logId = interactionLogIdRef.current;
+    if (!logId) {
+      // If we don't have a log ID yet (e.g. generated before this code shipped),
+      // log the interaction now with a feedback flag
+      const newId = await logInteraction("ai_stream", `${title} (retroactive feedback)`, { endpoint: api });
+      if (newId) {
+        await submitFeedback(newId, liked, undefined, api);
+        setFeedbackGiven(liked ? "liked" : "disliked");
+      }
+      return;
+    }
+    await submitFeedback(logId, liked, undefined, api);
+    setFeedbackGiven(liked ? "liked" : "disliked");
   };
 
   return (
@@ -85,9 +111,36 @@ export function StreamingBrief({
         </div>
         <div className="flex items-center gap-2">
           {completion && !isLoading && (
-            <Button variant="outline" size="sm" onClick={handleDownload}>
-              <Download className="w-4 h-4 mr-1" /> Download
-            </Button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleFeedback(true)}
+                className={`p-1.5 rounded-sm border transition-colors ${
+                  feedbackGiven === "liked"
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600"
+                    : "border-transparent hover:border-border/60 hover:bg-muted/30 text-muted-foreground"
+                }`}
+                aria-label="Thumbs up — this was helpful"
+                title="Helpful"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => handleFeedback(false)}
+                className={`p-1.5 rounded-sm border transition-colors ${
+                  feedbackGiven === "disliked"
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-600"
+                    : "border-transparent hover:border-border/60 hover:bg-muted/30 text-muted-foreground"
+                }`}
+                aria-label="Thumbs down — not helpful"
+                title="Not helpful"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" />
+              </button>
+              <div className="w-px h-4 bg-border/60 mx-1" />
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="w-4 h-4 mr-1" /> Download
+              </Button>
+            </div>
           )}
           <Button size="sm" onClick={handleGenerate} disabled={isLoading}>
             {isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Sparkles className="w-4 h-4 mr-1" />}

@@ -15,7 +15,8 @@
  */
 import { Router, type IRouter } from "express";
 import { streamText } from "ai";
-import { db, industriesTable, capabilitiesTable, capabilityThresholdsTable, cviComponentsTable, dvxComponentsTable, organizationsTable, organizationCapabilitiesTable } from "@workspace/db";
+import { getAuth } from "@clerk/express";
+import { db, industriesTable, capabilitiesTable, capabilityThresholdsTable, cviComponentsTable, dvxComponentsTable, organizationsTable, organizationCapabilitiesTable, userInteractionLogTable, userLearningProfilesTable } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { sonnet } from "../services/workflows/models";
 import { logger } from "../lib/logger";
@@ -32,12 +33,46 @@ const PERSONA_VOICE: Record<string, string> = {
 const PERSONA_VOICE_DEFAULT = "Write a tight strategic brief: 3-5 sections, plain markdown.";
 
 /**
+ * Loads the past 5 interactions for a user and returns a brief context block
+ * to inject into the AI system prompt. Gives the AI a sense of "what this
+ * user was looking at before" across sessions.
+ */
+async function loadUserHistoryBlock(userId: string | undefined | null): Promise<string> {
+  if (!userId) return "";
+  try {
+    const recent = await db
+      .select({ type: userInteractionLogTable.type, label: userInteractionLogTable.label, createdAt: userInteractionLogTable.createdAt })
+      .from(userInteractionLogTable)
+      .where(eq(userInteractionLogTable.userId, userId))
+      .orderBy(desc(userInteractionLogTable.createdAt))
+      .limit(5);
+    if (recent.length === 0) return "";
+    const lines = recent.map(r => `- [${r.type}] ${r.label}`).join("\n");
+    return `\n\nThe user's recent activity on this platform:\n${lines}`;
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Logs an AI generation to the interaction log. Fire-and-forget — never throw.
+ */
+async function logAiGeneration(userId: string | undefined | null, endpoint: string, label: string, metadata: Record<string, unknown>): Promise<void> {
+  if (!userId) return;
+  try {
+    await db.insert(userInteractionLogTable).values({ userId, type: "ai_stream", label, metadata });
+  } catch { /* ignore */ }
+}
+
+/**
  * POST /api/insights/stream
  * Body: { industryId, persona?, context? }
  * Streams a markdown brief about the industry's current capability posture.
  */
 router.post("/insights/stream", async (req, res) => {
   try {
+    const auth = getAuth(req);
+    const userId = auth?.userId ?? null;
     const industryId = Number(req.body?.industryId);
     const personaKey = typeof req.body?.persona === "string" ? req.body.persona : null;
     const context = typeof req.body?.context === "string" ? req.body.context.slice(0, 1000) : "";
@@ -71,10 +106,11 @@ router.post("/insights/stream", async (req, res) => {
       .join("\n");
 
     const voice = (personaKey && PERSONA_VOICE[personaKey]) || PERSONA_VOICE_DEFAULT;
+    const historyBlock = await loadUserHistoryBlock(userId);
 
     const stream = streamText({
       model: sonnet,
-      system: `You are a capability-economics strategist. Output pure Markdown — no preamble, no code fences. Always include these sections: ## Where to focus, ## What's at risk, ## Next actions, ## Watch list.\n\n${voice}`,
+      system: `You are a capability-economics strategist. Output pure Markdown — no preamble, no code fences. Always include these sections: ## Where to focus, ## What's at risk, ## Next actions, ## Watch list.\n\n${voice}${historyBlock}`,
       prompt: `Industry: ${industry.name}
 
 Top 20 capabilities ranked by |DVX| (disruption pressure):
@@ -91,6 +127,9 @@ Now write the strategic brief.`,
     res.setHeader("Transfer-Encoding", "chunked");
     for await (const chunk of stream.textStream) res.write(chunk);
     res.end();
+
+    // Log this asynchronously after response is sent
+    void logAiGeneration(userId, "/insights/stream", `Generated insight brief for ${industry.name}`, { industryId, industryName: industry.name });
   } catch (err) {
     logger.error({ err }, "[insights/stream] failed");
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "stream failed" });
@@ -106,6 +145,8 @@ Now write the strategic brief.`,
  */
 router.post("/capabilities/:id/recommendations/stream", async (req, res) => {
   try {
+    const auth = getAuth(req);
+    const userId = auth?.userId ?? null;
     const capId = Number(req.params.id);
     if (!Number.isFinite(capId)) { res.status(400).json({ error: "bad id" }); return; }
     const personaKey = typeof req.body?.persona === "string" ? req.body.persona : null;
@@ -130,9 +171,11 @@ router.post("/capabilities/:id/recommendations/stream", async (req, res) => {
     if (!row) { res.status(404).json({ error: "capability not found" }); return; }
 
     const voice = (personaKey && PERSONA_VOICE[personaKey]) || PERSONA_VOICE_DEFAULT;
+    const historyBlock = await loadUserHistoryBlock(userId);
+
     const stream = streamText({
       model: sonnet,
-      system: `You are a capability-economics strategist. Output pure Markdown — no preamble, no code fences. Sections: ## Read of the data, ## Recommendation, ## What to watch.\n\n${voice}`,
+      system: `You are a capability-economics strategist. Output pure Markdown — no preamble, no code fences. Sections: ## Read of the data, ## Recommendation, ## What to watch.\n\n${voice}${historyBlock}`,
       prompt: `Capability: ${row.name}
 Industry: ${row.industryName ?? "—"}
 Value chain stage: ${row.valueChainStage ?? "—"}
@@ -152,6 +195,8 @@ Now write the persona-framed recommendation.`,
     res.setHeader("Transfer-Encoding", "chunked");
     for await (const chunk of stream.textStream) res.write(chunk);
     res.end();
+
+    void logAiGeneration(userId, "/capabilities/recommendations/stream", `Generated recommendation for ${row.name}`, { capabilityId: capId, capabilityName: row.name });
   } catch (err) {
     logger.error({ err }, "[capabilities/recommendations/stream] failed");
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "stream failed" });
@@ -171,6 +216,8 @@ Now write the persona-framed recommendation.`,
  */
 router.post("/scorecard/stream", async (req, res) => {
   try {
+    const auth = getAuth(req);
+    const userId = auth?.userId ?? null;
     const industryId = Number(req.body?.industryId);
     if (!Number.isFinite(industryId)) { res.status(400).json({ error: "industryId required" }); return; }
     const sessionToken = typeof req.body?.sessionToken === "string" ? req.body.sessionToken : null;
@@ -227,9 +274,11 @@ router.post("/scorecard/stream", async (req, res) => {
     const digest = gaps.map(g => `- **${g.name}** [stage: ${g.valueChainStage ?? "—"}] · your score: ${g.myScore.toFixed(1)} · target: ${g.target} · gap: ${g.gap.toFixed(1)} · DVX: ${g.dvxScore?.toFixed(1) ?? "—"}`).join("\n");
 
     const voice = (personaKey && PERSONA_VOICE[personaKey]) || PERSONA_VOICE_DEFAULT;
+    const historyBlock = await loadUserHistoryBlock(userId);
+
     const stream = streamText({
       model: sonnet,
-      system: `You write capability-gap closure plans. Output pure Markdown — no preamble, no code fences. For each gap give: 1) the build/buy/partner recommendation, 2) an order-of-magnitude cost estimate, 3) which DVX flag means urgency. Group by stage of value chain. Sections: ## Closure plan summary, ## Top priorities (3-5 gaps with full treatment), ## Watch list (remaining gaps with shorter notes).\n\n${voice}`,
+      system: `You write capability-gap closure plans. Output pure Markdown — no preamble, no code fences. For each gap give: 1) the build/buy/partner recommendation, 2) an order-of-magnitude cost estimate, 3) which DVX flag means urgency. Group by stage of value chain. Sections: ## Closure plan summary, ## Top priorities (3-5 gaps with full treatment), ## Watch list (remaining gaps with shorter notes).\n\n${voice}${historyBlock}`,
       prompt: `Industry: ${industry.name}
 ${userOrgName ? `Organization: ${userOrgName}` : "Mode: industry-average baseline (no specific org)"}
 
@@ -247,6 +296,8 @@ Write the closure plan.`,
     res.setHeader("Transfer-Encoding", "chunked");
     for await (const chunk of stream.textStream) res.write(chunk);
     res.end();
+
+    void logAiGeneration(userId, "/scorecard/stream", `Generated scorecard closure plan for ${industry.name}`, { industryId, industryName: industry.name });
   } catch (err) {
     logger.error({ err }, "[scorecard/stream] failed");
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "stream failed" });
@@ -263,14 +314,18 @@ Write the closure plan.`,
  */
 router.post("/vcr/draft-brief/stream", async (req, res) => {
   try {
+    const auth = getAuth(req);
+    const userId = auth?.userId ?? null;
     const userPrompt = typeof req.body?.prompt === "string" ? req.body.prompt.slice(0, 4000) : "";
     const personaKey = typeof req.body?.persona === "string" ? req.body.persona : null;
     if (userPrompt.trim().length < 20) { res.status(400).json({ error: "Type at least 20 characters describing the engagement." }); return; }
 
     const voice = (personaKey && PERSONA_VOICE[personaKey]) || PERSONA_VOICE_DEFAULT;
+    const historyBlock = await loadUserHistoryBlock(userId);
+
     const stream = streamText({
       model: sonnet,
-      system: `You are a strategy associate framing a research engagement. Output pure Markdown — no preamble, no code fences. Sections: ## Engagement frame (what we'd be researching), ## Capability hypotheses (3-5 the engineer would investigate), ## Research questions (5-8 specific questions the engineer would answer), ## Decision the buyer gets (what they'd be able to decide after the full run completes).\n\n${voice}\n\nThis is a PREVIEW — flag any vague inputs the user should sharpen before running the full multi-day research campaign.`,
+      system: `You are a strategy associate framing a research engagement. Output pure Markdown — no preamble, no code fences. Sections: ## Engagement frame (what we'd be researching), ## Capability hypotheses (3-5 the engineer would investigate), ## Research questions (5-8 specific questions the engineer would answer), ## Decision the buyer gets (what they'd be able to decide after the full run completes).\n\n${voice}\n\nThis is a PREVIEW — flag any vague inputs the user should sharpen before running the full multi-day research campaign.${historyBlock}`,
       prompt: `User's framing of the engagement:
 
 ${userPrompt}
@@ -285,6 +340,8 @@ Now write the preview brief.`,
     res.setHeader("Transfer-Encoding", "chunked");
     for await (const chunk of stream.textStream) res.write(chunk);
     res.end();
+
+    void logAiGeneration(userId, "/vcr/draft-brief/stream", "Generated VCR draft brief", { promptLength: userPrompt.length });
   } catch (err) {
     logger.error({ err }, "[vcr/draft-brief/stream] failed");
     if (!res.headersSent) res.status(500).json({ error: err instanceof Error ? err.message : "stream failed" });

@@ -10,7 +10,7 @@
  *   GET /api/workbench/companies?industryId=X
  *   GET /api/workbench/companies/:id
  *   GET /api/workbench/companies/:id/similar
- *   POST /api/watchlist/companies/:id  (existing watchlist hook)
+ *   POST /api/portfolio/companies/:id  (existing watchlist hook)
  *
  * Thesis paragraph is template-generated from the company's FEVI
  * sub-scores + capability fingerprint + industry context. Deterministic.
@@ -134,10 +134,10 @@ export default function SourcePage() {
 
   const selected = useMemo(() => rows.find(r => r.company.id === selectedId) ?? null, [rows, selectedId]);
 
-  const addToWatchlist = async (companyId: number) => {
+  const addToPortfolio = async (companyId: number) => {
     setBusyAdd(companyId);
     try {
-      await fetch(`/api/watchlist/companies/${companyId}`, { method: "POST" });
+      await fetch(`/api/portfolio/companies/${companyId}`, { method: "POST" });
     } finally {
       setBusyAdd(null);
     }
@@ -264,9 +264,9 @@ export default function SourcePage() {
                               size="sm"
                               variant="ghost"
                               className="h-7 px-2"
-                              onClick={(e) => { e.stopPropagation(); addToWatchlist(r.company.id); }}
+                              onClick={(e) => { e.stopPropagation(); addToPortfolio(r.company.id); }}
                               disabled={busyAdd === r.company.id}
-                              data-testid={`add-watch-${r.company.id}`}
+                              data-testid={`add-portfolio-${r.company.id}`}
                             >
                               {busyAdd === r.company.id ? "…" : <Star className="w-3 h-3" />}
                             </Button>
@@ -360,11 +360,11 @@ export default function SourcePage() {
               <div className="flex gap-2 pt-2">
                 <Button
                   size="sm"
-                  onClick={() => addToWatchlist(selected.company.id)}
+                  onClick={() => addToPortfolio(selected.company.id)}
                   disabled={busyAdd === selected.company.id}
-                  data-testid="detail-add-watch"
+                  data-testid="detail-add-portfolio"
                 >
-                  <Star className="w-3 h-3 mr-1" /> Add to Watchlist
+                  <Star className="w-3 h-3 mr-1" /> Add to Portfolio
                 </Button>
                 {selected.company.websiteUrl && (
                   <Button asChild size="sm" variant="outline">

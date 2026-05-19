@@ -59,6 +59,11 @@ interface ChatRequestBody {
     title?: string;
     summary?: string;
   };
+  learningContext?: {
+    lastVisitedAt: string | null;
+    totalAiGenerations: number;
+    topIndustries: string[];
+  };
 }
 
 router.post("/tour-guide/chat", async (req, res) => {
@@ -76,11 +81,28 @@ router.post("/tour-guide/chat", async (req, res) => {
       ctx.summary ? `What the page shows: ${ctx.summary}` : null,
     ].filter(Boolean).join("\n");
 
+    // Build proactive reachback from learning context
+    const lc = body.learningContext;
+    let reachbackBlock = "";
+    if (lc) {
+      const parts: string[] = [];
+      if (lc.lastVisitedAt) {
+        const lastVisit = new Date(lc.lastVisitedAt);
+        const daysAgo = Math.floor((Date.now() - lastVisit.getTime()) / 86400000);
+        if (daysAgo > 0) parts.push(`This user last visited ${daysAgo} day(s) ago. If shown in the UI today for the first time, greet them appropriately as a returning visitor.`);
+      }
+      if (lc.totalAiGenerations > 0) parts.push(`The user has generated ${lc.totalAiGenerations} AI brief(s) across their sessions.`);
+      if (lc.topIndustries.length > 0) parts.push(`Industries this user has shown interest in: ${lc.topIndustries.join(", ")}. Reference these when relevant.`);
+      if (parts.length > 0) {
+        reachbackBlock = `\n\nUSER HISTORY (learned from past sessions):\n${parts.join("\n")}\n\nWhen greeting this user, aknowledge their return and reference what they were doing before when appropriate. For example: "Welcome back! It's been a while since your last visit. I see you were looking at ${lc.topIndustries[0] ?? "capability data"} before."`;
+      }
+    }
+
     const systemPrompt = `You are the Capability Economics tour guide. You help visitors understand what they're looking at and what they should do next.
 
 ${personaFraming}
 
-${pageContextBlock ? `CURRENT PAGE CONTEXT:\n${pageContextBlock}\n` : ""}
+${pageContextBlock ? `CURRENT PAGE CONTEXT:\n${pageContextBlock}\n` : ""}${reachbackBlock}
 Rules:
 - Be terse. 2-4 sentences for most answers. Bullet lists only when the user asks for a list.
 - Never invent data — if the user asks for a specific number that isn't in their visible context, tell them which page to navigate to.

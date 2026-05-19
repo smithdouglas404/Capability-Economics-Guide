@@ -12,7 +12,7 @@
  * tailored to PE / VC / F500 / student / professor. Move 1 of the
  * strategic UX overhaul plan — see memory/strategic_ux_overhaul.md.
  */
-import { useCallback, useState, useMemo } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useChat } from "@ai-sdk/react";
 import { MessageCircle, X, Send, Sparkles } from "lucide-react";
@@ -67,6 +67,29 @@ export function AITourGuide({ hidden = false }: AITourGuideProps) {
   const [open, setOpen] = useState(false);
   const [location] = useLocation();
   const { persona } = usePersona();
+  const [learningContext, setLearningContext] = useState<{
+    lastVisitedAt: string | null;
+    totalAiGenerations: number;
+    topIndustries: string[];
+  } | null>(null);
+
+  // Load learning context for returning-user greeting
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/me/learning-profile", { credentials: "include" });
+        if (res.ok) {
+          const j = await res.json() as { profile: { lastVisitedAt: string | null; totalAiGenerations: number; topIndustries: Array<{ name: string }> } };
+          setLearningContext({
+            lastVisitedAt: j.profile.lastVisitedAt,
+            totalAiGenerations: j.profile.totalAiGenerations,
+            topIndustries: (j.profile.topIndustries ?? []).map((i: { name: string }) => i.name),
+          });
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [open]);
 
   // useChat manages messages + streaming. Body is recomputed on every send,
   // not just on mount — so as the user navigates around the app the guide
@@ -78,6 +101,7 @@ export function AITourGuide({ hidden = false }: AITourGuideProps) {
     body: {
       persona,
       pageContext: { path: location, ...pageContext },
+      learningContext: learningContext ?? undefined,
     },
   });
 

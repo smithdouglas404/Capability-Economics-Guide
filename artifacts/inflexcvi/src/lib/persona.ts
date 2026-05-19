@@ -18,7 +18,9 @@
  *      field required — currently we render `default` when a persona's
  *      copy is missing, so it's safe-by-default)
  */
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useRef, useSyncExternalStore, useCallback } from "react";
+import { useAuth } from "@clerk/react";
+import { syncPersona as syncPersonaToServer } from "@/lib/learning";
 
 export const PERSONAS = ["pe", "vc", "f500", "student", "professor"] as const;
 export type Persona = typeof PERSONAS[number];
@@ -101,7 +103,12 @@ export function usePersona(): {
   setPersona: (p: Persona | null) => void;
 } {
   const persona = useSyncExternalStore(subscribePersona, readPersona, () => null);
-  const setPersona = (p: Persona | null): void => {
+  const { isSignedIn } = useAuth();
+
+  // Sync to server whenever persona changes, debounced
+  const lastSyncRef = useRef("");
+
+  const setPersona = useCallback((p: Persona | null): void => {
     if (typeof window === "undefined") return;
     try {
       if (p === null) window.localStorage.removeItem(STORAGE_KEY);
@@ -110,7 +117,23 @@ export function usePersona(): {
     } catch {
       // localStorage disabled — degrade silently to a session-only choice
     }
-  };
+  }, []);
+
+  // Sync persona changes to the server when signed in
+  useEffect(() => {
+    if (!isSignedIn || persona === null) return;
+    const key = JSON.stringify({ persona });
+    if (key === lastSyncRef.current) return;
+    lastSyncRef.current = key;
+    void syncPersonaToServer(persona);
+  }, [persona, isSignedIn]);
+
+  // On mount, sync existing persona if signed in
+  useEffect(() => {
+    if (!isSignedIn || !persona) return;
+    void syncPersonaToServer(persona);
+  }, [isSignedIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return { persona, setPersona };
 }
 
