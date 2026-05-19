@@ -953,7 +953,7 @@ export default function CVIDashboard() {
                     <span className="text-xs text-amber-500 uppercase tracking-wider">Volatility</span>
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                   </div>
-                  <div className="text-2xl font-mono font-bold">{(cei.volatility * 100).toFixed(1)}%</div>
+                  <div className="text-2xl font-mono font-bold text-white">{(cei.volatility * 100).toFixed(1)}%</div>
                   <div className="text-xs text-amber-500 mt-1">Capability change dispersion</div>
                 </div>
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
@@ -961,7 +961,7 @@ export default function CVIDashboard() {
                     <span className="text-xs text-amber-500 uppercase tracking-wider">Industries Tracked</span>
                     <Globe className="w-3.5 h-3.5 text-indigo-400" />
                   </div>
-                  <div className="text-2xl font-mono font-bold">{industries.length}</div>
+                  <div className="text-2xl font-mono font-bold text-white">{industries.length}</div>
                   <div className="text-xs text-amber-500 mt-1">
                     {Object.values(cei.industryBreakdowns).reduce((s, i) => s + i.capabilityCount, 0)} capabilities monitored
                   </div>
