@@ -1,4 +1,5 @@
 import { runAgent } from "./graph";
+import { ensureKillSwitchTable, isSchedulerDisabledRuntime } from "../scheduler-kill-switch";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
 import { detectTemporalShifts, writeMemoryRelationSnapshots } from "./temporal-shift-detector";
@@ -456,6 +457,10 @@ async function autoEnrichTick(): Promise<void> {
     console.log("[AutoEnrich] tick skipped — previous tick still in progress");
     return;
   }
+  if (await isSchedulerDisabledRuntime("autoEnrich")) {
+    console.log("[AutoEnrich] tick skipped — disabled via scheduler_kill_switches");
+    return;
+  }
   isAutoEnriching = true;
   try {
     const [cfg] = await db.select().from(enrichmentConfigTable).limit(1);
@@ -592,6 +597,18 @@ function isSchedulerEnabled(name: string, disabled: Set<string>): boolean {
   return !disabled.has(name);
 }
 
+// Runtime gate — checks the DB-backed scheduler_kill_switches table.
+// Wraps a tick callback so a cron can be toggled off from the admin UI
+// without waiting for the next deploy. Failing open: if the DB lookup
+// errors we let the tick run (the env var hammer is still in effect at
+// boot if you need it off completely).
+function withRuntimeGate(name: string, fn: () => Promise<void> | void): () => Promise<void> {
+  return async () => {
+    if (await isSchedulerDisabledRuntime(name)) return;
+    await fn();
+  };
+}
+
 export function startScheduler(): void {
   if (routineTimer) {
     console.log("[Agent] Autonomous monitoring already active");
@@ -644,39 +661,39 @@ export function startScheduler(): void {
   // code the user explicitly rejected when Letta was restored. Letta's own
   // sleeptime + core_memory_replace pattern handles learning autonomously.)
   sched("macroEvent", () => {
-    macroEventAgentTimer = setInterval(() => {
-      runMacroEventAgent()
+    macroEventAgentTimer = setInterval(withRuntimeGate("macroEvent", () => {
+      return runMacroEventAgent()
         .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
         .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
-    }, MACRO_EVENT_AGENT_INTERVAL_MS);
+    }), MACRO_EVENT_AGENT_INTERVAL_MS);
   });
   sched("disruption", () => {
-    disruptionAgentTimer = setInterval(() => {
-      runDisruptionAgent()
+    disruptionAgentTimer = setInterval(withRuntimeGate("disruption", () => {
+      return runDisruptionAgent()
         .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
         .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
-    }, DISRUPTION_AGENT_INTERVAL_MS);
+    }), DISRUPTION_AGENT_INTERVAL_MS);
   });
   sched("peerCoop", () => {
-    peerCoopAgentTimer = setInterval(() => {
-      runPeerCoopAgent()
+    peerCoopAgentTimer = setInterval(withRuntimeGate("peerCoop", () => {
+      return runPeerCoopAgent()
         .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
         .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
-    }, PEER_COOP_AGENT_INTERVAL_MS);
+    }), PEER_COOP_AGENT_INTERVAL_MS);
   });
   sched("stackOptimizer", () => {
-    stackOptimizerAgentTimer = setInterval(() => {
-      runStackOptimizerAgent()
+    stackOptimizerAgentTimer = setInterval(withRuntimeGate("stackOptimizer", () => {
+      return runStackOptimizerAgent()
         .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
         .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
-    }, STACK_OPTIMIZER_AGENT_INTERVAL_MS);
+    }), STACK_OPTIMIZER_AGENT_INTERVAL_MS);
   });
   sched("ontology", () => {
-    ontologyAgentTimer = setInterval(() => {
-      runOntologyAgent()
+    ontologyAgentTimer = setInterval(withRuntimeGate("ontology", () => {
+      return runOntologyAgent()
         .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
         .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
-    }, ONTOLOGY_AGENT_INTERVAL_MS);
+    }), ONTOLOGY_AGENT_INTERVAL_MS);
   });
   // Synthesis Agent — daily, staggered 5 minutes after startup so all
   // other agents have had a chance to publish their first digests.
@@ -717,16 +734,19 @@ export function startScheduler(): void {
   // intervals are measured in days. Cheap: one indexed SELECT per tick
   // unless work is actually due.
   sched("featuredCaseStudy", () => {
-    featuredCaseStudyTimer = setInterval(() => {
-      featuredCaseStudyTick()
+    featuredCaseStudyTimer = setInterval(withRuntimeGate("featuredCaseStudy", () => {
+      return featuredCaseStudyTick()
         .then(r => {
           if (r.schedulesExecuted > 0 || r.schedulesFailed > 0 || r.rotated) {
             console.log(`[FeaturedCaseStudy] tick: executed=${r.schedulesExecuted} failed=${r.schedulesFailed} rotated=${r.rotated}`);
           }
         })
         .catch(err => console.warn("[FeaturedCaseStudy] tick failed:", err instanceof Error ? err.message : err));
-    }, 10 * 60 * 1000);
+    }), 10 * 60 * 1000);
   });
+  // Make sure the kill-switch table exists so the admin UI can read/write
+  // it on first deploy without 404'ing or empty-state. Idempotent.
+  ensureKillSwitchTable().catch(err => console.warn("[Agent] ensureKillSwitchTable failed:", err instanceof Error ? err.message : err));
 
   // Push the latest economic_rules table content into the Letta block.
   // Slight delay so Letta init (in letta.ts module load) has time to

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DollarSign, Activity, AlertTriangle, RefreshCw, Cpu, Zap } from "lucide-react";
+import { DollarSign, Activity, AlertTriangle, RefreshCw, Cpu, Zap, Power } from "lucide-react";
 
 type Summary = {
   windowHours: number;
@@ -28,6 +28,45 @@ type Recent = {
   calledAt: string;
 };
 
+type SchedulerRow = {
+  name: string;
+  disabled: boolean;
+  reason: string | null;
+  updatedAt: string | null;
+  updatedBy: string | null;
+};
+
+type SchedulerState = {
+  envHammer: string | null;
+  schedulers: SchedulerRow[];
+};
+
+// Group schedulers by which paid LLM provider they hit so the UI surfaces
+// the expensive ones first. Marked in tools.ts + tools (logLlmCall sites).
+const COST_TAG: Record<string, "perplexity" | "anthropic" | "cheap" | "none"> = {
+  autoEnrich: "perplexity",
+  macroEvent: "perplexity",
+  disruption: "perplexity",
+  peerCoop: "perplexity",
+  stackOptimizer: "anthropic",
+  ontology: "perplexity",
+  synthesis: "anthropic",
+  routine: "perplexity",
+  worldScan: "perplexity",
+  featuredCaseStudy: "perplexity",
+  botLoop: "perplexity",
+  watchdog: "none",
+  rotation: "none",
+  digest: "none",
+  creditExpiry: "none",
+  peerBenchmarks: "none",
+  edgarRss: "none",
+  cviSignals: "none",
+  mem0Prune: "none",
+  temporalShift: "none",
+  memoryRelationSnapshot: "none",
+};
+
 const WINDOWS = [
   { label: "1h", hours: 1 },
   { label: "24h", hours: 24 },
@@ -42,20 +81,46 @@ export default function Usage() {
   const [windowHours, setWindowHours] = useState(24);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [recent, setRecent] = useState<Recent[]>([]);
+  const [schedulers, setSchedulers] = useState<SchedulerState | null>(null);
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [togglingName, setTogglingName] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [s, r] = await Promise.all([
+      const [s, r, sc] = await Promise.all([
         fetch(`/api/usage/summary?windowHours=${windowHours}`).then((x) => x.json()),
         fetch(`/api/usage/recent?limit=100`).then((x) => x.json()),
+        fetch(`/api/admin/schedulers`).then((x) => x.json()).catch(() => null),
       ]);
       setSummary(s);
       setRecent(r.rows ?? []);
+      if (sc) setSchedulers(sc);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleScheduler = async (name: string, nextDisabled: boolean) => {
+    setTogglingName(name);
+    try {
+      const reason = nextDisabled
+        ? window.prompt(`Reason for disabling '${name}'? (audit trail; optional)`, "manual kill from admin UI") ?? null
+        : null;
+      const res = await fetch("/api/admin/schedulers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, disabled: nextDisabled, reason }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        window.alert(`Toggle failed: ${body.error ?? res.statusText}`);
+      } else {
+        await load();
+      }
+    } finally {
+      setTogglingName(null);
     }
   };
 
@@ -252,6 +317,59 @@ export default function Usage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Scheduler kill switches */}
+        <Card data-testid="card-kill-switches">
+          <CardHeader>
+            <CardTitle className="font-serif text-lg flex items-center gap-2">
+              <Power className="w-4 h-4" /> Scheduler Kill Switches
+              {schedulers?.envHammer && (
+                <Badge variant="destructive" className="ml-2 text-[10px]">
+                  ENV HAMMER: SCHEDULERS_DISABLED={schedulers.envHammer}
+                </Badge>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-2">
+              Toggle a scheduler off to stop it firing on the next tick (within ~30s). Hits the
+              <code className="font-mono mx-1">scheduler_kill_switches</code>DB table; no redeploy needed.
+              Tags show which paid provider each cron touches.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
+              {(schedulers?.schedulers ?? []).map((s) => {
+                const tag = COST_TAG[s.name] ?? "none";
+                const tagColor = tag === "perplexity" ? "destructive" : tag === "anthropic" ? "default" : tag === "cheap" ? "outline" : "secondary";
+                return (
+                  <div key={s.name} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm" data-testid={`scheduler-${s.name}`}>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="font-mono text-xs truncate">{s.name}</span>
+                      <Badge variant={tagColor} className="text-[9px] flex-shrink-0">{tag === "none" ? "free" : tag}</Badge>
+                      {s.reason && (
+                        <span className="text-[10px] text-muted-foreground truncate" title={s.reason}>“{s.reason}”</span>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={s.disabled ? "outline" : "destructive"}
+                      onClick={() => toggleScheduler(s.name, !s.disabled)}
+                      disabled={togglingName === s.name}
+                      className="text-[10px] h-6 px-2 flex-shrink-0"
+                      data-testid={`toggle-${s.name}`}
+                    >
+                      {togglingName === s.name ? "…" : s.disabled ? "Re-enable" : "Disable"}
+                    </Button>
+                  </div>
+                );
+              })}
+              {(schedulers?.schedulers ?? []).length === 0 && (
+                <div className="col-span-2 text-center py-4 text-muted-foreground text-sm">
+                  Loading scheduler state…
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Recent calls */}
         <Card data-testid="card-recent">

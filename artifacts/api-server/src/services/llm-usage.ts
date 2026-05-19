@@ -6,6 +6,11 @@ const PRICING: Record<string, { input: number; output: number }> = {
   "sonar-pro": { input: 3, output: 15 },
   "sonar-reasoning": { input: 1, output: 5 },
   "sonar-reasoning-pro": { input: 2, output: 8 },
+  // sonar-deep-research bills both for retrieval reasoning and synthesis.
+  // Perplexity lists per-1k-search-query pricing plus per-token pricing;
+  // we normalize to per-1M-token here. Numbers from Perplexity's API pricing
+  // page (2026-Q2): $2/M input, $8/M output, plus ~$5 per 1K requests amortized.
+  "sonar-deep-research": { input: 2, output: 8 },
   "anthropic/claude-haiku-4.5": { input: 1, output: 5 },
   "anthropic/claude-sonnet-4.5": { input: 3, output: 15 },
   "anthropic/claude-sonnet-4.6": { input: 3, output: 15 },
