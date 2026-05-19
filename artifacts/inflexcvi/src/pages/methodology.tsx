@@ -3,6 +3,7 @@ import { ArrowLeft, BookOpen, Calculator, Database, Scale, Sigma, GitBranch, Ext
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { PersonaDescription } from "@/components/page-header";
 
 function Section({
   id,
@@ -76,6 +77,17 @@ export default function Methodology() {
             the confidence formula, and a fully worked example so any score in the app can be audited
             end-to-end against the open-source engine.
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Skim the sections in the left rail; the worked example at the bottom shows one capability scored end-to-end from sources.",
+              pe: "What's the epistemics? The Bayesian posterior + source-weight tables here are what your IC should ask about before sizing a check. The worked example is the audit trail for any score we ship.",
+              vc: "Your associate should be able to defend any number on this site in 30 seconds — that's what this page is for. Source weights + confidence formula explain why we ever say a score is 'low confidence' (most VC dashboards never do).",
+              f500: "If your team is going to act on these scores, your strategy lead needs to read this once. The dependency chain (source → triangulation → posterior → confidence) is what makes the scores defensible in board materials.",
+              student: "Start here. The Bayesian posterior section is the most important — it explains why scores have confidence levels at all. Try the worked example with pen and paper before reading our solution.",
+              professor: "Citable. The Bayesian posterior, source-weight table, and confidence formula are all in the open-source engine; the worked example is a ready-to-assign exercise. Cite as: 'Capability Value Index methodology v1.1, 2026'.",
+            }}
+            className="mt-6"
+          />
         </div>
 
         <div className="grid lg:grid-cols-[220px_1fr] gap-10">

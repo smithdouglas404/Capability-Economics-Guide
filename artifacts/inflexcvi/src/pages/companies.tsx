@@ -7,6 +7,7 @@ import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, Chevro
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
+import { PageHeader } from "@/components/page-header";
 
 type CompaniesViewState = { industryId: number | null; tab: string };
 
@@ -267,39 +268,39 @@ export default function Companies() {
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
-        <div className="flex items-end justify-between flex-wrap gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 mb-3">
-              <span className="h-px w-5 bg-accent" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Portfolio</span>
-            </div>
-            <h1 className="font-serif text-4xl tracking-tight">Companies, Value-Chain &amp; Quadrant</h1>
-            <p className="text-muted-foreground text-sm mt-1 max-w-3xl">
-              The deal-sourcing layer: short-list companies by capability fingerprint with transparent
-              Moneyball composites, profile the value chain by stage with patents / VC / startup counts,
-              and read the hot/emerging/cooling/table-stakes quadrant — all anchored on the live CVI.
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={industryId ?? ""}
-              onChange={(e) => setIndustryId(parseInt(e.target.value, 10))}
-              className="border rounded px-3 py-2 bg-background"
-              data-testid="industry-select"
-            >
-              {industries.map((i) => (<option key={i.id} value={i.id}>{i.name}</option>))}
-            </select>
-            <Button variant="outline" size="sm" onClick={triggerIngest}><RefreshCw className="w-4 h-4 mr-1" />Ingest companies</Button>
-            <Button variant="outline" size="sm" onClick={triggerSignals}><Zap className="w-4 h-4 mr-1" />Scrape patents/VC</Button>
-            <Button variant="outline" size="sm" onClick={recompute}>Recompute scores</Button>
-            <SavedViewsMenu
-              viewsApi={viewsApi}
-              currentState={{ industryId, tab }}
-              onApply={(s, id) => { if (s && typeof s === "object") applyView(s); setActiveViewId(id); }}
-              activeViewId={activeViewId}
-            />
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="Portfolio"
+          title="Companies, Value-Chain & Quadrant"
+          descriptions={{
+            default: "Short-list companies by capability fingerprint with transparent Moneyball composites, profile the value chain by stage (patents / VC / startups), and read the hot / emerging / cooling / table-stakes quadrant — all anchored on the live CVI.",
+            pe: "Diligence layer. Find acquisition + add-on candidates by capability gap; the Moneyball composite ranks by transparency-weighted score, not just revenue. The quadrant tells you whether the target sits on a Hot node (premium multiple) or a Cooling one (avoid).",
+            vc: "Sourcing layer. Filter the quadrant to Emerging + Hot to see where capital is migrating, then drill into companies on those nodes to find your next investment. Patent/VC/startup counts per stage tell you where the wedge is open.",
+            f500: "Competitor + partner radar. The Moneyball composite is your peer benchmark; the value-chain tab tells you which stage of your industry is concentrating R&D and capital so you can pick a build/buy/partner posture per node.",
+            student: "Worked example of capability-based competitive analysis. The fingerprint is each company's capability vector; the quadrant maps those vectors against CVI velocity. Read companies.ts source to see the math.",
+            professor: "Live dataset for case-study assignments. Pick an industry, screenshot the quadrant + companies table — students can replicate the Moneyball composite from the per-capability scores below. Citations on every column.",
+          }}
+          actions={
+            <>
+              <select
+                value={industryId ?? ""}
+                onChange={(e) => setIndustryId(parseInt(e.target.value, 10))}
+                className="border rounded px-3 py-2 bg-background"
+                data-testid="industry-select"
+              >
+                {industries.map((i) => (<option key={i.id} value={i.id}>{i.name}</option>))}
+              </select>
+              <Button variant="outline" size="sm" onClick={triggerIngest}><RefreshCw className="w-4 h-4 mr-1" />Ingest companies</Button>
+              <Button variant="outline" size="sm" onClick={triggerSignals}><Zap className="w-4 h-4 mr-1" />Scrape patents/VC</Button>
+              <Button variant="outline" size="sm" onClick={recompute}>Recompute scores</Button>
+              <SavedViewsMenu
+                viewsApi={viewsApi}
+                currentState={{ industryId, tab }}
+                onApply={(s, id) => { if (s && typeof s === "object") applyView(s); setActiveViewId(id); }}
+                activeViewId={activeViewId}
+              />
+            </>
+          }
+        />
 
         {ingestStatus && ingestStatus.state !== "idle" && !ingestDismissed && ingestStatus.industryId === industryId && (
           <Card className={`border-l-4 ${

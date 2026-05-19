@@ -4,6 +4,8 @@ import { Link } from "wouter";
 import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
+import { PersonaPicker } from "@/components/page-header";
+import { useHasPickedPersona } from "@/lib/persona";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -200,6 +202,13 @@ type CviCurrent = { overallIndex: number };
 export default function Home() {
   const heroSlot = useSlot("homepage_hero");
   const cardSlot = useSlot("homepage_case_card");
+  const hasPickedPersona = useHasPickedPersona();
+  const [personaPickerOpen, setPersonaPickerOpen] = useState(false);
+  // Show the persona picker exactly once: first visit, after the hydration
+  // check returns false (and never if the user already picked or skipped).
+  useEffect(() => {
+    if (hasPickedPersona === false) setPersonaPickerOpen(true);
+  }, [hasPickedPersona]);
 
   // Featured case study — driven by the admin "Feature" toggle (PATCH
   // /api/admin/case-studies/:id/feature, surfaced in /admin/case-studies).
@@ -314,6 +323,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
+      <PersonaPicker open={personaPickerOpen} onClose={() => setPersonaPickerOpen(false)} />
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative border-b border-border/40 overflow-hidden">

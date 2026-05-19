@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
+import { PersonaDescription } from "@/components/page-header";
 
 type AlphaViewState = { tab: string };
 
@@ -139,6 +140,17 @@ export default function Alpha() {
           <p className="mt-2 max-w-3xl text-muted-foreground">
             Seven forward-causal analyses that decompose enterprise value down to the capability — each priced, timed, and tied to a real dependency graph. PitchBook and CBI stop at companies and sectors. We don't.
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Browse the seven tabs; each answers one question PitchBook can't (capital-flow per capability, business-case ROI, EV/CVI sensitivity, etc.).",
+              pe: "Sizing the wedge. Capital-flow per capability tells you where the dollars are landing; business-case-analyzer turns a capability gap into a NPV with an IRR band — the exact number your model needs.",
+              vc: "Where to invest next. The EV/CVI sensitivity tab shows which capabilities most move enterprise value when scores tick up — your next investment thesis is one of the top movers.",
+              f500: "Strategic capex prioritization. Pick a capability you're behind on, read the business-case for closing it, see capital-flow telling you whether you're catching a wave or chasing one.",
+              student: "The seven tabs are seven worked examples of capability-level financial reasoning. The capital-flow chart is the easiest to start with — it's just a sum of cited $ figures grouped by value-chain stage.",
+              professor: "Replicable forward-causal analyses with cited methodology. The business-case-analyzer is a ready-to-assign capstone (give students an industry + capability, let them defend an NPV).",
+            }}
+            className="mt-3"
+          />
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex gap-2 items-center">

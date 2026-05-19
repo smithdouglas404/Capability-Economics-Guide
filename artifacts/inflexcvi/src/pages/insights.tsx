@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PersonaDescription } from "@/components/page-header";
 import {
   Lightbulb, AlertTriangle, TrendingUp, Shield, Trophy,
   FileText, Brain, Loader2, Sparkles, ArrowRight, ExternalLink,
@@ -288,6 +289,17 @@ export default function Insights() {
           <p className="text-lg text-foreground/60 font-serif italic max-w-3xl">
             AI-driven analysis of capability maturity, threshold alerts, industry benchmarks, and strategic recommendations.
           </p>
+          <PersonaDescription
+            descriptions={{
+              default: "Filter by industry, then read top recommendations. Each is generated from live CVI movement + cross-agent synthesis.",
+              pe: "The recommendations here are deal triggers — capabilities crossing a maturity threshold mean a fund mandate gap may be opening or closing. Filter by your sector focus.",
+              vc: "Threshold alerts are early signals — when a capability crosses its maturity threshold in an industry, that's the moment a new startup category becomes investable.",
+              f500: "These are board-ready recommendations sorted by ROI. Filter to your industry, share the top 3 with your strategy team this week.",
+              student: "AI-generated strategic analysis grounded in the live CVI data. Read 3-4 to see how capability maturity translates to concrete action items.",
+              professor: "Each recommendation cites the underlying capability + signal. Useful as cases in strategy courses; the AI grounding is documented in /methodology.",
+            }}
+            className="mt-4"
+          />
 
           <div className="flex flex-wrap items-center gap-3 mt-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

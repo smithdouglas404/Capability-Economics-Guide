@@ -10,6 +10,7 @@ import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } 
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
+import { PersonaDescription } from "@/components/page-header";
 
 type CVIViewState = {
   selectedIndustry: string | null;
@@ -896,6 +897,17 @@ export default function CVIDashboard() {
                 <p className="text-muted-foreground-soft mt-1 max-w-xl">
                   The world's first composite index measuring organizational capability maturity across industries — powered by multi-source Bayesian triangulation.
                 </p>
+                <PersonaDescription
+                  descriptions={{
+                    default: "The overall index is a weighted roll-up of per-industry CVI; click into any industry to see the capabilities driving the score.",
+                    pe: "Industry-level CVI is the market thesis: is the sector compounding capability (buy) or stagnant (avoid)? Drill into capabilities below for the per-deal gap analysis.",
+                    vc: "Watch the velocity column — industries with positive momentum have new categories opening. Macro events on the right link CVI movements to real-world catalysts.",
+                    f500: "Your industry's row tells you whether the market is racing past you. Compare your benchmark scores (see /scorecard) against the cohort median shown here.",
+                    student: "The index is a weighted average of capability maturity scores. Click any industry to decompose it; click any capability to see the sources and math.",
+                    professor: "Live composite index — methodology documented at /methodology, raw per-industry scores exportable. Useful as a real-time data source for strategy assignments.",
+                  }}
+                  className="mt-3"
+                />
               </div>
               <div className="flex items-center gap-2">
                 <SavedViewsMenu

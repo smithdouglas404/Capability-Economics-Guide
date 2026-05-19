@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CapabilityAnnotations } from "@/components/capability-annotations";
+import { PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
 
@@ -256,6 +257,17 @@ export default function CapabilityDetailPage() {
             </div>
             <h1 className="font-serif text-3xl tracking-tight">{cap.name}</h1>
             <p className="text-sm text-muted-foreground mt-1 max-w-3xl">{cap.description}</p>
+            <PersonaDescription
+              descriptions={{
+                default: "The CVI score on the right is a Bayesian posterior — see the source triangulations below for the citations behind it.",
+                pe: "Read the score with its confidence interval — if the CI is wide, the audit-the-sources tab below is where you check whether the score will move during diligence. Sub-capabilities show you the exact node where investment can close a gap.",
+                vc: "The velocity arrow + 30-day Δ tells you which direction this capability is moving. Companies tab on the right lists who plays here today — your next pitch deck.",
+                f500: "Compare your org's score to peers in the Benchmarks tab. If you're below the cohort median, the Recommendations tab gives you the build/buy/partner posture for closing the gap.",
+                student: "This is one capability decomposed into sources, sub-capabilities, and dependencies. Click any sub-capability to see how children roll up to the parent posterior.",
+                professor: "Single-capability deep dive — useful as a worked example for class. The dependency graph + source citations are exportable; the posterior math is documented at /methodology.",
+              }}
+              className="mt-3"
+            />
           </div>
           <div className="text-right shrink-0">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">CVI score</div>
