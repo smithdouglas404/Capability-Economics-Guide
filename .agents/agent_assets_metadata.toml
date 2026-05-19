@@ -29,3 +29,9 @@ id = "WYgu8lu6mmM-nJ66TgTff"
 uri = "file://docs/ce-language-spec.md"
 type = "text"
 title = "CE Naming & Language Spec — our own vocabulary"
+
+[[outputs]]
+id = "tCiren8EBPKdlSnNNbLik"
+uri = "file://.local/outputs/Capability-Economics-Guide.pdf"
+type = "pdf"
+title = "Capability Economics Guide.pdf"

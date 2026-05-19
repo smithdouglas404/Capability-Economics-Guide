@@ -25,6 +25,7 @@ import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
 import AdminReviewQueuePage from "@/pages/admin-review-queue";
 import SourcePage from "@/pages/source";
 import PortfolioPage from "@/pages/portfolio";
+import ComparablesPage from "@/pages/comparables";
 import BacktestPage from "@/pages/backtest";
 import ReviewQueue from "@/pages/review-queue";
 import VCR from "@/pages/vcr";
@@ -199,6 +200,7 @@ function Router() {
       <Route path="/admin/review-queue">{() => <AdminOnly component={AdminReviewQueuePage} />}</Route>
       <Route path="/source" component={SourcePage} />
       <Route path="/portfolio" component={PortfolioPage} />
+      <Route path="/comparables/:companyId" component={ComparablesPage} />
       <Route path="/backtest">{() => <AdminOnly component={BacktestPage} />}</Route>
       <Route path="/review" component={ReviewQueue} />
       <Route path="/vcr" component={VCR} />

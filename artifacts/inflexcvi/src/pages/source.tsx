@@ -357,7 +357,7 @@ export default function SourcePage() {
                 </ul>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 <Button
                   size="sm"
                   onClick={() => addToPortfolio(selected.company.id)}
@@ -365,6 +365,9 @@ export default function SourcePage() {
                   data-testid="detail-add-portfolio"
                 >
                   <Star className="w-3 h-3 mr-1" /> Add to Portfolio
+                </Button>
+                <Button asChild size="sm" variant="outline" data-testid="detail-view-comparables">
+                  <a href={`/comparables/${selected.company.id}`}>View Comparables</a>
                 </Button>
                 {selected.company.websiteUrl && (
                   <Button asChild size="sm" variant="outline">
