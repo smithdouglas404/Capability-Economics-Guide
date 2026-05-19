@@ -157,13 +157,19 @@ For each of these capabilities, produce a JSON array where each element has:
 
 Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 
+  // Both the system message AND the user prompt include the canonical
+  // name list. Prior version put the list only in system; LLM
+  // (especially Sonnet at long-context loads with 50+ caps) drifted toward
+  // colloquial names from the Perplexity research instead of the
+  // verbatim DB names, and our exact-match dropped them silently.
+  const canonicalList = capabilities.map((c, i) => `  ${i + 1}. ${c.name}`).join("\n");
   let parsed: z.infer<typeof QuadrantListSchema>["items"];
   try {
     const result = await generateObject({
       model: sonnet,
       schema: QuadrantListSchema,
-      system: `You classify enterprise capabilities into Hot / Emerging / Cooling / Table Stakes quadrants based on analyst research. Capability names MUST exactly match one of: ${JSON.stringify(capabilities.map(c => c.name))}`,
-      prompt: `Industry: ${industryName}\n\nResearch:\n${researchResult.content}`,
+      system: `You classify enterprise capabilities into Hot / Emerging / Cooling / Table Stakes quadrants based on analyst research. The "name" field of every item you emit MUST be copied VERBATIM from the canonical list below — do not paraphrase, abbreviate, or substitute synonyms.\n\nCanonical capability list:\n${canonicalList}`,
+      prompt: `Industry: ${industryName}\n\nClassify EACH of these capabilities. Use the EXACT names from the list (copy/paste verbatim):\n${canonicalList}\n\nAnalyst research to ground your classifications:\n${researchResult.content}`,
       temperature: 0.2,
       maxTokens: 4096,
     });
@@ -175,9 +181,44 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
 
   const capMap = new Map(capabilities.map(c => [c.name.toLowerCase(), c]));
 
+  // Fuzzy fallback for LLM-returned names that don't exact-match canonical:
+  //   1) substring containment in either direction (lowercased, alnum-only)
+  //   2) token-overlap >= 0.6 (Jaccard on lowercased non-stopword tokens)
+  // Common failure mode: the LLM returns "Customer Experience" when canonical
+  // is "Customer Experience & Service Recovery", and the exact-match dropped
+  // those silently. Logging the skips so future failures aren't invisible.
+  const STOPWORDS = new Set(["and", "or", "the", "of", "a", "an", "&", "in", "for", "to"]);
+  const tokensOf = (s: string): Set<string> => {
+    const cleaned = s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean).filter(t => !STOPWORDS.has(t));
+    return new Set(cleaned);
+  };
+  const fuzzyMatch = (llmName: string): { id: number; name: string } | undefined => {
+    if (!llmName) return undefined;
+    const llmNorm = llmName.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const llmTokens = tokensOf(llmName);
+    let best: { cap: { id: number; name: string }; score: number } | null = null;
+    for (const cap of capabilities) {
+      const capNorm = cap.name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (llmNorm.length >= 5 && (capNorm.includes(llmNorm) || llmNorm.includes(capNorm))) {
+        return cap; // strong substring containment wins immediately
+      }
+      const capTokens = tokensOf(cap.name);
+      const intersection = new Set([...llmTokens].filter(t => capTokens.has(t)));
+      const union = new Set([...llmTokens, ...capTokens]);
+      const jaccard = union.size === 0 ? 0 : intersection.size / union.size;
+      if (jaccard >= 0.6 && (!best || jaccard > best.score)) best = { cap, score: jaccard };
+    }
+    return best?.cap;
+  };
+
+  const dropped: Array<{ name: string; reason: string }> = [];
   for (const item of parsed) {
-    const cap = capMap.get(item.name?.toLowerCase());
-    if (!cap) continue;
+    let cap = capMap.get(item.name?.toLowerCase());
+    if (!cap) {
+      const fuzzy = fuzzyMatch(item.name);
+      if (fuzzy) cap = fuzzy;
+      else { dropped.push({ name: item.name, reason: "no exact or fuzzy match" }); continue; }
+    }
     if (!["hot", "emerging", "cooling", "table_stakes"].includes(item.quadrant)) {
       errors.push(`Skipping ${item.name}: invalid quadrant "${item.quadrant}"`);
       continue;
@@ -202,6 +243,21 @@ Return ONLY a JSON array. No markdown, no explanation outside the array.`;
     } catch (e) {
       errors.push(`Insert quadrant ${cap.name}: ${e}`);
     }
+  }
+
+  // Visibility: when the LLM returned items that we couldn't match to
+  // canonical capabilities, log the actual names so the next debug pass
+  // can see what the model is producing without re-running enrichment.
+  // Prior versions silently `continue`d on no-match, which is exactly
+  // how 5 enrichment runs (12-16) shipped quadrants=0 without anyone
+  // noticing.
+  if (dropped.length > 0) {
+    const sample = dropped.slice(0, 8).map(d => `"${d.name}"`).join(", ");
+    console.warn(
+      `[enrichCapabilityQuadrants] industry="${industryName}" — LLM returned ${parsed.length} items, ` +
+      `${classified} classified, ${dropped.length} dropped (sample: ${sample}). ` +
+      `Canonical names expected (first 6): ${capabilities.slice(0, 6).map(c => `"${c.name}"`).join(", ")}`,
+    );
   }
 
   return { classified, errors };
