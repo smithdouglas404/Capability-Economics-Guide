@@ -6,6 +6,7 @@ import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
 import { useHasPickedPersona } from "@/lib/persona";
+import { DvxChip } from "@/components/dvx-hero";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -481,6 +482,16 @@ export default function Home() {
         </div>
 
         <TickerBar />
+
+        {/* Move 5: Disruption Index chip — surfaces the DVX score on the home
+            hero next to the velocity ticker, paired with a link to the full
+            Disruption Index page so visitors discover it organically. */}
+        <div className="border-t border-border/40 bg-muted/10 py-3 px-4 sm:px-6 lg:px-10 flex flex-wrap items-center justify-between gap-3">
+          <DvxChip />
+          <Link href="/disruption" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+            View Disruption Index → <ArrowRight className="w-2.5 h-2.5" />
+          </Link>
+        </div>
       </section>
 
       {/* ── § 01 PREMISE ─────────────────────────────────────────────────── */}

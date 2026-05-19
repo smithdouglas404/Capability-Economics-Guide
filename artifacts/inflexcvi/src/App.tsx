@@ -146,6 +146,7 @@ function Router() {
       <Route path="/patterns" component={PatternsPage} />
       <Route path="/patterns/:slug" component={PatternsPage} />
       <Route path="/disruption" component={DisruptionPage} />
+      <Route path="/dvx" component={DisruptionPage} />
       <Route path="/security" component={SecurityPage} />
       <Route path="/demo">{() => <RequireAuth component={DemoPage} />}</Route>
       <Route path="/marketplace/workspace" component={MarketplaceWorkspacePage} />

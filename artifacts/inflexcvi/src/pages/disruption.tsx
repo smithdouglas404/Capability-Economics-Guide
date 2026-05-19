@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
+import { DvxHero } from "@/components/dvx-hero";
 
 const API_BASE = "/api";
 
@@ -136,6 +137,10 @@ export default function DisruptionPage() {
           className="mt-3"
         />
       </div>
+
+      {/* Move 5: Disruption Index hero — surfaces the DVX score that was already
+          computed but invisible. Lives above the existing watch/new-cap feeds. */}
+      <DvxHero />
 
       {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-3 text-sm">{err}</div>}
       {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
