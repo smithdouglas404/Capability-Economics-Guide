@@ -85,6 +85,11 @@ export async function chatWithFallback(args: FallbackChatArgs): Promise<Fallback
             model,
             max_tokens: args.maxTokens,
             messages: args.messages,
+            // Opt into OpenRouter's exact-cost reporting — adds `cost` to
+            // the response `usage` object (USD billed for this call,
+            // including provider markup + cache discounts). logLlmCall
+            // prefers this over the local PRICING-table estimate.
+            usage: { include: true },
             ...(args.responseFormat ? { response_format: args.responseFormat } : {}),
           }),
           signal: controller.signal,

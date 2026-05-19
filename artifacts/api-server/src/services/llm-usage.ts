@@ -43,14 +43,43 @@ export function logLlmCall(args: LogLlmCallArgs): void {
   setImmediate(async () => {
     try {
       const durationMs = Date.now() - args.startedAt;
-      const r = (args.responseJson ?? {}) as { usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }; error?: unknown };
+      const r = (args.responseJson ?? {}) as {
+        usage?: {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+          // OpenRouter, when the caller sets `usage: { include: true }`,
+          // returns the precise USD cost it billed for the generation —
+          // model + provider markup + cache discount all baked in. Prefer
+          // this over our PRICING-table estimate whenever it's present.
+          // Field name has been `cost` in current OR responses; we also
+          // accept `total_cost` defensively in case the schema shifts.
+          cost?: number;
+          total_cost?: number;
+        };
+        error?: unknown;
+      };
       const usage = r.usage ?? {};
       const inputTokens = Math.max(0, Number(usage.prompt_tokens) || 0);
       const outputTokens = Math.max(0, Number(usage.completion_tokens) || 0);
       const totalTokens = Math.max(0, Number(usage.total_tokens) || inputTokens + outputTokens);
 
-      const price = priceFor(args.model);
-      const costUsd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
+      // Prefer the provider-reported exact cost when available (OpenRouter
+      // with usage.include=true). Falls back to the PRICING-table estimate
+      // when the field isn't present — preserves existing behavior for
+      // Perplexity + voice + any OR caller that hasn't opted into the flag.
+      const reportedCost = typeof usage.cost === "number" && Number.isFinite(usage.cost)
+        ? usage.cost
+        : typeof usage.total_cost === "number" && Number.isFinite(usage.total_cost)
+          ? usage.total_cost
+          : null;
+      let costUsd: number;
+      if (reportedCost !== null) {
+        costUsd = reportedCost;
+      } else {
+        const price = priceFor(args.model);
+        costUsd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
+      }
 
       // Status classification — "quota" gets its own bucket so the admin
       // dashboard can distinguish "we're out of money" (recoverable via
