@@ -615,26 +615,56 @@ export default function Companies() {
                   <div className="absolute top-2 right-12 text-xs font-medium text-red-600">Hot</div>
                   <div className="absolute bottom-8 left-2 text-xs font-medium text-muted-foreground">Table-stakes</div>
                   <div className="absolute bottom-8 right-12 text-xs font-medium text-blue-600">Emerging</div>
-                  {quad.map((p) => {
-                    const x = 50 + (p.velocity / 0.5) * 50; // velocity range ±0.5
-                    const y = 100 - p.score; // 0..100 inverted
-                    const size = 6 + p.confidence * 14;
-                    const color = QUAD_LABELS[p.quadrant].color;
-                    return (
-                      <div
-                        key={p.id}
-                        className={`absolute rounded-full ${color} opacity-70 hover:opacity-100 hover:ring-2 hover:ring-primary cursor-pointer`}
-                        style={{
-                          left: `${Math.max(1, Math.min(98, x))}%`,
-                          top: `${Math.max(2, Math.min(96, y))}%`,
-                          width: size,
-                          height: size,
-                          transform: "translate(-50%,-50%)",
-                        }}
-                        title={`${p.name}\nCEI ${p.score} · velocity ${p.velocity} · conf ${p.confidence} · ${QUAD_LABELS[p.quadrant].label}`}
-                      />
-                    );
-                  })}
+                  {(() => {
+                    // When no capability has a non-zero velocity (which happens
+                    // when autoEnrich hasn't successfully run yet), the original
+                    // velocity-based x positioning collapsed every dot onto
+                    // x=50% — 60 dots stacked into one blob, looking empty.
+                    // Fallback: grid-tile each quadrant's points within its
+                    // bounding box so the page is informative even before
+                    // velocity data lands.
+                    const anyVelocity = quad.some(p => Math.abs(p.velocity) > 0.001);
+                    return quad.map((p) => {
+                      let x: number;
+                      let y: number;
+                      if (anyVelocity) {
+                        x = 50 + (p.velocity / 0.5) * 50;
+                        y = 100 - p.score;
+                      } else {
+                        // Static grid layout within the quadrant's box
+                        const group = quadGroups[p.quadrant];
+                        const idx = group.findIndex(g => g.id === p.id);
+                        const cols = Math.max(1, Math.ceil(Math.sqrt(group.length)));
+                        const rows = Math.max(1, Math.ceil(group.length / cols));
+                        const col = idx % cols;
+                        const row = Math.floor(idx / cols);
+                        // Top row (Hot+Cooling) → y=5-45, bottom row (Emerging+Table_stakes) → y=55-95
+                        // Right col (Hot+Emerging) → x=55-95, left col (Cooling+Table_stakes) → x=5-45
+                        const isRight = p.quadrant === "hot" || p.quadrant === "emerging";
+                        const isTop = p.quadrant === "hot" || p.quadrant === "cooling";
+                        const xBase = isRight ? 55 : 5;
+                        const yBase = isTop ? 5 : 55;
+                        x = xBase + (col + 0.5) * (40 / cols);
+                        y = yBase + (row + 0.5) * (40 / rows);
+                      }
+                      const size = 6 + p.confidence * 14;
+                      const color = QUAD_LABELS[p.quadrant].color;
+                      return (
+                        <div
+                          key={p.id}
+                          className={`absolute rounded-full ${color} opacity-70 hover:opacity-100 hover:ring-2 hover:ring-primary cursor-pointer`}
+                          style={{
+                            left: `${Math.max(1, Math.min(98, x))}%`,
+                            top: `${Math.max(2, Math.min(96, y))}%`,
+                            width: size,
+                            height: size,
+                            transform: "translate(-50%,-50%)",
+                          }}
+                          title={`${p.name}\nCVI ${p.score} · velocity ${p.velocity} · conf ${p.confidence} · ${QUAD_LABELS[p.quadrant].label}`}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
                   {(Object.keys(quadGroups) as Array<QuadPoint["quadrant"]>).map((k) => (
