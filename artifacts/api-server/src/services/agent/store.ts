@@ -244,3 +244,45 @@ export async function searchAgentArchive(
 export async function storePing(): Promise<{ configured: boolean; ok: boolean; error: string | null }> {
   return await lettaPing();
 }
+
+/**
+ * Postgres-backed exact-key cache for health-probe artifacts.
+ *
+ * Why this exists separately from the Letta-backed store above:
+ * `getSharedStore().search()` does semantic similarity over text-encoded
+ * archival entries — fine when an LLM tool wants "anything related to X",
+ * unreliable for "does the synthesis_brief exist yet?" probes against a
+ * short literal key. These helpers give the probes an exact-match read
+ * path. Agents that publish probe-tracked artifacts dual-write: Letta
+ * (for downstream tool consumption) AND here (for probes).
+ *
+ * Schema: lib/db/src/schema/agent.ts → agent_kv_cache.
+ * Idempotent upsert on key (no row history kept — value is the latest snapshot).
+ */
+import { db, agentKvCacheTable } from "@workspace/db";
+import { eq, sql as drizzleSql } from "drizzle-orm";
+
+export async function putKvCache(key: string, value: unknown): Promise<void> {
+  try {
+    await db
+      .insert(agentKvCacheTable)
+      .values({ key, value: value as object })
+      .onConflictDoUpdate({
+        target: agentKvCacheTable.key,
+        set: { value: value as object, updatedAt: drizzleSql`NOW()` },
+      });
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), key }, "[kv-cache] put failed");
+  }
+}
+
+export async function getKvCache<T = unknown>(key: string): Promise<{ value: T; updatedAt: Date } | null> {
+  try {
+    const [row] = await db.select().from(agentKvCacheTable).where(eq(agentKvCacheTable.key, key)).limit(1);
+    if (!row) return null;
+    return { value: row.value as T, updatedAt: row.updatedAt };
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), key }, "[kv-cache] get failed");
+    return null;
+  }
+}

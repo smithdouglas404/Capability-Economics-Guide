@@ -106,5 +106,23 @@ export const economicRulesTable = pgTable("economic_rules", {
   lastUpdatedAt: timestamp("last_updated_at").defaultNow().notNull(),
 });
 
+/**
+ * Small key/value cache for agent-published artifacts that health probes need
+ * to read with exact-key reliability. Background: the shared store
+ * (services/agent/store.ts) is Letta archival memory, which uses semantic
+ * search — fine for in-LLM tool calls but unreliable for "does X exist yet?"
+ * probes against short keys (synthesis_brief, temporal_shifts, etc.). Agents
+ * dual-write to Letta (for LLM consumption) AND here (for probe reads).
+ *
+ * Not a general key/value store — only used for caches the health endpoint
+ * tracks. Idempotent upserts on key.
+ */
+export const agentKvCacheTable = pgTable("agent_kv_cache", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export type AgentProposal = typeof agentProposalsTable.$inferSelect;
 export type EconomicRule = typeof economicRulesTable.$inferSelect;
+export type AgentKvCacheEntry = typeof agentKvCacheTable.$inferSelect;

@@ -423,17 +423,27 @@ const SYNTHESIS_STALE_THRESHOLD_MS = 49 * 60 * 60 * 1000;
 
 const probeSynthesisAgent: Probe = async () => {
   try {
-    const { ensureSharedStoreReady, getSharedStore, NS } = await import("../agent/store");
-    await ensureSharedStoreReady();
-    const items = await withTimeout(
-      getSharedStore().search(NS.sharedKnowledge("synthesis_brief"), { limit: 1 }),
-      PROBE_TIMEOUT_MS,
-      "synthesis-agent",
-    );
-    if (items.length === 0) {
-      return { status: "not_configured", latencyMs: null, lastError: "No synthesis brief has been published yet (agent runs 5 min after boot)" };
+    // Prefer the Postgres KV cache (exact-key read). The Letta-archival
+    // search path is unreliable for short literal keys — semantic similarity
+    // misses, leaving the probe stuck on "not configured" even when the
+    // agent has published. Fall back to the Letta search only if the KV
+    // entry hasn't been written yet (older deploys / pre-dual-write data).
+    const { ensureSharedStoreReady, getSharedStore, NS, getKvCache } = await import("../agent/store");
+    const kv = await getKvCache<{ generatedAt?: string }>("synthesis_brief:latest");
+    let payload: { generatedAt?: string } | null = kv?.value ?? null;
+    if (!payload) {
+      await ensureSharedStoreReady();
+      const items = await withTimeout(
+        getSharedStore().search(NS.sharedKnowledge("synthesis_brief"), { limit: 1 }),
+        PROBE_TIMEOUT_MS,
+        "synthesis-agent",
+      );
+      if (items.length === 0) {
+        return { status: "not_configured", latencyMs: null, lastError: "No synthesis brief has been published yet (agent runs 5 min after boot)" };
+      }
+      payload = items[0]!.value as { generatedAt?: string };
     }
-    const generatedAt = (items[0]!.value as { generatedAt?: string }).generatedAt;
+    const generatedAt = payload.generatedAt;
     if (!generatedAt) {
       return { status: "degraded", latencyMs: null, lastError: "Synthesis brief exists but is missing a generatedAt timestamp" };
     }
@@ -460,17 +470,24 @@ const TEMPORAL_STALE_THRESHOLD_MS = 14 * 60 * 60 * 1000;
 
 const probeTemporalShifts: Probe = async () => {
   try {
-    const { ensureSharedStoreReady, getSharedStore, NS } = await import("../agent/store");
-    await ensureSharedStoreReady();
-    const items = await withTimeout(
-      getSharedStore().search(NS.sharedKnowledge("temporal_shifts"), { limit: 1 }),
-      PROBE_TIMEOUT_MS,
-      "temporal-shifts",
-    );
-    if (items.length === 0) {
-      return { status: "not_configured", latencyMs: null, lastError: "No temporal-shift report cached yet (cron runs 2 min after boot)" };
+    // Same pattern as probeSynthesisAgent: prefer Postgres KV cache, fall
+    // back to Letta semantic search. See its comment for rationale.
+    const { ensureSharedStoreReady, getSharedStore, NS, getKvCache } = await import("../agent/store");
+    const kv = await getKvCache<{ cachedAt?: string }>("temporal_shifts:latest");
+    let payload: { cachedAt?: string } | null = kv?.value ?? null;
+    if (!payload) {
+      await ensureSharedStoreReady();
+      const items = await withTimeout(
+        getSharedStore().search(NS.sharedKnowledge("temporal_shifts"), { limit: 1 }),
+        PROBE_TIMEOUT_MS,
+        "temporal-shifts",
+      );
+      if (items.length === 0) {
+        return { status: "not_configured", latencyMs: null, lastError: "No temporal-shift report cached yet (cron runs 2 min after boot)" };
+      }
+      payload = items[0]!.value as { cachedAt?: string };
     }
-    const cachedAt = (items[0]!.value as { cachedAt?: string }).cachedAt;
+    const cachedAt = payload.cachedAt;
     if (!cachedAt) {
       return { status: "degraded", latencyMs: null, lastError: "Temporal-shift cache entry missing cachedAt timestamp" };
     }

@@ -313,16 +313,26 @@ export async function detectTemporalShifts(industryId?: number): Promise<Tempora
   };
 
   // Cache for synthesis-agent's readTemporalShiftsTool — avoids a full
-  // memory_relations scan from inside the LLM tool-call loop.
+  // memory_relations scan from inside the LLM tool-call loop. Dual-write:
+  // Letta archival (for in-LLM semantic recall) + Postgres KV cache (for
+  // exact-key reads, namely the temporal_shifts health probe — Letta's
+  // semantic search doesn't reliably retrieve by short literal prefix).
+  const cachedReport = { ...report, cachedAt: now.toISOString() };
   try {
     await ensureSharedStoreReady();
     await getSharedStore().put(
       NS.sharedKnowledge("temporal_shifts"),
       "latest",
-      { ...report, cachedAt: now.toISOString() },
+      cachedReport,
     );
   } catch {
     // Non-fatal — cache miss is acceptable, agent will recompute on demand
+  }
+  try {
+    const { putKvCache } = await import("./store");
+    await putKvCache("temporal_shifts:latest", cachedReport);
+  } catch {
+    // Non-fatal — probe will fall back to Letta search
   }
 
   return report;

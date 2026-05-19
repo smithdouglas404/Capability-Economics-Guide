@@ -163,6 +163,16 @@ const publishSynthesisBriefTool = tool(
       payload,
     );
 
+    // Dual-write to the Postgres KV cache so the synthesis_agent health
+    // probe (services/health/probes.ts) can do an exact-key read. Letta
+    // archival's semantic search is unreliable for short literal keys.
+    try {
+      const { putKvCache } = await import("./agent/store");
+      await putKvCache("synthesis_brief:latest", payload);
+    } catch {
+      // Non-fatal — probe falls back to Letta search
+    }
+
     // Also update the synthesis agent's prior block so future runs
     // start with context about what the last synthesis concluded.
     // Signature: putAgentPriorBlock(label, value, metadata, agentName).
