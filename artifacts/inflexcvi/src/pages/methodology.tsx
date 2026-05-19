@@ -77,6 +77,12 @@ export default function Methodology() {
             the confidence formula, and a fully worked example so any score in the app can be audited
             end-to-end against the open-source engine.
           </p>
+          <p className="mt-3 text-sm">
+            <Link to="/provenance" className="text-accent hover:underline inline-flex items-center gap-1">
+              See where our data comes from →
+            </Link>
+            <span className="text-muted-foreground"> · World Bank · Foundry · WEF · BEA · USPTO · EDGAR · LLMs (downweighted)</span>
+          </p>
           <PersonaDescription
             descriptions={{
               default: "Skim the sections in the left rail; the worked example at the bottom shows one capability scored end-to-end from sources.",

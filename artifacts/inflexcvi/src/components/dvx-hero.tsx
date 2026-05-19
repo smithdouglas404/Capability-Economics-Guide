@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { Zap, AlertTriangle, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SourceRow } from "@/components/source-badge";
 
 interface IndustryBreakdown {
   weight: number;
@@ -153,6 +154,9 @@ export function DvxHero() {
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className="w-3.5 h-3.5 text-muted-foreground" />
               <span className="text-xs text-muted-foreground uppercase tracking-wider">By industry · sorted by disruption level</span>
+            </div>
+            <div className="mb-3">
+              <SourceRow sources={["internal", "world-bank", "edgar", "anthropic"]} label="Powered by" />
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
               {breakdowns.map(b => {
