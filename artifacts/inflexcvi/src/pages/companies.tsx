@@ -8,6 +8,8 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PageHeader } from "@/components/page-header";
+import { ExportMenu } from "@/components/export-menu";
+import type { ExportPayload } from "@/components/export-menu";
 
 type CompaniesViewState = { industryId: number | null; tab: string };
 
@@ -297,6 +299,72 @@ export default function Companies() {
                 currentState={{ industryId, tab }}
                 onApply={(s, id) => { if (s && typeof s === "object") applyView(s); setActiveViewId(id); }}
                 activeViewId={activeViewId}
+              />
+              <ExportMenu
+                disabled={!industryId}
+                buildExport={(): ExportPayload => {
+                  const industryName = industries.find(i => i.id === industryId)?.name ?? "Industry";
+                  const today = new Date().toISOString().slice(0, 10);
+                  const slug = industryName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                  // CSV: flat row per company, Moneyball composites + key signals.
+                  const csvRows = companies.map(c => ({
+                    name: c.company.name,
+                    country: c.company.country ?? "",
+                    revenueUsd: c.company.revenueUsd ?? null,
+                    fundingUsd: c.company.fundingUsd ?? null,
+                    ticker: c.company.publicTicker ?? "",
+                    composite: c.scores?.composite ?? null,
+                    forecastedValue: c.scores?.forecastedValue ?? null,
+                    moatScore: c.scores?.moatScore ?? null,
+                    acquisitionProbability: c.scores?.acquisitionProbability ?? null,
+                    aiDisruptability: c.scores?.aiDisruptability ?? null,
+                    capabilityCoverage: c.scores?.capabilityCoverage ?? null,
+                  }));
+                  // Markdown: top movers from the quadrant + top-scored companies.
+                  const topMovers = [...quad]
+                    .sort((a, b) => Math.abs(b.velocity) - Math.abs(a.velocity))
+                    .slice(0, 10)
+                    .map(q => [q.name, q.quadrant, q.score.toFixed(1), q.velocity.toFixed(2)]);
+                  const topCompanies = [...companies]
+                    .filter(c => c.scores !== null)
+                    .sort((a, b) => (b.scores?.composite ?? 0) - (a.scores?.composite ?? 0))
+                    .slice(0, 15)
+                    .map(c => [
+                      c.company.name,
+                      c.company.country ?? "—",
+                      (c.scores?.composite ?? 0).toFixed(1),
+                      (c.scores?.moatScore ?? 0).toFixed(1),
+                      (c.scores?.acquisitionProbability ?? 0).toFixed(2),
+                    ]);
+                  return {
+                    filename: `ce-companies-${slug}-${today}`,
+                    exportSummary: `${industryName}: ${companies.length} companies, top 10 movers and top 15 by composite Moneyball score.`,
+                    csv: csvRows,
+                    markdown: {
+                      title: `${industryName} — Capability & Companies Snapshot`,
+                      subtitle: `Capability Economics export · ${today}`,
+                      sections: [
+                        {
+                          heading: "Top capability movers (by |velocity|)",
+                          table: [
+                            ["Capability", "Quadrant", "CVI", "30d velocity"],
+                            ...topMovers,
+                          ],
+                        },
+                        {
+                          heading: `Top companies (by Moneyball composite, n=${topCompanies.length})`,
+                          table: [
+                            ["Company", "Country", "Composite", "Moat", "Acq probability"],
+                            ...topCompanies,
+                          ],
+                        },
+                      ],
+                      sources: [
+                        { url: "/methodology", title: "Capability Value Index methodology v1.1" },
+                      ],
+                    },
+                  };
+                }}
               />
             </>
           }
