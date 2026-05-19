@@ -70,6 +70,9 @@ import NetworkPage from "@/pages/network";
 import SearchMembersPage from "@/pages/search-members";
 import NotificationsPage from "@/pages/notifications";
 import HashtagPage from "@/pages/hashtag";
+import HowItWorksPage from "@/pages/how-it-works";
+import ArchitecturePage from "@/pages/architecture";
+import AgentRadarPage from "@/pages/agent-radar";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
@@ -163,6 +166,9 @@ function Router() {
       <Route path="/search/members" component={SearchMembersPage} />
       <Route path="/notifications" component={NotificationsPage} />
       <Route path="/hashtag/:tag" component={HashtagPage} />
+      <Route path="/how-it-works" component={HowItWorksPage} />
+      <Route path="/architecture" component={ArchitecturePage} />
+      <Route path="/agent-radar" component={AgentRadarPage} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />

@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { CapabilityAnnotations } from "@/components/capability-annotations";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
+import { FourLensesGrid } from "@/components/four-lenses-grid";
 
 const API_BASE = "/api";
 
@@ -490,6 +491,9 @@ export default function CapabilityDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ─── Same Gap, Four Lenses (deck p8) ─────────────────────────────── */}
+      <FourLensesGrid capabilityId={cap.id} capabilityName={cap.name} />
 
       {/* ─── Streaming recommendation (Vercel AI SDK) ────────────────────── */}
       <StreamingBrief
