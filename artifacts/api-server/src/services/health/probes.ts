@@ -23,7 +23,32 @@ import { db } from "@workspace/db";
 import { organizationsTable, capabilitiesTable, cviComponentsTable, enrichmentRunsTable } from "@workspace/db";
 import { sql, desc } from "drizzle-orm";
 
-export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured";
+export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured" | "initializing";
+
+/**
+ * When the api-server process started. Used by the boot-grace window in
+ * runProbe() to suppress false-alarm `down` / `not_configured` results for
+ * probes that depend on async init (Letta agent registration via doInit(),
+ * Mem0 client pool warm-up, Anthropic SDK dynamic import). Probes hit
+ * during this window report `initializing` instead, so the systems page
+ * doesn't flash "Mem0 DOWN" for the first minute after every deploy.
+ */
+const BOOT_TIME_MS = Date.now();
+const BOOT_GRACE_WINDOW_MS = 90_000;
+
+/**
+ * Services where a `down` / `not_configured` result during the boot grace
+ * window is almost certainly init-still-running, not a real outage. After
+ * the window closes, real failures surface normally.
+ */
+const BOOT_SENSITIVE_SERVICES = new Set<string>([
+  "mem0", "letta", "agent_store", "agent_registry",
+  "agent_cvi_autonomous", "agent_macro_event", "agent_disruption",
+  "agent_peer_coop", "agent_stack_optimizer", "agent_ontology",
+  "agent_synthesis", "agent_enrichment",
+  "synthesis_agent", "temporal_shifts",
+  "anthropic", "langsmith",
+]);
 
 export interface ServiceHealth {
   service: string;
@@ -661,19 +686,26 @@ const PROBES: Record<string, Probe> = {
   demo_readiness: probeDemoReadiness,
 };
 
+function applyBootGrace(service: string, partial: { status: ServiceStatus; latencyMs: number | null; lastError: string | null }): { status: ServiceStatus; latencyMs: number | null; lastError: string | null } {
+  if (partial.status === "ok" || partial.status === "degraded") return partial;
+  if (!BOOT_SENSITIVE_SERVICES.has(service)) return partial;
+  const sinceBootMs = Date.now() - BOOT_TIME_MS;
+  if (sinceBootMs >= BOOT_GRACE_WINDOW_MS) return partial;
+  return {
+    status: "initializing",
+    latencyMs: null,
+    lastError: `Initializing — ${Math.round(sinceBootMs / 1000)}s since process start, grace window ${BOOT_GRACE_WINDOW_MS / 1000}s. Real result: "${partial.lastError ?? partial.status}".`,
+  };
+}
+
 async function runProbe(service: string, probe: Probe): Promise<ServiceHealth> {
+  let partial: { status: ServiceStatus; latencyMs: number | null; lastError: string | null };
   try {
-    const partial = await probe();
-    return { service, checkedAt: new Date().toISOString(), ...partial };
+    partial = await probe();
   } catch (err) {
-    return {
-      service,
-      checkedAt: new Date().toISOString(),
-      status: "down",
-      latencyMs: null,
-      lastError: describeError(err).slice(0, 240),
-    };
+    partial = { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
   }
+  return { service, checkedAt: new Date().toISOString(), ...applyBootGrace(service, partial) };
 }
 
 function refreshInBackground(service: string, probe: Probe): void {
@@ -701,10 +733,15 @@ async function getServiceHealth(service: string, probe: Probe): Promise<ServiceH
 }
 
 function rollupOverall(services: ServiceHealth[]): ServiceStatus {
-  // not_configured doesn't count against overall health — operator opted out.
-  const live = services.filter((s) => s.status !== "not_configured");
+  // not_configured and initializing don't count against overall health.
+  // not_configured = operator opted out. initializing = process is still
+  // warming up; real state isn't known yet. Neither warrants a DOWN banner.
+  const live = services.filter((s) => s.status !== "not_configured" && s.status !== "initializing");
   if (live.some((s) => s.status === "down")) return "down";
   if (live.some((s) => s.status === "degraded")) return "degraded";
+  // If every live probe is OK but at least one is still initializing,
+  // surface that — the page says "initializing" rather than a misleading OK.
+  if (services.some((s) => s.status === "initializing")) return "initializing";
   return "ok";
 }
 

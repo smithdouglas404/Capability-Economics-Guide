@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured";
+export type ServiceStatus = "ok" | "degraded" | "down" | "not_configured" | "initializing";
 
 export interface ServiceHealth {
   service: string;

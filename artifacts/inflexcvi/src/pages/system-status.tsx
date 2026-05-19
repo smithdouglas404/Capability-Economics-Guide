@@ -5,6 +5,7 @@ const STATUS_LABELS: Record<ServiceStatus, string> = {
   degraded: "Degraded",
   down: "Down",
   not_configured: "Not configured",
+  initializing: "Initializing",
 };
 
 const STATUS_TONES: Record<ServiceStatus, string> = {
@@ -12,6 +13,10 @@ const STATUS_TONES: Record<ServiceStatus, string> = {
   degraded: "text-amber-700 dark:text-amber-400 border-amber-500/40 bg-amber-500/10",
   down: "text-destructive border-destructive/40 bg-destructive/10",
   not_configured: "text-muted-foreground border-border/60 bg-muted/40",
+  // initializing = process started <90s ago and a boot-sensitive probe
+  // hasn't finished its async warm-up yet (Letta registration, Mem0 pool,
+  // Anthropic SDK import). Distinct from "down" so deploys don't flash red.
+  initializing: "text-sky-600 dark:text-sky-400 border-sky-500/40 bg-sky-500/10",
 };
 
 const SERVICE_LABELS: Record<string, string> = {
