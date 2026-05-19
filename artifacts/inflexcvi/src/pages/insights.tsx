@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
+import { StreamingBrief } from "@/components/streaming-brief";
 import {
   Lightbulb, AlertTriangle, TrendingUp, Shield, Trophy,
   FileText, Brain, Loader2, Sparkles, ArrowRight, ExternalLink,
@@ -349,7 +350,17 @@ export default function Insights() {
         </div>
       </section>
 
-      <div className="container mx-auto px-4 max-w-6xl py-8">
+      <div className="container mx-auto px-4 max-w-6xl py-8 space-y-6">
+        {selectedIndustry !== null && (
+          <StreamingBrief
+            api="/api/insights/stream"
+            body={{ industryId: selectedIndustry }}
+            title="Live strategic brief"
+            downloadFilename={`ce-insights-industry-${selectedIndustry}`}
+            triggerLabel="Generate fresh brief"
+            showContextField
+          />
+        )}
         {activeTab === "overview" && (
           <div className="space-y-8">
             <div className="grid md:grid-cols-4 gap-4">

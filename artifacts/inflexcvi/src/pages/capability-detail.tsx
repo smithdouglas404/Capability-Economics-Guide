@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CapabilityAnnotations } from "@/components/capability-annotations";
 import { PersonaDescription } from "@/components/page-header";
+import { StreamingBrief } from "@/components/streaming-brief";
 
 const API_BASE = "/api";
 
@@ -489,6 +490,15 @@ export default function CapabilityDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ─── Streaming recommendation (Vercel AI SDK) ────────────────────── */}
+      <StreamingBrief
+        api={`/api/capabilities/${cap.id}/recommendations/stream`}
+        title="Persona-aware recommendation"
+        downloadFilename={`ce-recommendation-${cap.id}`}
+        triggerLabel="Generate fresh recommendation"
+        showContextField
+      />
 
       {/* ─── Dependencies + Products ────────────────────────────────────────── */}
       {(cap.dependencies.length > 0 || cap.products.length > 0) && (
