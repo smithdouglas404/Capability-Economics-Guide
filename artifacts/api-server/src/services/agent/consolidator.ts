@@ -94,6 +94,7 @@ Be factual and specific — do not invent details, only synthesize what the obse
         model: CLAUDE_MODEL,
         max_tokens: 400,
         messages: [{ role: "user", content: prompt }],
+        usage: { include: true },
       }),
       signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
     });

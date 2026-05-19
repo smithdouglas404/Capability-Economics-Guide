@@ -529,6 +529,7 @@ All ROI numbers are $M. Metrics must be real ${industry.name} KPIs grounded in t
             model: process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6",
             max_tokens: 4096,
             messages: [{ role: "user", content: prompt }],
+            usage: { include: true },
           }),
           signal: controller.signal,
         });
@@ -1003,6 +1004,7 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
           model: "deepseek/deepseek-chat",
           max_tokens: 4096,
           messages: [{ role: "user", content: relationshipsPrompt }],
+          usage: { include: true },
         }),
       });
       const dsData = await dsResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };

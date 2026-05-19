@@ -85,6 +85,7 @@ async function chatWithTools(messages: ChatMessage[], opts: { model?: string; ma
         messages,
         tools: toolSchemas,
         tool_choice: "auto",
+        usage: { include: true },
       }),
       signal: controller.signal,
     });

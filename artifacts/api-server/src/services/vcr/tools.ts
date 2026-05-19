@@ -14,6 +14,7 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
       model: opts.model,
       max_tokens: opts.maxTokens,
       messages: [{ role: "user", content: prompt }],
+      usage: { include: true },
     };
     if (opts.jsonMode) {
       body.response_format = { type: "json_object" };
