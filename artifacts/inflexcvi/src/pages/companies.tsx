@@ -616,19 +616,23 @@ export default function Companies() {
                   <div className="absolute bottom-8 left-2 text-xs font-medium text-muted-foreground">Table-stakes</div>
                   <div className="absolute bottom-8 right-12 text-xs font-medium text-blue-600">Emerging</div>
                   {(() => {
-                    // When no capability has a non-zero velocity (which happens
-                    // when autoEnrich hasn't successfully run yet), the original
-                    // velocity-based x positioning collapsed every dot onto
-                    // x=50% — 60 dots stacked into one blob, looking empty.
-                    // Fallback: grid-tile each quadrant's points within its
-                    // bounding box so the page is informative even before
-                    // velocity data lands.
+                    // X-axis is velocity, but the static ±0.5 range that was
+                    // assumed here doesn't match reality — current velocities
+                    // sit around |v| ≈ 0.04, which collapsed every dot into a
+                    // 10%-wide column at x=50. Auto-scale to the actual data:
+                    // the largest |v| in the set maps to ±45% from center, so
+                    // dots actually spread across the chart. Tiny floor (0.05)
+                    // keeps near-zero noise from looking misleadingly extreme.
+                    const maxAbsVelocity = Math.max(
+                      0.05,
+                      ...quad.map(p => Math.abs(p.velocity)),
+                    );
                     const anyVelocity = quad.some(p => Math.abs(p.velocity) > 0.001);
                     return quad.map((p) => {
                       let x: number;
                       let y: number;
                       if (anyVelocity) {
-                        x = 50 + (p.velocity / 0.5) * 50;
+                        x = 50 + (p.velocity / maxAbsVelocity) * 45;
                         y = 100 - p.score;
                       } else {
                         // Static grid layout within the quadrant's box
