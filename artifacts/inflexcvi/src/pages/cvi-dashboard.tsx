@@ -907,8 +907,8 @@ export default function CVIDashboard() {
                   }}
                   activeViewId={activeViewId}
                 />
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-muted-foreground-soft">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-amber-500">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Autonomous
                 </div>
               </div>
@@ -931,7 +931,7 @@ export default function CVIDashboard() {
                     color={indexColor}
                   />
                 )}
-                <div className="text-xs text-muted-foreground mt-2">
+                <div className="text-xs text-amber-500 mt-2">
                   Updated {new Date(cei.timestamp).toLocaleString()}
                 </div>
               </div>
@@ -939,9 +939,9 @@ export default function CVIDashboard() {
               <div className="md:col-span-1 flex flex-col items-center gap-4">
                 <SentimentGauge value={cei.marketSentiment} />
                 <div className="text-center">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Market Sentiment</div>
-                  <div className="text-sm text-foreground/70">Based on aggregate capability velocity across all industries</div>
-                  <div className="text-[10px] text-muted-foreground mt-1 font-mono">
+                  <div className="text-xs text-amber-500 uppercase tracking-wider mb-1">Market Sentiment</div>
+                  <div className="text-sm text-amber-500/90">Based on aggregate capability velocity across all industries</div>
+                  <div className="text-[10px] text-amber-500/80 mt-1 font-mono">
                     sentiment = 50 + avgVelocity × 100
                   </div>
                 </div>
@@ -954,7 +954,7 @@ export default function CVIDashboard() {
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{(cei.volatility * 100).toFixed(1)}%</div>
-                  <div className="text-xs text-muted-foreground mt-1">Capability change dispersion</div>
+                  <div className="text-xs text-amber-500 mt-1">Capability change dispersion</div>
                 </div>
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
@@ -962,7 +962,7 @@ export default function CVIDashboard() {
                     <Globe className="w-3.5 h-3.5 text-indigo-400" />
                   </div>
                   <div className="text-2xl font-mono font-bold">{industries.length}</div>
-                  <div className="text-xs text-muted-foreground mt-1">
+                  <div className="text-xs text-amber-500 mt-1">
                     {Object.values(cei.industryBreakdowns).reduce((s, i) => s + i.capabilityCount, 0)} capabilities monitored
                   </div>
                 </div>
