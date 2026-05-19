@@ -57,3 +57,4 @@ export * from "./digests";
 export * from "./product-workflows";
 export * from "./uploaded-analyses";
 export * from "./member-profiles";
+export * from "./forums";
