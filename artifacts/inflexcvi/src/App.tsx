@@ -56,6 +56,7 @@ import LifecycleDocs from "@/pages/lifecycle-docs";
 import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
 import ProvenancePage from "@/pages/provenance";
+import UploadPage from "@/pages/upload";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
@@ -136,6 +137,7 @@ function Router() {
       <Route path="/cei" component={CVIDashboard} />
       <Route path="/methodology" component={Methodology} />
       <Route path="/provenance" component={ProvenancePage} />
+      <Route path="/upload" component={UploadPage} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />

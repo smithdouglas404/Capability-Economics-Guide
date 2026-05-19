@@ -5,7 +5,8 @@
     "@ai-sdk/react": "^1.2.12",
     "@clerk/react": "^6.4.1",
     "d3": "^7.9.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
