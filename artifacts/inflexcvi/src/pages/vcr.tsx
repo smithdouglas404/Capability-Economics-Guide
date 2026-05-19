@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Loader2, Send, Sparkles, Inbox, FileText, CheckCircle2, XCircle, Mic, Upload, Type, RefreshCw, Play, Calendar, Activity, MessageCircle, Bot } from "lucide-react";
 import { PersonaDescription } from "@/components/page-header";
+import { StreamingBrief } from "@/components/streaming-brief";
 
 const apiBase = import.meta.env.VITE_API_URL || "";
 
@@ -168,7 +169,17 @@ export default function VCRPage() {
             <TabsTrigger value="inbox"><Inbox className="w-4 h-4 mr-2" />Single Pane ({inboxTotal})</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="new">
+          <TabsContent value="new" className="space-y-6">
+            {/* Move 10c: instant-preview brief. The full VCR runs multi-day —
+                this streams a draft framing of the engagement so the user can
+                iterate on the prompt before kicking off the expensive run. */}
+            <StreamingBrief
+              api="/api/vcr/draft-brief/stream"
+              title="Preview brief (instant)"
+              downloadFilename="vcr-draft-brief"
+              triggerLabel="Stream a preview brief"
+              showContextField
+            />
             <NewCampaignForm
               industries={industries}
               onCreated={async (a) => { await loadAll(); setSelectedId(a.id); setTab("active"); }}

@@ -6,6 +6,7 @@ import { Swords, AlertTriangle, Shield, Brain, TrendingDown, RefreshCw } from "l
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
+import { StreamingBrief } from "@/components/streaming-brief";
 
 const API_BASE = "/api";
 
@@ -174,6 +175,20 @@ export default function CapabilityScorecard() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Move 10c: streaming gap-closure plan based on the user's actual
+          scorecard. Pulls the live RED capabilities + EVaR from the server
+          and streams a persona-aware build/buy/partner brief. */}
+      {industryId !== null && (
+        <StreamingBrief
+          api="/api/scorecard/stream"
+          body={{ industryId, sessionToken }}
+          title="Gap-closure plan"
+          downloadFilename={`ce-gap-closure-${industryId}`}
+          triggerLabel="Generate gap-closure plan"
+          showContextField
+        />
       )}
 
       {/* KPI Summary */}
