@@ -57,6 +57,9 @@ import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
 import ProvenancePage from "@/pages/provenance";
 import UploadPage from "@/pages/upload";
+import MemberPage from "@/pages/member";
+import InboxPage from "@/pages/inbox";
+import AccountProfilePage from "@/pages/account-profile";
 import CoveragePage from "@/pages/coverage";
 import ExplorePage from "@/pages/explore";
 import CapabilityDetailPage from "@/pages/capability-detail";
@@ -138,6 +141,10 @@ function Router() {
       <Route path="/methodology" component={Methodology} />
       <Route path="/provenance" component={ProvenancePage} />
       <Route path="/upload" component={UploadPage} />
+      <Route path="/member/:slug" component={MemberPage} />
+      <Route path="/inbox" component={InboxPage} />
+      <Route path="/inbox/:userId" component={InboxPage} />
+      <Route path="/account/profile" component={AccountProfilePage} />
       <Route path="/coverage" component={CoveragePage} />
       <Route path="/explore" component={ExplorePage} />
       <Route path="/capability/:id" component={CapabilityDetailPage} />

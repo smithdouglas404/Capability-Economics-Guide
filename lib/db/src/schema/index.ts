@@ -56,3 +56,4 @@ export * from "./disruption-patterns";
 export * from "./digests";
 export * from "./product-workflows";
 export * from "./uploaded-analyses";
+export * from "./member-profiles";
