@@ -218,16 +218,16 @@ export default function CaseStudy() {
                     <div>
                     <div className="inline-flex items-center gap-2 mb-5">
                       <span className="h-px w-4 bg-border/60" />
-                      <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground">Economic impact measured</span>
+                      <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">Economic impact measured</span>
                     </div>
                     <dl className="grid sm:grid-cols-3 gap-x-4">
                       {cap.metrics.map((metric, idx) => (
                         <div key={idx} className={`py-3 ${idx > 0 ? "sm:border-l sm:border-border/40 sm:pl-4" : ""}`}>
                           <div className="flex items-center gap-1.5 mb-2">
                             <TrendArrow trend={metric.trend} />
-                            <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground">{metric.name}</span>
+                            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{metric.name}</span>
                           </div>
-                          <dd className="font-mono text-2xl lg:text-3xl font-light tabular-nums tracking-tight leading-none">
+                          <dd className="font-mono text-xl lg:text-2xl font-light tabular-nums tracking-tight leading-none">
                             {metric.value}
                           </dd>
                         </div>
