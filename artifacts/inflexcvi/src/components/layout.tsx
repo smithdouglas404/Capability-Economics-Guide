@@ -25,6 +25,7 @@ import { DegradedServiceBanner } from "@/components/degraded-banner";
 import { VoiceAdvisor } from "@/components/voice-advisor";
 import { MobileNotice } from "@/components/mobile";
 import { AITourGuide } from "@/components/ai-tour-guide";
+import { NotificationBell } from "@/components/notification-bell";
 
 // Pages explicitly tuned for mobile. Everything else gets the
 // "best on desktop" notice on small screens.
@@ -106,10 +107,12 @@ const navGroups: NavGroup[] = [
   },
   {
     label: "Community",
-    matchPaths: ["/upload", "/marketplace", "/inbox", "/forum", "/member", "/provenance", "/feed", "/network", "/account/profile"],
+    matchPaths: ["/upload", "/marketplace", "/inbox", "/forum", "/member", "/provenance", "/feed", "/network", "/account/profile", "/search/members", "/notifications"],
     children: [
       { href: "/feed", label: "Feed", icon: Activity, description: "Posts from your connections + members in your industries" },
       { href: "/network", label: "My network", icon: Users, description: "Manage your connections — accepted, pending invitations, sent requests" },
+      { href: "/search/members", label: "Find members", icon: ScanSearch, description: "Search the directory by name, industry, capability, location" },
+      { href: "/notifications", label: "Notifications", icon: Bell, description: "Connection requests, post likes, mentions, recommendations" },
       { href: "/account/profile", label: "Edit my profile", icon: BookOpen, description: "Cover image, headline, experience, education, skills" },
       { href: "/upload", label: "Upload Document", icon: Sparkles, description: "Drop your business plan / pitch deck — we extract capability claims and match them to the live graph" },
       { href: "/marketplace", label: "Marketplace", icon: Store, description: "Buy and sell capability research, datasets, and templates" },
@@ -516,6 +519,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </button>
                   </Link>
                 )}
+
+                {/* Notifications bell with unread badge */}
+                <NotificationBell />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

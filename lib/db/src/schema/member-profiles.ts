@@ -214,6 +214,114 @@ export function connectionPairFor(userA: string, userB: string): { userA: string
 }
 
 /**
+ * Long-form peer recommendations — distinct from skill endorsements (a count).
+ * One row per (giver, receiver) pair; rewriting upserts onto the same row.
+ */
+export const memberRecommendationsTable = pgTable(
+  "member_recommendations",
+  {
+    id: serial("id").primaryKey(),
+    giverUserId: text("giver_user_id").notNull(),
+    receiverUserId: text("receiver_user_id").notNull(),
+    /** "worked-together" | "managed-them" | "managed-by-them" | "client" | "advisor" | "other" */
+    relationship: text("relationship"),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("member_recommendations_receiver_idx").on(table.receiverUserId),
+    uniqueIndex("member_recommendations_pair_unique").on(table.giverUserId, table.receiverUserId),
+  ],
+);
+
+/**
+ * In-app notifications — written by the various handlers (connection
+ * accept, post like, comment, mention, recommendation received).
+ * Read state per-recipient; bulk mark-read in the route handler.
+ */
+export const memberNotificationsTable = pgTable(
+  "member_notifications",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(), // recipient
+    /** "connection_request" | "connection_accepted" | "post_like" | "post_comment"
+     *  | "post_share" | "mention" | "recommendation" | "skill_endorsement" */
+    type: text("type").notNull(),
+    actorUserId: text("actor_user_id"),
+    targetType: text("target_type"), // "post" | "profile" | "skill" | "comment"
+    targetId: integer("target_id"),
+    body: text("body").notNull(),
+    readAt: timestamp("read_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("member_notifications_user_idx").on(table.userId, table.readAt, table.createdAt),
+  ],
+);
+
+/**
+ * Profile views — track who looked at whom. Deduped to one row per
+ * (viewer, viewed) per UTC day so the count doesn't explode on refresh.
+ * Recipient sees an aggregate; viewer identity exposed when both are
+ * connected (otherwise anonymized in the API response).
+ */
+export const profileViewsTable = pgTable(
+  "profile_views",
+  {
+    id: serial("id").primaryKey(),
+    viewerUserId: text("viewer_user_id").notNull(),
+    viewedUserId: text("viewed_user_id").notNull(),
+    viewedDate: text("viewed_date").notNull(), // "YYYY-MM-DD" — dedupe key
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("profile_views_dedupe").on(table.viewerUserId, table.viewedUserId, table.viewedDate),
+    index("profile_views_viewed_idx").on(table.viewedUserId, table.createdAt),
+  ],
+);
+
+/** Saved / bookmarked posts. One row per (user, post). */
+export const memberSavedPostsTable = pgTable(
+  "member_saved_posts",
+  {
+    id: serial("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    postId: integer("post_id").notNull().references(() => memberPostsTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("member_saved_posts_unique").on(table.userId, table.postId),
+    index("member_saved_posts_user_idx").on(table.userId, table.createdAt),
+  ],
+);
+
+/**
+ * Reposts / shares — one row per (sharer, post) so duplicates collide.
+ * Optional sharer commentary turns it into a quote-repost.
+ */
+export const memberPostSharesTable = pgTable(
+  "member_post_shares",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id").notNull().references(() => memberPostsTable.id, { onDelete: "cascade" }),
+    sharerUserId: text("sharer_user_id").notNull(),
+    comment: text("comment"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("member_post_shares_unique").on(table.postId, table.sharerUserId),
+    index("member_post_shares_sharer_idx").on(table.sharerUserId, table.createdAt),
+  ],
+);
+
+export type MemberRecommendation = typeof memberRecommendationsTable.$inferSelect;
+export type MemberNotification = typeof memberNotificationsTable.$inferSelect;
+export type ProfileView = typeof profileViewsTable.$inferSelect;
+export type MemberSavedPost = typeof memberSavedPostsTable.$inferSelect;
+export type MemberPostShare = typeof memberPostSharesTable.$inferSelect;
+
+/**
  * Direct messages — member-to-member 1:1. `conversationKey` is the
  * deterministic, lexically-sorted pair of user ids (e.g. "user_a:user_b")
  * so queries for "show me my conversation with X" become a single
