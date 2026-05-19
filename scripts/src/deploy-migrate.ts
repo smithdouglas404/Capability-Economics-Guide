@@ -194,7 +194,7 @@ async function runDrizzlePush(): Promise<void> {
  */
 const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "knowledge graph", script: "seed" },
-  { name: "industry GDP weights (Perplexity-cited)", script: "seed:gdp-weights" },
+  { name: "industry GDP weights (World Bank API + BEA splits, no LLM)", script: "seed:gdp-weights-wb" },
   { name: "reference-org selection rule (default criterion)", script: "seed:reference-org-rule" },
   { name: "reference orgs populated from rule (Perplexity-cited)", script: "seed:reference-orgs" },
   { name: "reference org capability scoring (Perplexity-cited)", script: "seed:organizations" },

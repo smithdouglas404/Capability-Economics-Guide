@@ -18,6 +18,7 @@
     "seed:marketplace": "tsx ./src/seed-marketplace-listings.ts",
     "seed:organizations": "tsx ./src/seed-organizations.ts",
     "seed:gdp-weights": "tsx ./src/seed-gdp-weights.ts",
+    "seed:gdp-weights-wb": "tsx ./src/seed-gdp-weights-from-worldbank.ts",
     "seed:reference-org-rule": "tsx ./src/seed-reference-org-rule.ts",
     "seed:reference-orgs": "tsx ./src/seed-reference-orgs.ts",
     "backfill:memory-to-neo4j": "tsx ./src/backfill-memory-to-neo4j.ts",

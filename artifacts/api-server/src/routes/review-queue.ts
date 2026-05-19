@@ -260,6 +260,109 @@ router.post("/admin/review-queue/requirements/:id/reject", async (req, res) => {
   }
 });
 
+// ── ONE-SHOT MIGRATION: demote all live rows to proposed ─────────────────
+//
+// POST /api/admin/review-queue/_demote-all-live
+//
+// Used once at cutover to move pre-existing live regulations + their
+// requirements into the proposed queue for a curated re-approval pass.
+// Each live row becomes a pending proposal with
+// proposedBy='retroactive-import', sourceCitation captures the original
+// row id. The live row is then deleted.
+//
+// Transactional: if either insert or delete fails, the whole pass aborts.
+// Idempotent: if a retroactive-import proposal already exists for a given
+// (shortCode | regulation+capability), the live row is just deleted; no
+// duplicate proposal is created.
+
+router.post("/admin/review-queue/_demote-all-live", async (req, res) => {
+  try {
+    const reviewer = (req as { reviewer?: { displayName?: string; userId?: string } }).reviewer;
+    const initiatedBy = reviewer?.displayName ?? reviewer?.userId ?? "unknown";
+    const dryRun = req.body?.dryRun === true;
+
+    let regsCount = 0, reqsCount = 0, skipped = 0;
+
+    await db.transaction(async (tx) => {
+      // Snapshot all live rows first
+      const liveRegs = await tx.select().from(regulationsTable);
+      const liveReqs = await tx.select().from(regulationCapabilityRequirementsTable);
+
+      // Existing retroactive proposals (idempotency check)
+      const existingProposalRegs = await tx.select().from(regulationsProposedTable);
+      const existingProposalReqs = await tx.select().from(regulationRequirementsProposedTable);
+      const proposalRegKey = new Set(existingProposalRegs
+        .filter(p => p.proposedBy === "retroactive-import")
+        .map(p => p.shortCode));
+      const proposalReqKey = new Set(existingProposalReqs
+        .filter(p => p.proposedBy === "retroactive-import")
+        .map(p => `${p.regulationId}:${p.capabilityId}`));
+
+      // 1) Move regulations
+      for (const r of liveRegs) {
+        if (!proposalRegKey.has(r.shortCode)) {
+          if (!dryRun) {
+            await tx.insert(regulationsProposedTable).values({
+              name: r.name,
+              shortCode: r.shortCode,
+              description: r.description,
+              jurisdiction: r.jurisdiction,
+              effectiveDate: r.effectiveDate,
+              industries: r.industries,
+              proposedBy: "retroactive-import",
+              sourceCitation: `Demoted from live regulations.id=${r.id} on ${new Date().toISOString()} by ${initiatedBy}`,
+              verificationNotes: "Pre-cutover live row demoted for curated re-approval.",
+            });
+          }
+          regsCount++;
+        } else {
+          skipped++;
+        }
+      }
+
+      // 2) Move requirements
+      for (const q of liveReqs) {
+        const key = `${q.regulationId}:${q.capabilityId}`;
+        if (!proposalReqKey.has(key)) {
+          if (!dryRun) {
+            await tx.insert(regulationRequirementsProposedTable).values({
+              regulationId: q.regulationId,
+              capabilityId: q.capabilityId,
+              requiredMaturity: q.requiredMaturity,
+              priority: q.priority,
+              evidenceNotes: q.evidenceNotes,
+              article: q.article,
+              proposedBy: "retroactive-import",
+              sourceCitation: `Demoted from live regulation_capability_requirements.id=${q.id} on ${new Date().toISOString()} by ${initiatedBy}`,
+              verificationNotes: "Pre-cutover live row demoted for curated re-approval.",
+            });
+          }
+          reqsCount++;
+        } else {
+          skipped++;
+        }
+      }
+
+      // 3) Wipe live tables (requirements first due to FK)
+      if (!dryRun) {
+        await tx.delete(regulationCapabilityRequirementsTable);
+        await tx.delete(regulationsTable);
+      }
+    });
+
+    res.json({
+      ok: true,
+      dryRun,
+      demoted: { regulations: regsCount, requirements: reqsCount, skipped },
+      message: dryRun
+        ? `Would demote ${regsCount} regulations and ${reqsCount} requirements (no changes made)`
+        : `Demoted ${regsCount} regulations and ${reqsCount} requirements. Live tables now empty; queue ready for curated approval at /admin/review-queue.`,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ── COUNT (lightweight badge for nav) ────────────────────────────────────
 
 router.get("/admin/review-queue/_counts", async (_req, res) => {
