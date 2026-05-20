@@ -24,7 +24,7 @@ import {
   marketplaceListingsTable,
   marketplaceSellersTable,
 } from "@workspace/db";
-import { inArray, eq, and, sql, desc, gte } from "drizzle-orm";
+import { inArray, eq, and } from "drizzle-orm";
 import { deriveLifecycleStage } from "./lifecycle";
 import { findRelated } from "./agent/graphMemory";
 import { recallMemories } from "./agent/memory";
@@ -484,7 +484,3 @@ export async function recommendStack(input: StackOptimizerInput): Promise<StackO
   };
 }
 
-// satisfy unused-import linters
-void desc;
-void gte;
-void sql;

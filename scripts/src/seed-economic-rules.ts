@@ -161,10 +161,8 @@ async function main(): Promise<void> {
     console.log("[seed:economic-rules] SKIP_ECONOMIC_RULES_SEED=1 — skipping");
     return;
   }
-  let inserted = 0;
-  let updated = 0;
   for (const rule of RULES) {
-    const result = await db.insert(economicRulesTable).values({
+    await db.insert(economicRulesTable).values({
       key: rule.key,
       value: rule.value,
       unit: rule.unit,
@@ -178,24 +176,8 @@ async function main(): Promise<void> {
         description: sql`excluded.description`,
         lastUpdatedAt: sql`now()`,
       },
-    }).returning();
-    // Heuristic: if the row's lastUpdatedAt is within the last second,
-    // we just touched it. Drizzle doesn't return "was insert vs update"
-    // directly from onConflictDoUpdate, so this is good enough.
-    if (result.length > 0) {
-      const r = result[0]!;
-      const recent = Date.now() - r.lastUpdatedAt.getTime() < 2000;
-      if (recent) {
-        const had = await db.execute(sql`SELECT COUNT(*)::int AS c FROM economic_rules WHERE key = ${rule.key}`);
-        // Crude: if count is 1 and the row pre-existed it would still be 1; better to track via insert vs update sentinel.
-        // Simpler: just report total seed run.
-        void had;
-      }
-    }
-    // Just count one-or-the-other for log purposes.
-    inserted++;
+    });
   }
-  void updated;
   console.log(`[seed:economic-rules] processed ${RULES.length} rules (inserts + idempotent updates).`);
 }
 

@@ -22,7 +22,7 @@ import {
   capabilitiesTable,
   macroEventsTable,
 } from "@workspace/db";
-import { and, eq, gte, desc, inArray, isNull, or, lte, sql } from "drizzle-orm";
+import { eq, gte, desc, inArray } from "drizzle-orm";
 import { getDisruptionWatch, type DisruptionWatchEntry } from "./disruption";
 import { getNewCapabilityWatch, type NewCapabilityEntry } from "./new-capabilities";
 import { sendCapabilityDigestEmail } from "./email";
@@ -445,9 +445,3 @@ export async function runDigestSweep(opts?: { force?: boolean; appBaseUrl?: stri
   return { attempted: due.length, succeeded, failed, results };
 }
 
-// silence unused-import linter (keeps shape parallel to other services)
-void or;
-void lte;
-void isNull;
-void and;
-void sql;

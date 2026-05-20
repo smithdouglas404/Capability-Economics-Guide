@@ -26,6 +26,8 @@ import { VoiceAdvisor } from "@/components/voice-advisor";
 import { MobileNotice } from "@/components/mobile";
 import { AITourGuide } from "@/components/ai-tour-guide";
 import { NotificationBell } from "@/components/notification-bell";
+import { ReturningUserBar } from "@/components/returning-user-bar";
+import { usePersonalizedPage } from "@/lib/use-personalized-page";
 
 // Pages explicitly tuned for mobile. Everything else gets the
 // "best on desktop" notice on small screens.
@@ -352,6 +354,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useIsAdmin();
   const { status: membershipStatus } = useMembershipStatus();
   const { balance: creditBalance, tierSlug } = useCreditBalance();
+  // Load personalized data for ReturningUserBar — shared across all pages.
+  // Only fetches for signed-in users; individual pages also call this if
+  // they need page-specific metadata passed to the hook.
+  const personalizedPageData = usePersonalizedPage();
   // Admins always have access — they operate the platform, not consume it. The backend
   // /api/me/membership endpoint also returns a synthetic Platform membership for them,
   // so membershipStatus will normally be "active", but OR'ing with isAdmin handles the
@@ -364,7 +370,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <DegradedServiceBanner />
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md" id="main-header">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-2 md:gap-4">
 
           <MobileNav
@@ -603,6 +609,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </header>
       <main className="flex-1">
         {!isMobileTuned(location) && <MobileNotice />}
+        {isLoaded && isSignedIn && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-6">
+            <ReturningUserBar personalized={personalizedPageData} compact={false} />
+          </div>
+        )}
         {children}
       </main>
       <footer className="border-t border-border/40 py-10 bg-background">

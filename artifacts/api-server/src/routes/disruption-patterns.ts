@@ -9,7 +9,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { db, disruptionPatternsTable } from "@workspace/db";
-import { desc, eq, asc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
@@ -110,7 +110,6 @@ router.post("/admin/patterns/seed", requireAdmin, async (req, res) => {
   }
 });
 
-// silence linter
-void asc;
+
 
 export default router;

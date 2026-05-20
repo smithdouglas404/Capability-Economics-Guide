@@ -6,15 +6,17 @@
  * personal context into its outputs.
  *
  * Routes:
- *   POST /api/me/log-interaction     — log a page view, AI stream, search, etc.
- *   GET  /api/me/learning-profile    — get the user's learning vector (interests, history count)
- *   POST /api/me/feedback            — thumbs up/down on an AI output
+ *   POST /api/me/log-interaction       — log a page view, AI stream, search, etc.
+ *   GET  /api/me/learning-profile      — get the user's learning vector (interests, history count)
+ *   GET  /api/me/learning/whats-changed — what's new since the user's last visit
+ *   POST /api/me/feedback              — thumbs up/down on an AI output
  *   POST /api/me/learning/sync-persona — sync persona from localStorage to server
+ *   POST /api/me/learning/suggest-persona — suggest a persona shift based on behavior
  */
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { db, userInteractionLogTable, userLearningProfilesTable, aiFeedbackTable } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gt } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -273,6 +275,215 @@ router.post("/me/learning/sync-persona", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "[me/learning/sync-persona] failed");
     res.status(500).json({ error: "Failed to sync persona" });
+  }
+});
+
+// ─── GET /api/me/learning/whats-changed ────────────────────────────────────
+
+router.get("/me/learning/whats-changed", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    // Get the user's profile with last visit time
+    const [profile] = await db
+      .select()
+      .from(userLearningProfilesTable)
+      .where(eq(userLearningProfilesTable.userId, auth.userId))
+      .limit(1);
+
+    if (!profile || !profile.lastVisitedAt) {
+      // First visit — nothing has "changed"
+      res.json({ isNewUser: true, newInteractions: [], newCapabilitiesSeen: [], newIndustriesSeen: [], hasChanges: false });
+      return;
+    }
+
+    const since = profile.lastVisitedAt;
+
+    // 1. NEW interactions since last visit
+    const newInteractions = await db
+      .select()
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          gt(userInteractionLogTable.createdAt, since),
+        ),
+      )
+      .orderBy(desc(userInteractionLogTable.createdAt))
+      .limit(20);
+
+    // 2. New capabilities the user has explored since last visit
+    // Compare current topCapabilities against ones they had before
+    const capabilitiesBefore = profile.topCapabilities ?? [];
+    const capabilitiesNow = await db
+      .select({
+        id: sql<number>`(metadata->>'capability_id')::int`,
+        name: sql<string>`metadata->>'capability_name'`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          sql`metadata->>'capability_id' IS NOT NULL`,
+        ),
+      )
+      .groupBy(sql`(metadata->>'capability_id')::int`, sql`metadata->>'capability_name'`)
+      .orderBy(desc(sql`COUNT(*)`))
+      .limit(10);
+
+    const beforeIds = new Set(capabilitiesBefore.map(c => c.id));
+    const newCapabilities = capabilitiesNow.filter(c => !beforeIds.has(c.id));
+
+    // 3. New industries explored
+    const industriesBefore = profile.topIndustries ?? [];
+    const industriesNow = await db
+      .select({
+        slug: sql<string>`metadata->>'industry_slug'`,
+        name: sql<string>`metadata->>'industry_name'`,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          sql`metadata->>'industry_slug' IS NOT NULL`,
+        ),
+      )
+      .groupBy(sql`metadata->>'industry_slug'`, sql`metadata->>'industry_name'`)
+      .orderBy(desc(sql`COUNT(*)`))
+      .limit(10);
+
+    const beforeIndustrySlugs = new Set(industriesBefore.map(i => i.slug));
+    const newIndustries = industriesNow.filter(i => !beforeIndustrySlugs.has(i.slug));
+
+    // 4. Count of AI generations since last visit
+    const [genCountRow] = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          eq(userInteractionLogTable.type, "ai_stream"),
+          gt(userInteractionLogTable.createdAt, since),
+        ),
+      );
+
+    // 5. Count of page views since last visit
+    const [pageCountRow] = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          eq(userInteractionLogTable.type, "page_view"),
+          gt(userInteractionLogTable.createdAt, since),
+        ),
+      );
+
+    // 6. Feedback summary — how many AI outputs they've liked/disliked
+    const [feedbackLiked] = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(aiFeedbackTable)
+      .where(
+        and(
+          eq(aiFeedbackTable.userId, auth.userId),
+          eq(aiFeedbackTable.liked, true),
+          gt(aiFeedbackTable.createdAt, since),
+        ),
+      );
+    const [feedbackDisliked] = await db
+      .select({ count: sql<number>`COUNT(*)::int` })
+      .from(aiFeedbackTable)
+      .where(
+        and(
+          eq(aiFeedbackTable.userId, auth.userId),
+          eq(aiFeedbackTable.liked, false),
+          gt(aiFeedbackTable.createdAt, since),
+        ),
+      );
+
+    const hasChanges = newInteractions.length > 0 || genCountRow.count > 0 || pageCountRow.count > 0;
+
+    res.json({
+      isNewUser: false,
+      hasChanges,
+      lastVisitedAt: since.toISOString(),
+      newInteractions,
+      newCapabilitiesSeen: newCapabilities,
+      newIndustriesSeen: newIndustries,
+      newAiGenerations: genCountRow?.count ?? 0,
+      newPageViews: pageCountRow?.count ?? 0,
+      feedbackLiked: feedbackLiked?.count ?? 0,
+      feedbackDisliked: feedbackDisliked?.count ?? 0,
+    });
+  } catch (err) {
+    logger.error({ err }, "[me/learning/whats-changed] failed");
+    res.status(500).json({ error: "Failed to load changes" });
+  }
+});
+
+// ─── POST /api/me/learning/suggest-persona ─────────────────────────────────
+
+router.post("/me/learning/suggest-persona", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const [profile] = await db
+      .select()
+      .from(userLearningProfilesTable)
+      .where(eq(userLearningProfilesTable.userId, auth.userId))
+      .limit(1);
+
+    if (!profile) {
+      res.json({ suggestion: null, reason: null });
+      return;
+    }
+
+    // Analyze behavior patterns to suggest a persona
+    const currentPersona = profile.persona;
+
+    // Count how many industries they've explored
+    const industryCount = profile.topIndustries?.length ?? 0;
+    const capCount = profile.topCapabilities?.length ?? 0;
+    const genCount = profile.totalAiGenerations ?? 0;
+    const pageViews = profile.totalPageViews ?? 0;
+
+    // Simple heuristic-based persona suggestion
+    // If they're exploring many industries/caps, suggest PE/VC
+    // If they're deep in one industry, suggest F500
+    // If low usage, no suggestion yet
+    let suggestion: string | null = null;
+    let reason: string | null = null;
+
+    if (currentPersona === "student" && industryCount > 3) {
+      suggestion = "pe";
+      reason = "You're exploring multiple industries broadly — typical of an investor mindset.";
+    } else if (currentPersona === "professor" && genCount > 10) {
+      suggestion = "vc";
+      reason = "You're generating many strategic briefs — the VC persona's focus on opportunity identification fits.";
+    } else if (currentPersona === "f500" && industryCount > 5) {
+      suggestion = "pe";
+      reason = "You're looking across more industries than typical for a single-company strategist — PE's cross-portfolio view may fit better.";
+    } else if (currentPersona === "vc" && industryCount <= 2 && capCount > 10) {
+      suggestion = "f500";
+      reason = "You're going deep into specific capabilities rather than scanning — the F500 build/buy/partner frame might serve you better.";
+    } else if (!currentPersona && pageViews > 20) {
+      if (industryCount > 4) {
+        suggestion = "pe";
+        reason = "You're exploring broadly across industries — the PE deal-sourcing perspective is a great starting point.";
+      } else if (capCount > 5) {
+        suggestion = "f500";
+        reason = "You're diving deep into specific capabilities — the F500 strategic planning view fits.";
+      }
+    }
+
+    res.json({ suggestion, reason, currentPersona });
+  } catch (err) {
+    logger.error({ err }, "[me/learning/suggest-persona] failed");
+    res.json({ suggestion: null, reason: null, currentPersona: null, error: err instanceof Error ? err.message : "unknown" });
   }
 });
 

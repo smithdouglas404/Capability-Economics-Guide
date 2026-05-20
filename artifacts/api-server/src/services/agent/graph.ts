@@ -16,11 +16,9 @@ import {
 } from "./memory";
 import { emitAgentEvent } from "./events";
 import { getTuning } from "../agent-tuning";
-// Letta replaced by PostgresStore helpers per Phase 1.8. The
-// store-backed helpers mirror the Letta shape 1:1 so the call sites
-// below changed only by symbol name. lettaSendMessage (the feedback-
-// loop autonomous-rewrite call) is replaced by a direct ChatAnthropic
-// invocation; see memorizeNode below.
+// Letta Cloud restored (2026-05-17). The store-backed helpers below
+// (putAgentPriorBlock etc.) are now a Letta Cloud adapter mirroring
+// the same API surface. See store.ts for the adapter implementation.
 import { putAgentPriorBlock, appendAgentArchive, searchAgentArchive } from "./store";
 import { ChatAnthropic } from "@langchain/anthropic";
 import { reflectOnFindings, type ResearchFinding } from "./reflect";

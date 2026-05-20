@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useInView, useMotionValue, useSpring, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Zap, Lightbulb, Target, Layers } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
 import { useHasPickedPersona } from "@/lib/persona";
 import { DvxChip } from "@/components/dvx-hero";
 import { useAuth } from "@clerk/react";
-import { fetchLearningProfile } from "@/lib/learning";
+import { usePersonalizedPage, getPersonalizedGreeting } from "@/lib/use-personalized-page";
 import { Badge } from "@/components/ui/badge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -176,29 +176,22 @@ function EducationalLibrary() {
 
 function LearningProgress() {
   const { isSignedIn, isLoaded: authLoaded } = useAuth();
-  const [profile, setProfile] = useState<{
-    totalAiGenerations: number;
-    totalPageViews: number;
-    topIndustries: Array<{ name: string; slug: string }>;
-    topCapabilities: Array<{ name: string }>;
-    lastVisitedAt: string | null;
-    persona: string | null;
-  } | null>(null);
+  const personalized = usePersonalizedPage();
+  const { learningProfile, whatsChanged } = personalized;
 
-  useEffect(() => {
-    if (!authLoaded || !isSignedIn) return;
-    void fetchLearningProfile().then(
-      d => d?.profile ? setProfile(d.profile) : null,
-    );
-  }, [authLoaded, isSignedIn]);
+  const profile = learningProfile?.profile;
+  const changes = whatsChanged;
 
   if (!isSignedIn || !profile) return null;
 
   const hasActivity = profile.totalAiGenerations > 0 || profile.totalPageViews > 0 || profile.topIndustries.length > 0;
   if (!hasActivity) return null;
 
-  const lastVisit = profile.lastVisitedAt ? new Date(profile.lastVisitedAt) : null;
-  const daysAgo = lastVisit ? Math.floor((Date.now() - lastVisit.getTime()) / 86400000) : null;
+  const greeting = getPersonalizedGreeting(learningProfile, changes);
+  const newGens = changes?.newAiGenerations ?? 0;
+  const newViews = changes?.newPageViews ?? 0;
+  const newCaps = changes?.newCapabilitiesSeen ?? [];
+  const hasNew = newGens > 0 || newViews > 0 || newCaps.length > 0;
 
   return (
     <section className="border-t border-border/40 bg-muted/5">
@@ -217,13 +210,12 @@ function LearningProgress() {
             </div>
             <h2 className="font-serif text-2xl sm:text-3xl tracking-tight flex items-center gap-2">
               <Brain className="w-5 h-5 text-foreground/50" />
-              What the system has learned from you
+              {greeting}
             </h2>
             <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-              {daysAgo !== null && daysAgo > 0
-                ? `Welcome back! It's been ${daysAgo} day${daysAgo > 1 ? "s" : ""} since your last visit. `
-                : ""}
-              Your activity shapes how the AI tailors briefs and recommendations.
+              {hasNew
+                ? `Since your last visit: ${newGens > 0 ? `${newGens} new brief${newGens > 1 ? "s" : ""}` : ""}${newGens > 0 && newViews > 0 ? " · " : ""}${newViews > 0 ? `${newViews} page${newViews > 1 ? "s" : ""}` : ""}${newCaps.length > 0 ? ` · explored ${newCaps.map(c => c.name).join(", ")}` : ""}`
+                : "Your activity shapes how the AI tailors briefs and recommendations over time."}
             </p>
           </div>
           <Link
@@ -234,22 +226,32 @@ function LearningProgress() {
           </Link>
         </div>
 
+        {/* Stats grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="border border-border/50 bg-background p-4">
+          <div className="border border-border/50 bg-background p-4 relative">
+            {newGens > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-accent animate-pulse" />
+            )}
             <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
               {profile.persona ? `${profile.persona.toUpperCase()} persona` : "No persona set"}
             </div>
             <div className="font-mono text-lg font-medium tabular-nums text-foreground">
               {profile.totalAiGenerations}
             </div>
-            <div className="font-mono text-[11px] text-muted-foreground mt-1">AI briefs generated</div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">
+              AI briefs generated
+              {newGens > 0 && <span className="text-accent ml-1">(+{newGens} new)</span>}
+            </div>
           </div>
           <div className="border border-border/50 bg-background p-4">
             <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">Pages visited</div>
             <div className="font-mono text-lg font-medium tabular-nums text-foreground">
               {profile.totalPageViews}
             </div>
-            <div className="font-mono text-[11px] text-muted-foreground mt-1">Across all sessions</div>
+            <div className="font-mono text-[11px] text-muted-foreground mt-1">
+              Across all sessions
+              {newViews > 0 && <span className="text-accent ml-1">(+{newViews} new)</span>}
+            </div>
           </div>
           <div className="border border-border/50 bg-background p-4">
             <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">Industries explored</div>
@@ -275,6 +277,34 @@ function LearningProgress() {
           </div>
         </div>
 
+        {/* Continue where you left off */}
+        {changes?.newInteractions && changes.newInteractions.length > 0 && (
+          <div className="mt-5 border border-border/50 bg-background p-4">
+            <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-3 flex items-center gap-1.5">
+              <Layers className="w-3 h-3" />
+              Continue where you left off
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {changes.newInteractions.slice(0, 5).map(ixn => (
+                <Link
+                  key={ixn.id}
+                  href={typeof ixn.metadata?.path === "string" ? ixn.metadata.path : "/"}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] border border-border/50 hover:border-accent hover:bg-muted/20 rounded-sm transition-colors"
+                >
+                  <span className="text-muted-foreground">{ixn.label}</span>
+                  <ArrowRight className="w-2.5 h-2.5 text-accent" />
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Agent patterns related to user's interests */}
+        {profile.topIndustries.length > 0 && (
+          <AgentPatternsFor homeIndustries={profile.topIndustries} />
+        )}
+
+        {/* Industry chips */}
         {profile.topIndustries.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-4">
            {profile.topIndustries.slice(0, 5).map(ind => (
@@ -291,6 +321,43 @@ function LearningProgress() {
         )}
       </motion.div>
     </section>
+  );
+}
+
+function AgentPatternsFor({ homeIndustries }: { homeIndustries: Array<{ name: string; slug: string; count: number }> }) {
+  // Shown on the home page near LearningProgress — gives signed-in users a
+  // taste of what the autonomous agent system has discovered in THEIR industries.
+  // This is a visual placeholder that links to the full Insights page.
+  if (homeIndustries.length === 0) return null;
+  const industry = homeIndustries[0];
+  return (
+    <div className="mt-5 border border-border/50 bg-background p-4">
+      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-3 flex items-center gap-1.5">
+        <Network className="w-3 h-3" />
+        Agent discoveries in {industry.name}
+      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+        The autonomous CVI agent scans Perplexity research, Mem0 memory patterns, and the 
+        capability dependency graph — discovering macro events, disruption risks, and 
+        peer-cohort benchmarks in your focus industries.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href="/insights"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider bg-accent/10 text-accent hover:bg-accent/20 rounded-sm transition-colors"
+        >
+          <Lightbulb className="w-2.5 h-2.5" />
+          View agent insights
+        </Link>
+        <Link
+          href="/cvi"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent rounded-sm transition-colors"
+        >
+          <Target className="w-2.5 h-2.5" />
+          CVI dashboard
+        </Link>
+      </div>
+    </div>
   );
 }
 

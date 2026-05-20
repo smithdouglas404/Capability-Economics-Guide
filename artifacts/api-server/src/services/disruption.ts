@@ -310,16 +310,9 @@ async function computeRanking(): Promise<DisruptionRanking> {
     .where(gte(macroEventsTable.startedAt, since));
 
   // Pull industry names in one batch.
-  const indNameQuery = caps.length > 0 ? await db
-    .select()
-    .from(macroEventsTable) // dummy join via SQL.join would be heavier — just hit industries directly:
-    .where(sql`false`) // ignore
-    : [];
-  // Simpler: query industries table.
   const { industriesTable: indTable } = await import("@workspace/db");
   const industries = await db.select().from(indTable);
   const indNameById = new Map(industries.map(i => [i.id, i.name]));
-  void indNameQuery; // silence linter
 
   const rows: DisruptionRanking["rows"] = [];
   for (const cap of caps) {
@@ -526,5 +519,4 @@ export async function getDisruptionWatch(opts?: {
   return result;
 }
 
-// satisfy unused-import linter
-void inArray;
+

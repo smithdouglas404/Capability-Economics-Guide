@@ -27,7 +27,7 @@
  * not from a hardcoded list).
  */
 import { db, industriesTable, organizationsTable, referenceOrgSelectionRuleTable } from "@workspace/db";
-import { eq, like, sql } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 
 if (process.env.SKIP_REFERENCE_ORGS_SEED === "1" || process.env.SKIP_REFERENCE_ORGS_SEED === "true") {
   console.log("[seed:reference-orgs] SKIP_REFERENCE_ORGS_SEED set — skipping");
@@ -256,8 +256,6 @@ async function main(): Promise<void> {
     for (const e of errors) console.log(`    - ${e}`);
   }
 
-  // Touch sql to silence unused-import lint if needed; reserved for future raw queries.
-  void sql;
 }
 
 main()

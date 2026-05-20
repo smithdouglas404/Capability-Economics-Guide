@@ -18,7 +18,7 @@ import { getAuth } from "@clerk/express";
 import { clerkClient } from "@clerk/express";
 import type { Request } from "express";
 import { db, organizationsTable } from "@workspace/db";
-import { eq, and, or, inArray, sql } from "drizzle-orm";
+import { eq, or, inArray, sql } from "drizzle-orm";
 
 export type AccessMode = "denied" | "session_token" | "owner" | "team_member" | "admin";
 
@@ -127,5 +127,3 @@ export async function accessibleOrgFilter(req: Request) {
   );
 }
 
-// silence unused-import linter
-void and;

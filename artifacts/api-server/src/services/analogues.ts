@@ -18,7 +18,7 @@ import {
   cviComponentsTable,
   industriesTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { searchCapabilities } from "./semantic-search";
 import { deriveLifecycleStage } from "./lifecycle";
 
@@ -194,5 +194,3 @@ export async function findAnalogues(args: {
   };
 }
 
-// silence unused-import
-void and;
