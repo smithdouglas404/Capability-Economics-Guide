@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Swords, AlertTriangle, Shield, Brain, TrendingDown, RefreshCw } from "lucide-react";
+import { Swords, AlertTriangle, Shield, TrendingDown, RefreshCw } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";

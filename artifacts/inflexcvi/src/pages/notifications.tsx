@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "wouter";
 import { useUser, SignInButton } from "@clerk/react";
-import { Bell, Check, UserPlus, ThumbsUp, MessageSquare, Share2, AtSign, Award, Loader2, ArrowLeft } from "lucide-react";
+import { Bell, UserPlus, ThumbsUp, MessageSquare, Share2, AtSign, Award, Loader2, ArrowLeft } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 

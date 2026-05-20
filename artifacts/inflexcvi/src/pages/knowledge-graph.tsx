@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useListIndustries, useGetIndustry, useGetCapability, useCompareIndustries, getGetIndustryQueryKey, getGetCapabilityQueryKey } from "@workspace/api-client-react";
 import type { Industry, Capability, CapabilityMetric, CapabilityDependency, RoleMapping } from "@workspace/api-client-react";
 import { LifecycleChip, type LifecycleStage } from "@/components/lifecycle-chip";

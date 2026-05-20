@@ -14,8 +14,6 @@ RUN pnpm install --frozen-lockfile
 # Build-time variables (Vite bakes these into the bundle)
 ARG VITE_CLERK_PUBLISHABLE_KEY
 ARG VITE_CLERK_PROXY_URL
-ENV VITE_CLERK_PUBLISHABLE_KEY=$VITE_CLERK_PUBLISHABLE_KEY
-ENV VITE_CLERK_PROXY_URL=$VITE_CLERK_PROXY_URL
 
 # Build frontend (capability-economics) then API server
 RUN pnpm run build:deploy

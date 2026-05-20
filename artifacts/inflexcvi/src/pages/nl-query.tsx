@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MessageSquare, Send, Clock, Sparkles, Loader2 } from "lucide-react";
+import { Send, Clock, Sparkles, Loader2 } from "lucide-react";
 
 const API_BASE = "/api";
 

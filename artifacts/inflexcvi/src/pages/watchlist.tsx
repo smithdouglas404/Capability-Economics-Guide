@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bell, Plus, Trash2, Check, AlertTriangle, Shield, Clock, Eye, RefreshCw } from "lucide-react";
+import { Bell, Plus, Trash2, Check, AlertTriangle, Shield, Eye, RefreshCw } from "lucide-react";
 
 const API_BASE = "/api";
 

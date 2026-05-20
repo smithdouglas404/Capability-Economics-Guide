@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { motion, useInView, useMotionValue, useSpring, animate } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Zap, Lightbulb, Target, Layers } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Lightbulb, Target, Layers } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
@@ -9,7 +9,6 @@ import { useHasPickedPersona } from "@/lib/persona";
 import { DvxChip } from "@/components/dvx-hero";
 import { useAuth } from "@clerk/react";
 import { usePersonalizedPage, getPersonalizedGreeting } from "@/lib/use-personalized-page";
-import { Badge } from "@/components/ui/badge";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

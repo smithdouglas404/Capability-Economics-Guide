@@ -18,8 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Building2, Calculator, AlertCircle, ChevronRight } from "lucide-react";
+import { ArrowLeft, Building2, Calculator, AlertCircle } from "lucide-react";
 
 interface Company {
   id: number;

@@ -6,9 +6,8 @@
  */
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "wouter";
-import { Hash, ArrowLeft, Loader2, ThumbsUp, MessageSquare, Bookmark, Share2 } from "lucide-react";
+import { Hash, ArrowLeft, Loader2, ThumbsUp, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
 interface PostAuthor {

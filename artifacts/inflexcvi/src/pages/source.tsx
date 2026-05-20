@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Building2, TrendingUp, ChevronRight, RefreshCw, Star, ArrowUpDown, Search } from "lucide-react";
+import { Building2, ChevronRight, RefreshCw, Star, Search } from "lucide-react";
 
 type Industry = { id: number; name: string };
 type Scores = {

@@ -4,8 +4,7 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar,
   ResponsiveContainer, Tooltip as RTooltip,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Activity, Network, GitBranch, ScanSearch, Flame, Sparkles,
   TrendingUp, Snowflake, Layers, Building2, ExternalLink, RefreshCw,
