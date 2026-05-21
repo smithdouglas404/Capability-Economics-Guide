@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS member_profiles (
   avatar_url          TEXT,
   cover_image_url     TEXT,
   location            TEXT,
-  current_role        TEXT,
+  "current_role"      TEXT,
   open_to             JSONB NOT NULL DEFAULT '[]'::jsonb,
   website_url         TEXT,
   linkedin_url        TEXT,
