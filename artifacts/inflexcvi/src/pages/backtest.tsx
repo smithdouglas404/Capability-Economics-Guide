@@ -622,7 +622,7 @@ export default function BacktestPage() {
                                   </tr>
                                   {c.rationale && (
                                     <tr key={`${i}-rationale`} className="border-b border-border/50">
-                                      <td colSpan={11} className="py-1 pl-4 text-xs text-muted-foreground italic">
+                                      <td colSpan={11} className="py-1 pl-4 text-sm text-muted-foreground italic">
                                         Analyst note: {c.rationale}
                                       </td>
                                     </tr>

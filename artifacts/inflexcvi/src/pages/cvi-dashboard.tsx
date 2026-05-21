@@ -678,7 +678,7 @@ function CVIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
             </div>
           </section>
 
-          <p className="text-xs text-muted-foreground italic pt-2 border-t">
+          <p className="text-sm text-muted-foreground italic pt-2 border-t">
             This panel re-computes from live data each time you open it. Numbers reflect the snapshot loaded in the dashboard.
           </p>
         </div>

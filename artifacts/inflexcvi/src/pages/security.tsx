@@ -58,7 +58,7 @@ export default function SecurityPage() {
             <li>Per-organization session lifetime and IP allowlists configurable in the admin portal.</li>
             <li>Audit-log access to every authentication event via the same Clerk admin API your IT team already integrates with.</li>
           </ul>
-          <p className="text-xs text-muted-foreground italic">
+          <p className="text-sm text-muted-foreground italic">
             To enable SAML on your tenant, reply to your account email confirmation with your IdP metadata XML or a SAML setup URL — turnaround is typically one business day.
           </p>
         </CardContent>
@@ -83,7 +83,7 @@ export default function SecurityPage() {
             <li><strong>Backtesting harness</strong>: see <Link href="/proof" className="text-primary hover:underline">/proof</Link> for the historical-event replay accuracy. The harness measures model propagation under shock, not historical reconstruction.</li>
             <li><strong>Audit log</strong>: every admin action and analyst annotation is recorded in <code className="font-mono text-xs bg-muted px-1">admin_audit_log</code>, queryable by actor, action, target, and date range with CSV export.</li>
           </ul>
-          <p className="text-xs text-muted-foreground italic">
+          <p className="text-sm text-muted-foreground italic">
             We publish a formal Data Lineage Document on request — includes the full provenance JSON-Schema, source-quality SLAs, and the methodology version history.
           </p>
         </CardContent>

@@ -373,7 +373,7 @@ export function CapabilityAnnotations({ capabilityId, targetSourceTriangulationI
                     </div>
                     <p className="text-sm whitespace-pre-wrap break-words">{a.body}</p>
                     {a.status !== "open" && a.resolutionNote && (
-                      <p className="text-xs text-muted-foreground italic">
+                      <p className="text-sm text-muted-foreground italic">
                         Resolution: {a.resolutionNote}
                       </p>
                     )}

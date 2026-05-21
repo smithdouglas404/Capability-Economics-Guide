@@ -570,7 +570,7 @@ function IntakeQA({ questions, assessmentId, onSaved }: { questions: Question[];
             <span className="text-xs font-mono text-muted-foreground mt-1">Q{i + 1}</span>
             <div className="flex-1">
               <p className="text-sm font-medium">{q.question}</p>
-              {q.rationale && <p className="text-xs text-muted-foreground italic">Why: {q.rationale}</p>}
+              {q.rationale && <p className="text-sm text-muted-foreground italic">Why: {q.rationale}</p>}
             </div>
             {q.answer && <Badge className="bg-emerald-100 text-emerald-700 border-transparent text-xs">answered</Badge>}
           </div>
@@ -648,7 +648,7 @@ function FindingCard({ item, onChanged }: { item: ResearchItem; onChanged: () =>
                 </ul>
               </div>
             )}
-            {item.reviewerNotes && <p className="text-xs italic mt-2 text-muted-foreground">Reviewer: {item.reviewerNotes}</p>}
+            {item.reviewerNotes && <p className="text-sm italic mt-2 text-muted-foreground">Reviewer: {item.reviewerNotes}</p>}
             <div className="mt-2"><Button size="sm" variant="ghost" onClick={() => setEditing(true)}>Edit</Button></div>
           </details>
         </>
@@ -738,7 +738,7 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
                       {(it.raw as InboxQuestion).cycleId && <Badge variant="outline" className="text-xs">from cycle</Badge>}
                     </div>
                     <p className="text-sm font-medium">{(it.raw as InboxQuestion).question}</p>
-                    {(it.raw as InboxQuestion).rationale && <p className="text-xs text-muted-foreground italic mt-0.5">Why: {(it.raw as InboxQuestion).rationale}</p>}
+                    {(it.raw as InboxQuestion).rationale && <p className="text-sm text-muted-foreground italic mt-0.5">Why: {(it.raw as InboxQuestion).rationale}</p>}
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => dismissQuestion(it.id)} disabled={busyId === it.id} title="Dismiss"><XCircle className="w-4 h-4 text-muted-foreground" /></Button>
                 </div>

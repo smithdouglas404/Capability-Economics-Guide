@@ -499,7 +499,7 @@ function EvarTab() {
                     <Slider value={[velocityAdj]} min={0.5} max={2} step={0.05} onValueChange={(v: number[]) => setVelocityAdj(v[0])} />
                   </div>
                 </div>
-                {selected.rationale && <p className="mt-4 text-xs text-muted-foreground italic border-l-2 border-amber-500/50 pl-3">{selected.rationale}</p>}
+                {selected.rationale && <p className="mt-4 text-sm text-muted-foreground italic border-l-2 border-amber-500/50 pl-3">{selected.rationale}</p>}
               </>
             ) : <div className="text-muted-foreground/60 text-sm">Pick a row to see its decay curve.</div>}
           </CardContent>
@@ -746,7 +746,7 @@ function NarrativeColumn({ title, subtitle, items, color }: { title: string; sub
               <ArrowRight className="h-3 w-3 text-muted-foreground/60" />
               <span className="text-muted-foreground">Street:</span><QuadrantChip q={it.consensusQuadrant} />
             </div>
-            {it.consensusSummary && <p className="text-xs text-muted-foreground italic mb-2">"{it.consensusSummary}"</p>}
+            {it.consensusSummary && <p className="text-sm text-muted-foreground italic mb-2">"{it.consensusSummary}"</p>}
             {it.rationale && <p className="text-xs text-muted-foreground">{it.rationale}</p>}
             {it.sources && it.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">

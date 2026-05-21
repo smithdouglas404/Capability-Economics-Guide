@@ -788,7 +788,7 @@ function SecFilingsPanel({ capabilityId, capabilityName }: { capabilityId: numbe
                       <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{f.formType}</Badge>
                     </div>
                     {f.excerpt && (
-                      <p className="text-xs text-muted-foreground mt-1 line-clamp-3 italic">"{f.excerpt}"</p>
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-3 italic">"{f.excerpt}"</p>
                     )}
                   </div>
                   <div className="text-right text-xs text-muted-foreground whitespace-nowrap">

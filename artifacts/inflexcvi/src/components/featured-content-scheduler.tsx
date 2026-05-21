@@ -165,7 +165,7 @@ export default function FeaturedContentScheduler() {
               </div>
 
               {rows.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">No placements. Falling back to the most recent case study.</p>
+                <p className="text-sm text-muted-foreground italic">No placements. Falling back to the most recent case study.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

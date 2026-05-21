@@ -123,7 +123,7 @@ export default function ArchitecturePage() {
               );
             })}
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4 italic">
+          <p className="text-center text-sm text-muted-foreground mt-4 italic">
             All modules share a unified capability ontology and research memory layer.
           </p>
         </CardContent>

@@ -180,7 +180,7 @@ export default function ComparablesPage() {
                 <div className="text-[10px] text-muted-foreground mt-1">@ {fmtMult(p75)} of revenue</div>
               </div>
             </div>
-            <div className="text-xs text-muted-foreground mt-4 italic">
+            <div className="text-sm text-muted-foreground mt-4 italic">
               Derived from {peerMults.length} peer companies with both revenue and funding disclosed.
               Funding-over-revenue used as a private-market proxy for EV/Revenue; for public peers a
               real market-cap feed would refine the multiple.
