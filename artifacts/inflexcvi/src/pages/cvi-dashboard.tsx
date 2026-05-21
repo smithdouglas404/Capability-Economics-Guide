@@ -607,7 +607,7 @@ function CVIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
                 + macroShock ({sentimentShock.toFixed(1)})<br />
                 ≈ <strong>{baseSentiment.toFixed(1)}</strong>
               </div>
-              <div><strong>Volatility ({(cei.volatility * 100).toFixed(1)}%):</strong></div>
+              <div><strong>Volatility ({cei.volatility.toFixed(3)}):</strong></div>
               <div className="pl-3">
                 = stddev(leaf velocities) ({stddevComponent.toFixed(3)})<br />
                 + macroVolBoost ({volBoost.toFixed(3)})<br />
@@ -962,10 +962,24 @@ export default function CVIDashboard() {
               <div className="md:col-span-1 space-y-4">
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs text-amber-500 uppercase tracking-wider">Volatility</span>
+                    <span className="text-xs text-amber-500 uppercase tracking-wider flex items-center gap-1">
+                      Volatility
+                      <MetricHelp>
+                        <strong className="block mb-1">Volatility is not a bounded percentage.</strong>
+                        It measures the <em>dispersion</em> of capability velocities — how unevenly capabilities are changing across industries. The formula:
+                        <div className="mt-1.5 mb-1.5 px-2 py-1.5 bg-muted rounded text-[10.5px] font-mono leading-relaxed">
+                          volatility = σ(leaf velocities){' '}
+                          <span className="text-amber-600">+ macroBoost</span>
+                        </div>
+                        where <code className="px-1 py-0.5 bg-muted rounded text-[10px]">σ(leaf velocities)</code> is the standard deviation of individual capability velocities (clamped to ±0.5), and <code className="px-1 py-0.5 bg-muted rounded text-[10px]">macroBoost</code> sums each active macro event's contribution via <code className="px-1 py-0.5 bg-muted rounded text-[10px]">severity × 0.005 × decayFactor</code>.
+                        <div className="mt-1.5 pt-1.5 border-t border-border/50">
+                          Because it's a <strong>raw standard deviation + additive shock</strong>, volatility can easily exceed 1.0 when multiple high-severity macro events are active — this is expected, not an error.
+                        </div>
+                      </MetricHelp>
+                    </span>
                     <Zap className="w-3.5 h-3.5 text-amber-400" />
                   </div>
-                  <div className="text-2xl font-mono font-bold text-white">{(cei.volatility * 100).toFixed(1)}%</div>
+                  <div className="text-2xl font-mono font-bold text-white">{cei.volatility.toFixed(3)}</div>
                   <div className="text-xs text-amber-500 mt-1">Capability change dispersion</div>
                 </div>
                 <div className="bg-white/5 backdrop-blur rounded-none p-4 border border-white/10">
