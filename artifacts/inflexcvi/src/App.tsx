@@ -38,6 +38,7 @@ import Marketplace from "@/pages/marketplace";
 import MarketplaceListing from "@/pages/marketplace-listing";
 import MarketplaceSell from "@/pages/marketplace-sell";
 import MarketplaceLibrary from "@/pages/marketplace-library";
+import MarketplaceThanks from "@/pages/marketplace-thanks";
 import CaseStudies from "@/pages/case-studies";
 import CaseStudy from "@/pages/case-study";
 import KycPage from "@/pages/kyc";
@@ -218,6 +219,7 @@ function Router() {
       <Route path="/marketplace" component={Marketplace} />
       <Route path="/marketplace/listings/:id" component={MarketplaceListing} />
       <Route path="/marketplace/sell" component={MarketplaceSell} />
+      <Route path="/marketplace/thanks" component={MarketplaceThanks} />
       <Route path="/marketplace/my-purchases" component={MarketplaceLibrary} />
       <Route path="/case-studies" component={CaseStudies} />
       <Route path="/case-study/:slug" component={CaseStudy} />

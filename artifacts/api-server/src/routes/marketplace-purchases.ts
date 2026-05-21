@@ -106,6 +106,35 @@ router.post("/marketplace/listings/:id/checkout", async (req, res) => {
 });
 
 /**
+ * Get a single purchase by id — including listing details — for the current
+ * user (or a Clerk org they belong to). Used by the /marketplace/thanks page
+ * after a successful Stripe Checkout redirect.
+ */
+router.get("/marketplace/purchases/:id", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const purchaseId = Number(req.params.id);
+  if (!Number.isFinite(purchaseId)) { res.status(400).json({ error: "bad id" }); return; }
+  const myOrgIds = await getUserClerkOrgIds(req);
+  const [row] = await db
+    .select({
+      purchase: marketplacePurchasesTable,
+      listing: marketplaceListingsTable,
+    })
+    .from(marketplacePurchasesTable)
+    .leftJoin(marketplaceListingsTable, eq(marketplacePurchasesTable.listingId, marketplaceListingsTable.id))
+    .where(and(
+      eq(marketplacePurchasesTable.id, purchaseId),
+      or(
+        eq(marketplacePurchasesTable.buyerUserId, auth.userId),
+        myOrgIds.length > 0 ? inArray(marketplacePurchasesTable.buyerClerkOrgId, myOrgIds) : sql`FALSE`,
+      ),
+    ));
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(row);
+});
+
+/**
  * The buyer's purchase library. Returns personal purchases AND purchases made
  * under any Clerk org the caller belongs to — so a team member who joins
  * after a purchase still gets access to the file.
