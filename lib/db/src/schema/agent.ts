@@ -107,6 +107,19 @@ export const economicRulesTable = pgTable("economic_rules", {
 });
 
 /**
+ * Runtime scheduler kill-switch table — created at boot by
+ * services/scheduler-kill-switch.ts. Declared here so drizzle-kit
+ * recognizes it and doesn't prompt about renames during deploy.
+ */
+export const schedulerKillSwitchesTable = pgTable("scheduler_kill_switches", {
+  name: text("name").primaryKey(),
+  disabled: boolean("disabled").notNull().default(false),
+  reason: text("reason"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedBy: text("updated_by"),
+});
+
+/**
  * Small key/value cache for agent-published artifacts that health probes need
  * to read with exact-key reliability. Background: the shared store
  * (services/agent/store.ts) is Letta archival memory, which uses semantic
@@ -125,4 +138,5 @@ export const agentKvCacheTable = pgTable("agent_kv_cache", {
 
 export type AgentProposal = typeof agentProposalsTable.$inferSelect;
 export type EconomicRule = typeof economicRulesTable.$inferSelect;
+export type SchedulerKillSwitch = typeof schedulerKillSwitchesTable.$inferSelect;
 export type AgentKvCacheEntry = typeof agentKvCacheTable.$inferSelect;
