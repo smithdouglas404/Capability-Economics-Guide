@@ -313,17 +313,17 @@ export default function CaseStudy() {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-8">
                   {data.study.kpis.map((k, i) => (
                     <div key={i} className="border-t border-border/40 pt-4">
-                      <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted-foreground mb-2">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-2">
                         {k.name}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-0.5">Now</div>
-                          <div className="font-mono tabular-nums text-base text-muted-foreground">{k.baseline}</div>
+                          <div className="text-sm text-muted-foreground leading-relaxed">{k.baseline}</div>
                         </div>
                         <div>
                           <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-0.5">Target</div>
-                          <div className="font-mono tabular-nums text-base text-foreground">{k.target}</div>
+                          <div className="text-sm text-foreground leading-relaxed">{k.target}</div>
                         </div>
                       </div>
                     </div>
