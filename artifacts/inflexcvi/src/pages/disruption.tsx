@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 import { DvxHero } from "@/components/dvx-hero";
 
 const API_BASE = "/api";
@@ -137,6 +138,9 @@ export default function DisruptionPage() {
           className="mt-3"
         />
       </div>
+
+      {/* House view — cross-agent synthesis grounding for what follows below */}
+      <SynthesisBriefCard compact />
 
       {/* Move 5: Disruption Index hero — surfaces the DVX score that was already
           computed but invisible. Lives above the existing watch/new-cap feeds. */}

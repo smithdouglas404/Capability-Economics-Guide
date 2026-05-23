@@ -9,6 +9,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { PersonaDescription } from "@/components/page-header";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 
 type KGViewState = { tab: "quadrant" | "network" | "industries" | "compare"; selectedIndustryId: number | null };
 import {
@@ -890,6 +891,11 @@ export default function KnowledgeGraph() {
             }}
             className="mt-4"
           />
+          {/* House view — cross-agent synthesis brief sets the lens for the four tabs below */}
+          <div className="mt-6">
+            <SynthesisBriefCard compact />
+          </div>
+
           <div className="flex gap-2 mt-6 flex-wrap">
             <Button
               variant={tab === "quadrant" ? "default" : "outline"}

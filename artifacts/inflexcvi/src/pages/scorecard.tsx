@@ -7,6 +7,7 @@ import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } 
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 
 const API_BASE = "/api";
 
@@ -224,6 +225,9 @@ export default function CapabilityScorecard() {
           ))}
         </div>
       )}
+
+      {/* House view — cross-agent synthesis brief grounding remediation priorities */}
+      <SynthesisBriefCard compact />
 
       {/* Move 10c: streaming gap-closure plan based on the user's actual
           scorecard. Pulls the live RED capabilities + EVaR from the server

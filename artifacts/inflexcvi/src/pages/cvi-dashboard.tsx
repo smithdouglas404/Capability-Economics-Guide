@@ -11,6 +11,7 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 
 type CVIViewState = {
   selectedIndustry: string | null;
@@ -1014,6 +1015,11 @@ export default function CVIDashboard() {
       </div>
 
       <div className="container mx-auto px-4 mt-6">
+        {/* Synthesis Agent brief — cross-agent house view, daily-refreshed */}
+        <div className="mb-4">
+          <SynthesisBriefCard />
+        </div>
+
         {/* Macro Disruptions Panel */}
         <motion.div
             initial={{ opacity: 0, y: 20 }}

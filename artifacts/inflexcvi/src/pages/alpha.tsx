@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { PersonaDescription } from "@/components/page-header";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 
 type AlphaViewState = { tab: string };
 
@@ -168,6 +169,11 @@ export default function Alpha() {
           </div>
           {enrichMsg && <p className="text-xs text-muted-foreground max-w-xs text-right">{enrichMsg}</p>}
         </div>
+      </div>
+
+      {/* House view — cross-agent synthesis brief grounds the seven tabs below */}
+      <div className="mb-6">
+        <SynthesisBriefCard compact />
       </div>
 
       {status && (
