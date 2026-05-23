@@ -30,6 +30,8 @@ type MatrixRow = {
   citations: string[];
   sourceBreakdown: Array<{ sourceLabel: string; rawScore: number; weight: number; methodology?: string }>;
   lifecycleStage: LifecycleStage;
+  /** Change in consensus score vs 90 days ago; null if no history. */
+  delta90: number | null;
 };
 
 type Alert = { type: string; message: string; severity: string; capabilityId: number };
@@ -318,6 +320,7 @@ export default function CapabilityScorecard() {
                   <th className="text-right py-2 px-2">Benchmark</th>
                   <th className="text-right py-2 px-2">Gap</th>
                   <th className="text-right py-2 px-2">Moat</th>
+                  <th className="text-right py-2 px-2" title="Change in consensus score vs 90 days ago">90d Δ</th>
                   <th className="text-right py-2 px-2">EVaR 12mo</th>
                   <th className="text-right py-2 px-2">AI Exposure</th>
                   <th className="text-right py-2 px-2">Velocity</th>
@@ -383,6 +386,22 @@ export default function CapabilityScorecard() {
                           className={row.moatScore >= 60 ? "text-emerald-500" : row.moatScore >= 30 ? "text-amber-500" : "text-destructive"}
                         />
                       ) : "—"}
+                    </td>
+                    <td className="text-right py-2 px-2">
+                      {row.delta90 !== null ? (
+                        <span
+                          className={`font-mono tabular-nums text-xs ${
+                            row.delta90 >= 5 ? "text-emerald-600 dark:text-emerald-400"
+                              : row.delta90 <= -5 ? "text-destructive"
+                              : "text-muted-foreground"
+                          }`}
+                          title={`90-day movement in consensus score: ${row.delta90 >= 0 ? "up" : "down"} ${Math.abs(row.delta90).toFixed(1)} points`}
+                        >
+                          {row.delta90 > 0 ? "+" : ""}{row.delta90.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
                     </td>
                     <td className="text-right py-2 px-2">
                       {row.evar12mo !== null ? (

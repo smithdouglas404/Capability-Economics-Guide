@@ -176,6 +176,11 @@ export default function Alpha() {
         <SynthesisBriefCard compact />
       </div>
 
+      {/* Headline exposure strip — top-3 capabilities by 12-month EVaR across
+          all industries. Cross-tab top-of-mind summary before the user has to
+          pick which of the 10 tabs to investigate. */}
+      <AlphaHeadlineStrip />
+
       {status && (
         <div className="mb-6 grid grid-cols-2 md:grid-cols-4 gap-3">
           <StatusCard label="Capabilities" value={status.capabilities} />
@@ -211,6 +216,64 @@ export default function Alpha() {
         <TabsContent value="thesis"><ThesisTab /></TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/* ============================= Headline strip ============================= */
+function AlphaHeadlineStrip() {
+  interface EvarItem {
+    capabilityId: number;
+    capabilityName: string;
+    industryName: string;
+    evar12: number;
+    halfLifeMonths: number;
+    quadrant: string | null;
+  }
+  interface EvarResponse {
+    items: EvarItem[];
+    totals: { totalEvar12: number; totalEvar24: number; totalEvar36: number; count: number };
+  }
+  const [data, setData] = useState<EvarResponse | null>(null);
+  useEffect(() => {
+    fetch("/api/alpha/evar")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: EvarResponse | null) => setData(d))
+      .catch(() => setData(null));
+  }, []);
+  if (!data || data.items.length === 0) return null;
+  const top3 = data.items.slice(0, 3);
+  const fmtUsd = (mm: number) => mm >= 1000 ? `$${(mm / 1000).toFixed(1)}B` : `$${mm.toFixed(0)}M`;
+  return (
+    <Card className="rounded-none border-l-2 border-l-amber-500 mb-6">
+      <CardContent className="py-3">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            Today's headline exposure — 12-month EVaR
+          </div>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            Portfolio total: {fmtUsd(data.totals.totalEvar12)} · {data.totals.count} enriched capabilities
+          </span>
+        </div>
+        <ol className="grid sm:grid-cols-3 gap-3">
+          {top3.map((it, i) => (
+            <li key={it.capabilityId} className="border border-border bg-muted/20 p-3">
+              <div className="flex items-baseline justify-between mb-1">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-amber-700 dark:text-amber-400">
+                  #{i + 1} {it.industryName}
+                </span>
+                <span className="font-mono text-lg font-bold tabular-nums text-amber-700 dark:text-amber-400">
+                  {fmtUsd(it.evar12)}
+                </span>
+              </div>
+              <div className="text-sm font-medium leading-tight">{it.capabilityName}</div>
+              <div className="font-mono text-[10px] text-muted-foreground mt-1">
+                t½ {it.halfLifeMonths}mo {it.quadrant ? `· ${it.quadrant}` : ""}
+              </div>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 

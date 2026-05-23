@@ -8,8 +8,9 @@ import {
   capabilityAlphaTable,
   cviComponentsTable,
   sourceTriangulationsTable,
+  cviCapabilityHistoryTable,
 } from "@workspace/db";
-import { eq, and, inArray, avg, count } from "drizzle-orm";
+import { eq, and, inArray, avg, count, gte, asc } from "drizzle-orm";
 import { deriveLifecycleStage } from "../services/lifecycle";
 
 const router = Router();
@@ -111,6 +112,27 @@ router.get("/war-room/compare", async (req, res) => {
       for (const u of (t.citations ?? [])) if (u) e.urls.add(u);
     }
 
+    // 90-day delta lookup. One bulk query against cvi_capability_history;
+    // for each cap, take the oldest snapshot within the window as the
+    // baseline. Surfaces "what changed" so the scorecard isn't a flat
+    // snapshot view.
+    const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const histRows = capIds.length
+      ? await db.select({
+          capabilityId: cviCapabilityHistoryTable.capabilityId,
+          consensusScore: cviCapabilityHistoryTable.consensusScore,
+          snapshotAt: cviCapabilityHistoryTable.snapshotAt,
+        })
+          .from(cviCapabilityHistoryTable)
+          .where(and(inArray(cviCapabilityHistoryTable.capabilityId, capIds), gte(cviCapabilityHistoryTable.snapshotAt, since90)))
+          .orderBy(asc(cviCapabilityHistoryTable.snapshotAt))
+      : [];
+    const oldestByCap = new Map<number, number>();
+    for (const r of histRows) {
+      // First row per cap due to ascending order is the oldest in-window
+      if (!oldestByCap.has(r.capabilityId)) oldestByCap.set(r.capabilityId, r.consensusScore);
+    }
+
     // Build comparison matrix
     const orgCapMap = new Map(orgCaps.map((c) => [c.capabilityId, c]));
     const econMap = new Map(economics.map((e) => [e.capabilityId, e]));
@@ -159,6 +181,12 @@ router.get("/war-room/compare", async (req, res) => {
           velocity: comp?.velocity ?? null,
           benchmarkScore: benchmark,
         }),
+        delta90: (() => {
+          const oldest = oldestByCap.get(cap.id);
+          const current = comp?.consensusScore ?? benchmark ?? null;
+          if (oldest == null || current == null) return null;
+          return current - oldest;
+        })(),
       };
     });
 
