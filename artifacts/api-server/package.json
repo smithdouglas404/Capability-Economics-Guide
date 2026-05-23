@@ -7,6 +7,7 @@
     "@clerk/express": "^2.1.3",
     "@grpc/grpc-js": "1.12.6",
     "@hashgraph/sdk": "^2.50.0",
+    "@inngest/agent-kit": "^0.13.2",
     "@langchain/anthropic": "^1.3.29",
     "@langchain/core": "^1.1.39",
     "@langchain/langgraph": "^1.2.8",

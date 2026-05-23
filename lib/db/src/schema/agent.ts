@@ -136,7 +136,44 @@ export const agentKvCacheTable = pgTable("agent_kv_cache", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/**
+ * Phase 8 — AgentKit shadow eval table.
+ *
+ * Every cycle of the ontology-agent (and any future agent we put under
+ * shadow eval) writes two rows here: one tagged `implementation="langgraph"`
+ * from the legacy `runOntologyAgent()` call and one tagged
+ * `implementation="agentkit"` from `runOntologyAgentAgentKit()`. Both run
+ * on the same cron under the `INNGEST_SHADOW_ONTOLOGY=1` flag; only the
+ * langgraph row is the authoritative path (it publishes to
+ * `NS.sharedKnowledge`). The agentkit row is for offline comparison.
+ *
+ * Comparison query:
+ *   SELECT implementation, AVG(duration_ms), AVG(tool_call_count)
+ *   FROM agent_shadow_runs WHERE agent_name='ontology-agent'
+ *   GROUP BY implementation;
+ *
+ * Schema deferred — operator runs `drizzle-kit push` when ready.
+ */
+export const agentShadowRunsTable = pgTable(
+  "agent_shadow_runs",
+  {
+    id: serial("id").primaryKey(),
+    agentName: text("agent_name").notNull(),
+    implementation: text("implementation").notNull(),
+    output: text("output").notNull().default(""),
+    toolCallCount: integer("tool_call_count").notNull().default(0),
+    durationMs: integer("duration_ms").notNull().default(0),
+    errorMessage: text("error_message"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    finishedAt: timestamp("finished_at").defaultNow().notNull(),
+  },
+  (t) => ({
+    agentImplIdx: index("agent_shadow_runs_agent_impl_idx").on(t.agentName, t.implementation, t.startedAt),
+  }),
+);
+
 export type AgentProposal = typeof agentProposalsTable.$inferSelect;
 export type EconomicRule = typeof economicRulesTable.$inferSelect;
 export type SchedulerKillSwitch = typeof schedulerKillSwitchesTable.$inferSelect;
 export type AgentKvCacheEntry = typeof agentKvCacheTable.$inferSelect;
+export type AgentShadowRun = typeof agentShadowRunsTable.$inferSelect;

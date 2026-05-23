@@ -330,6 +330,33 @@ Implementation: `artifacts/api-server/src/inngest/connect-worker.ts` calls `conn
 
 All flags default OFF. The cutover order is per-feature — flipping one flag has no effect on the others.
 
+### AgentKit shadow eval (Phase 8)
+
+**Scope.** `@inngest/agent-kit` (v0.13.2, Apache-2.0) was added 2026-05-23 as a *parallel* implementation of `ontology-agent` ONLY — the lowest-blast-radius of the 7 agents per the 2026-05-18 decision (simplest tools, all idempotent, no customer-facing surface depends on its output). The LangGraph implementation in `services/ontology-agent.ts` remains authoritative. Do NOT migrate the other 6 agents until this eval completes.
+
+**How it runs.** Two Inngest functions fire on the same `0 */4 * * *` cron:
+- `ontologyAgentCron` (legacy) — runs `runOntologyAgent()` from `services/ontology-agent.ts`, publishes its digest to `NS.sharedKnowledge`, sends `agent/ontology/digest-published`. This is the production path.
+- `ontologyAgentShadow` (new) — runs `runOntologyAgentAgentKit()` from `services/ontology-agent-agentkit.ts`. Same Haiku model, same system prompt, same 4 tools (`read_all_agent_outputs`, `extract_and_register_entities`, `get_graph_stats`, `trigger_foundry_sync_if_alerted`) re-declared via AgentKit's `createTool` (LangChain's `DynamicStructuredTool` shape isn't compatible with AgentKit's `Tool.Any`, so the wrappers are thin re-declarations that call the same underlying business-logic functions). Output is NOT published to `NS.sharedKnowledge`. `retries: 0` so a shadow failure never cascades.
+
+When `INNGEST_SHADOW_ONTOLOGY=1` is set, BOTH crons additionally insert a row into the new `agent_shadow_runs` table tagged `implementation = 'langgraph' | 'agentkit'`. The legacy cron's `persist-shadow-langgraph` step is gated on the same flag — without the flag, the schema row is unused.
+
+**Comparison query**:
+```sql
+SELECT implementation,
+       COUNT(*) AS runs,
+       AVG(duration_ms)::int AS avg_duration_ms,
+       AVG(tool_call_count)::numeric(10,2) AS avg_tool_calls,
+       COUNT(*) FILTER (WHERE error_message IS NOT NULL) AS errors
+FROM agent_shadow_runs
+WHERE agent_name = 'ontology-agent'
+  AND started_at > now() - interval '14 days'
+GROUP BY implementation;
+```
+
+**Schema migration**: `agent_shadow_runs` is declared in `lib/db/src/schema/agent.ts` but `drizzle-kit push` is deferred — the operator runs it (`cd lib/db && npx drizzle-kit push --force`) before enabling `INNGEST_SHADOW_ONTOLOGY=1` in production. Both shadow writes catch + log DB errors so a missing table is non-fatal to the agent run.
+
+**Plan**: run 2 weeks with `INNGEST_SHADOW_ONTOLOGY=1`. Then decide: migrate (if AgentKit is faster + similarly accurate), abandon (LangGraph stays), or extend the eval to another agent before deciding. Don't widen the migration prematurely — CLAUDE.md's 2026-05-18 anti-migration rule still applies to all 6 other agents.
+
 ### LangSmith — observability across both stacks
 
 When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
