@@ -21,6 +21,7 @@ import { ChatAnthropic } from "@langchain/anthropic";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
 import { recallMemories, storeMemory } from "./memory";
 import { getAgentPriorBlock, getSharedStore, NS, ensureSharedStoreReady } from "./store";
+import { maybeStepRun } from "../../inngest/step-context";
 
 const DEFAULT_HAIKU = "claude-haiku-4-5-20251001";
 const DEFAULT_SONNET = "claude-sonnet-4-5-20250929";
@@ -213,25 +214,37 @@ export async function runReactAgent(
 
   const input = userInput ?? `Run your ${config.agentName} cycle now. Use your tools to complete your work and publish your findings.`;
 
-  const result = await agent.invoke({
-    messages: [{ role: "user", content: input }],
-  });
+  // Wrap the agent invocation in maybeStepRun so it becomes an independent
+  // Inngest step when called from an Inngest function (per-LLM-call retry).
+  // BaseMessage instances are class objects and won't round-trip through
+  // JSON, so the message reduction MUST happen INSIDE the step.run boundary
+  // — only the plain `{output, toolCallCount}` shape can cross out.
+  const { output, toolCallCount } = await maybeStepRun(
+    `${config.agentName}-agent-invoke`,
+    async () => {
+      const result = await agent.invoke({
+        messages: [{ role: "user", content: input }],
+      });
 
-  // ReactAgent returns { messages: BaseMessage[] }. The final assistant
-  // message is the agent's answer; intermediate tool_use/tool_result
-  // messages let us count tool calls for cost/perf reporting.
-  const messages = result.messages ?? [];
-  const finalAssistant = [...messages].reverse().find((m: { getType?: () => string }) =>
-    typeof m.getType === "function" ? m.getType() === "ai" : false,
+      // ReactAgent returns { messages: BaseMessage[] }. The final assistant
+      // message is the agent's answer; intermediate tool_use/tool_result
+      // messages let us count tool calls for cost/perf reporting.
+      const messages = result.messages ?? [];
+      const finalAssistant = [...messages].reverse().find((m: { getType?: () => string }) =>
+        typeof m.getType === "function" ? m.getType() === "ai" : false,
+      );
+      const rawContent = (finalAssistant as { content?: unknown })?.content ?? "";
+      const reducedOutput = Array.isArray(rawContent)
+        ? rawContent.map((p: unknown) => (typeof p === "string" ? p : (p as { text?: string }).text ?? "")).join("")
+        : String(rawContent);
+
+      const reducedToolCallCount = messages.filter((m: { getType?: () => string }) =>
+        typeof m.getType === "function" ? m.getType() === "tool" : false,
+      ).length;
+
+      return { output: reducedOutput, toolCallCount: reducedToolCallCount };
+    },
   );
-  const rawContent = (finalAssistant as { content?: unknown })?.content ?? "";
-  const output = Array.isArray(rawContent)
-    ? rawContent.map((p: unknown) => (typeof p === "string" ? p : (p as { text?: string }).text ?? "")).join("")
-    : String(rawContent);
-
-  const toolCallCount = messages.filter((m: { getType?: () => string }) =>
-    typeof m.getType === "function" ? m.getType() === "tool" : false,
-  ).length;
 
   // Write post-run memory summary (non-blocking)
   if (!config.skipMemoryRecall) {

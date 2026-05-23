@@ -1,4 +1,5 @@
 import { inngest } from "../client";
+import { withStep } from "../step-context";
 import { runAgent } from "../../services/agent/graph";
 import { runMacroEventAgent } from "../../services/macro-event-agent";
 import { runDisruptionAgent } from "../../services/disruption-agent";
@@ -7,7 +8,8 @@ import { runStackOptimizerAgent } from "../../services/stack-optimizer-agent";
 import { runOntologyAgent } from "../../services/ontology-agent";
 import { runSynthesisAgent } from "../../services/synthesis-agent";
 
-// Phase 1 — Inngest cron wrappers around the 7 LangGraph agents.
+// Phase 2 — Inngest cron wrappers around the 7 LangGraph agents, now using
+// AsyncLocalStorage to thread the `step` context down into the agent code.
 //
 // Each function:
 //   - has a per-agent feature flag (INNGEST_OWNS_<NAME>) that gates whether
@@ -16,8 +18,11 @@ import { runSynthesisAgent } from "../../services/synthesis-agent";
 //   - uses `concurrency: { limit: 1 }` so two Inngest runs can't overlap
 //     (replaces the enrichment_runs row-locking hack)
 //   - retries twice on transient failures
-//   - calls the agent's existing entry point via a single step.run() so the
-//     LangGraph internals don't need any changes
+//   - calls the agent's existing entry point inside `withStep(step, …)` so
+//     individual LLM / tool calls inside the agent can opt into their own
+//     step.run via `maybeStepRun()` for per-call retry granularity.
+//     See step-context.ts and the call sites in services/agent/base-agent.ts
+//     + services/agent/graph.ts.
 //
 // Cadences match the original scheduler.ts values.
 
@@ -32,7 +37,7 @@ export const cviAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_CVI")) return { skipped: "flag-off" };
-    return await step.run("run-cvi", () => runAgent("inngest-cron"));
+    return await withStep(step, () => runAgent("inngest-cron"));
   },
 );
 
@@ -45,7 +50,7 @@ export const macroEventAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_MACRO_EVENT")) return { skipped: "flag-off" };
-    return await step.run("run-macro-event", () => runMacroEventAgent());
+    return await withStep(step, () => runMacroEventAgent());
   },
 );
 
@@ -58,7 +63,7 @@ export const disruptionAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_DISRUPTION")) return { skipped: "flag-off" };
-    return await step.run("run-disruption", () => runDisruptionAgent());
+    return await withStep(step, () => runDisruptionAgent());
   },
 );
 
@@ -71,7 +76,7 @@ export const peerCoopAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_PEER_COOP")) return { skipped: "flag-off" };
-    return await step.run("run-peer-coop", () => runPeerCoopAgent());
+    return await withStep(step, () => runPeerCoopAgent());
   },
 );
 
@@ -84,7 +89,7 @@ export const stackOptimizerAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_STACK_OPTIMIZER")) return { skipped: "flag-off" };
-    return await step.run("run-stack-optimizer", () => runStackOptimizerAgent());
+    return await withStep(step, () => runStackOptimizerAgent());
   },
 );
 
@@ -97,7 +102,7 @@ export const ontologyAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_ONTOLOGY")) return { skipped: "flag-off" };
-    return await step.run("run-ontology", () => runOntologyAgent());
+    return await withStep(step, () => runOntologyAgent());
   },
 );
 
@@ -110,7 +115,7 @@ export const synthesisAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_SYNTHESIS")) return { skipped: "flag-off" };
-    return await step.run("run-synthesis", () => runSynthesisAgent());
+    return await withStep(step, () => runSynthesisAgent());
   },
 );
 

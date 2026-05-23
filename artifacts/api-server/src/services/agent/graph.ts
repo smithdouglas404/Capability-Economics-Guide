@@ -32,6 +32,7 @@ import {
   generateWhitePapersTool,
   generateOntologyTool,
 } from "./tools";
+import { maybeStepRun } from "../../inngest/step-context";
 
 interface CapabilityTarget {
   capabilityId: number;
@@ -304,12 +305,15 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
     try {
       emitAgentEvent({ type: "tool_call", tool: "perplexity_research", capability: decision.capabilityName, industry: decision.industryName });
 
-      const resultStr = await perplexityResearchTool.invoke({
-        industryName: decision.industryName,
-        capabilityName: decision.capabilityName,
-        industryId: decision.industryId,
-        capabilityId: decision.capabilityId,
-      });
+      const resultStr = await maybeStepRun(
+        "research-perplexity",
+        () => perplexityResearchTool.invoke({
+          industryName: decision.industryName,
+          capabilityName: decision.capabilityName,
+          industryId: decision.industryId,
+          capabilityId: decision.capabilityId,
+        }),
+      );
 
       const result = JSON.parse(resultStr);
       if (result.success) {
@@ -350,7 +354,7 @@ async function computeNode(state: AgentStateType): Promise<Partial<AgentStateTyp
 
   emitAgentEvent({ type: "tool_call", tool: "compute_cvi", message: "Recomputing CVI index..." });
   try {
-    const resultStr = await computeCVITool.invoke({});
+    const resultStr = await maybeStepRun("compute-cvi", () => computeCVITool.invoke({}));
     const result = JSON.parse(resultStr);
     if (result.success) {
       emitAgentEvent({
@@ -449,11 +453,15 @@ async function memorizeNode(state: AgentStateType): Promise<Partial<AgentStateTy
           `If nothing material changed, return EXACTLY the string "no update" and nothing else. ` +
           `Be concise — total length under 6000 chars.`;
         const llm = new ChatAnthropic({ model: "claude-haiku-4-5-20251001", temperature: 0.2, maxTokens: 2000 });
-        const res = await llm.invoke(prompt);
-        const raw = res.content;
-        const text = Array.isArray(raw)
-          ? raw.map(p => (typeof p === "string" ? p : "text" in p && typeof p.text === "string" ? p.text : "")).join("")
-          : String(raw);
+        // AIMessage isn't JSON-safe — reduce to a string INSIDE the step so
+        // only plain text crosses the Inngest step boundary.
+        const text = await maybeStepRun("decide-llm", async () => {
+          const res = await llm.invoke(prompt);
+          const raw = res.content;
+          return Array.isArray(raw)
+            ? raw.map(p => (typeof p === "string" ? p : "text" in p && typeof p.text === "string" ? p.text : "")).join("")
+            : String(raw);
+        });
         const trimmed = text.trim();
         if (trimmed && trimmed.toLowerCase() !== "no update") {
           await putAgentPriorBlock("industry_priors", trimmed, {
@@ -483,38 +491,56 @@ async function generateContentNode(_state: AgentStateType): Promise<Partial<Agen
   for (const slug of industrySlugs) {
     try {
       emitAgentEvent({ type: "tool_call", tool: "generate_insights", industry: slug });
-      const r = JSON.parse(await generateInsightsTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; insightsGenerated?: number };
+      const r = JSON.parse(await maybeStepRun(
+        `finalize-insights-${slug}`,
+        () => generateInsightsTool.invoke({ industrySlug: slug }),
+      )) as { success: boolean; skipped?: boolean; insightsGenerated?: number };
       emitAgentEvent({ type: "tool_result", tool: "generate_insights", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.insightsGenerated ?? 0 });
     } catch (err) { console.error(`[generateContent] Insights ${slug}:`, err); }
 
     try {
       emitAgentEvent({ type: "tool_call", tool: "generate_leaderboard", industry: slug });
-      const r = JSON.parse(await generateLeaderboardTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; entriesGenerated?: number };
+      const r = JSON.parse(await maybeStepRun(
+        `finalize-leaderboard-${slug}`,
+        () => generateLeaderboardTool.invoke({ industrySlug: slug }),
+      )) as { success: boolean; skipped?: boolean; entriesGenerated?: number };
       emitAgentEvent({ type: "tool_result", tool: "generate_leaderboard", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.entriesGenerated ?? 0 });
     } catch (err) { console.error(`[generateContent] Leaderboard ${slug}:`, err); }
 
     try {
       emitAgentEvent({ type: "tool_call", tool: "generate_white_papers", industry: slug });
-      const r = JSON.parse(await generateWhitePapersTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; papersGenerated?: number };
+      const r = JSON.parse(await maybeStepRun(
+        `finalize-whitepapers-${slug}`,
+        () => generateWhitePapersTool.invoke({ industrySlug: slug }),
+      )) as { success: boolean; skipped?: boolean; papersGenerated?: number };
       emitAgentEvent({ type: "tool_result", tool: "generate_white_papers", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.papersGenerated ?? 0 });
     } catch (err) { console.error(`[generateContent] White papers ${slug}:`, err); }
 
     try {
       emitAgentEvent({ type: "tool_call", tool: "generate_ontology", industry: slug });
-      const r = JSON.parse(await generateOntologyTool.invoke({ industrySlug: slug })) as { success: boolean; skipped?: boolean; relationshipsGenerated?: number };
+      const r = JSON.parse(await maybeStepRun(
+        `finalize-ontology-${slug}`,
+        () => generateOntologyTool.invoke({ industrySlug: slug }),
+      )) as { success: boolean; skipped?: boolean; relationshipsGenerated?: number };
       emitAgentEvent({ type: "tool_result", tool: "generate_ontology", industry: slug, success: r.success, skipped: r.skipped ?? false, generated: r.relationshipsGenerated ?? 0 });
     } catch (err) { console.error(`[generateContent] Ontology ${slug}:`, err); }
   }
 
   try {
     emitAgentEvent({ type: "tool_call", tool: "generate_csuite_perspectives" });
-    const r = JSON.parse(await generateCsuitePerspectivesTool.invoke({})) as { success: boolean; generated?: string[]; skipped?: string[] };
+    const r = JSON.parse(await maybeStepRun(
+      "finalize-csuite",
+      () => generateCsuitePerspectivesTool.invoke({}),
+    )) as { success: boolean; generated?: string[]; skipped?: string[] };
     emitAgentEvent({ type: "tool_result", tool: "generate_csuite_perspectives", generated: r.generated?.length ?? 0, skipped: r.skipped?.length ?? 0 });
   } catch (err) { console.error("[generateContent] C-suite:", err); }
 
   try {
     emitAgentEvent({ type: "tool_call", tool: "generate_case_study", industry: "insurance" });
-    const r = JSON.parse(await generateCaseStudyContentTool.invoke({ industrySlug: "insurance" })) as { success: boolean; skipped?: boolean };
+    const r = JSON.parse(await maybeStepRun(
+      "finalize-casestudy-insurance",
+      () => generateCaseStudyContentTool.invoke({ industrySlug: "insurance" }),
+    )) as { success: boolean; skipped?: boolean };
     emitAgentEvent({ type: "tool_result", tool: "generate_case_study", industry: "insurance", success: r.success, skipped: r.skipped ?? false });
   } catch (err) { console.error("[generateContent] Case study:", err); }
 
