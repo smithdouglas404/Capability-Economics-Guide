@@ -298,11 +298,14 @@ export default function BacktestPage() {
     }
   }, []);
 
+  // Load catalog + history passively on mount. Don't auto-run the harness —
+  // running it without user intent leaves the page showing blank metrics
+  // while the LLM cycle completes, which reads as "broken" to a first-time
+  // visitor. User clicks "Run harness" to fire it intentionally.
   useEffect(() => {
     loadCatalog();
     loadHistory();
-    runHarness();
-  }, [loadCatalog, loadHistory, runHarness]);
+  }, [loadCatalog, loadHistory]);
 
   const toggle = (id: number) => {
     const next = new Set(expanded);
@@ -337,6 +340,25 @@ export default function BacktestPage() {
       {error && (
         <Card className="border-red-500/40 bg-red-500/5">
           <CardContent className="p-4 text-sm text-red-700">{error}</CardContent>
+        </Card>
+      )}
+
+      {!summary && !running && !error && (
+        <Card className="border-border/60">
+          <CardContent className="p-6 space-y-3">
+            <h2 className="font-serif text-lg">What this page does</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The harness replays every curated historical event (COVID, ChatGPT launch, SVB collapse, EU AI Act,
+              tariff wave) through the current CVI engine and reports per-capability directional accuracy plus
+              probabilistic calibration (Brier, log-loss). It's how we prove the model would have called past
+              disruptions correctly — not "did we forecast that yesterday" but "does our model, today, infer the
+              right direction for each historical shock."
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Click <strong>Re-run harness</strong> to fire a fresh run (~3 seconds). The aggregate metrics + reliability
+              diagram + per-event breakdown populate inline. The rolling accuracy from prior runs is below.
+            </p>
+          </CardContent>
         </Card>
       )}
 

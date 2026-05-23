@@ -867,8 +867,18 @@ export default function CVIDashboard() {
 
   if (!cei) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <p className="text-muted-foreground">Unable to load CVI data.</p>
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <div className="max-w-md text-center space-y-3">
+          <p className="font-serif text-lg">CVI data isn't available right now</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            The Capability Value Index aggregates live signals from the autonomous agent network. If you're seeing
+            this, the platform is in a cold-start window or one of the upstream services is briefly unavailable.
+            Retry in a few seconds.
+          </p>
+          <button onClick={() => window.location.reload()} className="px-4 py-2 border border-border hover:bg-muted text-sm font-mono uppercase tracking-wider">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

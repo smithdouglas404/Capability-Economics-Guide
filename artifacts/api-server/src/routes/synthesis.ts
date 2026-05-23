@@ -12,8 +12,10 @@
  * so any page (CVI dashboard, knowledge graph, regulations, scorecard,
  * alpha) can surface the platform's own synthesized view.
  */
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request, type Response } from "express";
 import { getKvCache } from "../services/agent/store";
+import { runSynthesisAgent } from "../services/synthesis-agent";
+import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();
 
@@ -65,6 +67,32 @@ router.get("/synthesis/brief", async (_req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+/**
+ * Manual trigger for the synthesis agent. Normally runs on a daily cron after
+ * the 5 specialized agents complete their cycles. Admin-protected — kicks off
+ * a full Sonnet-class cycle (~30s) and returns the result inline.
+ *
+ * Useful when seeding a fresh deploy or when an operator wants to refresh the
+ * brief immediately after the specialized agents have advanced.
+ *
+ *   POST /api/admin/synthesis/run
+ *     headers: x-admin-key: $ADMIN_API_KEY
+ *     response: { ok, brief, durationMs }
+ */
+router.post("/admin/synthesis/run", requireAdmin, async (_req: Request, res: Response) => {
+  const start = Date.now();
+  try {
+    const result = await runSynthesisAgent();
+    res.json({
+      ok: true,
+      result,
+      durationMs: Date.now() - start,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - start });
   }
 });
 

@@ -110,7 +110,23 @@ export default function ProofPage() {
         </div>
       )}
 
-      {data && (
+      {data && data.events.length === 0 && (
+        <Card className="rounded-none border-amber-500/40 bg-amber-500/[0.04]">
+          <CardContent className="p-6 space-y-3">
+            <h2 className="font-serif text-lg">Proof gallery is warming up</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              The backtest harness ran successfully but no historical events were available to replay. Once the
+              autonomous agent seeds the historical events table, this page will populate with per-event scorecards
+              showing how the model would have called each disruption.
+            </p>
+            <p className="text-xs font-mono text-muted-foreground">
+              First scheduled harness run: within 24 hours of platform boot. Manual run available via <code className="px-1.5 py-0.5 bg-muted">/backtest</code>.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {data && data.events.length > 0 && (
         <>
           <Card className="rounded-none border-border/60">
             <CardContent className="p-6">
