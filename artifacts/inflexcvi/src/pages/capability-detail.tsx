@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CapabilityAnnotations } from "@/components/capability-annotations";
+import { CapabilityCascadePanel } from "@/components/capability-cascade-panel";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
 import { FourLensesGrid } from "@/components/four-lenses-grid";
@@ -566,6 +567,9 @@ export default function CapabilityDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* ─── Downstream impact cascade (Neo4j-graph-driven) ──────────────── */}
+      {cap && <CapabilityCascadePanel capabilityId={id} />}
 
       {/* ─── CVI trend sparkline ───────────────────────────────────────────── */}
       {cap && <CviHistoryCard capabilityId={id} />}
