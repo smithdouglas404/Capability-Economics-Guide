@@ -60,6 +60,11 @@ router.get("/projects", async (req, res) => {
       complexityLevel: technologyProjectsTable.complexityLevel,
       icon: technologyProjectsTable.icon,
       impactedCapabilityCount: sql<number>`cast(count(${projectCapabilityImpactsTable.id}) as int)`,
+      // Aggregated expected CVI delta = sum of per-capability maturity uplift
+      // points across every capability this project touches. Surfaces on the
+      // /projects list as a "+N points expected" column so the row is
+      // legible without drilling into the detail view.
+      expectedCviDelta: sql<number | null>`cast(coalesce(sum(${projectCapabilityImpactsTable.maturityUplift}), 0) as float)`,
     })
     .from(technologyProjectsTable)
     .leftJoin(projectCapabilityImpactsTable, eq(projectCapabilityImpactsTable.projectId, technologyProjectsTable.id))

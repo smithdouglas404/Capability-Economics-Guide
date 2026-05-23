@@ -1223,6 +1223,10 @@ components:
           nullable: true
         impactedCapabilityCount:
           type: integer
+        expectedCviDelta:
+          type: number
+          nullable: true
+          description: Sum of per-capability maturity uplift across all impacted capabilities. Surfaces on the list view as "+N points expected".
       required: [id, slug, name, category, description, businessCase, typicalTimeline, investmentRange, complexityLevel, icon]
 
     ProjectCapabilityImpact:

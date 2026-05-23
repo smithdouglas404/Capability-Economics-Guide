@@ -10,6 +10,7 @@ import {
   TrendingUp, Snowflake, Layers, Building2, ExternalLink, RefreshCw,
   LayoutGrid, Rows3, PieChart, AlertTriangle, Zap,
 } from "lucide-react";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 
 const API_BASE = "/api";
 
@@ -779,17 +780,24 @@ function CompanyXRay({ data }: { data: GraphData }) {
 }
 
 // ============== The Console shell ==============
+// Drill-down ordering: the synthesis brief at the top surfaces headlines
+// (what's hot, what's shifting, what's reversing). The tabs below answer
+// each headline in turn — start with which capabilities are heating up,
+// then where in the value chain that heat is concentrated, then which
+// sectors are absorbing it, then which companies cluster around the
+// hottest capabilities, and finally a deep dive into any single firm.
 const TABS = [
-  { id: "quadrant", label: "Quadrant xRay", icon: Activity },
-  { id: "spider", label: "Bipartite Spider", icon: Network },
-  { id: "valuechain", label: "Value Chain", icon: GitBranch },
-  { id: "sectormix", label: "Sector Mix", icon: PieChart },
-  { id: "xray", label: "Company X-Ray", icon: ScanSearch },
+  { id: "quadrant", label: "What's hot", icon: Activity, hint: "Capabilities by quadrant" },
+  { id: "valuechain", label: "Where it's shifting", icon: GitBranch, hint: "Value-chain stages" },
+  { id: "sectormix", label: "Which sectors", icon: PieChart, hint: "NAICS × quadrant mix" },
+  { id: "spider", label: "Who's clustering", icon: Network, hint: "Companies ↔ capabilities" },
+  { id: "xray", label: "Company deep-dive", icon: ScanSearch, hint: "Single-firm X-Ray" },
 ] as const;
 
 export default function Console() {
   const { data, loading, error } = useGraphData();
   const [tab, setTab] = useState<typeof TABS[number]["id"]>("quadrant");
+  const activeTab = TABS.find(t => t.id === tab) ?? TABS[0];
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -801,12 +809,18 @@ export default function Console() {
           </div>
           <h1 className="text-4xl font-serif tracking-tight text-foreground">The Capability Lens</h1>
           <p className="text-muted-foreground text-sm mt-2 max-w-3xl">
-            Live agentic intelligence from the Inflexcvi research pipeline — autonomous agents triangulating across multiple research sources, confidence-scored, refreshed on a rotation schedule.
-            All data sourced from autonomous research runs — no seed data, no mock fallbacks.
+            Start with the house view below — the Synthesis Agent's daily brief surfaces the
+            headlines. The drill-downs that follow let you interrogate each headline:
+            which capabilities, where in the value chain, which sectors, and which companies.
           </p>
         </div>
 
-        {/* Counters */}
+        {/* Synthesis brief — top of page, sets the narrative for everything below */}
+        <div className="mb-6">
+          <SynthesisBriefCard />
+        </div>
+
+        {/* Counters — quick scale check on what the brief is computed against */}
         {data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
             <div className="border rounded p-3 bg-card"><div className="text-xs text-muted-foreground">Capabilities classified</div><div className="text-2xl font-mono">{data.capabilities.filter(c => c.quadrant).length}</div></div>
@@ -815,6 +829,15 @@ export default function Console() {
             <div className="border rounded p-3 bg-card"><div className="text-xs text-muted-foreground">Capability mappings</div><div className="text-2xl font-mono">{data.companyMappings.length}</div></div>
           </div>
         )}
+
+        {/* Drill-down preface — frames the tabs as answers to the brief */}
+        <div className="mb-3">
+          <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-1">Drill-downs</div>
+          <h2 className="text-lg font-serif text-foreground">Interrogate the headlines</h2>
+          <p className="text-xs text-muted-foreground italic mt-1">
+            {activeTab.hint} — viewing: <span className="not-italic font-medium text-foreground">{activeTab.label}</span>
+          </p>
+        </div>
 
         {/* Tab strip */}
         <div className="border-b mb-6 flex gap-1 overflow-x-auto">
@@ -847,9 +870,9 @@ export default function Console() {
           <Card>
             <CardContent className="p-6">
               {tab === "quadrant" && <QuadrantXRay data={data} />}
-              {tab === "spider" && <BipartiteSpider data={data} />}
               {tab === "valuechain" && <ValueChainSwimlane data={data} />}
               {tab === "sectormix" && <SectorQuadrantShare data={data} />}
+              {tab === "spider" && <BipartiteSpider data={data} />}
               {tab === "xray" && <CompanyXRay data={data} />}
             </CardContent>
           </Card>
