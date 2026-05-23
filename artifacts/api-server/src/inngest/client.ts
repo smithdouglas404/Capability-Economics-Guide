@@ -1,13 +1,28 @@
 import { Inngest } from "inngest";
 
-// isDev is intentionally omitted — the SDK auto-detects: if INNGEST_BASE_URL is
-// set (self-hosted) or INNGEST_DEV=0 is set, it operates in non-dev mode and
-// targets the configured server. Hardcoding `isDev: NODE_ENV !== "production"`
-// forced dev mode on staging/preview environments and made the SDK ignore
-// INNGEST_BASE_URL — see feat/inngest-migration Phase 0 debug 2026-05-23.
+// Pass baseUrl explicitly so the SDK doesn't fall back to https://api.inngest.com
+// when INNGEST_BASE_URL isn't picked up (e.g. typo or unset on a staging env).
+// isDev is omitted so the SDK auto-detects from baseUrl. See feat/inngest-migration
+// Phase 0 debug 2026-05-23.
+const baseUrl = process.env["INNGEST_BASE_URL"];
+
 export const inngest = new Inngest({
   id: "capabilityeconomics-api-server",
   eventKey: process.env["INNGEST_EVENT_KEY"],
   signingKey: process.env["INNGEST_SIGNING_KEY"],
   signingKeyFallback: process.env["INNGEST_SIGNING_KEY_FALLBACK"],
+  ...(baseUrl ? { baseUrl } : {}),
 });
+
+// Log the resolved config on boot so deployment misconfig is visible in Railway
+// logs (no secrets — only flags + url presence).
+// eslint-disable-next-line no-console
+console.info(
+  "[inngest] client booted —",
+  JSON.stringify({
+    baseUrl: baseUrl ?? "(default)",
+    hasEventKey: Boolean(process.env["INNGEST_EVENT_KEY"]),
+    hasSigningKey: Boolean(process.env["INNGEST_SIGNING_KEY"]),
+    nodeEnv: process.env["NODE_ENV"] ?? "(unset)",
+  }),
+);
