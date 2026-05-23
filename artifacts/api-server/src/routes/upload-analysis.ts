@@ -268,6 +268,21 @@ router.post("/upload-analysis/text-stream", async (req, res) => {
   }
 });
 
+// Public anonymized count — used by the /upload page's social-proof tile
+// ("12 similar uploads from peers"). No auth, no row-level data, just the
+// total across all users. Cheap COUNT(*) on a small table.
+router.get("/upload-analyses/count", async (_req, res) => {
+  try {
+    const [row] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(uploadedAnalysesTable);
+    res.json({ count: row?.n ?? 0 });
+  } catch (err) {
+    logger.warn({ err }, "upload-analyses count failed");
+    res.json({ count: 0 });
+  }
+});
+
 router.get("/upload-analysis/:id", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Sign in" }); return; }

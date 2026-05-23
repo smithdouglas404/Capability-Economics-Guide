@@ -22,7 +22,7 @@ import { useUser, SignInButton } from "@clerk/react";
 import { useCompletion } from "@ai-sdk/react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Upload, FileText, Loader2, AlertCircle, CheckCircle2, Sparkles, Download, History, Zap } from "lucide-react";
+import { Upload, FileText, Loader2, AlertCircle, CheckCircle2, Sparkles, Download, History, Zap, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,6 +69,17 @@ export default function UploadPage() {
   const [history, setHistory] = useState<AnalysisListItem[]>([]);
   const [usage, setUsage] = useState<{ used: number; cap: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  // Anonymized peer-upload total — drives the social-proof tile near the
+  // intake area. Public endpoint (no auth), just a single COUNT(*).
+  const [peerCount, setPeerCount] = useState<number | null>(null);
+  useEffect(() => {
+    fetch("/api/upload-analyses/count")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { count?: number } | null) => {
+        if (typeof d?.count === "number") setPeerCount(d.count);
+      })
+      .catch(() => {});
+  }, []);
 
   const refreshHistory = useCallback(async () => {
     if (!isSignedIn) return;
@@ -180,6 +191,26 @@ export default function UploadPage() {
       />
 
       <SourceRow sources={["internal", "anthropic", "world-bank", "edgar"]} label="Powered by" />
+
+      {/* Social-proof tile — peer upload count, anonymized. Hides on first
+          run (count === null) and when count is 0 to avoid showing "0 peers". */}
+      {peerCount !== null && peerCount > 0 && (
+        <Card className="border-accent/30 bg-accent/[0.04]">
+          <CardContent className="py-3 px-4 flex items-center gap-3">
+            <Users className="w-4 h-4 text-accent shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm">
+                <span className="font-mono tabular-nums font-medium">{peerCount.toLocaleString()}</span>
+                {" "}similar upload{peerCount === 1 ? "" : "s"} from peers — anonymized
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Aggregate across all users. We never share file contents or identities.
+              </div>
+            </div>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wider shrink-0">Live</Badge>
+          </CardContent>
+        </Card>
+      )}
 
       {!isSignedIn ? (
         <Card>
