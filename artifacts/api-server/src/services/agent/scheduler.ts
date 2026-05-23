@@ -26,6 +26,7 @@ import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { runRegulationsWatchNotifier } from "../regulations-watch-notifier";
+import { runRegulationEnforcementForecaster } from "../regulation-enforcement-forecaster";
 import { runWatchlistEvaluator } from "../watchlist-evaluator";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
@@ -117,6 +118,10 @@ const DIGEST_TICK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 // 1 alert per watch per 24h. Cheap — 1h cadence keeps the bell responsive
 // after a fresh assessment while not over-polling.
 const REGULATIONS_WATCH_INTERVAL_MS = 60 * 60 * 1000;
+// Regulation enforcement-intensity forecaster — weekly per-regulation Perplexity
+// probe asking whether enforcement got stricter / steady / softer over the
+// trailing 12 months. Output renders as a chip on /regulations.
+const REGULATION_ENFORCEMENT_FORECAST_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // Capability watchlist evaluator — walks watchlist_items + checks thresholds
 // against live values, writing watchlist_alerts + member_notifications on
 // fresh breach. 1h cadence matches the regulations notifier.
@@ -133,6 +138,7 @@ let digestTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let regulationsWatchTimer: ReturnType<typeof setInterval> | null = null;
+let regulationEnforcementForecastTimer: ReturnType<typeof setInterval> | null = null;
 let watchlistEvalTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
@@ -431,6 +437,22 @@ let isNotifyingRegulationsWatches = false;
  * with compliance < 100, or when compliance drops ≥ 5 points. Throttled to
  * 1 alert per (user, regulation) per 24h via regulation_watches.last_alerted_at.
  */
+let isForecastingRegulationEnforcement = false;
+async function regulationEnforcementForecastTick(): Promise<void> {
+  if (isForecastingRegulationEnforcement) return;
+  isForecastingRegulationEnforcement = true;
+  try {
+    const stats = await runRegulationEnforcementForecaster();
+    if (stats.forecast > 0 || stats.errors > 0) {
+      console.log(`[RegulationEnforcementForecast] considered=${stats.considered} forecast=${stats.forecast} skipped=${stats.skipped} errors=${stats.errors}`);
+    }
+  } catch (err) {
+    console.warn("[RegulationEnforcementForecast] forecaster failed:", err);
+  } finally {
+    isForecastingRegulationEnforcement = false;
+  }
+}
+
 async function regulationsWatchTick(): Promise<void> {
   if (isNotifyingRegulationsWatches) return;
   isNotifyingRegulationsWatches = true;
@@ -760,6 +782,12 @@ export function startScheduler(): void {
   // Kick once 90s after boot so any freshly-deployed instance catches up
   // without waiting an hour. Background — does NOT block startup.
   sched("regulationsWatch", () => { setTimeout(() => regulationsWatchTick(), 90_000); });
+  sched("regulationEnforcementForecast", () => {
+    regulationEnforcementForecastTimer = setInterval(() => regulationEnforcementForecastTick(), REGULATION_ENFORCEMENT_FORECAST_INTERVAL_MS);
+  });
+  sched("regulationEnforcementForecast", () => {
+    setTimeout(() => regulationEnforcementForecastTick(), 10 * 60 * 1000);
+  });
   sched("watchlistEval",    () => { watchlistEvalTimer    = setInterval(() => watchlistEvalTick(),           WATCHLIST_EVAL_INTERVAL_MS); });
   sched("watchlistEval",    () => { setTimeout(() => watchlistEvalTick(), 120_000); });
   sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });

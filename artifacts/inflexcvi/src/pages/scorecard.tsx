@@ -33,6 +33,18 @@ type MatrixRow = {
   lifecycleStage: LifecycleStage;
   /** Change in consensus score vs 90 days ago; null if no history. */
   delta90: number | null;
+  /** Cohort-wide consensus movement over the last 90d. Mirrors `delta90`. */
+  cohortDelta90: number | null;
+  /** myScore - (cohort consensus 90d ago). > cohortDelta90 means accelerating. */
+  youDelta90: number | null;
+  /**
+   * If current velocity continues, months until myScore reaches benchmark.
+   * Positive number when closing a negative gap; null when already at/above
+   * benchmark or no signal. Pair with `closesNever` for the "—" case.
+   */
+  monthsToClose: number | null;
+  /** True when a real gap exists but velocity ≤ 0 — gap never closes. */
+  closesNever: boolean;
 };
 
 type Alert = { type: string; message: string; severity: string; capabilityId: number };
@@ -322,6 +334,12 @@ export default function CapabilityScorecard() {
                   <th className="text-right py-2 px-2">Gap</th>
                   <th className="text-right py-2 px-2">Moat</th>
                   <th className="text-right py-2 px-2" title="Change in consensus score vs 90 days ago">90d Δ</th>
+                  <th
+                    className="text-right py-2 px-2"
+                    title="Forecast: if current 90d velocity continues, when does your score close the gap to benchmark?"
+                  >
+                    Closes in
+                  </th>
                   <th className="text-right py-2 px-2">EVaR 12mo</th>
                   <th className="text-right py-2 px-2">AI Exposure</th>
                   <th className="text-right py-2 px-2">Velocity</th>
@@ -412,6 +430,44 @@ export default function CapabilityScorecard() {
                       ) : (
                         <span className="text-muted-foreground text-xs">—</span>
                       )}
+                    </td>
+                    <td className="text-right py-2 px-2">
+                      {(() => {
+                        // Already at or above benchmark — nothing to close.
+                        if (row.gap === null || row.gap >= 0) {
+                          return <span className="text-muted-foreground text-xs">—</span>;
+                        }
+                        if (row.closesNever) {
+                          return (
+                            <span
+                              className="font-mono tabular-nums text-xs text-destructive"
+                              title="Gap is widening or flat at current 90d velocity — projection assumes no acceleration."
+                            >
+                              never
+                            </span>
+                          );
+                        }
+                        if (row.monthsToClose === null) {
+                          return <span className="text-muted-foreground text-xs">—</span>;
+                        }
+                        const m = row.monthsToClose;
+                        const eta = new Date(Date.now() + m * 30 * 24 * 60 * 60 * 1000);
+                        const etaLabel = eta.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+                        // Pick a friendly unit by magnitude so very long projections
+                        // don't read as "327mo" — switch to years past 24mo.
+                        let display: string;
+                        if (m < 1) display = "<1mo";
+                        else if (m < 24) display = `${m.toFixed(0)}mo`;
+                        else display = `${(m / 12).toFixed(1)}y`;
+                        return (
+                          <span
+                            className={`font-mono tabular-nums text-xs ${m <= 12 ? "text-emerald-600 dark:text-emerald-400" : m <= 36 ? "text-amber-500" : "text-muted-foreground"}`}
+                            title={`Projected close: ${etaLabel} (gap ${row.gap.toFixed(1)} pts ÷ 90d velocity ${(row.delta90 ?? 0).toFixed(1)} pts)`}
+                          >
+                            {display}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="text-right py-2 px-2">
                       {row.evar12mo !== null ? (

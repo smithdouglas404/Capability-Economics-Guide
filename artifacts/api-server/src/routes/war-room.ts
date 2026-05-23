@@ -153,12 +153,49 @@ router.get("/war-room/compare", async (req, res) => {
         methodology: s.methodology,
       }));
 
+      const gap = orgScore !== null && benchmark != null ? orgScore - benchmark : null;
+      const oldestConsensus = oldestByCap.get(cap.id);
+      const currentConsensus = comp?.consensusScore ?? benchmark ?? null;
+      const delta90 = oldestConsensus == null || currentConsensus == null
+        ? null
+        : currentConsensus - oldestConsensus;
+      // Cohort delta90 — explicit alias of the industry-consensus 90d
+      // movement. Surfaced separately from `delta90` so the Benchmarking
+      // page can render the "you vs cohort" pair without ambiguity.
+      // (The peer-benchmarks table holds current percentiles only, no
+      // history — cvi_capability_history is the only honest 90d cohort
+      // signal available without a schema change.)
+      const cohortDelta90 = delta90;
+      // Your delta90 — "where you are now vs where the cohort was 90 days
+      // ago." If myScore moved exactly with the cohort, youDelta90 ===
+      // cohortDelta90; > cohortDelta90 means you accelerated past the
+      // cohort, < cohortDelta90 means you're falling behind. Null when
+      // myScore or the 90d baseline is missing.
+      const youDelta90 = orgScore !== null && oldestConsensus != null
+        ? orgScore - oldestConsensus
+        : null;
+      // Months-to-close: if current velocity continues, when does myScore
+      // close the gap to benchmark? Returns positive months when closing,
+      // null when already at/above benchmark or no signal, "never" when
+      // a non-zero gap exists with non-positive velocity.
+      // Math: gap_points / (delta90_points / 90_days) → days, /30 → months.
+      let monthsToClose: number | null = null;
+      let closesNever = false;
+      if (gap !== null && gap < 0) {
+        // myScore below benchmark — we want to know when it catches up
+        const perDay = delta90 != null ? delta90 / 90 : 0;
+        if (perDay > 0) {
+          monthsToClose = Math.abs(gap) / perDay / 30;
+        } else {
+          closesNever = true;
+        }
+      }
       return {
         capabilityId: cap.id,
         capabilityName: cap.name,
         myScore: orgScore,
         benchmark,
-        gap: orgScore !== null && benchmark != null ? orgScore - benchmark : null,
+        gap,
         moatScore: econ?.halfLifeMonths != null && benchmark != null
           ? Math.min(100, (econ.halfLifeMonths / 60) * 30 + benchmark * 0.25 + 20)
           : null,
@@ -181,12 +218,11 @@ router.get("/war-room/compare", async (req, res) => {
           velocity: comp?.velocity ?? null,
           benchmarkScore: benchmark,
         }),
-        delta90: (() => {
-          const oldest = oldestByCap.get(cap.id);
-          const current = comp?.consensusScore ?? benchmark ?? null;
-          if (oldest == null || current == null) return null;
-          return current - oldest;
-        })(),
+        delta90,
+        cohortDelta90,
+        youDelta90,
+        monthsToClose,
+        closesNever,
       };
     });
 

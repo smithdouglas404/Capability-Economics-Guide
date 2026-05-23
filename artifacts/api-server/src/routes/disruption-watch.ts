@@ -5,6 +5,7 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { getDisruptionWatch } from "../services/disruption";
+import { getHistoricalDisruptionWatch } from "../services/disruption-historical";
 import { getNewCapabilityWatch } from "../services/new-capabilities";
 import { logger } from "../lib/logger";
 
@@ -40,6 +41,35 @@ router.get("/disruption/watch", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "disruption watch failed");
     res.status(500).json({ error: "Watch failed" });
+  }
+});
+
+const HistoricalQuery = z.object({
+  asOf: z.string().refine(s => !Number.isNaN(Date.parse(s)), {
+    message: "asOf must be a parseable ISO date string",
+  }),
+  minVelocity: z.coerce.number().optional(),
+});
+
+router.get("/disruption/watch/historical", async (req, res) => {
+  const parsed = HistoricalQuery.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid query", details: parsed.error.issues });
+    return;
+  }
+  try {
+    const asOf = new Date(parsed.data.asOf);
+    const result = await getHistoricalDisruptionWatch({
+      asOf,
+      minVelocity: parsed.data.minVelocity,
+    });
+    // Short cache — playback is read-heavy but the underlying snapshots
+    // change rarely (per-cap history is append-only).
+    res.set("Cache-Control", "public, max-age=600");
+    res.json(result);
+  } catch (err) {
+    logger.error({ err }, "historical disruption watch failed");
+    res.status(500).json({ error: "Historical watch failed" });
   }
 });
 

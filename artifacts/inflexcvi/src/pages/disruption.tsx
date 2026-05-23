@@ -8,6 +8,9 @@ import {
   Sparkles,
   Loader2,
   Lightbulb,
+  History,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +83,34 @@ const LIFECYCLE_TONE: Record<string, string> = {
   obsolete: "bg-rose-500/15 text-rose-500 border-rose-500/40",
 };
 
+interface HistoricalEntry {
+  capabilityId: number;
+  capabilityName: string;
+  industryId: number;
+  industryName: string;
+  consensusScore: number;
+  velocity: number;
+  confidence: number;
+  snapshotAt: string;
+  triggeringMacroEvents: Array<{ id: number; title: string; severity: number; startedAt: string }>;
+}
+
+interface HistoricalResult {
+  asOf: string;
+  filters: { consensusBandThreshold: number; minVelocity: number };
+  rows: HistoricalEntry[];
+  outsideHistoryWindow: boolean;
+}
+
+type PlaybackOffset = 0 | 30 | 60 | 90;
+
+const PLAYBACK_OPTIONS: { label: string; days: PlaybackOffset }[] = [
+  { label: "Today", days: 0 },
+  { label: "30d ago", days: 30 },
+  { label: "60d ago", days: 60 },
+  { label: "90d ago", days: 90 },
+];
+
 interface MacroEvent {
   id: number;
   title: string;
@@ -97,6 +128,9 @@ export default function DisruptionPage() {
   const [macroEvents, setMacroEvents] = useState<MacroEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [playback, setPlayback] = useState<PlaybackOffset>(0);
+  const [historical, setHistorical] = useState<HistoricalResult | null>(null);
+  const [historicalLoading, setHistoricalLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +151,32 @@ export default function DisruptionPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
+
+  // Fetch the historical snapshot whenever the playback offset changes.
+  // playback=0 is "Today" — we already have `watch` for that, no fetch needed.
+  useEffect(() => {
+    if (playback === 0) { setHistorical(null); return; }
+    let cancelled = false;
+    setHistoricalLoading(true);
+    const asOf = new Date(Date.now() - playback * 24 * 60 * 60 * 1000).toISOString();
+    fetch(`${API_BASE}/disruption/watch/historical?asOf=${encodeURIComponent(asOf)}`)
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then((h: HistoricalResult) => { if (!cancelled) setHistorical(h); })
+      .catch(e => { if (!cancelled) setErr(e instanceof Error ? e.message : "Failed to load history"); })
+      .finally(() => { if (!cancelled) setHistoricalLoading(false); });
+    return () => { cancelled = true; };
+  }, [playback]);
+
+  // Diff: which capabilities are on the watch list today but were NOT on the
+  // historical list (entered since `playback` days ago), and vice versa.
+  const diff = useMemo(() => {
+    if (playback === 0 || !historical || !watch) return null;
+    const todaySet = new Set(watch.rows.map(r => r.capabilityId));
+    const thenSet = new Set(historical.rows.map(r => r.capabilityId));
+    const entered = watch.rows.filter(r => !thenSet.has(r.capabilityId));
+    const exited = historical.rows.filter(r => !todaySet.has(r.capabilityId));
+    return { entered, exited };
+  }, [playback, historical, watch]);
 
   const industriesInPlay = useMemo(() => {
     const s = new Set<string>();
@@ -209,6 +269,146 @@ export default function DisruptionPage() {
 
       {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-3 text-sm">{err}</div>}
       {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>}
+
+      {/* ─── Playback control ─── replay the watch list at 30 / 60 / 90 days ago.
+          Server reads `cvi_capability_history` for the as-of snapshot and applies
+          a simplified eligibility filter (consensusScore ≤ threshold + velocity).
+          Diff card below summarises who entered / exited since then. */}
+      <Card className="rounded-none border-l-2 border-l-violet-500">
+        <CardContent className="py-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-violet-500" />
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Playback</div>
+                <div className="font-serif text-base">Time-travel the watch list</div>
+              </div>
+            </div>
+            <div className="inline-flex rounded-none border border-border/60 overflow-hidden">
+              {PLAYBACK_OPTIONS.map(opt => (
+                <button
+                  key={opt.days}
+                  type="button"
+                  onClick={() => setPlayback(opt.days)}
+                  className={`px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+                    playback === opt.days
+                      ? "bg-violet-500/15 text-violet-600 border-r border-border/60 last:border-r-0"
+                      : "bg-background text-muted-foreground hover:text-foreground border-r border-border/60 last:border-r-0"
+                  }`}
+                  aria-pressed={playback === opt.days}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {playback !== 0 && (
+            <div className="mt-3 pt-3 border-t border-border/40">
+              {historicalLoading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Replaying watch list as of {playback}d ago…
+                </div>
+              )}
+              {!historicalLoading && historical?.outsideHistoryWindow && (
+                <div className="text-xs text-muted-foreground italic">
+                  No capability-history snapshots available {playback} days ago — the rotation hasn't backfilled that far yet.
+                </div>
+              )}
+              {!historicalLoading && historical && !historical.outsideHistoryWindow && diff && (
+                <div className="space-y-2">
+                  <div className="font-mono text-[11px] text-muted-foreground">
+                    Since {playback}d ago:
+                    {" "}
+                    <span className="text-emerald-600">{diff.entered.length} entered</span>
+                    {" · "}
+                    <span className="text-amber-600">{diff.exited.length} exited</span>
+                    {" · "}
+                    <span>{historical.rows.length} on watch then vs {watch?.rows.length ?? 0} now</span>
+                  </div>
+                  {(diff.entered.length > 0 || diff.exited.length > 0) && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {diff.entered.length > 0 && (
+                        <div className="border border-emerald-500/30 bg-emerald-500/5 px-3 py-2">
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-emerald-600 mb-1.5">
+                            <ArrowUpRight className="w-3 h-3" />
+                            Entered watch list
+                          </div>
+                          <ul className="space-y-1">
+                            {diff.entered.slice(0, 8).map(r => (
+                              <li key={r.capabilityId} className="text-xs flex items-start gap-2">
+                                <Link href={`/capability/${r.capabilityId}`} className="hover:underline flex-1 min-w-0 truncate">
+                                  {r.capabilityName}
+                                </Link>
+                                <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {r.industryName}
+                                </span>
+                              </li>
+                            ))}
+                            {diff.entered.length > 8 && (
+                              <li className="text-[10px] text-muted-foreground italic">+ {diff.entered.length - 8} more</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                      {diff.exited.length > 0 && (
+                        <div className="border border-amber-500/30 bg-amber-500/5 px-3 py-2">
+                          <div className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-wider text-amber-600 mb-1.5">
+                            <ArrowDownRight className="w-3 h-3" />
+                            Exited watch list
+                          </div>
+                          <ul className="space-y-1">
+                            {diff.exited.slice(0, 8).map(r => (
+                              <li key={r.capabilityId} className="text-xs flex items-start gap-2">
+                                <Link href={`/capability/${r.capabilityId}`} className="hover:underline flex-1 min-w-0 truncate">
+                                  {r.capabilityName}
+                                </Link>
+                                <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                                  {r.industryName}
+                                </span>
+                              </li>
+                            ))}
+                            {diff.exited.length > 8 && (
+                              <li className="text-[10px] text-muted-foreground italic">+ {diff.exited.length - 8} more</li>
+                            )}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {historical.rows.length > 0 && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground">
+                        Full watch list {playback}d ago ({historical.rows.length})
+                      </summary>
+                      <ul className="mt-2 space-y-1 pl-2 border-l border-border/40">
+                        {historical.rows.map(r => (
+                          <li key={r.capabilityId} className="text-xs flex items-start gap-2">
+                            <Link href={`/capability/${r.capabilityId}`} className="hover:underline flex-1 min-w-0 truncate">
+                              {r.capabilityName}
+                            </Link>
+                            <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap">
+                              CVI {r.consensusScore.toFixed(0)} · v{r.velocity > 0 ? "+" : ""}{r.velocity.toFixed(1)}
+                            </span>
+                            {r.triggeringMacroEvents.length > 0 && (
+                              <span
+                                className="font-mono text-[10px] text-rose-500 whitespace-nowrap"
+                                title={r.triggeringMacroEvents.map(e => e.title).join("\n")}
+                              >
+                                {r.triggeringMacroEvents.length} ev
+                              </span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ─── Disruption Watch ─── */}
       {watch && (

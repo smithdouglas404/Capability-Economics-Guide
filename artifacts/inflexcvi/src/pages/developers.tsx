@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Key, Loader2, Trash2, BookOpen, Activity, AlertTriangle } from "lucide-react";
+import { Copy, Key, Loader2, Trash2, BookOpen, Activity, AlertTriangle, Gauge } from "lucide-react";
 
 const API_BASE = "/api";
 
@@ -176,6 +176,8 @@ export default function DevelopersPage() {
           <code className="bg-muted px-1.5 py-0.5 text-xs">Authorization: Bearer ce_live_…</code>.
         </p>
       </div>
+
+      <ApiStatusWidget keys={activeKeys} />
 
       <Tabs defaultValue="keys">
         <TabsList>
@@ -399,5 +401,88 @@ export default function DevelopersPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/**
+ * Live "API status + your rate-limit headroom" widget. Polls
+ * /api/health/services every 60s for service-level health, and rolls up the
+ * caller's active keys (already loaded by the parent) into a single
+ * monthly-quota headroom number. No new endpoint needed.
+ */
+function ApiStatusWidget({ keys }: { keys: ApiKey[] }) {
+  const [health, setHealth] = useState<{ overall: string; services: { service: string; status: string }[] } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/health/services");
+        if (r.ok && !cancelled) setHealth(await r.json());
+      } finally { if (!cancelled) setLoading(false); }
+    };
+    void load();
+    const t = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, []);
+
+  // Headroom: sum of (quota - used) across keys with a quota set; ignore unlimited.
+  const quotaKeys = keys.filter(k => k.monthlyQuota != null);
+  const totalUsed = quotaKeys.reduce((s, k) => s + k.monthlyUsageCount, 0);
+  const totalQuota = quotaKeys.reduce((s, k) => s + (k.monthlyQuota ?? 0), 0);
+  const headroom = totalQuota > 0 ? Math.max(0, totalQuota - totalUsed) : null;
+  const pct = totalQuota > 0 ? Math.min(100, Math.round((totalUsed / totalQuota) * 100)) : 0;
+  const headroomTone = pct >= 90 ? "text-rose-500" : pct >= 70 ? "text-amber-500" : "text-emerald-500";
+
+  const overallTone = health?.overall === "ok" ? "text-emerald-500"
+    : health?.overall === "degraded" ? "text-amber-500"
+    : health?.overall === "down" ? "text-rose-500"
+    : "text-muted-foreground";
+
+  return (
+    <Card>
+      <CardContent className="p-4 grid sm:grid-cols-2 gap-4">
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Activity className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">API status</span>
+          </div>
+          {loading ? (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          ) : health ? (
+            <>
+              <div className={`text-xl font-mono font-bold ${overallTone}`}>{health.overall}</div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {health.services.filter(s => s.status === "ok").length} of {health.services.length} services healthy
+              </div>
+            </>
+          ) : (
+            <div className="text-sm text-muted-foreground italic">Health probe unavailable.</div>
+          )}
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <Gauge className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Your quota headroom</span>
+          </div>
+          {quotaKeys.length === 0 ? (
+            <div className="text-sm text-muted-foreground italic">No quota-capped keys — all unlimited.</div>
+          ) : (
+            <>
+              <div className={`text-xl font-mono font-bold ${headroomTone}`}>
+                {headroom?.toLocaleString()} <span className="text-xs text-muted-foreground">req remaining</span>
+              </div>
+              <div className="h-1.5 bg-muted rounded-full overflow-hidden mt-1.5">
+                <div className={`h-full ${pct >= 90 ? "bg-rose-500" : pct >= 70 ? "bg-amber-500" : "bg-emerald-500"} transition-all`} style={{ width: `${pct}%` }} />
+              </div>
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {totalUsed.toLocaleString()} / {totalQuota.toLocaleString()} ({pct}% used) across {quotaKeys.length} key{quotaKeys.length === 1 ? "" : "s"}
+              </div>
+            </>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

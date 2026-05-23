@@ -1,5 +1,9 @@
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LifecycleChip } from "@/components/lifecycle-chip";
+
+type LifecycleStage = "emerging" | "adopted" | "mature" | "decaying" | "obsolete";
+const STAGE_ORDER: LifecycleStage[] = ["emerging", "adopted", "mature", "decaying", "obsolete"];
 
 /**
  * Standalone documentation page for capability lifecycle stages.
@@ -20,6 +24,8 @@ export default function LifecycleDocs() {
           the state of a capability at a glance — without parsing the underlying score and velocity numbers.
         </p>
       </header>
+
+      <LifecycleStageCountsPanel />
 
       <Card>
         <CardHeader><CardTitle className="font-serif tracking-tight text-lg">How the stage is computed</CardTitle></CardHeader>
@@ -86,6 +92,73 @@ export default function LifecycleDocs() {
         industry baseline) and predictive transitions (forecasting when a stage is likely to change).
       </p>
     </div>
+  );
+}
+
+/**
+ * Live "capabilities by lifecycle stage today" panel. Fetches /api/capabilities
+ * (which already enriches every row with a derived lifecycleStage) and rolls up
+ * the per-stage counts. Re-runs on mount so the page always reflects the
+ * current corpus.
+ */
+function LifecycleStageCountsPanel() {
+  const [counts, setCounts] = useState<Record<LifecycleStage, number> | null>(null);
+  const [total, setTotal] = useState(0);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/capabilities");
+        if (!r.ok) throw new Error("fetch failed");
+        const caps = await r.json() as Array<{ lifecycleStage?: LifecycleStage }>;
+        if (cancelled) return;
+        const next: Record<LifecycleStage, number> = { emerging: 0, adopted: 0, mature: 0, decaying: 0, obsolete: 0 };
+        for (const c of caps) {
+          const s = c.lifecycleStage ?? "adopted";
+          if (s in next) next[s as LifecycleStage]++;
+        }
+        setCounts(next);
+        setTotal(caps.length);
+      } catch { if (!cancelled) setError(true); }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, []);
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="font-serif tracking-tight text-lg">Capabilities by lifecycle stage today</CardTitle></CardHeader>
+      <CardContent>
+        {error ? (
+          <p className="text-sm text-muted-foreground italic">Live counts unavailable.</p>
+        ) : !counts ? (
+          <p className="text-sm text-muted-foreground italic animate-pulse">Loading live counts…</p>
+        ) : total === 0 ? (
+          <p className="text-sm text-muted-foreground italic">No capabilities in the corpus yet.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              {STAGE_ORDER.map(stage => {
+                const n = counts[stage];
+                const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+                return (
+                  <div key={stage} className="border border-border/40 p-3">
+                    <LifecycleChip stage={stage} />
+                    <div className="font-mono text-2xl tabular-nums mt-2">{n}</div>
+                    <div className="text-[11px] text-muted-foreground">{pct}% of {total}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              {STAGE_ORDER.map(s => `${counts[s]} ${s}`).join(", ")} — across {total} live capabilities.
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
