@@ -63,3 +63,4 @@ export * from "./user-learning";
 export * from "./platform-signup-requests";
 export * from "./regulation-watches";
 export * from "./regulation-enforcement-forecasts";
+export * from "./auto-vcr-triggers";

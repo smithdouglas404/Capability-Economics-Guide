@@ -28,6 +28,7 @@ import { runCreditExpirySweep } from "../credit-expiry";
 import { runRegulationsWatchNotifier } from "../regulations-watch-notifier";
 import { runRegulationEnforcementForecaster } from "../regulation-enforcement-forecaster";
 import { runWatchlistEvaluator } from "../watchlist-evaluator";
+import { evaluateAutoVcrTriggers } from "../auto-vcr-trigger";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
 import { detectCviSignalEvents } from "../cvi-signals/detector";
@@ -126,6 +127,14 @@ const REGULATION_ENFORCEMENT_FORECAST_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // against live values, writing watchlist_alerts + member_notifications on
 // fresh breach. 1h cadence matches the regulations notifier.
 const WATCHLIST_EVAL_INTERVAL_MS = 60 * 60 * 1000;
+// Auto-VCR trigger evaluator — scans three signal sources and kicks off a
+// focused 1-cycle VCR campaign when a watched capability drops ≥8 pts in
+// 30d, a watched regulation passes effective with compliance <80%, or a
+// portfolio company's avg capability CVI dips ≥5 pts. 4h cadence: each
+// trigger consumes Perplexity + LLM budget (VCR runs ~4 deep queries), so
+// running on every routine tick would be wasteful. 14-day dedupe lives in
+// the evaluator itself.
+const AUTO_VCR_TRIGGER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
 const URGENCY_STALE_DAYS = 10;
@@ -140,6 +149,7 @@ let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let regulationsWatchTimer: ReturnType<typeof setInterval> | null = null;
 let regulationEnforcementForecastTimer: ReturnType<typeof setInterval> | null = null;
 let watchlistEvalTimer: ReturnType<typeof setInterval> | null = null;
+let autoVcrTriggerTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
@@ -427,6 +437,32 @@ async function watchlistEvalTick(): Promise<void> {
     console.warn("[WatchlistEval] failed:", err);
   } finally {
     isEvaluatingWatchlist = false;
+  }
+}
+
+let isEvaluatingAutoVcrTriggers = false;
+/**
+ * 4-hour auto-VCR trigger evaluator tick. Scans three signal sources
+ * (watched capability ≥8pt drop, watched regulation past-effective with
+ * <80% compliance, portfolio company avg-CVI ≥5pt dip) and kicks off a
+ * focused 1-cycle VCR campaign for each fresh trigger. 14-day dedupe is
+ * enforced inside evaluateAutoVcrTriggers via the auto_vcr_triggers
+ * ledger table. Skipped if the previous tick is still in flight (a single
+ * tick with ≥5 triggers can take several minutes once Perplexity is in
+ * the loop).
+ */
+async function autoVcrTriggerTick(): Promise<void> {
+  if (isEvaluatingAutoVcrTriggers) return;
+  isEvaluatingAutoVcrTriggers = true;
+  try {
+    const stats = await evaluateAutoVcrTriggers();
+    if (stats.walked > 0 || stats.fired > 0 || stats.errors > 0) {
+      console.log(`[AutoVcrTrigger] walked=${stats.walked} fired=${stats.fired} skipped-recent=${stats.skippedRecent} skipped-cap=${stats.skippedCap} errors=${stats.errors}`);
+    }
+  } catch (err) {
+    console.warn("[AutoVcrTrigger] evaluator failed:", err);
+  } finally {
+    isEvaluatingAutoVcrTriggers = false;
   }
 }
 
@@ -718,7 +754,7 @@ async function routineCheck(): Promise<void> {
  *   creditExpiry, peerBenchmarks, edgarRss, cviSignals, autoEnrich,
  *   mem0Prune, macroEvent, disruption, peerCoop, stackOptimizer,
  *   ontology, synthesis, temporalShift, memoryRelationSnapshot,
- *   featuredCaseStudy
+ *   featuredCaseStudy, autoVcrTrigger
  *
  * Applies to BOTH the setInterval cron AND the setTimeout startup fire.
  * No redeploy needed to toggle — update the Railway env var and the
@@ -790,6 +826,13 @@ export function startScheduler(): void {
   });
   sched("watchlistEval",    () => { watchlistEvalTimer    = setInterval(() => watchlistEvalTick(),           WATCHLIST_EVAL_INTERVAL_MS); });
   sched("watchlistEval",    () => { setTimeout(() => watchlistEvalTick(), 120_000); });
+  sched("autoVcrTrigger",   () => { autoVcrTriggerTimer   = setInterval(() => autoVcrTriggerTick(),          AUTO_VCR_TRIGGER_INTERVAL_MS); });
+  // Stagger the boot kick well after watchlist/regulations notifiers have
+  // had a chance to update last-seen scores — those notifiers update
+  // last_compliance_score and triggered flags that the auto-VCR evaluator
+  // implicitly trusts. 10 min keeps the wait short but lets the upstream
+  // ticks land first on a cold boot.
+  sched("autoVcrTrigger",   () => { setTimeout(() => autoVcrTriggerTick(), 10 * 60 * 1000); });
   sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });
   sched("edgarRss",         () => { edgarRssTimer       = setInterval(() => edgarRssTick(),                  EDGAR_RSS_INTERVAL_MS); });
   sched("cviSignals",       () => { cviSignalsTimer     = setInterval(() => cviSignalsTick(),                CVI_SIGNALS_INTERVAL_MS); });
@@ -1011,6 +1054,7 @@ export function stopScheduler(): void {
   stopConsolidator();
   stopMarketplaceAutoArchive();
   if (featuredCaseStudyTimer) { clearInterval(featuredCaseStudyTimer); featuredCaseStudyTimer = null; }
+  if (autoVcrTriggerTimer) { clearInterval(autoVcrTriggerTimer); autoVcrTriggerTimer = null; }
   console.log("[Agent] Autonomous monitoring stopped");
   emitAgentEvent({ type: "scheduler_stopped" });
 }
