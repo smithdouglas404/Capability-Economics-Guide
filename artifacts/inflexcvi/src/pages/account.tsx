@@ -9,6 +9,7 @@ import {
   PauseCircle, Trash2, UserCircle, Users, UserPlus, XCircle,
 } from "lucide-react";
 import NotificationsPanel from "@/components/notifications-panel";
+import CreditsUsagePanel from "@/components/credits-usage-panel";
 
 const API_BASE = "/api";
 
@@ -431,6 +432,9 @@ export default function AccountPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Credits & usage — balance, 30d spend breakdown, transaction history */}
+      <CreditsUsagePanel />
 
       {/* Alerts & notifications */}
       <NotificationsPanel />
