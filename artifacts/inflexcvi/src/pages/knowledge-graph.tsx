@@ -10,6 +10,7 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { PersonaDescription } from "@/components/page-header";
 import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
+import { CrossIndustryHeadlines } from "@/components/cross-industry-headlines";
 
 type KGViewState = { tab: "quadrant" | "network" | "industries" | "compare"; selectedIndustryId: number | null };
 import {
@@ -920,6 +921,12 @@ export default function KnowledgeGraph() {
           <div className="mt-6">
             <SynthesisBriefCard compact />
           </div>
+
+          {/* Cross-industry pattern engine — dynamic insights computed from
+              capability_alpha quadrants, regulation counts, and last-30d
+              macro events. Sits above the tabs so the headline patterns
+              frame the deeper drill-downs. */}
+          <CrossIndustryHeadlines />
 
           <div className="flex gap-2 mt-6 flex-wrap">
             <Button

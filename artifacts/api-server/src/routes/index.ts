@@ -70,6 +70,7 @@ import benchmarkingRouter from "./benchmarking";
 import roiRouter from "./roi";
 import nlQueryRouter from "./nl-query";
 import regulationsRouter from "./regulations";
+import knowledgeGraphRouter from "./knowledge-graph";
 import collaborationRouter from "./collaboration";
 import creditsRouter from "./credits";
 import kycRouter from "./kyc";
@@ -222,6 +223,7 @@ router.use(watchlistRouter);
 // Open routes (all tiers)
 router.use(nlQueryRouter);
 router.use(regulationsRouter);
+router.use(knowledgeGraphRouter);
 router.use(collaborationRouter);
 router.use(metricsRouter);
 router.use(adminSecurityRouter);
