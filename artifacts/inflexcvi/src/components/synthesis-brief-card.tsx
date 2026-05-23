@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, ChevronDown, ChevronRight, TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { LiveBacktestBadge } from "@/components/live-backtest-badge";
 
 interface SynthesisBrief {
   brief: string;
@@ -103,9 +104,10 @@ export function SynthesisBriefCard({ compact = false }: { compact?: boolean }) {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
-            <CardTitle className="text-base font-serif flex items-center gap-2">
+            <CardTitle className="text-base font-serif flex items-center gap-2 flex-wrap">
               <Sparkles className="w-4 h-4 text-accent" />
               House view — synthesis from all 5 agents
+              <LiveBacktestBadge variant="compact" />
             </CardTitle>
             <CardDescription className="text-xs">
               Cross-agent strategic brief composed daily by the Synthesis Agent from macro-event, disruption, peer-coop, stack-optimizer, and ontology digests. Grounds every recommendation across the platform.
