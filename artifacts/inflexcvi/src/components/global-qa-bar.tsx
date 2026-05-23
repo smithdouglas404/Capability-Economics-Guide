@@ -70,11 +70,17 @@ export function GlobalQABar() {
     setAnswer(null);
     try {
       const sessionToken = typeof window !== "undefined" ? (localStorage.getItem("ce_session_token") ?? "") : "";
+      const industryRaw = typeof window !== "undefined" ? localStorage.getItem("ce_industry_id") : null;
+      const industryId = industryRaw ? Number(industryRaw) : null;
       const res = await fetch("/api/nl-query", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ query: askQuery, sessionToken: sessionToken || undefined }),
+        body: JSON.stringify({
+          query: askQuery,
+          sessionToken: sessionToken || undefined,
+          industryId: industryId && Number.isFinite(industryId) && industryId > 0 ? industryId : undefined,
+        }),
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));

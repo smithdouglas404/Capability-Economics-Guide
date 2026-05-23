@@ -21,13 +21,19 @@ const router = Router();
 // kept for debugging only).
 router.post("/nl-query", async (req, res) => {
   try {
-    const { query, sessionToken } = req.body as { query: string; sessionToken?: string };
+    const { query, sessionToken, industryId } = req.body as { query: string; sessionToken?: string; industryId?: number };
     if (!query) { res.status(400).json({ error: "query required" }); return; }
+
+    let defaultIndustryName: string | null = null;
+    if (typeof industryId === "number" && industryId > 0) {
+      const [ind] = await db.select({ name: industriesTable.name }).from(industriesTable).where(eq(industriesTable.id, industryId)).limit(1);
+      defaultIndustryName = ind?.name ?? null;
+    }
 
     const useFallback = req.query.fallback === "1";
     if (!useFallback) {
       try {
-        const rag = await runNlQueryRag(query);
+        const rag = await runNlQueryRag(query, { defaultIndustryName });
         await db.insert(nlQueryLogsTable).values({
           sessionToken,
           query,

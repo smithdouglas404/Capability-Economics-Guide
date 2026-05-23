@@ -51,7 +51,13 @@ export interface RagAnswer {
   durationMs: number;
 }
 
-export async function runNlQueryRag(query: string): Promise<RagAnswer> {
+export interface RagContext {
+  /** Default industry name from session — used as fallback when the classifier
+   *  can't extract one from the query text (e.g. "what's changed for me?"). */
+  defaultIndustryName?: string | null;
+}
+
+export async function runNlQueryRag(query: string, ctx: RagContext = {}): Promise<RagAnswer> {
   const start = Date.now();
   let costCents = 0;
 
@@ -90,7 +96,13 @@ export async function runNlQueryRag(query: string): Promise<RagAnswer> {
   };
   const classification = (classifyJson.category ?? "other") as QueryCategory;
   const capNames = (classifyJson.capabilityNames ?? []).map(s => s.toLowerCase());
-  const industryNames = (classifyJson.industryNames ?? []).map(s => s.toLowerCase());
+  let industryNames = (classifyJson.industryNames ?? []).map(s => s.toLowerCase());
+  // Session-context fallback — if the user's question didn't name an industry
+  // but their session is scoped to one, ground the answer there. Lets "what's
+  // changed for me this week" resolve against the user's selected industry.
+  if (industryNames.length === 0 && ctx.defaultIndustryName) {
+    industryNames = [ctx.defaultIndustryName.toLowerCase()];
+  }
   const patternSlug = classifyJson.patternSlug ?? null;
 
   // Step 2: retrieve context based on classification
