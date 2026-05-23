@@ -12,8 +12,9 @@
  */
 import { Router, type IRouter } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { db, forumThreadsTable, forumPostsTable, industriesTable, memberProfilesTable } from "@workspace/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { db, forumThreadsTable, forumPostsTable, industriesTable, memberProfilesTable, capabilitiesTable } from "@workspace/db";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { autoTagCapabilities } from "../services/capability-autotag";
 
 const router: IRouter = Router();
 
@@ -33,8 +34,22 @@ async function resolveDisplayName(userId: string): Promise<string> {
 
 router.get("/forums/:industrySlug/threads", async (req, res) => {
   const slug = String(req.params.industrySlug);
+  // Optional capability filter — narrows the thread list to threads whose
+  // auto-tagged `capabilityTags` array contains this slug. Used by the
+  // "Filter by capability" dropdown on /forum/:industrySlug.
+  const capabilitySlug = typeof req.query.capabilitySlug === "string"
+    ? req.query.capabilitySlug.trim().slice(0, 200)
+    : "";
   const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.slug, slug)).limit(1);
   if (!industry) { res.status(404).json({ error: "industry not found" }); return; }
+
+  const whereClause = capabilitySlug
+    ? and(
+        eq(forumThreadsTable.industryId, industry.id),
+        sql`${forumThreadsTable.capabilityTags} ?| ARRAY[${capabilitySlug}]::text[]`,
+      )
+    : eq(forumThreadsTable.industryId, industry.id);
+
   const threads = await db
     .select({
       id: forumThreadsTable.id,
@@ -46,12 +61,36 @@ router.get("/forums/:industrySlug/threads", async (req, res) => {
       postCount: forumThreadsTable.postCount,
       lastPostAt: forumThreadsTable.lastPostAt,
       createdAt: forumThreadsTable.createdAt,
+      capabilityTags: forumThreadsTable.capabilityTags,
     })
     .from(forumThreadsTable)
-    .where(eq(forumThreadsTable.industryId, industry.id))
+    .where(whereClause)
     .orderBy(desc(forumThreadsTable.lastPostAt))
     .limit(100);
-  res.json({ industry: { id: industry.id, slug: industry.slug, name: industry.name }, threads });
+
+  // Hydrate {slug → name} for chip labels so the client doesn't need a
+  // second round-trip. Restricted to slugs that actually appear in this
+  // industry's thread set — keeps the payload bounded.
+  const allTagSlugs = Array.from(new Set(threads.flatMap(t => t.capabilityTags ?? [])));
+  const tagCaps = allTagSlugs.length > 0
+    ? await db.select({ id: capabilitiesTable.id, slug: capabilitiesTable.slug, name: capabilitiesTable.name })
+        .from(capabilitiesTable)
+        .where(inArray(capabilitiesTable.slug, allTagSlugs))
+    : [];
+  const capLookup = Object.fromEntries(tagCaps.map(c => [c.slug, { id: c.id, name: c.name }]));
+
+  // Distinct capability dropdown options for the filter — only capabilities
+  // that at least one thread in this industry actually mentions.
+  const filterOptions = tagCaps.map(c => ({ slug: c.slug, name: c.name, id: c.id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  res.json({
+    industry: { id: industry.id, slug: industry.slug, name: industry.name },
+    threads,
+    capabilityLookup: capLookup,
+    filterOptions,
+    activeCapabilityFilter: capabilitySlug || null,
+  });
 });
 
 router.post("/forums/:industrySlug/threads", async (req, res) => {
@@ -66,6 +105,17 @@ router.post("/forums/:industrySlug/threads", async (req, res) => {
   const capabilityId = Number.isFinite(Number(capabilityIdRaw)) ? Number(capabilityIdRaw) : null;
   if (title.length < 4 || body.length < 4) { res.status(400).json({ error: "Title and body are required (min 4 chars each)." }); return; }
   const authorDisplayName = await resolveDisplayName(auth.userId);
+
+  // Auto-tag capabilities mentioned in the OP. Scan title + body together so
+  // a one-word title like "Underwriting" still maps. Best-effort — never
+  // block thread creation on autotag failure.
+  let capabilityTags: string[] = [];
+  try {
+    capabilityTags = await autoTagCapabilities(`${title}\n${body}`);
+  } catch {
+    capabilityTags = [];
+  }
+
   const [row] = await db.insert(forumThreadsTable).values({
     industryId: industry.id,
     capabilityId,
@@ -73,6 +123,7 @@ router.post("/forums/:industrySlug/threads", async (req, res) => {
     authorDisplayName,
     title,
     body,
+    capabilityTags,
   }).returning();
   res.json({ thread: row });
 });
@@ -94,6 +145,7 @@ router.get("/forums/threads/:id", async (req, res) => {
     postCount: forumThreadsTable.postCount,
     lastPostAt: forumThreadsTable.lastPostAt,
     createdAt: forumThreadsTable.createdAt,
+    capabilityTags: forumThreadsTable.capabilityTags,
   })
     .from(forumThreadsTable)
     .innerJoin(industriesTable, eq(industriesTable.id, forumThreadsTable.industryId))
@@ -101,7 +153,17 @@ router.get("/forums/threads/:id", async (req, res) => {
     .limit(1);
   if (!thread) { res.status(404).json({ error: "thread not found" }); return; }
   const posts = await db.select().from(forumPostsTable).where(eq(forumPostsTable.threadId, id)).orderBy(forumPostsTable.createdAt);
-  res.json({ thread, posts });
+
+  // Resolve {slug → {id, name}} so the detail-view chips link to /capability/:id.
+  const tagSlugs = thread.capabilityTags ?? [];
+  const tagCaps = tagSlugs.length > 0
+    ? await db.select({ id: capabilitiesTable.id, slug: capabilitiesTable.slug, name: capabilitiesTable.name })
+        .from(capabilitiesTable)
+        .where(inArray(capabilitiesTable.slug, tagSlugs))
+    : [];
+  const capabilityLookup = Object.fromEntries(tagCaps.map(c => [c.slug, { id: c.id, name: c.name }]));
+
+  res.json({ thread, posts, capabilityLookup });
 });
 
 router.post("/forums/threads/:id/posts", async (req, res) => {

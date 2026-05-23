@@ -5,11 +5,16 @@
  * Move 8 of the strategic UX overhaul — community discussion primitive.
  * Two views in one component file, selected via the :id param when
  * present.
+ *
+ * Capability-aware (2026-05-23): the OP is auto-tagged via
+ * `services/capability-autotag.ts` on the API side. The list view now
+ * renders capability chips per thread and offers a "Filter by capability"
+ * dropdown that scopes the list to threads touching that capability.
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useUser, SignInButton } from "@clerk/react";
-import { MessageSquare, Lock, Plus, ArrowLeft, Loader2, Send } from "lucide-react";
+import { MessageSquare, Lock, Plus, ArrowLeft, Loader2, Send, Tag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +31,19 @@ interface ThreadListItem {
   postCount: number;
   lastPostAt: string;
   createdAt: string;
+  capabilityTags: string[];
+}
+
+interface CapabilityMini { id: number; name: string }
+type CapabilityLookup = Record<string, CapabilityMini>;
+interface FilterOption { slug: string; name: string; id: number }
+
+interface ThreadListResponse {
+  industry: { id: number; slug: string; name: string };
+  threads: ThreadListItem[];
+  capabilityLookup: CapabilityLookup;
+  filterOptions: FilterOption[];
+  activeCapabilityFilter: string | null;
 }
 
 interface ThreadDetail {
@@ -40,6 +58,7 @@ interface ThreadDetail {
   postCount: number;
   lastPostAt: string;
   createdAt: string;
+  capabilityTags: string[];
 }
 
 interface Post {
@@ -49,6 +68,27 @@ interface Post {
   authorDisplayName: string | null;
   body: string;
   createdAt: string;
+}
+
+/** Tiny capability chip — links to /capability/:id when we have the id. */
+function CapabilityChip({ slug, lookup }: { slug: string; lookup: CapabilityLookup }) {
+  const cap = lookup[slug];
+  const label = cap?.name ?? slug.replace(/-/g, " ");
+  const inner = (
+    <Badge variant="secondary" className="text-[10px] font-normal capitalize gap-1 cursor-pointer">
+      <Tag className="w-2.5 h-2.5" /> {label}
+    </Badge>
+  );
+  if (!cap) return inner;
+  return (
+    <Link
+      href={`/capability/${cap.id}`}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex"
+    >
+      {inner}
+    </Link>
+  );
 }
 
 export default function ForumPage() {
@@ -65,26 +105,52 @@ function ThreadListView({ industrySlug }: { industrySlug: string }) {
   const [, setLocation] = useLocation();
   const [industryName, setIndustryName] = useState<string>(industrySlug);
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
+  const [capabilityLookup, setCapabilityLookup] = useState<CapabilityLookup>({});
+  const [filterOptions, setFilterOptions] = useState<FilterOption[]>([]);
+  const [activeFilter, setActiveFilter] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [composerOpen, setComposerOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Sync `?capability=<slug>` from the URL so the filter is shareable.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const initial = new URLSearchParams(window.location.search).get("capability") ?? "";
+    setActiveFilter(initial);
+  }, []);
+
   const load = useCallback(async () => {
     if (!industrySlug) return;
     setLoading(true);
     try {
-      const r = await fetch(`/api/forums/${industrySlug}/threads`);
+      const qs = activeFilter ? `?capabilitySlug=${encodeURIComponent(activeFilter)}` : "";
+      const r = await fetch(`/api/forums/${industrySlug}/threads${qs}`);
       if (r.ok) {
-        const d = await r.json() as { industry: { name: string }; threads: ThreadListItem[] };
+        const d = (await r.json()) as ThreadListResponse;
         setIndustryName(d.industry.name);
         setThreads(d.threads);
+        setCapabilityLookup(d.capabilityLookup ?? {});
+        // Only refresh the dropdown list when no filter is active — otherwise
+        // we'd lose options that no longer match. The unfiltered fetch is
+        // canonical for the dropdown.
+        if (!activeFilter) setFilterOptions(d.filterOptions ?? []);
       }
     } finally { setLoading(false); }
-  }, [industrySlug]);
+  }, [industrySlug, activeFilter]);
 
   useEffect(() => { void load(); }, [load]);
+
+  const handleFilterChange = useCallback((slug: string): void => {
+    setActiveFilter(slug);
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (slug) params.set("capability", slug);
+    else params.delete("capability");
+    const qs = params.toString();
+    setLocation(`/forum/${industrySlug}${qs ? `?${qs}` : ""}`, { replace: true });
+  }, [industrySlug, setLocation]);
 
   const createThread = async (): Promise<void> => {
     setSubmitting(true);
@@ -100,6 +166,11 @@ function ThreadListView({ industrySlug }: { industrySlug: string }) {
       }
     } finally { setSubmitting(false); }
   };
+
+  const activeFilterLabel = useMemo(() => {
+    if (!activeFilter) return "";
+    return filterOptions.find(o => o.slug === activeFilter)?.name ?? activeFilter;
+  }, [activeFilter, filterOptions]);
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl space-y-6">
@@ -130,7 +201,7 @@ function ThreadListView({ industrySlug }: { industrySlug: string }) {
           <CardHeader className="pb-2"><CardTitle className="text-base">Start a thread</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <Input placeholder="Thread title" value={newTitle} onChange={e => setNewTitle(e.target.value)} maxLength={280} />
-            <Textarea placeholder="What do you want to discuss? Markdown OK." rows={6} value={newBody} onChange={e => setNewBody(e.target.value)} maxLength={8000} />
+            <Textarea placeholder="What do you want to discuss? Markdown OK. Capabilities mentioned by name will be auto-tagged." rows={6} value={newBody} onChange={e => setNewBody(e.target.value)} maxLength={8000} />
             <div className="flex items-center justify-end">
               <Button onClick={createThread} disabled={submitting || newTitle.trim().length < 4 || newBody.trim().length < 4}>
                 {submitting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
@@ -141,11 +212,43 @@ function ThreadListView({ industrySlug }: { industrySlug: string }) {
         </Card>
       )}
 
+      {/* Filter-by-capability dropdown — only shown when at least one option
+          exists in this industry. Renders inline-native <select> for zero
+          extra dependency cost; styled to match shadcn inputs. */}
+      {(filterOptions.length > 0 || activeFilter) && (
+        <div className="flex items-center gap-2 flex-wrap text-sm">
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">Filter by capability</span>
+          <select
+            value={activeFilter}
+            onChange={e => handleFilterChange(e.target.value)}
+            className="h-8 px-2 text-sm bg-background border border-input rounded-none focus:outline-none focus:ring-1 focus:ring-accent"
+          >
+            <option value="">All threads</option>
+            {filterOptions.map(o => (
+              <option key={o.slug} value={o.slug}>{o.name}</option>
+            ))}
+          </select>
+          {activeFilter && (
+            <button
+              onClick={() => handleFilterChange("")}
+              className="text-[11px] text-muted-foreground hover:text-foreground underline"
+            >
+              clear
+            </button>
+          )}
+          {activeFilter && (
+            <span className="text-[11px] text-muted-foreground">— scoped to <span className="text-foreground">{activeFilterLabel}</span></span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
       ) : threads.length === 0 ? (
         <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">
-          No threads yet. {isSignedIn ? "Start the first one." : "Sign in to start the first one."}
+          {activeFilter
+            ? <>No threads in {industryName} touch <span className="text-foreground">{activeFilterLabel}</span> yet. <button onClick={() => handleFilterChange("")} className="underline">Show all</button></>
+            : <>No threads yet. {isSignedIn ? "Start the first one." : "Sign in to start the first one."}</>}
         </CardContent></Card>
       ) : (
         <div className="space-y-2">
@@ -158,6 +261,13 @@ function ThreadListView({ industrySlug }: { industrySlug: string }) {
                     {t.lockedAt && <Badge variant="outline" className="text-[10px]"><Lock className="w-2.5 h-2.5 mr-0.5" /> Locked</Badge>}
                   </div>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{t.body}</p>
+                  {t.capabilityTags && t.capabilityTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {t.capabilityTags.map(slug => (
+                        <CapabilityChip key={slug} slug={slug} lookup={capabilityLookup} />
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                     <span>{t.authorDisplayName ?? "Unknown"}</span>
                     <span className="inline-flex items-center gap-1"><MessageSquare className="w-3 h-3" /> {t.postCount}</span>
@@ -177,6 +287,7 @@ function ThreadDetailView({ threadId }: { threadId: number }) {
   const { isSignedIn, user } = useUser();
   const [thread, setThread] = useState<ThreadDetail | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [capabilityLookup, setCapabilityLookup] = useState<CapabilityLookup>({});
   const [loading, setLoading] = useState(true);
   const [reply, setReply] = useState("");
   const [posting, setPosting] = useState(false);
@@ -187,9 +298,10 @@ function ThreadDetailView({ threadId }: { threadId: number }) {
     try {
       const r = await fetch(`/api/forums/threads/${threadId}`);
       if (r.ok) {
-        const d = await r.json() as { thread: ThreadDetail; posts: Post[] };
+        const d = await r.json() as { thread: ThreadDetail; posts: Post[]; capabilityLookup?: CapabilityLookup };
         setThread(d.thread);
         setPosts(d.posts);
+        setCapabilityLookup(d.capabilityLookup ?? {});
       }
     } finally { setLoading(false); }
   }, [threadId]);
@@ -250,6 +362,13 @@ function ThreadDetailView({ threadId }: { threadId: number }) {
               )}
             </div>
           </div>
+          {thread.capabilityTags && thread.capabilityTags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {thread.capabilityTags.map(slug => (
+                <CapabilityChip key={slug} slug={slug} lookup={capabilityLookup} />
+              ))}
+            </div>
+          )}
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{thread.body}</p>
         </CardContent>
       </Card>

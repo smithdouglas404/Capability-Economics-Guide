@@ -20,47 +20,10 @@ import {
   memberPostCommentsTable,
   memberConnectionsTable,
   memberNotificationsTable,
-  capabilitiesTable,
   connectionPairFor,
 } from "@workspace/db";
 import { eq, and, or, desc, sql, inArray, ilike } from "drizzle-orm";
-
-/**
- * Auto-tag a post body with capabilities. Pulls capability {id, slug, name}
- * rows and looks for case-insensitive name occurrences in the body. Returns
- * the matched capability slugs deduped, capped at 5 to keep chip rows tidy.
- *
- * Cheap word-boundary match — no embedding lookup. With ~600 capabilities
- * the in-memory filter is fast enough; revisit with a Postgres full-text
- * search if the catalog grows past ~5000.
- */
-async function autoTagCapabilities(body: string): Promise<string[]> {
-  if (!body || body.length < 3) return [];
-  // Pull the capability catalog once per call. Capability names are short
-  // (avg 3-5 words) and unique enough that substring + word-boundary works.
-  const caps = await db.select({
-    slug: capabilitiesTable.slug,
-    name: capabilitiesTable.name,
-  }).from(capabilitiesTable);
-  if (caps.length === 0) return [];
-
-  const lowerBody = body.toLowerCase();
-  const matched = new Set<string>();
-  for (const c of caps) {
-    if (!c.name || c.name.length < 4) continue; // skip 1–3 char names (too many false positives)
-    const needle = c.name.toLowerCase();
-    // Word-boundary check — look for the name as a delimited token.
-    // RegExp wrap is safe here: capability names come from staff-reviewed
-    // data, no user input. Still escape for safety.
-    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const re = new RegExp(`\\b${escaped}\\b`, "i");
-    if (re.test(lowerBody)) {
-      matched.add(c.slug);
-      if (matched.size >= 5) break;
-    }
-  }
-  return Array.from(matched);
-}
+import { autoTagCapabilities } from "../services/capability-autotag";
 
 const router: IRouter = Router();
 

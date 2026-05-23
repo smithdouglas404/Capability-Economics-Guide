@@ -58,6 +58,48 @@ router.get("/capabilities", async (req, res) => {
   res.json(capabilities.map((c) => ({ ...c, lifecycleStage: lifecycleByCap.get(c.id) ?? "adopted" })));
 });
 
+/**
+ * GET /capabilities/by-slug/:slug — lightweight lookup that powers the
+ * /hashtag/:tag page's "is this hashtag actually a capability?" check.
+ * Falls back to a case-insensitive name match (with hyphens treated as
+ * spaces) when the slug doesn't hit directly — handles users typing
+ * `/hashtag/fraud-detection` as well as `/hashtag/fraud_detection` or
+ * the capability's display name.
+ *
+ * Mounted BEFORE the `/capabilities/:id` route — order matters so Express
+ * doesn't parse `by-slug` as an id.
+ */
+router.get("/capabilities/by-slug/:slug", async (req, res) => {
+  const slug = String(req.params.slug).slice(0, 200);
+  if (!slug) { res.status(400).json({ error: "slug required" }); return; }
+
+  // 1. Direct slug match.
+  let [hit] = await db.select().from(capabilitiesTable).where(eq(capabilitiesTable.slug, slug)).limit(1);
+
+  // 2. Fallback — hyphens to spaces, case-insensitive name match.
+  if (!hit) {
+    const nameGuess = slug.replace(/[-_]+/g, " ");
+    const [byName] = await db.select().from(capabilitiesTable)
+      .where(sql`LOWER(${capabilitiesTable.name}) = LOWER(${nameGuess})`)
+      .limit(1);
+    hit = byName;
+  }
+
+  if (!hit) { res.status(404).json({ error: "no matching capability" }); return; }
+  res.json({
+    capability: {
+      id: hit.id,
+      slug: hit.slug,
+      name: hit.name,
+      description: hit.description,
+      industryId: hit.industryId,
+      isLeaf: hit.isLeaf,
+      benchmarkScore: hit.benchmarkScore,
+      reviewStatus: hit.reviewStatus,
+    },
+  });
+});
+
 router.get("/capabilities/:id", async (req, res) => {
   const parsed = GetCapabilityParams.safeParse(req.params);
   if (!parsed.success) {
