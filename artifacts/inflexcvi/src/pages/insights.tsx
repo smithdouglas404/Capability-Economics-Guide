@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
+import { LiveBacktestBadge } from "@/components/live-backtest-badge";
 import { StreamingBrief } from "@/components/streaming-brief";
 import {
   Lightbulb, AlertTriangle, TrendingUp, TrendingDown, Shield, Trophy,
@@ -453,9 +454,12 @@ export default function Insights() {
     <div className="min-h-screen bg-background pb-24">
       <section className="bg-muted/10 py-12 border-b border-border/40">
         <div className="container mx-auto px-4 max-w-6xl">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">AI-Powered Advisory</span>
+          <div className="flex items-center gap-3 mb-4 flex-wrap">
+            <div className="inline-flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground">AI-Powered Advisory</span>
+            </div>
+            <LiveBacktestBadge variant="compact" />
           </div>
           <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
             Insights & Recommendations

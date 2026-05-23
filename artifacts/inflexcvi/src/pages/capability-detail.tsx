@@ -27,6 +27,7 @@ import { CapabilityAnnotations } from "@/components/capability-annotations";
 import { CapabilityCascadePanel } from "@/components/capability-cascade-panel";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
+import { LiveBacktestBadge } from "@/components/live-backtest-badge";
 import { FourLensesGrid } from "@/components/four-lenses-grid";
 import { ConsensusView } from "@/components/consensus-view";
 
@@ -505,13 +506,21 @@ export default function CapabilityDetailPage() {
       <FourLensesGrid capabilityId={cap.id} capabilityName={cap.name} />
 
       {/* ─── Streaming recommendation (Vercel AI SDK) ────────────────────── */}
-      <StreamingBrief
-        api={`/api/capabilities/${cap.id}/recommendations/stream`}
-        title="Persona-aware recommendation"
-        downloadFilename={`ce-recommendation-${cap.id}`}
-        triggerLabel="Generate fresh recommendation"
-        showContextField
-      />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+            Live recommendation
+          </div>
+          <LiveBacktestBadge variant="compact" />
+        </div>
+        <StreamingBrief
+          api={`/api/capabilities/${cap.id}/recommendations/stream`}
+          title="Persona-aware recommendation"
+          downloadFilename={`ce-recommendation-${cap.id}`}
+          triggerLabel="Generate fresh recommendation"
+          showContextField
+        />
+      </div>
 
       {/* ─── Dependencies + Products ────────────────────────────────────────── */}
       {(cap.dependencies.length > 0 || cap.products.length > 0) && (
