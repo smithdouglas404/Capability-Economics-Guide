@@ -47,16 +47,31 @@ app.use(cors());
 app.use("/api", stripeWebhookRouter);
 app.use("/api", kycWebhookRouter);
 app.use("/api", nowpaymentsWebhookRouter);
-// Inngest webhook handler — must run BEFORE express.json() because the SDK
-// verifies HMAC signatures over the raw request bytes. express.json() parses
-// the body to an object; the SDK then canonicalizes the object back to JSON
-// (RFC 8785 / JCS), which doesn't byte-match what Inngest's Go server signed →
-// "Invalid signature" 401. Using express.text() here gives req.body as the
-// untouched JSON string so signature verification passes. Also runs BEFORE
-// Clerk/apiKey middleware since the SDK does its own auth via signing key.
+// Inngest webhook handler — mounted with two workarounds for self-hosted
+// Inngest server v1.22+ (https://github.com/inngest/inngest-js/issues/1543):
+//
+// 1. express.text() instead of express.json(): the SDK verifies HMAC signatures
+//    over the raw request bytes. express.json() parses to an object; the SDK
+//    canonicalizes back to JSON, which doesn't byte-match what Inngest's Go
+//    server signed → "Invalid signature" 401.
+//
+// 2. GET-with-body → POST coercion: self-hosted Inngest sends step-execution
+//    as GET with a JSON body + signed header, but the SDK only reads the body
+//    for signature verification on POST/PUT (signs empty string for GET).
+//    Coercing the method to POST before the serve handler runs makes the SDK
+//    include the body in its signature check.
+//
+// Mounted BEFORE express.json() (raw bytes) AND BEFORE Clerk/apiKey middleware
+// (SDK does its own auth via INNGEST_SIGNING_KEY).
 app.use(
   "/api/inngest",
   express.text({ type: "application/json", limit: "10mb" }),
+  (req, _res, next) => {
+    if (req.method === "GET" && typeof req.body === "string" && req.body.length > 0) {
+      Object.defineProperty(req, "method", { value: "POST", configurable: true });
+    }
+    next();
+  },
   inngestServe({
     client: inngest,
     functions: inngestFunctions,
