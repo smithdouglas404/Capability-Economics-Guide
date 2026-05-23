@@ -21,6 +21,7 @@ import { runWorldScanAllIndustries } from "../macro-events";
 import { startMarketplaceAutoArchive, stopMarketplaceAutoArchive } from "../marketplace-auto-archive";
 import { featuredCaseStudyTick } from "../featured-case-study-rotation";
 import { runDigestSweep } from "../digest";
+import { runScheduledExportSweep } from "../scheduled-exports";
 import { runDetailEnrichment } from "../alpha/enrich";
 import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
@@ -113,6 +114,10 @@ const WORLD_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // keeps daily-frequency subscribers within their 24h window even when the
 // scheduler restarts overnight.
 const DIGEST_TICK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Scheduled-exports sweep — same 6h cadence as the digest sweep. Per-row
+// `lastSentAt` provides the actual weekly idempotence; the cron just
+// gives the sweep a chance to fire whenever a row's cutoff has passed.
+const SCHEDULED_EXPORT_TICK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 // Regulations-watch notifier: walks regulation_watches and writes inbox
 // notifications when watched regulations pass their effective date with
 // compliance < 100, or when compliance drops by ≥ 5 points. Throttled to
@@ -144,6 +149,7 @@ let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
+let scheduledExportTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let regulationsWatchTimer: ReturnType<typeof setInterval> | null = null;
@@ -171,6 +177,7 @@ let isRunning = false;
 let isRotating = false;
 let isScanning = false;
 let isDigesting = false;
+let isSweepingScheduledExports = false;
 let isBotTicking = false;
 let isExpiring = false;
 let isAggregatingBenchmarks = false;
@@ -812,6 +819,7 @@ export function startScheduler(): void {
   sched("rotation",         () => { rotationTimer       = setInterval(() => executeRotation("daily"),        ROTATION_INTERVAL_MS); });
   sched("worldScan",        () => { worldScanTimer      = setInterval(() => executeWorldScan("daily"),       WORLD_SCAN_INTERVAL_MS); });
   sched("digest",           () => { digestTimer         = setInterval(() => executeDigestSweep("routine"),   DIGEST_TICK_INTERVAL_MS); });
+  sched("scheduledExports", () => { scheduledExportTimer = setInterval(() => executeScheduledExportSweep("routine"), SCHEDULED_EXPORT_TICK_INTERVAL_MS); });
   sched("botLoop",          () => { botLoopTimer        = setInterval(() => botLoopTick(),                   BOT_LOOP_INTERVAL_MS); });
   sched("creditExpiry",     () => { creditExpiryTimer   = setInterval(() => creditExpiryTick(),              CREDIT_EXPIRY_INTERVAL_MS); });
   sched("regulationsWatch", () => { regulationsWatchTimer = setInterval(() => regulationsWatchTick(),        REGULATIONS_WATCH_INTERVAL_MS); });
@@ -971,6 +979,7 @@ export function startScheduler(): void {
   sched("routine",        () => { executeRun("startup"); });
   sched("rotation",       () => { setTimeout(() => executeRotation("startup"), 30_000); });
   sched("digest",         () => { setTimeout(() => executeDigestSweep("startup"), 90_000); });
+  sched("scheduledExports", () => { setTimeout(() => executeScheduledExportSweep("startup"), 120_000); });
   sched("botLoop",        () => { setTimeout(() => botLoopTick(), 45_000); });
   sched("creditExpiry",   () => { setTimeout(() => creditExpiryTick(), 120_000); });
   sched("peerBenchmarks", () => { setTimeout(() => peerBenchmarksTick(), 180_000); });
@@ -1034,6 +1043,7 @@ export function stopScheduler(): void {
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   if (digestTimer) { clearInterval(digestTimer); digestTimer = null; }
+  if (scheduledExportTimer) { clearInterval(scheduledExportTimer); scheduledExportTimer = null; }
   if (botLoopTimer) { clearInterval(botLoopTimer); botLoopTimer = null; }
   if (creditExpiryTimer) { clearInterval(creditExpiryTimer); creditExpiryTimer = null; }
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
@@ -1083,6 +1093,29 @@ async function executeDigestSweep(trigger: string): Promise<void> {
     console.error("[Digest] Sweep failed:", err);
   } finally {
     isDigesting = false;
+  }
+}
+
+/**
+ * Walk scheduled_exports and deliver every subscription past its
+ * frequency cutoff. Idempotent on lastSentAt, so re-running on the same
+ * day is safe.
+ */
+async function executeScheduledExportSweep(trigger: string): Promise<void> {
+  if (isSweepingScheduledExports) {
+    console.log("[ScheduledExports] Sweep already in progress, skipping tick");
+    return;
+  }
+  isSweepingScheduledExports = true;
+  try {
+    const result = await runScheduledExportSweep();
+    if (result.attempted > 0) {
+      console.log(`[ScheduledExports] ${trigger} sweep: attempted=${result.attempted} succeeded=${result.succeeded} failed=${result.failed}`);
+    }
+  } catch (err) {
+    console.error("[ScheduledExports] Sweep failed:", err);
+  } finally {
+    isSweepingScheduledExports = false;
   }
 }
 

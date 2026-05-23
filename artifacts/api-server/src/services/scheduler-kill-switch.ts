@@ -95,8 +95,8 @@ export async function setKillSwitch(name: string, disabled: boolean, reason: str
 
 /** Names recognized by the scheduler — surface here so the admin UI can iterate. */
 export const KNOWN_SCHEDULER_NAMES = [
-  "routine", "watchdog", "rotation", "worldScan", "digest", "botLoop",
-  "creditExpiry", "peerBenchmarks", "edgarRss", "cviSignals", "autoEnrich",
+  "routine", "watchdog", "rotation", "worldScan", "digest", "scheduledExports",
+  "botLoop", "creditExpiry", "peerBenchmarks", "edgarRss", "cviSignals", "autoEnrich",
   "mem0Prune", "macroEvent", "disruption", "peerCoop", "stackOptimizer",
   "ontology", "synthesis", "temporalShift", "memoryRelationSnapshot",
   "featuredCaseStudy",

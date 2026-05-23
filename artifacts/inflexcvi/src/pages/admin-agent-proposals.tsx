@@ -34,6 +34,26 @@ interface Proposal {
   appliedAt: string | null;
   expiresAt: string;
   createdAt: string;
+  qualityScore?: number;
+  qualityBreakdown?: {
+    sourceDiversity: number;
+    triangulationConfidence: number;
+    hasCorroboration: boolean;
+  };
+}
+
+type SortMode = "quality" | "recent";
+
+/**
+ * Colour bucketing for the quality badge — matches the rest of the admin
+ * surface's amber→emerald gradient so a glance tells you triage priority.
+ */
+function qualityBadgeClass(score: number | undefined): string {
+  if (score === undefined) return "bg-muted text-muted-foreground border-border/40";
+  if (score >= 70) return "bg-emerald-500/15 text-emerald-700 border-emerald-500/30";
+  if (score >= 40) return "bg-sky-500/15 text-sky-700 border-sky-500/30";
+  if (score >= 20) return "bg-amber-500/15 text-amber-700 border-amber-500/30";
+  return "bg-rose-500/15 text-rose-600 border-rose-500/30";
 }
 
 const ADMIN_KEY_STORAGE = "ce.admin-key";
@@ -66,6 +86,7 @@ export default function AdminAgentProposalsPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState<ProposalStatus>("pending");
+  const [sortMode, setSortMode] = useState<SortMode>("quality");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [rejectNotes, setRejectNotes] = useState<Record<number, string>>({});
@@ -75,7 +96,7 @@ export default function AdminAgentProposalsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/agent/proposals?status=${filterStatus}&limit=100`, {
+      const res = await fetch(`/api/admin/agent/proposals?status=${filterStatus}&limit=100&sort=${sortMode}`, {
         headers: adminHeaders(),
       });
       if (!res.ok) {
@@ -90,7 +111,7 @@ export default function AdminAgentProposalsPage() {
     }
   }
 
-  useEffect(() => { load(); }, [filterStatus]);
+  useEffect(() => { load(); }, [filterStatus, sortMode]);
 
   async function approve(p: Proposal) {
     setPendingActionId(p.id);
@@ -169,7 +190,7 @@ export default function AdminAgentProposalsPage() {
         </>
       }
     >
-      <div className="flex gap-2 mb-6 flex-wrap">
+      <div className="flex gap-2 mb-6 flex-wrap items-center">
         {(["pending", "applied", "rejected", "expired"] as ProposalStatus[]).map(s => (
           <Button
             key={s}
@@ -180,6 +201,25 @@ export default function AdminAgentProposalsPage() {
             {s}
           </Button>
         ))}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">Sort</span>
+          <Button
+            variant={sortMode === "quality" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSortMode("quality")}
+            data-testid="button-sort-quality"
+          >
+            Highest quality first
+          </Button>
+          <Button
+            variant={sortMode === "recent" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSortMode("recent")}
+            data-testid="button-sort-recent"
+          >
+            Most recent
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -207,8 +247,18 @@ export default function AdminAgentProposalsPage() {
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <Badge variant="outline" className={STATUS_COLORS[p.status]}>{p.status}</Badge>
+                    <Badge
+                      variant="outline"
+                      className={qualityBadgeClass(p.qualityScore)}
+                      title={p.qualityBreakdown
+                        ? `Sources: ${p.qualityBreakdown.sourceDiversity} · Triangulation: ${(p.qualityBreakdown.triangulationConfidence * 100).toFixed(0)}% · ${p.qualityBreakdown.hasCorroboration ? "Corroborated" : "Single-source"}`
+                        : "No quality breakdown available"}
+                      data-testid={`badge-quality-${p.id}`}
+                    >
+                      Quality {p.qualityScore ?? "—"}
+                    </Badge>
                     <span className="font-mono text-xs text-muted-foreground">#{p.id}</span>
                     {p.agentRunId && (
                       <span className="font-mono text-xs text-muted-foreground">run #{p.agentRunId}</span>

@@ -93,6 +93,7 @@ import backtestRouter from "./backtest";
 import productsRouter from "./products";
 import subscriptionsRouter from "./subscriptions";
 import exportsRouter from "./exports";
+import scheduledExportsRouter from "./scheduled-exports";
 import apiVolumeRouter from "./api-volume";
 import metricsRouter from "./metrics";
 import adminSecurityRouter from "./admin-security";
@@ -164,6 +165,7 @@ router.use(productsRouter);
 // route uses its own per-route requireAdmin middleware rather than the catch-all.
 router.use(subscriptionsRouter);
 router.use(exportsRouter);
+router.use(scheduledExportsRouter);
 // apiVolumeRouter mounts BEFORE adminRouter — uses its own per-route requireAdmin
 // rather than the catch-all so the route key spelling stays consistent.
 router.use(apiVolumeRouter);

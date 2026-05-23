@@ -9,8 +9,9 @@ import {
   industriesTable,
   cviComponentsTable,
   dvxComponentsTable,
+  sourceTriangulationsTable,
 } from "@workspace/db";
-import { and, desc, eq, or, ilike, lt } from "drizzle-orm";
+import { and, desc, eq, or, ilike, lt, inArray } from "drizzle-orm";
 import { recallMemories, type MemoryCategory } from "../services/agent/memory";
 import { applyProposal, SUPPORTED_PROPOSAL_TYPES } from "../services/agent/proposal-appliers";
 import { syncEconomicRulesToLetta } from "../services/agent/economic-rules-sync";
@@ -602,19 +603,129 @@ router.post("/agent/tools/propose-industry-prior-update", requireAgentToolKey, a
 // Per plan Phase 1.5.4.
 // ---------------------------------------------------------------------------
 
+/**
+ * Compute a per-proposal "quality score" so admins can triage the queue
+ * highest-quality-first. Composition:
+ *   - Source diversity   (40%): distinct source labels behind the proposal.
+ *                                Caps at 5 sources for a perfect score.
+ *   - Triangulation conf (35%): average source weight on the capability's
+ *                                source_triangulations (when the proposal
+ *                                targets a capability/industry pair).
+ *   - Corroboration      (25%): does the proposal include rationale text and
+ *                                more than one source? Encourages the agent
+ *                                to surface evidence, not bare-fact updates.
+ *
+ * Score is 0-100, integer. Higher = more confident the proposal is grounded.
+ */
+function computeProposalQualityScore(args: {
+  payload: Record<string, unknown> | null | undefined;
+  rationale: string | null | undefined;
+  triangulations: Array<{ sourceLabel: string; weight: number | null }>;
+}): { score: number; sourceDiversity: number; triangulationConfidence: number; hasCorroboration: boolean } {
+  const payload = args.payload ?? {};
+  const rationale = args.rationale ?? "";
+
+  // Pull source labels from payload (.sources / .citations / .evidence) AND
+  // from the capability's source_triangulations.
+  const fromPayloadSources = new Set<string>();
+  const addCandidate = (val: unknown) => {
+    if (typeof val === "string" && val.trim().length > 0) fromPayloadSources.add(val.trim());
+    if (val && typeof val === "object") {
+      if (typeof (val as { label?: unknown }).label === "string") fromPayloadSources.add(String((val as { label?: unknown }).label).trim());
+      if (typeof (val as { source?: unknown }).source === "string") fromPayloadSources.add(String((val as { source?: unknown }).source).trim());
+      if (typeof (val as { url?: unknown }).url === "string") fromPayloadSources.add(String((val as { url?: unknown }).url).trim());
+    }
+  };
+  for (const key of ["sources", "citations", "evidence", "supportingSources"]) {
+    const v = (payload as Record<string, unknown>)[key];
+    if (Array.isArray(v)) v.forEach(addCandidate);
+    else if (v) addCandidate(v);
+  }
+  // Union with triangulation labels so the score reflects all available evidence.
+  const allSources = new Set<string>(fromPayloadSources);
+  for (const t of args.triangulations) allSources.add(t.sourceLabel);
+
+  const distinctSourceCount = allSources.size;
+  const sourceDiversityComponent = Math.min(distinctSourceCount, 5) / 5; // 0..1
+
+  // Triangulation confidence — average weight, clamped to [0,1].
+  let triangulationConfidence = 0;
+  if (args.triangulations.length > 0) {
+    const weights = args.triangulations.map(t => Math.min(1, Math.max(0, Number(t.weight ?? 0))));
+    triangulationConfidence = weights.reduce((s, w) => s + w, 0) / weights.length;
+  }
+
+  // Corroboration — multi-source AND non-trivial rationale.
+  const hasCorroboration = distinctSourceCount >= 2 && rationale.trim().length >= 40;
+
+  const score = Math.round(100 * (
+    0.40 * sourceDiversityComponent
+    + 0.35 * triangulationConfidence
+    + 0.25 * (hasCorroboration ? 1 : 0)
+  ));
+
+  return {
+    score: Math.min(100, Math.max(0, score)),
+    sourceDiversity: distinctSourceCount,
+    triangulationConfidence: Number(triangulationConfidence.toFixed(2)),
+    hasCorroboration,
+  };
+}
+
+/** Pull `capabilityId` / `industryId` out of a payload's common shapes. */
+function extractCapabilityAndIndustry(payload: Record<string, unknown> | null | undefined): { capabilityId: number | null; industryId: number | null } {
+  if (!payload) return { capabilityId: null, industryId: null };
+  const capCandidate = payload.capabilityId ?? payload.capability_id ?? payload.cap_id;
+  const indCandidate = payload.industryId ?? payload.industry_id;
+  const cap = typeof capCandidate === "number" ? capCandidate : Number(capCandidate);
+  const ind = typeof indCandidate === "number" ? indCandidate : Number(indCandidate);
+  return {
+    capabilityId: Number.isFinite(cap) && cap > 0 ? cap : null,
+    industryId: Number.isFinite(ind) && ind > 0 ? ind : null,
+  };
+}
+
 router.get("/admin/agent/proposals", requireAdmin, async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : "pending";
     const limit = Math.max(1, Math.min(200, Number(req.query.limit ?? 50) || 50));
+    // "quality" (default) — highest-quality first; "recent" — fallback for parity with the old behaviour.
+    const sort = String(req.query.sort ?? "quality");
+
     const rows = await db.select().from(agentProposalsTable)
       .where(eq(agentProposalsTable.status, status))
       .orderBy(desc(agentProposalsTable.createdAt))
       .limit(limit);
-    res.json({
-      status,
-      count: rows.length,
-      supportedTypes: SUPPORTED_PROPOSAL_TYPES,
-      proposals: rows.map(r => ({
+
+    // Batch-load triangulations for every capability the queue references so
+    // we don't fan out N queries.
+    const capIds = Array.from(new Set(
+      rows.map(r => extractCapabilityAndIndustry(r.payload as Record<string, unknown> | null).capabilityId)
+        .filter((id): id is number => id !== null),
+    ));
+    const triByCap = new Map<number, Array<{ sourceLabel: string; weight: number | null }>>();
+    if (capIds.length > 0) {
+      const tris = await db.select({
+        capabilityId: sourceTriangulationsTable.capabilityId,
+        sourceLabel: sourceTriangulationsTable.sourceLabel,
+        weight: sourceTriangulationsTable.weight,
+      }).from(sourceTriangulationsTable).where(inArray(sourceTriangulationsTable.capabilityId, capIds));
+      for (const t of tris) {
+        const arr = triByCap.get(t.capabilityId) ?? [];
+        arr.push({ sourceLabel: t.sourceLabel, weight: t.weight });
+        triByCap.set(t.capabilityId, arr);
+      }
+    }
+
+    const enriched = rows.map(r => {
+      const { capabilityId } = extractCapabilityAndIndustry(r.payload as Record<string, unknown> | null);
+      const triangulations = capabilityId !== null ? (triByCap.get(capabilityId) ?? []) : [];
+      const quality = computeProposalQualityScore({
+        payload: r.payload as Record<string, unknown> | null,
+        rationale: r.agentRationale,
+        triangulations,
+      });
+      return {
         id: r.id,
         agentRunId: r.agentRunId,
         proposalType: r.proposalType,
@@ -629,7 +740,28 @@ router.get("/admin/agent/proposals", requireAdmin, async (req, res) => {
         appliedAt: r.appliedAt?.toISOString() ?? null,
         expiresAt: r.expiresAt.toISOString(),
         createdAt: r.createdAt.toISOString(),
-      })),
+        qualityScore: quality.score,
+        qualityBreakdown: {
+          sourceDiversity: quality.sourceDiversity,
+          triangulationConfidence: quality.triangulationConfidence,
+          hasCorroboration: quality.hasCorroboration,
+        },
+      };
+    });
+
+    if (sort === "quality") {
+      enriched.sort((a, b) => {
+        if (b.qualityScore !== a.qualityScore) return b.qualityScore - a.qualityScore;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+    }
+
+    res.json({
+      status,
+      count: enriched.length,
+      sort,
+      supportedTypes: SUPPORTED_PROPOSAL_TYPES,
+      proposals: enriched,
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "list failed" });
@@ -744,6 +876,142 @@ router.get("/admin/economic-rules", requireAdmin, async (_req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "list failed" });
+  }
+});
+
+/**
+ * POST /admin/economic-rules/preview-impact
+ *
+ * Given a rule key + proposed new value (or a delta against the current
+ * value), return how many cvi_components rows would change classification.
+ *
+ * For every rule key that maps to a known cvi_components field we report:
+ *   - currentValue       : the current rule value
+ *   - proposedValue      : value after the slider movement
+ *   - delta              : signed proposed - current
+ *   - currentlyOver      : rows currently above the current threshold
+ *   - currentlyUnder     : rows currently below the current threshold
+ *   - enteringWatch      : rows that would newly enter the watch zone
+ *                          (cross from "safe" to "concern" under the new threshold)
+ *   - leavingWatch       : rows that would newly leave the watch zone
+ *   - netDelta           : enteringWatch - leavingWatch
+ *
+ * For unrecognized keys we still return the currentValue / proposedValue
+ * pair so the UI can fall back to a copy-only preview.
+ */
+const COMPONENT_FIELD_FOR_KEY: Record<string, "consensusScore" | "posteriorVariance" | "economicMultiplier" | "velocity"> = {
+  cvi_floor: "consensusScore",
+  cvi_ceiling_for_attention: "consensusScore",
+  cvi_posterior_variance_max: "posteriorVariance",
+  economic_multiplier_min: "economicMultiplier",
+  dvx_velocity_band_low: "velocity",
+  dvx_velocity_band_high: "velocity",
+};
+// Direction of the comparison — "below" means rows where value < threshold
+// are the ones that enter the watchlist.
+const COMPONENT_DIRECTION_FOR_KEY: Record<string, "below" | "above"> = {
+  cvi_floor: "below",
+  cvi_ceiling_for_attention: "above",
+  cvi_posterior_variance_max: "above",
+  economic_multiplier_min: "below",
+  dvx_velocity_band_low: "below",
+  dvx_velocity_band_high: "above",
+};
+
+router.post("/admin/economic-rules/preview-impact", requireAdmin, async (req, res) => {
+  try {
+    const body = req.body as { key?: unknown; proposedValue?: unknown; delta?: unknown };
+    const key = typeof body.key === "string" ? body.key : "";
+    if (!key) { res.status(400).json({ error: "key is required" }); return; }
+
+    const [rule] = await db.select().from(economicRulesTable).where(eq(economicRulesTable.key, key)).limit(1);
+    if (!rule) { res.status(404).json({ error: `unknown rule "${key}"` }); return; }
+
+    const currentValueRaw = rule.value;
+    const currentValueNum = typeof currentValueRaw === "number" ? currentValueRaw : Number(currentValueRaw);
+    if (!Number.isFinite(currentValueNum)) {
+      res.json({
+        key,
+        currentValue: currentValueRaw,
+        proposedValue: body.proposedValue ?? null,
+        supported: false,
+        message: "Current value is non-numeric; preview is unavailable.",
+      });
+      return;
+    }
+
+    let proposedValueNum: number;
+    if (body.proposedValue !== undefined) {
+      proposedValueNum = typeof body.proposedValue === "number" ? body.proposedValue : Number(body.proposedValue);
+    } else if (body.delta !== undefined) {
+      const deltaNum = typeof body.delta === "number" ? body.delta : Number(body.delta);
+      proposedValueNum = currentValueNum + deltaNum;
+    } else {
+      res.status(400).json({ error: "either proposedValue or delta must be supplied" });
+      return;
+    }
+    if (!Number.isFinite(proposedValueNum)) {
+      res.status(400).json({ error: "proposedValue / delta could not be coerced to a number" });
+      return;
+    }
+
+    const field = COMPONENT_FIELD_FOR_KEY[key];
+    const direction = COMPONENT_DIRECTION_FOR_KEY[key];
+    if (!field || !direction) {
+      res.json({
+        key,
+        currentValue: currentValueNum,
+        proposedValue: proposedValueNum,
+        delta: proposedValueNum - currentValueNum,
+        supported: false,
+        message: `Rule "${key}" does not map to a cvi_components field; live impact preview is unavailable.`,
+      });
+      return;
+    }
+
+    // Pull just the field we care about — cvi_components is bounded
+    // (one row per cap×industry), so this is small enough to crunch in JS
+    // and lets us compute crossings against ANY threshold cheaply.
+    const components = await db.select({
+      consensusScore: cviComponentsTable.consensusScore,
+      posteriorVariance: cviComponentsTable.posteriorVariance,
+      economicMultiplier: cviComponentsTable.economicMultiplier,
+      velocity: cviComponentsTable.velocity,
+    }).from(cviComponentsTable);
+
+    let currentlyOver = 0;
+    let currentlyUnder = 0;
+    let enteringWatch = 0;
+    let leavingWatch = 0;
+
+    for (const c of components) {
+      const v = c[field];
+      if (v == null || !Number.isFinite(Number(v))) continue;
+      const num = Number(v);
+      const wasInWatch = direction === "below" ? num < currentValueNum : num > currentValueNum;
+      const willBeInWatch = direction === "below" ? num < proposedValueNum : num > proposedValueNum;
+      if (num >= currentValueNum) currentlyOver++; else currentlyUnder++;
+      if (!wasInWatch && willBeInWatch) enteringWatch++;
+      if (wasInWatch && !willBeInWatch) leavingWatch++;
+    }
+
+    res.json({
+      key,
+      field,
+      direction,
+      supported: true,
+      currentValue: currentValueNum,
+      proposedValue: proposedValueNum,
+      delta: proposedValueNum - currentValueNum,
+      totalRows: components.length,
+      currentlyOver,
+      currentlyUnder,
+      enteringWatch,
+      leavingWatch,
+      netDelta: enteringWatch - leavingWatch,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "preview-impact failed" });
   }
 });
 

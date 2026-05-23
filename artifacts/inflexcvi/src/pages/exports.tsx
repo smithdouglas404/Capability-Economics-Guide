@@ -2,12 +2,34 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Download, FileSpreadsheet, Database, Lock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, Download, FileSpreadsheet, Database, Lock, Mail, CheckCircle2 } from "lucide-react";
 import { Layout } from "@/components/layout";
 
 const API_BASE = "/api";
 
 type Dataset = { id: string; label: string; description: string };
+type ScheduledExportFormat = "markdown" | "csv";
+type ScheduledExportScope = "watchlist" | "portfolio" | "all";
+type ScheduledExportSubscription = {
+  id: number;
+  userId: string;
+  active: boolean;
+  frequency: "weekly";
+  format: ScheduledExportFormat;
+  scope: ScheduledExportScope;
+  lastSentAt: string | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 const TIER_RANK: Record<string, number> = {
   discovery: 0,
@@ -24,6 +46,14 @@ export default function ExportsPage() {
   const [tier, setTier] = useState<string>("discovery");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  // Scheduled-export ("email me a weekly digest") state.
+  const [subs, setSubs] = useState<ScheduledExportSubscription[]>([]);
+  const [scope, setScope] = useState<ScheduledExportScope>("all");
+  const [format, setFormat] = useState<ScheduledExportFormat>("markdown");
+  const [scheduledBusy, setScheduledBusy] = useState(false);
+  const [scheduledNotice, setScheduledNotice] = useState<string | null>(null);
+
+  const activeSub = subs.find(s => s.active) ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -31,9 +61,10 @@ export default function ExportsPage() {
       try {
         const token = await getToken().catch(() => null);
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-        const [dRes, bRes] = await Promise.all([
+        const [dRes, bRes, sRes] = await Promise.all([
           fetch(`${API_BASE}/exports/datasets`, { headers }),
           fetch(`${API_BASE}/credits/balance`, { headers }),
+          fetch(`${API_BASE}/me/scheduled-exports`, { headers }),
         ]);
         if (!cancelled && dRes.ok) {
           const j = await dRes.json() as { datasets: Dataset[] };
@@ -42,6 +73,15 @@ export default function ExportsPage() {
         if (!cancelled && bRes.ok) {
           const j = await bRes.json() as { tierSlug?: string };
           if (j.tierSlug) setTier(j.tierSlug);
+        }
+        if (!cancelled && sRes.ok) {
+          const j = await sRes.json() as { subscriptions: ScheduledExportSubscription[] };
+          setSubs(j.subscriptions);
+          const first = j.subscriptions.find(s => s.active);
+          if (first) {
+            setScope(first.scope);
+            setFormat(first.format);
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -54,12 +94,12 @@ export default function ExportsPage() {
   const canCsv = userRank >= 1;
   const canParquet = userRank >= 3;
 
-  const download = async (id: string, format: "csv" | "parquet") => {
-    setBusy(`${id}.${format}`);
+  const download = async (id: string, dlFormat: "csv" | "parquet") => {
+    setBusy(`${id}.${dlFormat}`);
     try {
       const token = await getToken().catch(() => null);
       const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-      const res = await fetch(`${API_BASE}/exports/${id}.${format}`, { headers });
+      const res = await fetch(`${API_BASE}/exports/${id}.${dlFormat}`, { headers });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         alert(`Download failed (${res.status}): ${body.slice(0, 200)}`);
@@ -68,7 +108,7 @@ export default function ExportsPage() {
       const blob = await res.blob();
       const cd = res.headers.get("content-disposition") ?? "";
       const m = cd.match(/filename="?([^";]+)"?/);
-      const filename = m?.[1] ?? `${id}.${format}`;
+      const filename = m?.[1] ?? `${id}.${dlFormat}`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -81,6 +121,85 @@ export default function ExportsPage() {
       setBusy(null);
     }
   };
+
+  async function toggleScheduled(next: boolean): Promise<void> {
+    setScheduledBusy(true);
+    setScheduledNotice(null);
+    try {
+      const token = await getToken().catch(() => null);
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      if (next) {
+        const res = await fetch(`${API_BASE}/me/scheduled-exports`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ frequency: "weekly", format, scope }),
+        });
+        if (!res.ok) {
+          setScheduledNotice(`Failed to enable weekly digest (${res.status})`);
+          return;
+        }
+        const j = await res.json() as { subscription: ScheduledExportSubscription };
+        setSubs(prev => {
+          const without = prev.filter(p => p.id !== j.subscription.id);
+          return [j.subscription, ...without];
+        });
+        setScheduledNotice("Weekly export digest enabled. First delivery within 7 days.");
+      } else if (activeSub) {
+        const res = await fetch(`${API_BASE}/me/scheduled-exports/${activeSub.id}`, {
+          method: "DELETE",
+          headers,
+        });
+        if (!res.ok) {
+          setScheduledNotice(`Failed to cancel (${res.status})`);
+          return;
+        }
+        setSubs(prev => prev.map(p => p.id === activeSub.id ? { ...p, active: false } : p));
+        setScheduledNotice("Weekly export digest cancelled.");
+      }
+    } finally {
+      setScheduledBusy(false);
+    }
+  }
+
+  async function applyScheduledChanges(): Promise<void> {
+    if (!activeSub) {
+      void toggleScheduled(true);
+      return;
+    }
+    if (activeSub.scope === scope && activeSub.format === format) {
+      setScheduledNotice("No changes to apply.");
+      return;
+    }
+    setScheduledBusy(true);
+    setScheduledNotice(null);
+    try {
+      const token = await getToken().catch(() => null);
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      // Cancel the existing row + create a fresh one with the new shape.
+      // POST is idempotent on (frequency, format, scope) so this is safe.
+      await fetch(`${API_BASE}/me/scheduled-exports/${activeSub.id}`, { method: "DELETE", headers });
+      const res = await fetch(`${API_BASE}/me/scheduled-exports`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ frequency: "weekly", format, scope }),
+      });
+      if (!res.ok) {
+        setScheduledNotice(`Failed to update (${res.status})`);
+        return;
+      }
+      const j = await res.json() as { subscription: ScheduledExportSubscription };
+      setSubs(prev => [j.subscription, ...prev.filter(p => p.id !== activeSub.id && p.id !== j.subscription.id)]);
+      setScheduledNotice("Schedule preferences updated.");
+    } finally {
+      setScheduledBusy(false);
+    }
+  }
 
   return (
     <Layout>
@@ -98,6 +217,87 @@ export default function ExportsPage() {
             Your tier: <span className="font-mono">{tier}</span>
           </p>
         </div>
+
+        <Card className="rounded-none border-primary/30" data-testid="card-scheduled-exports">
+          <CardHeader>
+            <CardTitle className="text-base font-serif flex items-center gap-2">
+              <Mail className="w-4 h-4 text-primary" />
+              Email me a weekly digest
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Receive a weekly snapshot of these datasets in your notifications inbox.
+              We deliver as a member notification today; email delivery follows once SMTP is wired up.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={!!activeSub}
+                disabled={scheduledBusy}
+                onCheckedChange={(checked) => void toggleScheduled(checked)}
+                data-testid="switch-scheduled-export"
+              />
+              <span className="text-sm">
+                {activeSub ? "Subscribed" : "Not subscribed"}
+              </span>
+              {activeSub?.lastSentAt && (
+                <span className="text-xs text-muted-foreground ml-auto">
+                  Last sent {new Date(activeSub.lastSentAt).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Scope</label>
+                <Select value={scope} onValueChange={(v) => setScope(v as ScheduledExportScope)}>
+                  <SelectTrigger className="rounded-none" data-testid="select-scope">
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All tracked industries</SelectItem>
+                    <SelectItem value="watchlist">My watchlist only</SelectItem>
+                    <SelectItem value="portfolio">My portfolio only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">Format</label>
+                <Select value={format} onValueChange={(v) => setFormat(v as ScheduledExportFormat)}>
+                  <SelectTrigger className="rounded-none" data-testid="select-format">
+                    <SelectValue placeholder="Select format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="markdown">Markdown summary</SelectItem>
+                    <SelectItem value="csv">CSV (full payload)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-none w-full"
+                  disabled={scheduledBusy}
+                  onClick={() => void applyScheduledChanges()}
+                  data-testid="button-apply-scheduled"
+                >
+                  {scheduledBusy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  {activeSub ? "Apply changes" : "Subscribe"}
+                </Button>
+              </div>
+            </div>
+
+            {scheduledNotice && (
+              <p className="text-xs text-muted-foreground italic" data-testid="text-scheduled-notice">{scheduledNotice}</p>
+            )}
+            {activeSub?.lastError && (
+              <p className="text-xs text-rose-600">
+                Last delivery failed: {activeSub.lastError}
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
