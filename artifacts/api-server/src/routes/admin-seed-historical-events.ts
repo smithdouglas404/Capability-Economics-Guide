@@ -13,6 +13,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import { db, historicalEventsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 // Event definitions — kept inline (not imported from /scripts) because the
@@ -41,13 +42,13 @@ const EVENTS: SeedEvent[] = [
     decayDays: 365,
     affectedIndustryNames: ["Healthcare", "Retail", "Insurance", "Banking & Financial Services"],
     affectedCapabilities: [
-      { name: "Telehealth & Virtual Care", expectedDirection: "positive", rationale: "Virtual visits jumped from ~1% to ~40% of healthcare encounters in 60 days" },
-      { name: "Population Health Management", expectedDirection: "positive", rationale: "Pandemic surveillance + risk stratification became Tier 1 capability" },
-      { name: "Clinical Workforce Management", expectedDirection: "negative", rationale: "In-person staffing models broke; PPE + scheduling capabilities overwhelmed" },
-      { name: "E-Commerce Platform", expectedDirection: "positive", rationale: "Online retail grew 32% YoY in 2020 — decade of growth in 12 months" },
-      { name: "Store Operations Excellence", expectedDirection: "negative", rationale: "Physical store traffic collapsed; mall vacancies hit 11.4% by Q4 2020" },
-      { name: "Digital Banking Platform", expectedDirection: "positive", rationale: "Branch traffic collapsed; mobile-first banks captured the share" },
-      { name: "Actuarial Modeling", expectedDirection: "positive", rationale: "Mortality + business-interruption models had to be redrawn industry-wide" },
+      { name: "Self-Service Claims Management", expectedDirection: "positive", rationale: "Insurers pushed FNOL + claim-status to mobile self-service to keep ops running when offices closed" },
+      { name: "First Notice of Loss (FNOL) Intake", expectedDirection: "positive", rationale: "Digital intake replaced in-person + phone overnight; reshaped claims funnel" },
+      { name: "Adaptive Store & Digital Experience Design", expectedDirection: "positive", rationale: "Curbside + buy-online-pickup became table stakes in 60 days; chains without it lost share" },
+      { name: "Order Fulfillment & Logistics Orchestration", expectedDirection: "positive", rationale: "E-commerce volume jumped 32% YoY in 2020 — decade of growth in 12 months" },
+      { name: "Store Compliance & Loss Prevention", expectedDirection: "negative", rationale: "In-store programs paused or restructured around skeleton staffing" },
+      { name: "Pricing Model Development & Predictive Underwriting", expectedDirection: "positive", rationale: "Mortality and business-interruption assumptions were re-derived industry-wide" },
+      { name: "Behavioral Analytics & Financial Wellness", expectedDirection: "positive", rationale: "Banking shifted to digital-only relationships; behavioral signals became primary risk input" },
     ],
     description: "WHO pandemic declaration triggered global lockdowns. Industries that had invested in digital + remote capabilities outperformed peers by 20-40 pts on revenue retention.",
     citations: [
@@ -64,11 +65,11 @@ const EVENTS: SeedEvent[] = [
     decayDays: 540,
     affectedIndustryNames: ["Technology", "Insurance", "Banking & Financial Services", "Healthcare"],
     affectedCapabilities: [
-      { name: "AI/ML Operations", expectedDirection: "positive", rationale: "Every Fortune 500 announced an LLM strategy within 6 months; MLOps spend doubled in 2023" },
-      { name: "Product Development", expectedDirection: "positive", rationale: "Copilot-class tools cut engineering time-to-market by reported 20-40%" },
-      { name: "Customer Analytics", expectedDirection: "positive", rationale: "LLM-driven segmentation + intent inference made BI tools 5x faster" },
-      { name: "Clinical Decision Support", expectedDirection: "positive", rationale: "First wave of LLM-grounded diagnostic assistants entered clinical pilots" },
-      { name: "Rapid Claims Resolution", expectedDirection: "positive", rationale: "Insurers using LLM-assisted intake cut FNOL processing time 30-50%" },
+      { name: "Pricing Model Development & Predictive Underwriting", expectedDirection: "positive", rationale: "LLMs accelerated rate-table iteration + scenario testing across actuarial teams" },
+      { name: "First Notice of Loss (FNOL) Intake", expectedDirection: "positive", rationale: "LLM-assisted intake cut FNOL processing time 30-50% at early adopters" },
+      { name: "Behavioral Analytics & Financial Wellness", expectedDirection: "positive", rationale: "LLM-driven segmentation + intent inference made BI tools 5x faster" },
+      { name: "Cloud Security & Compliance Automation", expectedDirection: "positive", rationale: "LLM-driven anomaly summarization + auto-runbook generation became standard in SOCs" },
+      { name: "Credit Risk Modeling & Measurement", expectedDirection: "positive", rationale: "Banks added LLM-derived features (intent, narrative parsing) to risk scoring stacks" },
     ],
     description: "ChatGPT reached 100M users in 60 days — fastest consumer adoption ever. Every enterprise software vendor pivoted within two quarters; capabilities adjacent to AI got immediate uplift.",
     citations: [
@@ -85,11 +86,11 @@ const EVENTS: SeedEvent[] = [
     decayDays: 270,
     affectedIndustryNames: ["Banking & Financial Services", "Technology"],
     affectedCapabilities: [
-      { name: "Credit Decisioning", expectedDirection: "negative", rationale: "Underwriting models for venture-backed clients got rebuilt with much tighter loss assumptions" },
-      { name: "Fraud Prevention", expectedDirection: "positive", rationale: "Renewed regulatory + counterparty risk scrutiny across all FIs" },
-      { name: "Wealth Management & Advisory", expectedDirection: "positive", rationale: "Mass exodus to top-5 banks drove unprecedented wealth-management mandate growth" },
-      { name: "Core Banking Modernization", expectedDirection: "positive", rationale: "Regulators flagged 30-year-old systems at SVB; modernization budgets unlocked sector-wide" },
-      { name: "Cybersecurity", expectedDirection: "positive", rationale: "Treasury teams accelerated multi-bank cash-management deployments — security overhead spiked" },
+      { name: "Credit Risk Modeling & Measurement", expectedDirection: "negative", rationale: "Underwriting models for venture-backed clients rebuilt with much tighter loss assumptions" },
+      { name: "Security & Compliance Engine", expectedDirection: "positive", rationale: "Renewed regulatory + counterparty risk scrutiny across all FIs" },
+      { name: "API Security & Consent Management", expectedDirection: "positive", rationale: "Multi-bank cash-management deployments accelerated; API/consent stack got prioritized" },
+      { name: "Behavioral Analytics & Financial Wellness", expectedDirection: "positive", rationale: "Mass deposit movement made customer-behavior signals immediate operational priority" },
+      { name: "Security Architecture & Resilience", expectedDirection: "positive", rationale: "FedNow / OFAC-style operational resilience moved from compliance to board agenda" },
     ],
     description: "SVB held $209B in assets, collapsed in 36 hours after a Twitter-fueled bank run. Triggered the most aggressive consolidation in US regional banking since 2008.",
     citations: [
@@ -106,11 +107,11 @@ const EVENTS: SeedEvent[] = [
     decayDays: 540,
     affectedIndustryNames: ["Technology", "Healthcare", "Insurance"],
     affectedCapabilities: [
-      { name: "AI/ML Operations", expectedDirection: "negative", rationale: "Compliance overhead added 6-12 months to high-risk AI deployments" },
-      { name: "Cybersecurity", expectedDirection: "positive", rationale: "AI governance requires the same control plane FIs use for data — pulled in security teams" },
-      { name: "Clinical Decision Support", expectedDirection: "negative", rationale: "Healthcare-AI vendors required to redo conformity assessments under Annex III" },
-      { name: "Data & Analytics Platform", expectedDirection: "positive", rationale: "Data-lineage + auditability tooling became must-have rather than nice-to-have" },
-      { name: "Actuarial Modeling", expectedDirection: "negative", rationale: "Insurers using ML for pricing fell under high-risk classification; rebuilds required" },
+      { name: "Cloud Security & Compliance Automation", expectedDirection: "positive", rationale: "AI governance requires the same control plane — pulled in security/compliance budgets" },
+      { name: "Security & Compliance Guardrails", expectedDirection: "positive", rationale: "AI guardrail tooling moved from optional to required for any Annex III use case" },
+      { name: "Pricing Model Development & Predictive Underwriting", expectedDirection: "negative", rationale: "Insurance ML pricing fell under high-risk classification; conformity rebuilds required" },
+      { name: "Regulatory Compliance & Data Governance Automation", expectedDirection: "positive", rationale: "Data-lineage + auditability became must-have rather than nice-to-have for AI users" },
+      { name: "Analytics & Modeling Infrastructure", expectedDirection: "negative", rationale: "High-risk use cases added 6-12 months to deployment timelines; reduced experimentation velocity" },
     ],
     description: "EU AI Act categorized AI systems into 4 risk tiers. High-risk uses (credit scoring, medical, employment) face conformity assessments, registration, and post-market monitoring. Sets global baseline since EU is the largest market for most enterprises.",
     citations: [
@@ -127,11 +128,12 @@ const EVENTS: SeedEvent[] = [
     decayDays: 365,
     affectedIndustryNames: ["Manufacturing", "Retail"],
     affectedCapabilities: [
-      { name: "Supply Chain Management", expectedDirection: "negative", rationale: "Existing offshore-heavy networks took the full tariff hit on through-the-door cost" },
-      { name: "Supply Chain & Logistics", expectedDirection: "negative", rationale: "Retail importers absorbed margin compression of 4-9 pts depending on category" },
-      { name: "Smart Factory / IoT", expectedDirection: "positive", rationale: "Domestic reshoring made automated US production economically viable — capex surge" },
-      { name: "Inventory Optimization", expectedDirection: "positive", rationale: "Pre-tariff stockpiling + dynamic safety-stock rebalancing became operational priorities" },
-      { name: "Sustainability & ESG", expectedDirection: "negative", rationale: "Lower-cost short-haul sourcing displaced cleaner long-haul vendors in many categories" },
+      { name: "Inventory & Logistics Execution", expectedDirection: "negative", rationale: "Offshore-heavy networks took the full tariff hit on through-the-door cost" },
+      { name: "Supply Chain Visibility & Control Tower", expectedDirection: "positive", rationale: "Real-time tariff-impact tracking + reroute decisions became operational priorities" },
+      { name: "Supply Chain Compliance & Risk Management", expectedDirection: "positive", rationale: "Tariff classification + country-of-origin documentation jumped to critical-path" },
+      { name: "Supply Chain Visibility & Risk Management", expectedDirection: "positive", rationale: "Retail importers built scenario-planning + multi-source vendor stacks to absorb shocks" },
+      { name: "Order Fulfillment & Logistics Orchestration", expectedDirection: "negative", rationale: "Retail importers absorbed margin compression of 4-9 pts depending on category" },
+      { name: "Supply Chain Sustainability Governance", expectedDirection: "negative", rationale: "Lower-cost short-haul sourcing displaced cleaner long-haul vendors in many categories" },
     ],
     description: "Universal 10% reciprocal tariffs plus higher per-country rates on specific exporters. Manufacturing PMI dropped 4.7 pts in Q2. Capabilities tied to localized supply networks gained; offshore-dependent ones lost.",
     citations: [
@@ -145,13 +147,12 @@ const router = Router();
 
 router.post("/admin/seed/historical-events", requireAdmin, async (_req: Request, res: Response) => {
   try {
-    const existing = await db.select({ title: historicalEventsTable.title }).from(historicalEventsTable);
-    const existingTitles = new Set(existing.map((r) => r.title));
+    const existing = await db.select({ id: historicalEventsTable.id, title: historicalEventsTable.title }).from(historicalEventsTable);
+    const idByTitle = new Map(existing.map((r) => [r.title, r.id]));
     let inserted = 0;
-    let skipped = 0;
+    let updated = 0;
     for (const e of EVENTS) {
-      if (existingTitles.has(e.title)) { skipped++; continue; }
-      await db.insert(historicalEventsTable).values({
+      const values = {
         eventDate: new Date(e.eventDate),
         title: e.title,
         eventType: e.eventType,
@@ -162,10 +163,18 @@ router.post("/admin/seed/historical-events", requireAdmin, async (_req: Request,
         affectedCapabilities: e.affectedCapabilities,
         description: e.description,
         citations: e.citations,
-      });
-      inserted++;
+      };
+      const existingId = idByTitle.get(e.title);
+      if (existingId) {
+        await db.update(historicalEventsTable).set(values).where(eq(historicalEventsTable.id, existingId));
+        updated++;
+      } else {
+        await db.insert(historicalEventsTable).values(values);
+        inserted++;
+      }
     }
-    res.json({ inserted, skipped, total: existing.length + inserted });
+    const finalCount = await db.select({ id: historicalEventsTable.id }).from(historicalEventsTable);
+    res.json({ inserted, updated, total: finalCount.length });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }
