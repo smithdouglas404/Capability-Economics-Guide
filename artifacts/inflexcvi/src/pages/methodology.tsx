@@ -71,7 +71,7 @@ export default function Methodology() {
           <h1 className="font-serif text-4xl sm:text-5xl tracking-tight text-foreground">
             How the Capability Value Index is calculated
           </h1>
-          <p className="mt-4 text-lg text-muted-foreground max-w-3xl leading-relaxed">
+          <p className="mt-4 text-sm text-muted-foreground max-w-3xl leading-relaxed">
             Every numeric score in this product is a posterior estimate from a transparent Bayesian
             model fed by independently-cited sources. This page documents the math, the source weights,
             the confidence formula, and a fully worked example so any score in the app can be audited

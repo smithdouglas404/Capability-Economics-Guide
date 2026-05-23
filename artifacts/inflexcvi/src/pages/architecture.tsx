@@ -144,7 +144,7 @@ export default function ArchitecturePage() {
                   <div>
                     <div className={`font-medium text-sm ${t.label}`}>{m.label}</div>
                     <div className="text-xs text-muted-foreground">{m.sub}</div>
-                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70 mt-1.5">{m.href}</div>
+                    <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground-soft mt-1.5">{m.href}</div>
                   </div>
                 </CardContent>
               </Card>

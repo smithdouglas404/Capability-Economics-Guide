@@ -82,7 +82,7 @@ export default function ProvenancePage() {
                     <p className="text-xs text-muted-foreground leading-relaxed mt-1.5">{s.description}</p>
                     {s.surfaceExamples && s.surfaceExamples.length > 0 && (
                       <div className="mt-2">
-                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/70 mb-1">Shows up in</div>
+                        <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground-soft mb-1">Shows up in</div>
                         <ul className="text-[11px] text-foreground/80 space-y-0.5">
                           {s.surfaceExamples.map(ex => (
                             <li key={ex} className="before:content-['—'] before:text-muted-foreground before:mr-1.5">{ex}</li>

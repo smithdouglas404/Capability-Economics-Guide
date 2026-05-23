@@ -207,7 +207,7 @@ export function ScoreWithProvenance({
                   <span className="text-muted-foreground truncate">{s.sourceLabel}</span>
                   <span className="text-foreground shrink-0">
                     {s.rawScore.toFixed(1)}{" "}
-                    <span className="text-muted-foreground/70">× {s.weight.toFixed(2)}</span>
+                    <span className="text-muted-foreground-soft">× {s.weight.toFixed(2)}</span>
                   </span>
                 </div>
               ))}

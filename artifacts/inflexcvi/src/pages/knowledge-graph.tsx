@@ -230,7 +230,7 @@ export default function KnowledgeGraph() {
                   <LifecycleChip stage={capabilityDetail.lifecycleStage as LifecycleStage | undefined} />
                   <a href="/lifecycle" className="text-[11px] text-muted-foreground hover:text-foreground underline">methodology</a>
                 </div>
-                <p className="text-lg text-muted-foreground mt-2">{capabilityDetail.description}</p>
+                <p className="text-sm text-muted-foreground mt-2">{capabilityDetail.description}</p>
               </div>
               <div className="hidden md:flex flex-col items-end gap-2">
                 {alphaDetail?.generatedAt && (
@@ -259,7 +259,7 @@ export default function KnowledgeGraph() {
                   <BookOpen className="w-5 h-5 text-foreground/60 mt-0.5 shrink-0" />
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">What this capability is</div>
-                    <p className="text-base text-foreground leading-relaxed">{econ.summaryNarrative}</p>
+                    <p className="text-sm text-foreground leading-relaxed">{econ.summaryNarrative}</p>
                   </div>
                 </div>
               </CardContent>
@@ -482,7 +482,7 @@ export default function KnowledgeGraph() {
                         </div>
                         <p className="text-xs text-muted-foreground">{metric.description}</p>
                         {interp && (
-                          <p className="text-sm text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{interp}</p>
+                          <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{interp}</p>
                         )}
                       </div>
                     );
@@ -549,7 +549,7 @@ export default function KnowledgeGraph() {
                           </div>
                           <p className="text-xs text-muted-foreground">{rm.perspective}</p>
                           {consequence && (
-                            <p className="text-sm text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{consequence}</p>
+                            <p className="text-xs text-foreground mt-1.5 leading-relaxed border-l-2 border-primary/40 pl-2 italic">{consequence}</p>
                           )}
                         </div>
                       );

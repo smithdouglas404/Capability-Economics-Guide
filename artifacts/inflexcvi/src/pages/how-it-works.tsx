@@ -112,7 +112,7 @@ function StageCard({ stage }: { stage: Stage }) {
         <div className="font-serif text-lg tracking-tight mt-2">{stage.title}</div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{stage.subtitle}</p>
         {stage.href && (
-          <div className="mt-3 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground">
+          <div className="mt-3 inline-flex items-center gap-1 text-[10px] text-muted-foreground-soft hover:text-foreground">
             <span className="font-mono uppercase tracking-wider">{stage.href}</span>
             <ArrowRight className="w-2.5 h-2.5" />
           </div>

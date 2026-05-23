@@ -63,7 +63,7 @@ export function SourceBadge({ source, size = "sm", className }: SourceBadgeProps
         <p className="text-muted-foreground">{s.description}</p>
         {s.surfaceExamples && s.surfaceExamples.length > 0 && (
           <div className="mt-2">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 mb-1">Shows up in</div>
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground-soft mb-1">Shows up in</div>
             <ul className="space-y-0.5">
               {s.surfaceExamples.map(ex => (
                 <li key={ex} className="text-foreground/80 before:content-['—'] before:text-muted-foreground before:mr-1.5">

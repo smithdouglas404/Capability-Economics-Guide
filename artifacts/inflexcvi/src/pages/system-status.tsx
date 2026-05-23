@@ -154,7 +154,7 @@ export default function SystemStatus() {
                       <div className="font-serif">
                         {SERVICE_LABELS[s.service] ?? s.service}
                       </div>
-                      <div className="text-[10px] font-mono text-muted-foreground/70 mt-0.5">
+                      <div className="text-[10px] font-mono text-muted-foreground-soft mt-0.5">
                         {s.service}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">

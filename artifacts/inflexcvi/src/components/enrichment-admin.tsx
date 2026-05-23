@@ -839,7 +839,7 @@ export default function EnrichmentAdmin() {
             <div className="px-4 py-2 border-b bg-muted/40 flex items-center justify-between flex-wrap gap-2">
               <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5" /> C-Suite Perspective Generation
-                <span className="font-normal normal-case tracking-normal text-[10px] text-muted-foreground/70">last {csuiteUsage.windowHours}h</span>
+                <span className="font-normal normal-case tracking-normal text-[10px] text-muted-foreground-soft">last {csuiteUsage.windowHours}h</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[10px] px-2 py-0.5 rounded font-mono ${

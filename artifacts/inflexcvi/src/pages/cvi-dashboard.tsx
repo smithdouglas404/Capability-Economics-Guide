@@ -231,7 +231,7 @@ function MetricHelp({ children, className = "" }: { children: React.ReactNode; c
           <HelpCircle className="w-3 h-3" />
         </button>
       </HoverCardTrigger>
-      <HoverCardContent className="w-80 text-xs leading-relaxed" side="top">
+      <HoverCardContent className="w-80 text-[10px] leading-relaxed" side="top">
         {children}
       </HoverCardContent>
     </HoverCard>
@@ -274,7 +274,7 @@ function DeltaInterpreter({ delta, childScore, parentScore, childName }: { delta
           {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs parent
         </span>
       </HoverCardTrigger>
-      <HoverCardContent className="w-80 text-xs leading-relaxed" side="top">
+      <HoverCardContent className="w-80 text-[10px] leading-relaxed" side="top">
         <div className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${isRed ? "text-red-600" : "text-emerald-600"}`}>
           {label}
         </div>
@@ -347,10 +347,7 @@ function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
   const widthPct = Math.max(2, pct(ciHigh) - leftPct);
   const markerPct = pct(value);
   return (
-    <div
-      className="mt-3 w-44"
-      title="95% Bayesian credible interval — propagated from posterior variance of every triangulated capability score"
-    >
+    <div className="mt-3 w-44">
       <div className="relative h-2 bg-muted/40 rounded-full">
         <div
           className="absolute top-0 h-2 rounded-full opacity-60"
@@ -363,7 +360,16 @@ function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
       </div>
       <div className="flex justify-between text-[10px] text-white mt-1 font-mono">
         <span>{ciLow.toFixed(1)}</span>
-        <span className="text-white">95% CI · ±{half.toFixed(1)}</span>
+        <span className="flex items-center gap-0.5">
+          <span className="text-white">95% CI · ±{half.toFixed(1)}</span>
+          <MetricHelp>
+            <strong className="block mb-1">95% Bayesian Credible Interval</strong>
+            <div className="mt-1 mb-1 px-2 py-1 bg-muted rounded text-[10.5px] font-mono">
+              μ<sub>post</sub> ± 1.96 · σ<sub>post</sub>
+            </div>
+            Posterior variance propagates through the GDP-weighted composite. Wide CI = honest uncertainty from sparse data.
+          </MetricHelp>
+        </span>
         <span>{ciHigh.toFixed(1)}</span>
       </div>
     </div>
@@ -951,10 +957,19 @@ export default function CVIDashboard() {
               <div className="md:col-span-1 flex flex-col items-center gap-4">
                 <SentimentGauge value={cei.marketSentiment} />
                 <div className="text-center">
-                  <div className="text-xs text-amber-500 uppercase tracking-wider mb-1">Market Sentiment</div>
+                  <div className="text-xs text-amber-500 uppercase tracking-wider mb-1 flex items-center justify-center gap-1">
+                    Market Sentiment
+                    <MetricHelp>
+                      <strong className="block mb-1">Market Sentiment</strong>
+                      <div className="mt-1 mb-1 px-2 py-1 bg-muted rounded text-[10.5px] font-mono">
+                        50 + avgVelocity×100 + macroShock
+                      </div>
+                      MacroShock = Σ (severity × sign × 0.5 × decay). Above 50 bullish, below 50 bearish.
+                    </MetricHelp>
+                  </div>
                   <div className="text-sm text-amber-500/90">Based on aggregate capability velocity across all industries</div>
                   <div className="text-[10px] text-amber-500/80 mt-1 font-mono">
-                    sentiment = 50 + avgVelocity × 100
+                    sentiment = 50 + avgVelocity × 100 + macroShock
                   </div>
                 </div>
               </div>

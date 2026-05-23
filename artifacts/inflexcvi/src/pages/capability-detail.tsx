@@ -346,7 +346,7 @@ export default function CapabilityDetailPage() {
                 )}
               </div>
 
-              <p className="text-sm leading-relaxed">{explain.narrative}</p>
+              <p className="text-xs leading-relaxed">{explain.narrative}</p>
 
               {explain.attribution.sourceDriven.length > 0 && (
                 <div>
@@ -697,7 +697,7 @@ function CviHistoryCard({ capabilityId }: { capabilityId: number }) {
             <div className="text-xs text-muted-foreground">
               {data.liveCount} live snapshot{data.liveCount === 1 ? "" : "s"}
               {data.reconstructedCount > 0 && (
-                <> + <span className="text-muted-foreground/70">{data.reconstructedCount} reconstructed</span> (filled from historical source-triangulation data — small dots; methodology available on request)</>
+                <> + <span className="text-muted-foreground-soft">{data.reconstructedCount} reconstructed</span> (filled from historical source-triangulation data — small dots; methodology available on request)</>
               )}
               {data.granularity === "industry-rollup" && (
                 <> · Per-capability history not yet banked — showing industry index as proxy.</>
@@ -1096,9 +1096,9 @@ function AgentRecommendationCard({ capabilityId }: { capabilityId: number }) {
       {rec && (
         <div className="space-y-1">
           {rec.headline && <div className="text-sm font-medium">{rec.headline}</div>}
-          <p className="text-sm leading-relaxed">{rec.body}</p>
+          <p className="text-xs leading-relaxed">{rec.body}</p>
           {rec.cached === false && (
-            <div className="text-[10px] text-muted-foreground/70">Freshly generated for current DVX score.</div>
+            <div className="text-[10px] text-muted-foreground-soft">Freshly generated for current DVX score.</div>
           )}
         </div>
       )}

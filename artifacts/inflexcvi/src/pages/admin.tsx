@@ -1229,7 +1229,7 @@ function SyntheticAgentsPanel() {
                           <td className="px-3 py-3 text-xs">
                             <div className="text-muted-foreground">{bot.email}</div>
                             <div className="text-muted-foreground">{bot.city}{bot.region ? `, ${bot.region}` : ""} {bot.country}</div>
-                            <div className="font-mono text-[11px] text-muted-foreground/70">{bot.clerkUserId}</div>
+                            <div className="font-mono text-[11px] text-muted-foreground-soft">{bot.clerkUserId}</div>
                           </td>
                           <td className="px-3 py-3">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${

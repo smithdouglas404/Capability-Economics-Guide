@@ -344,7 +344,7 @@ export default function Usage() {
                   <div key={s.name} className="flex items-center justify-between py-1.5 border-b last:border-0 text-sm" data-testid={`scheduler-${s.name}`}>
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="font-mono text-xs truncate">{s.name}</span>
-                      <Badge variant={tagColor} className="text-[9px] flex-shrink-0">{tag === "none" ? "free" : tag}</Badge>
+                      <Badge variant={tagColor} className="text-[10px] flex-shrink-0">{tag === "none" ? "free" : tag}</Badge>
                       {s.reason && (
                         <span className="text-[10px] text-muted-foreground truncate" title={s.reason}>“{s.reason}”</span>
                       )}

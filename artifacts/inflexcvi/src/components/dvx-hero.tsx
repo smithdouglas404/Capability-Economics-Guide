@@ -174,7 +174,7 @@ export function DvxHero() {
                         <span className="text-foreground/70">Most disrupted:</span> {b.topDisruptedCapability}
                       </div>
                     )}
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground/70">
+                    <div className="flex items-center gap-1 mt-1 text-[10px] text-muted-foreground-soft">
                       <TrendingUp className="w-2.5 h-2.5" />
                       {b.capabilityCount} caps · {(b.weight * 100).toFixed(1)}% GDP weight
                     </div>

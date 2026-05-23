@@ -205,11 +205,13 @@ export default function MarketplaceWorkspacePage() {
           </Badge>
         </div>
         <h1 className="font-serif text-3xl tracking-tight">Marketplace Workspace</h1>
-        <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
-          {data?.mode === "team"
-            ? "Purchases bought under your Clerk organization and listings sold under your team's seller account. Every org member sees the same view."
-            : "Your personal marketplace activity. Promote your seller account to team-shared to let your Clerk organization members see and manage these together."}
-        </p>
+        {data && (
+          <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
+            {data.mode === "team"
+              ? "Purchases bought under your Clerk organization and listings sold under your team's seller account. Every org member sees the same view."
+              : "Your personal marketplace activity. Promote your seller account to team-shared to let your Clerk organization members see and manage these together."}
+          </p>
+        )}
       </div>
 
       {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-4 py-2 text-sm">{err}</div>}
