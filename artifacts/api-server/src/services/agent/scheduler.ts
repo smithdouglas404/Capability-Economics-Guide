@@ -26,6 +26,7 @@ import { getTuning } from "../agent-tuning";
 import { runAllBotsTick } from "../bots/loop";
 import { runCreditExpirySweep } from "../credit-expiry";
 import { runRegulationsWatchNotifier } from "../regulations-watch-notifier";
+import { runWatchlistEvaluator } from "../watchlist-evaluator";
 import { rebuildPeerBenchmarks } from "../peer-benchmarks/aggregator";
 import { runEdgarRssTick } from "../edgar/rss-watcher";
 import { detectCviSignalEvents } from "../cvi-signals/detector";
@@ -116,6 +117,10 @@ const DIGEST_TICK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 // 1 alert per watch per 24h. Cheap — 1h cadence keeps the bell responsive
 // after a fresh assessment while not over-polling.
 const REGULATIONS_WATCH_INTERVAL_MS = 60 * 60 * 1000;
+// Capability watchlist evaluator — walks watchlist_items + checks thresholds
+// against live values, writing watchlist_alerts + member_notifications on
+// fresh breach. 1h cadence matches the regulations notifier.
+const WATCHLIST_EVAL_INTERVAL_MS = 60 * 60 * 1000;
 
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
 const URGENCY_STALE_DAYS = 10;
@@ -128,6 +133,7 @@ let digestTimer: ReturnType<typeof setInterval> | null = null;
 let botLoopTimer: ReturnType<typeof setInterval> | null = null;
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let regulationsWatchTimer: ReturnType<typeof setInterval> | null = null;
+let watchlistEvalTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
@@ -394,6 +400,27 @@ async function creditExpiryTick(): Promise<void> {
     console.warn("[CreditExpiry] sweep failed:", err);
   } finally {
     isExpiring = false;
+  }
+}
+
+let isEvaluatingWatchlist = false;
+/**
+ * Hourly capability watchlist evaluator. Walks watchlist_items + writes
+ * alerts + member_notifications on fresh threshold breach. Idempotent
+ * via the `triggered` column.
+ */
+async function watchlistEvalTick(): Promise<void> {
+  if (isEvaluatingWatchlist) return;
+  isEvaluatingWatchlist = true;
+  try {
+    const stats = await runWatchlistEvaluator();
+    if (stats.triggered > 0 || stats.cleared > 0 || stats.errors > 0) {
+      console.log(`[WatchlistEval] walked=${stats.walked} triggered=${stats.triggered} cleared=${stats.cleared} errors=${stats.errors}`);
+    }
+  } catch (err) {
+    console.warn("[WatchlistEval] failed:", err);
+  } finally {
+    isEvaluatingWatchlist = false;
   }
 }
 
@@ -733,6 +760,8 @@ export function startScheduler(): void {
   // Kick once 90s after boot so any freshly-deployed instance catches up
   // without waiting an hour. Background — does NOT block startup.
   sched("regulationsWatch", () => { setTimeout(() => regulationsWatchTick(), 90_000); });
+  sched("watchlistEval",    () => { watchlistEvalTimer    = setInterval(() => watchlistEvalTick(),           WATCHLIST_EVAL_INTERVAL_MS); });
+  sched("watchlistEval",    () => { setTimeout(() => watchlistEvalTick(), 120_000); });
   sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });
   sched("edgarRss",         () => { edgarRssTimer       = setInterval(() => edgarRssTick(),                  EDGAR_RSS_INTERVAL_MS); });
   sched("cviSignals",       () => { cviSignalsTimer     = setInterval(() => cviSignalsTick(),                CVI_SIGNALS_INTERVAL_MS); });
