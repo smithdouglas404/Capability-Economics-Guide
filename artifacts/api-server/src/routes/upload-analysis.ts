@@ -118,13 +118,23 @@ router.post("/upload-analysis", upload.single("file"), async (req, res) => {
 
     const usedThisMonth = await countUploadsThisMonth(auth.userId);
     if (usedThisMonth >= FREE_TIER_MONTHLY_CAP) {
-      res.status(429).json({ error: `Free tier limit reached (${FREE_TIER_MONTHLY_CAP}/month).` });
+      res.status(429).json({
+        error: `You've used your ${FREE_TIER_MONTHLY_CAP} free analyses this month. Upgrade your plan to unlock unlimited uploads, or contact sales for enterprise access.`,
+        upgradeUrl: "/membership",
+        contactUrl: "mailto:sales@capabilityeconomics.com",
+        usedThisMonth,
+        cap: FREE_TIER_MONTHLY_CAP,
+      });
       return;
     }
 
     const text = await extractTextFromFile(req.file.buffer, req.file.mimetype);
     if (!text || text.trim().length < 100) {
-      res.status(400).json({ error: "Could not extract meaningful text from the file (too short or unparseable). Try a different file or paste the text directly." });
+      const isPdf = req.file.mimetype.includes("pdf");
+      const suggestion = isPdf
+        ? "Your PDF might be a scanned image (no embedded text). Try a text-based PDF, or copy the content and paste it directly."
+        : "We couldn't extract enough text from this file. Try a .pdf, .docx, or paste the text directly.";
+      res.status(400).json({ error: suggestion, fileType: req.file.mimetype, extractedLength: text?.length ?? 0 });
       return;
     }
 
@@ -160,7 +170,13 @@ router.post("/upload-analysis/text", async (req, res) => {
 
     const usedThisMonth = await countUploadsThisMonth(auth.userId);
     if (usedThisMonth >= FREE_TIER_MONTHLY_CAP) {
-      res.status(429).json({ error: `Free tier limit reached (${FREE_TIER_MONTHLY_CAP}/month).` });
+      res.status(429).json({
+        error: `You've used your ${FREE_TIER_MONTHLY_CAP} free analyses this month. Upgrade your plan to unlock unlimited uploads, or contact sales for enterprise access.`,
+        upgradeUrl: "/membership",
+        contactUrl: "mailto:sales@capabilityeconomics.com",
+        usedThisMonth,
+        cap: FREE_TIER_MONTHLY_CAP,
+      });
       return;
     }
 
@@ -199,7 +215,13 @@ router.post("/upload-analysis/text-stream", async (req, res) => {
 
     const usedThisMonth = await countUploadsThisMonth(auth.userId);
     if (usedThisMonth >= FREE_TIER_MONTHLY_CAP) {
-      res.status(429).json({ error: `Free tier limit reached (${FREE_TIER_MONTHLY_CAP}/month).` });
+      res.status(429).json({
+        error: `You've used your ${FREE_TIER_MONTHLY_CAP} free analyses this month. Upgrade your plan to unlock unlimited uploads, or contact sales for enterprise access.`,
+        upgradeUrl: "/membership",
+        contactUrl: "mailto:sales@capabilityeconomics.com",
+        usedThisMonth,
+        cap: FREE_TIER_MONTHLY_CAP,
+      });
       return;
     }
 

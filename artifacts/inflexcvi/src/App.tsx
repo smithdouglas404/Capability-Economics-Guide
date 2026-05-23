@@ -64,6 +64,7 @@ import DevelopersPage from "@/pages/developers";
 import Methodology from "@/pages/methodology";
 import ProvenancePage from "@/pages/provenance";
 import UploadPage from "@/pages/upload";
+import UploadDetailPage from "@/pages/upload-detail";
 import MemberPage from "@/pages/member";
 import InboxPage from "@/pages/inbox";
 import AccountProfilePage from "@/pages/account-profile";
@@ -229,6 +230,7 @@ function Router() {
       <Route path="/methodology" component={Methodology} />
       <Route path="/provenance" component={ProvenancePage} />
       <Route path="/upload" component={UploadPage} />
+      <Route path="/upload/:id" component={UploadDetailPage} />
       <Route path="/member/:slug" component={MemberPage} />
       <Route path="/inbox" component={InboxPage} />
       <Route path="/inbox/:userId" component={InboxPage} />
