@@ -13,7 +13,7 @@ import { Link } from "wouter";
 import { useUser, SignInButton } from "@clerk/react";
 import {
   Loader2, Save, ArrowLeft, ExternalLink, Plus, Trash2, Briefcase,
-  GraduationCap, Award, Image as ImageIcon,
+  GraduationCap, Award, Image as ImageIcon, Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -242,6 +242,9 @@ export default function AccountProfilePage() {
           </Field>
         </CardContent>
       </Card>
+
+      {/* Capability watchlist (inline panel) */}
+      <CapabilityWatchlistPanel />
 
       {/* Public visibility + Save */}
       <Card>
@@ -486,6 +489,94 @@ function ExperienceForm({ onCreated }: { onCreated: () => void }) {
         {submitting ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null} Add experience
       </Button>
     </div>
+  );
+}
+
+/**
+ * Inline watchlist panel — lists capabilities the user is watching with the
+ * current threshold value (which doubles as a live score readout) and a
+ * remove button. Stays in sync with /watchlist (the full-featured page) but
+ * lives in-profile so users can prune watched items without leaving.
+ */
+interface WatchlistItem {
+  id: number;
+  capabilityId: number;
+  capabilityName: string | null;
+  thresholdType: string;
+  thresholdValue: number;
+  currentValue: number | null;
+  triggered: boolean;
+}
+
+function CapabilityWatchlistPanel() {
+  const [items, setItems] = useState<WatchlistItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const sessionToken = typeof window !== "undefined" ? localStorage.getItem("ce_session_token") ?? "" : "";
+
+  const load = useCallback(async (): Promise<void> => {
+    if (!sessionToken) { setLoading(false); return; }
+    try {
+      const res = await fetch(`/api/watchlist?sessionToken=${encodeURIComponent(sessionToken)}`);
+      if (res.ok) {
+        const d = await res.json() as { items: WatchlistItem[] };
+        setItems(d.items ?? []);
+      }
+    } finally { setLoading(false); }
+  }, [sessionToken]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const remove = async (id: number): Promise<void> => {
+    await fetch(`/api/watchlist/items/${id}?sessionToken=${encodeURIComponent(sessionToken)}`, { method: "DELETE" });
+    setItems(prev => prev.filter(i => i.id !== id));
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Eye className="w-4 h-4" /> Your capability watchlist
+          {items.length > 0 && <Badge variant="outline" className="text-[10px] font-mono">{items.length}</Badge>}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!sessionToken ? (
+          <p className="text-sm text-muted-foreground italic">Create an organization first to start watching capabilities.</p>
+        ) : loading ? (
+          <p className="text-sm text-muted-foreground italic">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">
+            No watched capabilities yet. <Link href="/watchlist" className="text-accent hover:underline">Add some</Link> to get alerts when scores cross thresholds.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {items.map(i => (
+              <div key={i.id} className="flex items-center justify-between gap-3 p-2.5 border border-border/60 rounded-md">
+                <div className="min-w-0 flex-1">
+                  <Link href={`/capability/${i.capabilityId}`} className="text-sm font-medium hover:text-accent truncate block">
+                    {i.capabilityName ?? `Capability #${i.capabilityId}`}
+                  </Link>
+                  <div className="text-[11px] text-muted-foreground font-mono mt-0.5 flex items-center gap-2">
+                    <span>{i.thresholdType.replace(/_/g, " ")} @ {i.thresholdValue}</span>
+                    {i.currentValue != null && (
+                      <span className={i.triggered ? "text-rose-500" : "text-foreground/70"}>
+                        · now {i.currentValue.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Button size="icon" variant="ghost" onClick={() => remove(i.id)} aria-label="Remove from watchlist">
+                  <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                </Button>
+              </div>
+            ))}
+            <Link href="/watchlist" className="text-xs text-accent hover:underline inline-flex items-center gap-1 mt-1">
+              Manage all <ExternalLink className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

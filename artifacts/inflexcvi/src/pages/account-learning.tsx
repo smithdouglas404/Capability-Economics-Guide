@@ -14,7 +14,7 @@ import {
   Brain, Eye, Lightbulb, Sparkles, Clock, ArrowLeft, Loader2,
   TrendingUp, Database, Activity, ThumbsUp, ThumbsDown, Globe,
   Wifi, Search, FileText, UserCheck, Network, Zap,
-  BarChart3, Target, RefreshCw,
+  BarChart3, Target, RefreshCw, Compass, ArrowRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -182,6 +182,9 @@ export default function AccountLearningPage() {
         </Card>
       )}
 
+      {/* This month + 3 recommended next */}
+      <MonthlyLearningSummary />
+
       {/* What's changed since last visit */}
       {profile && <WhatsChangedSection />}
 
@@ -255,6 +258,84 @@ function StatTile({ icon: Icon, label, value, sub = "", color }: {
         </div>
         <div className="text-2xl font-mono font-bold text-foreground">{value}</div>
         {sub && <div className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{sub}</div>}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Monthly Learning Summary ─────────────────────────────────────────────
+
+/**
+ * "What you've explored this month + 3 recommended next" — pulls a 30-day
+ * window of page_view / capability_view events plus 3 unexplored capabilities
+ * ranked by consensus score from /api/me/learning-summary.
+ */
+interface LearningSummary {
+  since: string;
+  recentVisits: Array<{ id: number; type: string; label: string; metadata: Record<string, unknown>; createdAt: string }>;
+  recommended: Array<{ id: number; name: string; slug: string; score: number | null }>;
+}
+
+function MonthlyLearningSummary() {
+  const [data, setData] = useState<LearningSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void fetch("/api/me/learning-summary", { credentials: "include" })
+      .then(r => r.ok ? r.json() as Promise<LearningSummary> : null)
+      .then(d => setData(d))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return null;
+  if (!data) return null;
+
+  const pageVisits = data.recentVisits.filter(v => v.type === "page_view" || v.type === "capability_view").slice(0, 6);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Compass className="w-4 h-4 text-accent" /> Explored this month
+          <span className="text-[10px] font-mono text-muted-foreground font-normal">(last 30d)</span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid md:grid-cols-2 gap-5">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Recent visits</div>
+            {pageVisits.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">No recent visits.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {pageVisits.map(v => (
+                  <li key={v.id} className="text-sm truncate text-foreground/85">
+                    <span className="text-foreground/60 font-mono text-[10px] mr-2">{timeAgo(v.createdAt)}</span>
+                    {v.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Recommended next</div>
+            {data.recommended.length === 0 ? (
+              <p className="text-sm text-muted-foreground italic">You've already explored everything we track.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {data.recommended.map(c => (
+                  <li key={c.id}>
+                    <Link href={`/capability/${c.id}`} className="text-sm inline-flex items-center gap-1.5 hover:text-accent">
+                      <ArrowRight className="w-3 h-3 text-accent" />
+                      <span className="truncate">{c.name}</span>
+                      {c.score != null && <Badge variant="outline" className="text-[10px] font-mono">{c.score.toFixed(0)}</Badge>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

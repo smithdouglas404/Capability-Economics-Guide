@@ -15,8 +15,8 @@
  */
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { db, userInteractionLogTable, userLearningProfilesTable, aiFeedbackTable } from "@workspace/db";
-import { eq, and, desc, sql, gt } from "drizzle-orm";
+import { db, userInteractionLogTable, userLearningProfilesTable, aiFeedbackTable, capabilitiesTable, cviComponentsTable } from "@workspace/db";
+import { eq, and, desc, sql, gt, notInArray } from "drizzle-orm";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -421,6 +421,79 @@ router.get("/me/learning/whats-changed", async (req, res) => {
   } catch (err) {
     logger.error({ err }, "[me/learning/whats-changed] failed");
     res.status(500).json({ error: "Failed to load changes" });
+  }
+});
+
+// ─── GET /api/me/learning-summary ──────────────────────────────────────────
+
+/**
+ * "What you've explored this month + 3 recommended next" — backs the
+ * /account/learning monthly recap panel. Reads recent page_view / capability_view
+ * events from the past 30 days and picks 3 unexplored capabilities the user
+ * hasn't viewed yet, prioritized by current consensus score.
+ */
+router.get("/me/learning-summary", async (req, res) => {
+  try {
+    const auth = getAuth(req);
+    if (!auth.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Recent pages/capabilities visited this month
+    const recentVisits = await db
+      .select({
+        id: userInteractionLogTable.id,
+        type: userInteractionLogTable.type,
+        label: userInteractionLogTable.label,
+        metadata: userInteractionLogTable.metadata,
+        createdAt: userInteractionLogTable.createdAt,
+      })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          gt(userInteractionLogTable.createdAt, since),
+        ),
+      )
+      .orderBy(desc(userInteractionLogTable.createdAt))
+      .limit(20);
+
+    // Capability IDs the user has already explored (any time, not just 30d)
+    const seenCapIdsRows = await db
+      .select({ id: sql<number>`(metadata->>'capability_id')::int` })
+      .from(userInteractionLogTable)
+      .where(
+        and(
+          eq(userInteractionLogTable.userId, auth.userId),
+          sql`metadata->>'capability_id' IS NOT NULL`,
+        ),
+      );
+    const seenIds = [...new Set(seenCapIdsRows.map(r => r.id).filter(Boolean))];
+
+    // Pick 3 unexplored capabilities, ranked by current consensus score (highest first)
+    const baseQuery = db
+      .select({
+        id: capabilitiesTable.id,
+        name: capabilitiesTable.name,
+        slug: capabilitiesTable.slug,
+        score: cviComponentsTable.consensusScore,
+      })
+      .from(capabilitiesTable)
+      .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id));
+    const recommended = await (seenIds.length > 0
+      ? baseQuery.where(notInArray(capabilitiesTable.id, seenIds))
+      : baseQuery)
+      .orderBy(desc(cviComponentsTable.consensusScore))
+      .limit(3);
+
+    res.json({
+      since: since.toISOString(),
+      recentVisits,
+      recommended,
+    });
+  } catch (err) {
+    logger.error({ err }, "[me/learning-summary] failed");
+    res.status(500).json({ error: "Failed to load learning summary" });
   }
 });
 
