@@ -40,8 +40,14 @@ export type AgentRegistryEntry = {
   enableSleeptime: boolean;
 };
 
-const DEFAULT_LETTA_MODEL_SONNET = process.env.LETTA_MODEL ?? "openrouter/anthropic/claude-sonnet-4.6";
-const DEFAULT_LETTA_MODEL_HAIKU = "openrouter/anthropic/claude-haiku-4.5";
+// Both default to `letta/letta-free` (ships with every Letta deploy). Operator
+// overrides via LETTA_MODEL (the heavier agents — synthesis, CVI autonomous)
+// and LETTA_MODEL_FAST (the lighter ones — disruption, peer-coop, etc.) to
+// upgrade to whatever model handles the Letta server has cataloged. Setting a
+// handle Letta doesn't have causes agent creation to 404 with
+// "Handle ... not found, must be one of []", which fails registration silently.
+const DEFAULT_LETTA_MODEL_SONNET = process.env.LETTA_MODEL ?? "letta/letta-free";
+const DEFAULT_LETTA_MODEL_HAIKU = process.env.LETTA_MODEL_FAST ?? process.env.LETTA_MODEL ?? "letta/letta-free";
 
 export const AGENT_REGISTRY: AgentRegistryEntry[] = [
   {

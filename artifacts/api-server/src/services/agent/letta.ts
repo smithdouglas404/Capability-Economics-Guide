@@ -14,14 +14,13 @@ const LETTA_ENABLED = Boolean(LETTA_API_KEY || process.env.LETTA_BASE_URL);
 // fresh "cvi-autonomous-agent" gets seeded with core blocks. Rename it in
 // the Letta admin UI if you want to preserve its accumulated memory.
 const LETTA_AGENT_NAME = "cvi-autonomous-agent";
-// Letta model handle format: "<provider>/<openrouter-model-id>".
-// We default to Sonnet 4.6 via OpenRouter (matches the rest of the platform
-// after the Phase 0 cutover); operator can override via LETTA_MODEL env.
-// IMPORTANT: this handle won't exist in Letta's registry until the Letta
-// service has OPENROUTER_API_KEY set in its Railway env — Letta only
-// catalogs handles for providers whose keys are configured. Without that,
-// agent runs fail with "Handle ... not found, must be one of []".
-const LETTA_MODEL = process.env.LETTA_MODEL || "openrouter/anthropic/claude-sonnet-4.6";
+// Letta model handle format: "<provider>/<model-id>". Must match a handle
+// the Letta server has cataloged (queryable via GET /v1/models/). Letta only
+// catalogs handles for providers whose API keys are set in Letta's own env —
+// e.g. OPENAI_API_KEY enables openai/* handles, OPENROUTER_API_KEY enables
+// openrouter/* handles. `letta/letta-free` ships with every Letta deploy and
+// is the safe default; operator overrides via LETTA_MODEL (e.g. openai/gpt-4o).
+const LETTA_MODEL = process.env.LETTA_MODEL || "letta/letta-free";
 const LETTA_EMBEDDING = process.env.LETTA_EMBEDDING || "letta/letta-free";
 const RETRY_COOLDOWN_MS = 60_000;
 
