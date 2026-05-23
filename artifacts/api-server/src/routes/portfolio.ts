@@ -29,6 +29,7 @@ import {
   companyScoresTable,
   companyCapabilityFingerprintTable,
   capabilitiesTable,
+  capabilityAlphaTable,
   macroEventsTable,
   regulationCapabilityRequirementsTable,
   regulationsTable,
@@ -36,6 +37,22 @@ import {
 import { eq, inArray, desc, and, gt, sql } from "drizzle-orm";
 
 const router = Router();
+
+/**
+ * Conservative 12-month EVaR for a capability — same formula as
+ * routes/regulations.ts:evar12ForAlpha. Returns 0 when any required
+ * field is missing so the aggregate stays honest rather than guessed.
+ */
+function evar12ForAlpha(a: {
+  revenueExposureMm: number | null;
+  marginStructurePct: number | null;
+  halfLifeMonths: number | null;
+}): number {
+  if (a.revenueExposureMm == null || a.marginStructurePct == null || a.halfLifeMonths == null) return 0;
+  const halfLife = Math.max(6, a.halfLifeMonths);
+  const fracLost = 1 - Math.pow(0.5, 12 / halfLife);
+  return a.revenueExposureMm * (a.marginStructurePct / 100) * fracLost;
+}
 
 function resolveSessionToken(req: import("express").Request): string {
   const fromCookie = req.headers["cookie"]?.split(";").map(s => s.trim()).find(s => s.startsWith("ce_session_token="))?.split("=")[1];
@@ -241,6 +258,116 @@ router.delete("/portfolio/companies/:id", async (req, res) => {
         ),
       );
     res.json({ ok: true, removed: result.rowCount ?? 0 });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// ── GET /portfolio/synthesis ─────────────────────────────────────────────
+//
+// Portfolio-scoped synthesis brief — same look/feel as /api/synthesis/brief
+// but composed deterministically from the caller's tracked companies. No
+// LLM in the loop: aggregates fingerprint capabilities and capability-alpha
+// EVaR exposure across the portfolio and emits a headline narrative.
+
+router.get("/portfolio/synthesis", async (req, res) => {
+  try {
+    const token = resolveSessionToken(req);
+    const portfolioRows = await db
+      .select({
+        company: companiesTable,
+      })
+      .from(portfolioCompaniesTable)
+      .innerJoin(companiesTable, eq(portfolioCompaniesTable.companyId, companiesTable.id))
+      .where(eq(portfolioCompaniesTable.sessionToken, token));
+
+    const companyIds = portfolioRows.map(r => r.company.id);
+    const generatedAt = new Date().toISOString();
+
+    if (companyIds.length === 0) {
+      res.json({
+        headline: "No portfolio companies yet. Add positions from /source to see aggregate weakness and EVaR exposure here.",
+        weakestCapabilities: [],
+        totalExposureMm: 0,
+        companyCount: 0,
+        generatedAt,
+      });
+      return;
+    }
+
+    // Pull all fingerprint rows + capability names in a single roundtrip
+    const fingerprints = await db
+      .select({
+        companyId: companyCapabilityFingerprintTable.companyId,
+        capabilityId: companyCapabilityFingerprintTable.capabilityId,
+        weight: companyCapabilityFingerprintTable.weight,
+        capabilityName: capabilitiesTable.name,
+        benchmarkScore: capabilitiesTable.benchmarkScore,
+      })
+      .from(companyCapabilityFingerprintTable)
+      .innerJoin(capabilitiesTable, eq(capabilitiesTable.id, companyCapabilityFingerprintTable.capabilityId))
+      .where(inArray(companyCapabilityFingerprintTable.companyId, companyIds));
+
+    // Aggregate weakness by capability: a capability is "weak across the
+    // portfolio" when many portcos have it on their fingerprint AND the
+    // capability's benchmark score is low. Score = count × (1 - benchmark/100).
+    type CapAgg = { capabilityId: number; name: string; count: number; sumBenchmark: number };
+    const byCap = new Map<number, CapAgg>();
+    for (const f of fingerprints) {
+      const prev = byCap.get(f.capabilityId);
+      if (prev) {
+        prev.count += 1;
+        prev.sumBenchmark += f.benchmarkScore;
+      } else {
+        byCap.set(f.capabilityId, {
+          capabilityId: f.capabilityId,
+          name: f.capabilityName,
+          count: 1,
+          sumBenchmark: f.benchmarkScore,
+        });
+      }
+    }
+    const weakestCapabilities = Array.from(byCap.values())
+      .map(c => ({
+        capabilityId: c.capabilityId,
+        name: c.name,
+        count: c.count,
+        avgScore: Math.round((c.sumBenchmark / c.count) * 10) / 10,
+        weaknessRank: c.count * (1 - c.sumBenchmark / c.count / 100),
+      }))
+      .sort((a, b) => b.weaknessRank - a.weaknessRank)
+      .slice(0, 3)
+      .map(({ weaknessRank, capabilityId, ...rest }) => rest);
+
+    // Total EVaR exposure: sum evar12ForAlpha for every (company, capability)
+    // edge in the portfolio's fingerprint, weighted by the fingerprint weight.
+    // This gives a portfolio-wide "$M at risk over the next 12 months" figure.
+    const capIds = Array.from(byCap.keys());
+    const alphaRows = capIds.length > 0
+      ? await db.select().from(capabilityAlphaTable).where(inArray(capabilityAlphaTable.capabilityId, capIds))
+      : [];
+    const alphaByCap = new Map(alphaRows.map(a => [a.capabilityId, a]));
+    let totalExposureMm = 0;
+    for (const f of fingerprints) {
+      const alpha = alphaByCap.get(f.capabilityId);
+      if (!alpha) continue;
+      totalExposureMm += f.weight * evar12ForAlpha(alpha);
+    }
+    totalExposureMm = Math.round(totalExposureMm * 10) / 10;
+
+    // Headline: deterministic synthesis of the aggregates
+    const topWeak = weakestCapabilities[0];
+    const headline = topWeak
+      ? `Across your ${portfolioRows.length} portfolio compan${portfolioRows.length === 1 ? "y" : "ies"}, ${topWeak.name} is the dominant weakness — present on ${topWeak.count} portco${topWeak.count === 1 ? "" : "s"} at avg score ${topWeak.avgScore.toFixed(0)}/100. Aggregate 12-month EVaR exposure: $${totalExposureMm.toFixed(1)}M.`
+      : `Across your ${portfolioRows.length} portfolio compan${portfolioRows.length === 1 ? "y" : "ies"}, no capability fingerprints have landed yet — enrichment is still propagating. Check back after the next enrichment cycle.`;
+
+    res.json({
+      headline,
+      weakestCapabilities,
+      totalExposureMm,
+      companyCount: portfolioRows.length,
+      generatedAt,
+    });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

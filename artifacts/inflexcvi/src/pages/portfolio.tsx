@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Briefcase, TrendingUp, Zap, AlertTriangle, Trash2, RefreshCw, Scale, ChevronRight, Link2 } from "lucide-react";
+import { PortfolioSynthesisCard } from "@/components/portfolio-synthesis-card";
 
 interface PortfolioRow {
   portfolioId: number;
@@ -144,6 +145,10 @@ export default function PortfolioPage() {
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
+
+      {/* Portfolio-scoped synthesis brief — mirrors the global /synthesis house
+          view but composed deterministically from the caller's tracked companies. */}
+      <PortfolioSynthesisCard />
 
       {/* Digest tiles */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
