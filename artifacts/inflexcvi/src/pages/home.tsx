@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion, animate } from "framer-motion";
 import { Link } from "wouter";
-import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Lightbulb, Target, Layers } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Lightbulb, Target, Layers, Radio } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
@@ -79,6 +79,61 @@ function TickerBar() {
             <span className="text-border/60 mx-1">·</span>
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Live signal card — cycles every 8s through synthesis brief keyFindings ──
+
+function LiveSignalCard() {
+  const [findings, setFindings] = useState<string[]>([]);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/synthesis/brief")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { available?: boolean; synthesis?: { keyFindings?: string[] } | null } | null) => {
+        if (cancelled) return;
+        const k = d?.synthesis?.keyFindings ?? [];
+        // Trim to 4 (the cycle target); drop anything empty.
+        setFindings(k.filter(s => typeof s === "string" && s.trim().length > 0).slice(0, 4));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (findings.length < 2) return;
+    const t = setInterval(() => setIdx(i => (i + 1) % findings.length), 8000);
+    return () => clearInterval(t);
+  }, [findings.length]);
+
+  if (findings.length === 0) return null;
+
+  const current = findings[idx];
+  return (
+    <div className="border border-accent/30 bg-accent/[0.04] p-4 rounded-sm relative overflow-hidden">
+      <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent" />
+      <div className="flex items-center gap-2 mb-2">
+        <Radio className="w-3 h-3 text-accent animate-pulse" />
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent">Live signal</span>
+        <span className="ml-auto font-mono text-[9px] tabular-nums text-muted-foreground">
+          {idx + 1}/{findings.length}
+        </span>
+      </div>
+      <motion.p
+        key={idx}
+        initial={{ opacity: 0, y: 4 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="font-serif text-sm leading-relaxed text-foreground/85"
+      >
+        {current}
+      </motion.p>
+      <div className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mt-2">
+        Synthesis brief · auto-cycles every 8s
       </div>
     </div>
   );
@@ -621,6 +676,7 @@ export default function Home() {
 
             {/* Right: Data panel */}
             <aside className="hidden lg:flex flex-col gap-2 pb-10 self-end">
+              <LiveSignalCard />
               <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted-foreground mb-1 flex items-center gap-2">
                 <span className="h-px w-4 bg-border/60" />
                 Live capability indices

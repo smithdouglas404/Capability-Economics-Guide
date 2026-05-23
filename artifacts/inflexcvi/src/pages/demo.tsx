@@ -87,6 +87,21 @@ interface MarketplaceListing {
   featured: boolean;
 }
 
+interface IntroCapability {
+  id: number;
+  name: string;
+  industryName?: string;
+  consensusScore?: number | null;
+}
+
+interface IntroMacroEvent {
+  id: number;
+  title: string;
+  severity: number;
+  startDate?: string | null;
+  category?: string | null;
+}
+
 // ─── Slide definitions ────────────────────────────────────────────────────────
 
 type SlideKey = "intro" | "cei" | "proof" | "disruption" | "newcaps" | "workbench" | "patterns" | "marketplace" | "close";
@@ -130,6 +145,11 @@ export default function DemoPage() {
   const [newCaps, setNewCaps] = useState<NewCapEntry[] | null>(null);
   const [patterns, setPatterns] = useState<Pattern[] | null>(null);
   const [listings, setListings] = useState<MarketplaceListing[] | null>(null);
+  // Intro slide live highlight — one random capability + one active macro
+  // event. Picked once on mount so the same row shows for the whole walkthrough
+  // (the rest of the slides have their own per-slide data fetches above).
+  const [introCap, setIntroCap] = useState<IntroCapability | null>(null);
+  const [introMacro, setIntroMacro] = useState<IntroMacroEvent | null>(null);
 
   useEffect(() => {
     fetch(`${API_BASE}/cvi/current`).then(r => r.ok ? r.json() : null).then(setCei).catch(() => setCei(null));
@@ -138,6 +158,35 @@ export default function DemoPage() {
     fetch(`${API_BASE}/capabilities/new?maxAgeMonths=24&minScore=30&limit=4`).then(r => r.ok ? r.json() : null).then((d) => setNewCaps(d?.rows ?? [])).catch(() => setNewCaps([]));
     fetch(`${API_BASE}/patterns`).then(r => r.ok ? r.json() : null).then((d) => setPatterns(d?.patterns?.slice(0, 3) ?? [])).catch(() => setPatterns([]));
     fetch(`${API_BASE}/marketplace/listings`).then(r => r.ok ? r.json() : null).then((d) => setListings(d?.listings?.slice(0, 4) ?? [])).catch(() => setListings([]));
+
+    // Random capability — fetch full catalog, pick one at random. The endpoint
+    // returns array of { id, name, industryId, ... }. We don't have industry
+    // names here; the IntroSlide just displays the capability name.
+    fetch(`${API_BASE}/capabilities`)
+      .then(r => r.ok ? r.json() : null)
+      .then((caps: Array<{ id: number; name: string; industryId?: number }> | null) => {
+        if (!caps || caps.length === 0) return;
+        const pick = caps[Math.floor(Math.random() * caps.length)];
+        setIntroCap({ id: pick.id, name: pick.name });
+      })
+      .catch(() => {});
+
+    // Most recent active macro event — /macro-events/active already orders
+    // by startedAt DESC.
+    fetch(`${API_BASE}/macro-events/active`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { active?: Array<{ id: number; title: string; severity: number; startedAt?: string; eventType?: string }> } | null) => {
+        const first = d?.active?.[0];
+        if (!first) return;
+        setIntroMacro({
+          id: first.id,
+          title: first.title,
+          severity: first.severity,
+          startDate: first.startedAt,
+          category: first.eventType ?? null,
+        });
+      })
+      .catch(() => {});
   }, []);
 
   // Slide timing engine — RAF-driven so it stays in sync when tab is foregrounded.
@@ -258,7 +307,7 @@ export default function DemoPage() {
       {/* ── Slide content ──────────────────────────────────────────── */}
       <main className="flex-1 flex items-center">
         <div className="max-w-6xl mx-auto w-full px-4 py-10">
-          {slide.key === "intro" && <IntroSlide />}
+          {slide.key === "intro" && <IntroSlide cap={introCap} macro={introMacro} />}
           {slide.key === "cei" && <CviSlide data={cei} />}
           {slide.key === "proof" && <ProofSlide data={backtest} />}
           {slide.key === "disruption" && <DisruptionSlide rows={disruption} />}
@@ -314,7 +363,7 @@ function Callout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function IntroSlide() {
+function IntroSlide({ cap, macro }: { cap: IntroCapability | null; macro: IntroMacroEvent | null }) {
   return (
     <div className="space-y-8">
       <div className="text-center max-w-3xl mx-auto">
@@ -331,6 +380,40 @@ function IntroSlide() {
           surface where Claude helps you find new markets.
         </p>
       </div>
+      {/* Live-data badge row — proves this isn't a slide deck. One random
+          capability + the most recent active macro event, fetched on mount. */}
+      {(cap || macro) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl mx-auto">
+          <Card className="rounded-none border-accent/30 bg-accent/[0.04]">
+            <CardContent className="p-4 flex items-start gap-3">
+              <Activity className="w-4 h-4 text-accent shrink-0 mt-1" />
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-accent mb-1">Live capability</div>
+                <div className="font-medium truncate">{cap?.name ?? "Loading…"}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  Sampled at random from the live capability graph
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="rounded-none border-rose-500/30 bg-rose-500/[0.04]">
+            <CardContent className="p-4 flex items-start gap-3">
+              <Zap className="w-4 h-4 text-rose-500 shrink-0 mt-1" />
+              <div className="min-w-0 flex-1">
+                <div className="font-mono text-[9px] uppercase tracking-[0.22em] text-rose-500 mb-1">Most recent macro event</div>
+                <div className="font-medium truncate">{macro?.title ?? "No active events"}</div>
+                {macro && (
+                  <div className="text-[11px] text-muted-foreground">
+                    Severity {macro.severity.toFixed(1)}
+                    {macro.category ? ` · ${macro.category}` : ""}
+                    {macro.startDate ? ` · ${new Date(macro.startDate).toISOString().slice(0, 10)}` : ""}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
         <Card className="rounded-none border-border/60">
           <CardContent className="p-5">
