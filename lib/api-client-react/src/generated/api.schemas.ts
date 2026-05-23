@@ -272,6 +272,8 @@ export interface TechnologyProject {
   citations?: string[] | null;
   researchedAt?: string | null;
   impactedCapabilityCount?: number;
+  /** Sum of per-capability maturity uplift across all impacted capabilities. Surfaces on the list view as "+N points expected". */
+  expectedCviDelta?: number | null;
 }
 
 export interface ProjectCapabilityImpact {

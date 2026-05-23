@@ -415,6 +415,12 @@ export const ListProjectsResponseItem = zod.object({
   citations: zod.array(zod.string()).nullish(),
   researchedAt: zod.coerce.date().nullish(),
   impactedCapabilityCount: zod.number().optional(),
+  expectedCviDelta: zod
+    .number()
+    .nullish()
+    .describe(
+      'Sum of per-capability maturity uplift across all impacted capabilities. Surfaces on the list view as \"+N points expected\".',
+    ),
 });
 export const ListProjectsResponse = zod.array(ListProjectsResponseItem);
 
@@ -445,6 +451,12 @@ export const GetProjectResponse = zod.object({
     citations: zod.array(zod.string()).nullish(),
     researchedAt: zod.coerce.date().nullish(),
     impactedCapabilityCount: zod.number().optional(),
+    expectedCviDelta: zod
+      .number()
+      .nullish()
+      .describe(
+        'Sum of per-capability maturity uplift across all impacted capabilities. Surfaces on the list view as \"+N points expected\".',
+      ),
   }),
   capabilityImpacts: zod.array(
     zod.object({

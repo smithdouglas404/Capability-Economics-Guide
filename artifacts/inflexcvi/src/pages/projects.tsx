@@ -528,7 +528,29 @@ export default function Projects() {
                               <Icon className="w-6 h-6" />
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-lg font-serif text-foreground mb-1 group-hover:text-primary transition-colors">{project.name}</h3>
+                              <div className="flex items-start justify-between gap-3">
+                                <h3 className="text-lg font-serif text-foreground mb-1 group-hover:text-primary transition-colors">{project.name}</h3>
+                                {/* Capability-impact column — aggregated expected CVI delta
+                                    from project_capability_impacts.maturityUplift (computed
+                                    server-side in the list query). Shows "+N points expected"
+                                    when impact data exists, otherwise an em-dash. */}
+                                {(() => {
+                                  const delta = project.expectedCviDelta;
+                                  const hasDelta = typeof delta === "number" && delta > 0;
+                                  return (
+                                    <span
+                                      className={`shrink-0 rounded-sm px-2 py-0.5 text-xs font-mono whitespace-nowrap ${
+                                        hasDelta
+                                          ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                          : "bg-muted text-muted-foreground border border-transparent"
+                                      }`}
+                                      title="Expected CVI delta — sum of capability maturity uplift if the project completes."
+                                    >
+                                      {hasDelta ? `+${Math.round(delta!)} pts expected` : "—"}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                               <p className="text-sm text-muted-foreground line-clamp-2">{project.description}</p>
                               <div className="flex items-center gap-4 mt-4">
                                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
