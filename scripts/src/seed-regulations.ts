@@ -161,6 +161,14 @@ const SEED: RegSeed[] = [
     industrySlugs: ["banking", "healthcare", "insurance", "manufacturing", "retail", "technology"],
   },
   {
+    shortCode: "GDPR",
+    name: "General Data Protection Regulation",
+    description: "EU regulation (2016/679) governing personal-data processing of EU residents. Establishes lawful bases, data subject rights (access, erasure, portability, restriction, objection), privacy by design, breach notification (72h), DPIAs for high-risk processing, and extraterritorial application.",
+    jurisdiction: "EU",
+    effectiveDate: new Date("2018-05-25"),
+    industrySlugs: ["banking", "healthcare", "insurance", "manufacturing", "retail", "technology"],
+  },
+  {
     shortCode: "NAIC-MAR",
     name: "NAIC Model Audit Rule",
     description: "US state-adopted requirements for insurer financial reporting integrity, mirroring SOX. Independent audit of financial statements plus assessment of internal controls.",

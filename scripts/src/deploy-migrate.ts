@@ -213,6 +213,10 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "DORA → Banking+Insurance capability requirements (26 mappings, EU 2022/2554)", script: "seed:dora-requirements" },
   { name: "NIST-CSF 2.0 → cross-industry cybersecurity capability requirements (27 mappings)", script: "seed:nist-csf-requirements" },
   { name: "ISO 27001:2022 → cross-industry ISMS capability requirements (27 mappings)", script: "seed:iso-27001-requirements" },
+  { name: "EU AI Act → cross-industry capability requirements (22 mappings, EU 2024/1689)", script: "seed:eu-ai-act-requirements" },
+  { name: "PCI-DSS v4.0 → Banking+Retail capability requirements (16 mappings)", script: "seed:pci-dss-requirements" },
+  { name: "HITECH → Healthcare capability requirements (12 mappings)", script: "seed:hitech-requirements" },
+  { name: "CCPA/CPRA → cross-industry capability requirements (15 mappings)", script: "seed:ccpa-requirements" },
 ];
 
 async function runSeeds(): Promise<void> {
