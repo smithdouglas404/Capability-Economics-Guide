@@ -217,6 +217,11 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "PCI-DSS v4.0 → Banking+Retail capability requirements (16 mappings)", script: "seed:pci-dss-requirements" },
   { name: "HITECH → Healthcare capability requirements (12 mappings)", script: "seed:hitech-requirements" },
   { name: "CCPA/CPRA → cross-industry capability requirements (15 mappings)", script: "seed:ccpa-requirements" },
+  { name: "Basel III → Banking capability requirements (15 mappings)", script: "seed:basel-iii-requirements" },
+  { name: "MiFID II → Banking+Insurance capability requirements (14 mappings)", script: "seed:mifid-ii-requirements" },
+  { name: "Solvency II → Insurance capability requirements (16 mappings)", script: "seed:solvency-ii-requirements" },
+  { name: "Dodd-Frank → Banking+Insurance capability requirements (12 mappings)", script: "seed:dodd-frank-requirements" },
+  { name: "NAIC Model Audit Rule → Insurance capability requirements (12 mappings)", script: "seed:naic-mar-requirements" },
 ];
 
 async function runSeeds(): Promise<void> {
