@@ -47,21 +47,25 @@ app.use(cors());
 app.use("/api", stripeWebhookRouter);
 app.use("/api", kycWebhookRouter);
 app.use("/api", nowpaymentsWebhookRouter);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.text({ type: "text/csv" }));
-
-// Inngest webhook handler — INNGEST_SIGNING_KEY is configured on the client
-// (see ./inngest/client.ts) and the SDK authenticates inbound requests itself,
-// so mount this BEFORE Clerk/apiKey middleware to avoid those rejecting
-// Inngest's HMAC-signed calls. See plan: feat/inngest-migration.
+// Inngest webhook handler — must run BEFORE express.json() because the SDK
+// verifies HMAC signatures over the raw request bytes. express.json() parses
+// the body to an object; the SDK then canonicalizes the object back to JSON
+// (RFC 8785 / JCS), which doesn't byte-match what Inngest's Go server signed →
+// "Invalid signature" 401. Using express.text() here gives req.body as the
+// untouched JSON string so signature verification passes. Also runs BEFORE
+// Clerk/apiKey middleware since the SDK does its own auth via signing key.
 app.use(
   "/api/inngest",
+  express.text({ type: "application/json", limit: "10mb" }),
   inngestServe({
     client: inngest,
     functions: inngestFunctions,
   }),
 );
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.text({ type: "text/csv" }));
 
 app.use(clerkMiddleware());
 // Runs after Clerk so a real browser session always wins. Only falls back to
