@@ -298,6 +298,15 @@ INNGEST_SIGNING_KEY=<value in same file — pure hex, NOT signkey-prod-… prefi
 ```
 Then deploy `feat/inngest-migration` to capabilityeconomics. The api-server will auto-register with Inngest on first boot; `test/ping` events sent via the dashboard will then route to `pingFn`. Verify by visiting Inngest's dashboard → Apps tab.
 
+**Inngest Connect — beta WebSocket worker (Phase 7, 2026-05-23)**: opt-in replacement for the inbound HTTP webhook. Default OFF; the HTTP `/api/inngest` mount stays so the worker is purely additive. Cutover is operator-driven via env var.
+```env
+INNGEST_CONNECT=1                                # gate: set to "1" to dial out via WebSocket; default unset keeps HTTP webhook as the only path
+INNGEST_CONNECT_GATEWAY_URL=ws://…               # optional: override the gateway URL the Inngest API returns (proxy / private network)
+INNGEST_CONNECT_ISOLATE_EXECUTION=false          # optional: disable worker_threads isolation (SDK default true)
+INNGEST_INSTANCE_ID=<stable id>                  # optional: identifier for this replica; defaults to hostname
+```
+Implementation: `artifacts/api-server/src/inngest/connect-worker.ts` calls `connect({ apps: [{ client, functions }] })` from `inngest/connect` and is booted from `src/index.ts` AFTER `app.listen`. SIGTERM/SIGINT handlers call `stopInngestConnectWorker()` for clean Railway redeploys. **Server-side support verified 2026-05-23**: probing the self-hosted gateway returns `/api/v1/connect` → 200 and `/v0/connect` → 401 (auth-gated, endpoint exists). Beta SDK surface — flip `INNGEST_CONNECT` back to unset to fall back to HTTP without touching the gateway.
+
 **Gotchas learned the hard way (so future Claude doesn't re-learn them)**:
 - Railway's `startCommand` runs WITHOUT a shell, so `$VAR` expansion doesn't work. Use bare commands and let the binary read env vars itself — `inngest start` reads `INNGEST_POSTGRES_URI` / `INNGEST_REDIS_URI` directly. Do NOT try `inngest start --postgres-uri "$INNGEST_POSTGRES_URI"`; the literal `$INNGEST_POSTGRES_URI` will be passed to the binary and it'll error `unsupported database URL`.
 - The self-hosted Inngest binary's `--signing-key` flag requires **pure hex** (`openssl rand -hex 32` → 64 hex chars). The `signkey-prod-…` prefix you see in Inngest Cloud SDK examples is a Cloud convention — passing a prefixed value to the OSS binary causes `Error: signing-key must be hex string with even number of chars` and an infinite crashloop.

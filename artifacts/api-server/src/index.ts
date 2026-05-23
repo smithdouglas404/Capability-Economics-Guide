@@ -7,6 +7,7 @@ import { verifySchema } from "./lib/schema-check";
 import { backfillMissingSubCapabilities } from "./services/sub-cap-backfill";
 import { ensurePublicPreviewSeed } from "./services/public-preview-seed";
 import { startFoundryHourlySync, fireFoundrySync, rehydrateFoundryAlertState } from "./services/foundry/sync";
+import { startInngestConnectWorker, stopInngestConnectWorker } from "./inngest/connect-worker";
 
 const rawPort = process.env["PORT"];
 
@@ -127,4 +128,26 @@ app.listen(port, (err) => {
     startFoundryHourlySync();
     fireFoundrySync("api-server boot");
   })();
+
+  // Inngest Connect — opt-in WebSocket worker. When INNGEST_CONNECT=1 is set,
+  // dial out to the self-hosted Inngest gateway and receive step invocations
+  // over a persistent socket instead of the inbound HTTP webhook at
+  // /api/inngest. The webhook stays mounted regardless so we can flip back
+  // by unsetting the flag. Connect is beta in inngest@4.4.0 — see
+  // ./inngest/connect-worker.ts for the verification trail.
+  void startInngestConnectWorker().catch((err) => {
+    logger.error({ err }, "[inngest-connect] startInngestConnectWorker rejected");
+  });
 });
+
+// Graceful shutdown — when Railway sends SIGTERM during a redeploy, close
+// the Connect worker before the process exits so in-flight WebSocket leases
+// drain cleanly. The Inngest SDK already wires its own signal handlers by
+// default; this is the explicit belt-and-braces path that also lets us log
+// the shutdown reason at the api-server level.
+for (const sig of ["SIGTERM", "SIGINT"] as const) {
+  process.once(sig, () => {
+    logger.info({ signal: sig }, "[inngest-connect] shutdown signal received");
+    void stopInngestConnectWorker();
+  });
+}
