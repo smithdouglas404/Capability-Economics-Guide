@@ -203,15 +203,27 @@ export async function configureMem0CustomCategories(): Promise<void> {
  */
 export async function mem0Ping(): Promise<void> {
   if (!isMem0Available()) throw new Error("Mem0 not configured");
-  const client = getMem0Client();
-  if (!client) throw new Error("Mem0 client init failed");
-  // SDK's .ping() also populates organizationId + projectId on the client,
-  // which is what makes the subsequent updateProject + project-scoped reads
-  // work without manual env-var threading.
-  try {
-    await client.ping();
-  } catch (err) {
-    throw new Error(describeMem0Error("ping", err));
+  const cfg = getMem0Config();
+  if (!cfg) throw new Error("Mem0 config missing");
+
+  if (cfg.isCloud) {
+    // Cloud: SDK .ping() populates orgId + projectId for subsequent
+    // project-scoped reads. Required path on Mem0 Cloud.
+    const client = getMem0Client();
+    if (!client) throw new Error("Mem0 client init failed");
+    try { await client.ping(); }
+    catch (err) { throw new Error(describeMem0Error("ping", err)); }
+    return;
+  }
+
+  // Self-hosted OSS doesn't expose the cloud /ping endpoint and doesn't have
+  // the org/project plumbing, so use the cheapest authenticated read instead.
+  const res = await fetch(`${cfg.baseUrl}/memories?limit=1`, {
+    headers: { "X-API-Key": cfg.apiKey },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Mem0 ping (self-hosted) → ${res.status}: ${body.slice(0, 200)}`);
   }
 }
 

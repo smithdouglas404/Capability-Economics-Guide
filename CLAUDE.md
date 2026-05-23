@@ -80,15 +80,15 @@ The most complex subsystem. LangGraph state machine with nodes `evaluate → dec
 Key files:
 - `graph.ts` — LangGraph nodes, state transitions
 - `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cvi, recall_memories, store_memory). `generateInsightsTool` injects Mem0 patterns + Neo4j correlations into the Claude prompt.
-- `memory.ts` — Mem0 Cloud client with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking cloud ↔ local rows; `getAllMemories` dedupes on that.
+- `memory.ts` — Mem0 client (auto-detects cloud vs self-hosted from hostname; currently pointed at self-hosted `mem0-server-production-8f56.up.railway.app`) with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking Mem0 ↔ local rows; `getAllMemories` dedupes on that.
 - `temporal-shift-detector.ts` — 6h scheduled detector + `writeMemoryRelationSnapshots` daily writer + `getCachedTemporalShiftReport` cached read for the Synthesis Agent tool.
 - `recommendation-feedback.ts` — scores insights > 60 days old against CVI trajectory; writes validated/contradicted patterns to Mem0 (`category: "recommendation_outcome"`). Dormant until day 60+ post-deploy.
 - `base-agent.ts` — all specialized agents prepend Mem0 patterns + their prior block + the latest Synthesis Agent brief to their system prompt before each cycle; write a post-run summary to Mem0 after each cycle (`category: "agent_run_summary"`).
 - `../synthesis-agent.ts` — daily cross-agent intelligence layer; uses Sonnet. Reads all 5 specialized-agent digests + Neo4j correlations + Mem0 patterns + cached temporal-shift report; publishes brief to `NS.sharedKnowledge("synthesis_brief")`.
-- `store.ts` — **Letta Cloud-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the 5 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology) work unchanged. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — RESTORED (via Letta Cloud)` below for the full story.
+- `store.ts` — **Letta-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the 5 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology) work unchanged. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — back to self-hosted` below for the full story.
 - `events.ts` — in-process pub/sub for SSE.
 
-All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `LETTA_API_KEY` / `PERPLEXITY_API_KEY`. **Letta is on Letta Cloud, not removed** — see `### Letta — RESTORED (via Letta Cloud)` below.
+All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `LETTA_API_KEY` / `PERPLEXITY_API_KEY`. **Both Mem0 and Letta are now self-hosted again on Railway** (different project from Capability Economics) — see the dedicated sections below.
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
@@ -118,20 +118,20 @@ Implementation files:
 
 If you need agents to coordinate, **use the shared store as the communication channel** — do NOT add a LangGraph supervisor node.
 
-### Letta — RESTORED (via Letta Cloud, 2026-05-17)
+### Letta — back to self-hosted (2026-05-23)
 
-**Letta is back.** The PostgresStore "LangMem-equivalent" replacement introduced in Phase 1.9 Step 6 was rejected by the user. `@letta-ai/letta-client` is re-added to `artifacts/api-server/package.json`. `services/agent/letta.ts` and `services/agent/letta-tools.ts` are restored from git history (commit `b3261fc~1`, 463 + 290 lines verbatim, no recreation).
+**Letta now runs self-hosted again** at `https://letta-production-1b3f.up.railway.app` (Railway, separate project — not Capability Economics; same project as the new self-hosted Mem0). The brief Letta-Cloud period (2026-05-17 → 2026-05-23) is over. `@letta-ai/letta-client` is in `artifacts/api-server/package.json`; `services/agent/letta.ts` and `services/agent/letta-tools.ts` were restored verbatim from `b3261fc~1` and continue to work — the SDK doesn't care whether the endpoint is `api.letta.com` or a Railway hostname.
 
-Configuration model: **Letta Cloud** (managed service at `app.letta.com`), NOT self-hosted on Railway. Env vars go on the **api-server service**:
+Configuration model — env vars on the **api-server (`capabilityeconomics`) Railway service**:
 
 ```env
-LETTA_BASE_URL=https://api.letta.com         # Letta Cloud endpoint
-LETTA_API_KEY=<cloud token from app.letta.com>
+LETTA_BASE_URL=https://letta-production-1b3f.up.railway.app
+LETTA_API_KEY=<token from the self-hosted Letta admin UI>
 LETTA_MODEL=openrouter/anthropic/claude-sonnet-4.6   # optional override
 LETTA_EMBEDDING=letta/letta-free                      # optional override
 ```
 
-If using Letta Cloud tool callbacks, also set on the api-server:
+If using Letta tool callbacks, also set on the api-server:
 - `INFLEXCVI_AGENT_TOOL_KEY` — shared secret for the tool-callback HMAC
 - `INFLEXCVI_API_BASE` — public callback URL (the api-server's public Railway URL)
 
@@ -142,9 +142,9 @@ If using Letta Cloud tool callbacks, also set on the api-server:
 
 **`services/agent/optimizer.ts` was DELETED.** That was the weekly LangMem-equivalent prompt rewriter the user explicitly rejected ("the learning code I needed wasn't this"). Letta's own sleeptime + core_memory_replace pattern handles autonomous learning natively.
 
-**Health probe**: `/api/health/services` reports a `letta` field with `configured / ok / error` shape. Look for `status: "ok"` after a Letta Cloud token is configured.
+**Health probe**: `/api/health/services` reports a `letta` field with `configured / ok / error` shape. Look for `status: "ok"` after the self-hosted Letta token is configured. Self-hosted probe latency is typically <100 ms (Railway internal vs the prior 200–400 ms cloud round-trip).
 
-**If Letta Cloud is not configured** (`LETTA_API_KEY` / `LETTA_BASE_URL` unset): all `letta*()` calls return safely (no throw), `storePing` reports `configured: false`, agents continue to operate using their Mem0 layer for short-term recall. Graceful-degrade matches the original Letta wiring.
+**If Letta is not configured** (`LETTA_API_KEY` / `LETTA_BASE_URL` unset): all `letta*()` calls return safely (no throw), `storePing` reports `configured: false`, agents continue to operate using their Mem0 layer for short-term recall. Graceful-degrade matches the original Letta wiring.
 
 ### Frontend (`artifacts/inflexcvi`)
 
@@ -163,7 +163,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 ### Required environment variables
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
-- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (cloud at `https://api.mem0.ai`), `LETTA_BASE_URL` + `LETTA_API_KEY` (cloud at `https://api.letta.com`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
+- **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (self-hosted at `https://mem0-server-production-8f56.up.railway.app` — `MEM0_API_KEY` must match Mem0 service's `ADMIN_API_KEY`), `LETTA_BASE_URL` + `LETTA_API_KEY` (self-hosted at `https://letta-production-1b3f.up.railway.app`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
 - **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. When set, the 7 inflexcvi agents auto-trace to LangSmith.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
@@ -204,8 +204,8 @@ Both honor `DRY_RUN=1`, skip if `NEO4J_URI` is unset.
 
 **Working around missing CLI auth — diagnostics that don't need it:**
 - Prod health: `curl https://capabilityeconomics-staging.up.railway.app/api/health/services` (this endpoint reports which keys are `not_configured` on the live Railway deploy — a much more honest signal than local `env`). The Railway service is named `capabilityeconomics`, not `inflexcvi` — older notes have the wrong subdomain.
-- Direct Letta queries: `curl https://api.letta.com/... -H "Authorization: Bearer <LETTA_API_KEY>"` works against Letta Cloud. Local `LETTA_*` values in `/run/replit/env/latest` are stale (they point at the now-deleted self-hosted Letta service) — use the Railway `capabilityeconomics` service variables as the truth.
-- Direct Mem0 queries: `curl https://api.mem0.ai/v1/memories/ -H "Authorization: Token <m0-…>"`. Cloud uses the legacy `Token` scheme, NOT `Bearer`. Local `MEM0_BASE_URL` in `/run/replit/env/latest` is also stale (points at the self-hosted service).
+- Direct Letta queries: `curl https://letta-production-1b3f.up.railway.app/v1/agents -H "Authorization: Bearer <LETTA_API_KEY>"` works against self-hosted Letta. All paths return 401 without auth (good — endpoint exists). Local `LETTA_*` values in `/run/replit/env/latest` are stale — use the Railway `capabilityeconomics` service variables as the truth.
+- Direct Mem0 queries: `curl https://mem0-server-production-8f56.up.railway.app/memories -H "X-API-Key: <ADMIN_API_KEY>"`. Self-hosted Mem0 uses `X-API-Key` and the `/memories` path (no `/v1` prefix). Local `MEM0_BASE_URL` in `/run/replit/env/latest` is stale.
 
 When the user says "you have access to Railway," verify before agreeing — `railway whoami` is the only honest signal.
 
@@ -231,11 +231,11 @@ Project IDs (verify via discovery query before relying on them — services get 
 - projectId: `b4a4c027-0c13-48ad-aa90-f0c8daee52cb`
 - production environmentId: `f4909034-d3d7-4087-bdfe-980138541751`
 - service `capabilityeconomics` (the api-server — name was NOT renamed to `inflexcvi` as earlier notes implied): `f4585a12-c207-4faa-9171-5362997768ec`
-- service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711` — **self-hosted, now unused** since the cloud cutover (2026-05-17). Safe to delete; the api-server points at `https://api.mem0.ai` and the local-DB fallback in `services/agent/memory.ts` handles any old residual reference paths. The paired `pgvector` service backed only this Mem0 deployment and is also delete-safe.
+- service `Mem0`: `8b75626c-40ba-49b1-a416-d145b4591711` — **dead carcass** in this project (zero deployments, zero instances). The live self-hosted Mem0 was re-deployed in a different Railway project at `https://mem0-server-production-8f56.up.railway.app` (2026-05-23, replacing the brief Mem0-Cloud experiment after its free-tier quota blew). Safe to delete this old shell; the paired `pgvector` (id `ff32eab9-…`) is also delete-safe.
 - service `Postgres`: `fb4bdcb0-cc4c-4746-9f50-f3950e53835d`
 - service `pgvector`: `ff32eab9-53dc-46de-b23a-b8d3e0be834c` — only used by the (now-unused) self-hosted Mem0 service. Delete together with Mem0.
 - service `Neo4j Graph Database (Metal-Ready)`: `fca5eba2-01fb-420f-8188-bb184e16e199` — **wired** into `graphMemory.ts` as the primary graph traversal engine. Set `NEO4J_URI=bolt://neo4j.railway.internal:7687`, `NEO4J_USER=neo4j`, `NEO4J_PASSWORD` on the api-server service to activate. Falls back to PostgreSQL automatically when env vars are absent.
-- Letta service: already deleted from Railway (Letta now runs on Letta Cloud — see `### Letta — RESTORED (via Letta Cloud)` below).
+- Letta service: was deleted from Capability Economics in May 2026; the active self-hosted Letta now lives in a different Railway project at `https://letta-production-1b3f.up.railway.app` — see `### Letta — back to self-hosted` below.
 
 Never reuse a token from memory or a prior session — always ask for a fresh one. The CLI's `railway login --browserless` fails from a non-TTY Claude shell ("Cannot login in non-interactive mode") — GraphQL is the only path that works.
 
@@ -247,30 +247,37 @@ Single-service deploy is configured via `railway.json` + `nixpacks.toml`. Railwa
 
 **In-process AI workflows.** The 14 LLM workflows (onboarding-concierge, tier-selector, listing-moderation, kyc-failure-counselor, payment-recovery, capability-review-assist, research-pipeline, synthesis-brief-composer, assessment-analyzer, industry-bootstrap, case-study-generator, capability-enrichment-retry, admin-config-proposer, marketplace-search-v2) run natively in the api-server via `services/workflows/index.ts`. Each typed wrapper calls Anthropic (via OpenRouter) + Perplexity inline and returns `null` on failure so callers fall back to legacy code. No external workflow service in the loop.
 
-### Mem0 — RESTORED (via Mem0 Cloud, 2026-05-17)
+### Mem0 — back to self-hosted (2026-05-23)
 
-**Mem0 now runs on Mem0 Cloud** (`api.mem0.ai`), NOT self-hosted on Railway. The cutover landed in `ba0de9c` (auth auto-detect + local→cloud migration script) and `bfaeb46` (cloud `/v1/memories/` path mapping). Same pattern as Letta moving to Letta Cloud.
+**Mem0 now runs self-hosted again** at `https://mem0-server-production-8f56.up.railway.app` (Railway, separate project — not Capability Economics; this token scope can't see it). The earlier cloud cutover (commits `ba0de9c` + `bfaeb46`, 2026-05-17) was reversed after the cloud free-tier quota exceeded (`quota_used 7001 / quota_limit 5000`, resets 2026-06-14) and agents lost recall.
 
-Configuration model — env vars on the **api-server service**:
+Configuration model — env vars on the **api-server (`capabilityeconomics`) Railway service**:
 
 ```env
-MEM0_BASE_URL=https://api.mem0.ai
-MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
+MEM0_BASE_URL=https://mem0-server-production-8f56.up.railway.app
+MEM0_API_KEY=<must match ADMIN_API_KEY on the Mem0 service>
 ```
 
-`services/agent/memory.ts` auto-detects cloud vs self-hosted from the hostname (`/(^|\/\/|\.)mem0\.ai(\/|$|:)/`):
-- Cloud → `Authorization: Token <m0-…>` (NOT `Bearer` — Mem0 Platform uses the legacy Token scheme), `/v1/memories/` paths (trailing slash matters)
-- Self-hosted → `X-API-Key: <ADMIN_API_KEY>`, `/memories` paths
+`services/agent/memory.ts` auto-detects cloud vs self-hosted from the hostname (`/(^|\/\/|\.)mem0\.ai(\/|$|:)/`). For the Railway hostname above the self-hosted branch fires:
+- Self-hosted → `X-API-Key: <MEM0_API_KEY>` (must equal the Mem0 service's `ADMIN_API_KEY`), `/memories` paths
+- Cloud (legacy fallback) → `Authorization: Token <m0-…>` (NOT `Bearer`), `/v1/memories/` paths (trailing slash matters)
 
-**Verify**: `GET /api/health/services` should show `mem0` and `agent_store` both `status: "ok"`. Cloud probe latency is typically 200–400 ms (internet round-trip); much faster suggests something's still pointing at an internal endpoint.
+**Verify**: `GET /api/health/services` should show `mem0` and `agent_store` both `status: "ok"`. Self-hosted probe latency is typically <100 ms (Railway internal vs the prior 200–400 ms cloud round-trip).
 
-**Local memory mirror**: `agent_memories` table mirrors cloud writes via `metadata.cloudMem0Id` for idempotent re-runs and as the fallback when `MEM0_API_KEY` is unset. The local DB is authoritative for the "have we already stored this?" check.
+**Local memory mirror**: `agent_memories` table mirrors Mem0 writes via `metadata.cloudMem0Id` (name kept for compat; column tracks the self-hosted Mem0 row id post-flip) for idempotent re-runs and as the fallback when `MEM0_API_KEY` is unset. The local DB is authoritative for the "have we already stored this?" check.
 
-**If Mem0 Cloud is not configured** (`MEM0_API_KEY` / `MEM0_BASE_URL` unset): `services/agent/memory.ts` graceful-degrades to local-DB-only storage. Never throws on missing keys. Matches the original Mem0 wiring.
+**If Mem0 is not configured** (`MEM0_API_KEY` / `MEM0_BASE_URL` unset): `services/agent/memory.ts` graceful-degrades to local-DB-only storage. Never throws on missing keys.
 
-**Historical: self-hosted Mem0** — `mem0/Dockerfile` in this repo and the paired `pgvector` Railway service are the legacy self-hosted deployment. **Both Railway services are now unused and safe to delete** (service IDs `8b75626c-…` and `ff32eab9-…`). Keep the Dockerfile in-repo for now as a fallback path — if Mem0 Cloud ever has an outage we can flip `MEM0_BASE_URL` back to the internal hostname without redeploying. If you ever rebuild the Dockerfile path, note: `MEM0_VERSION=v2.1.0` is pinned but **does not exist** on upstream (highest tag is `v2.0.2`), and our CMD only runs `uvicorn` — it never runs `alembic upgrade head`, so the `users`/`api_keys`/`request_logs`/`settings`/`refresh_token_jtis` tables won't exist. Fix is to change CMD to `sh -c "alembic upgrade head && uvicorn …"` and either ensure the `mem0_app` database exists on pgvector or set `APP_DB_NAME` to an existing DB.
+**Diagnostic curl** (the URL is public-domain; auth-gated `/memories`):
+```bash
+curl https://mem0-server-production-8f56.up.railway.app/docs                 # 200 — FastAPI Swagger renders
+curl https://mem0-server-production-8f56.up.railway.app/memories             # 401 — endpoint exists, expects X-API-Key
+curl -H "X-API-Key: <ADMIN_API_KEY>" https://mem0-server-production-8f56.up.railway.app/memories  # 200 — list memories
+```
 
-**Letta** — see `### Letta — RESTORED (via Letta Cloud)` above. Letta Cloud runs at `https://api.letta.com`; the self-hosted Letta Railway service was already deleted.
+**Stale Mem0 services in the Capability Economics project (safe to delete)**: service `Mem0` (id `8b75626c-40ba-49b1-a416-d145b4591711`) and its paired `pgvector` (id `ff32eab9-53dc-46de-b23a-b8d3e0be834c`) have zero deployments and are unused — the active Mem0 lives on the new URL above, in a different Railway project. The `mem0/Dockerfile` in this repo is the legacy deployment artifact; if the new self-hosted Mem0 needs rebuilding, note the historic gotchas: `MEM0_VERSION=v2.1.0` is pinned but doesn't exist upstream (highest tag is `v2.0.2`), CMD only runs `uvicorn` — never `alembic upgrade head`, so the `users`/`api_keys`/`request_logs`/`settings`/`refresh_token_jtis` tables won't exist unless the CMD is fixed to `sh -c "alembic upgrade head && uvicorn …"` and `APP_DB_NAME` points at an existing DB.
+
+**Letta** — see `### Letta — back to self-hosted` above. Now runs at `https://letta-production-1b3f.up.railway.app` (different Railway project from Capability Economics, same project as the new self-hosted Mem0).
 
 ### Inngest — self-hosted (2026-05-23, in the AI Genome Project — NOT Capability Economics)
 
