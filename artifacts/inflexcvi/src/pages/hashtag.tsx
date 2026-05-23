@@ -3,10 +3,14 @@
  *
  * Standard discoverability surface for clicking a hashtag in any rendered
  * post on /feed or a profile activity stream.
+ *
+ * Capability-aware (2026-05-23): when the tag matches a capability slug or
+ * name, a capability detail summary card is rendered above the post list
+ * with a cross-link to /capability/:id.
  */
 import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "wouter";
-import { Hash, ArrowLeft, Loader2, ThumbsUp, MessageSquare } from "lucide-react";
+import { Hash, ArrowLeft, Loader2, ThumbsUp, MessageSquare, ArrowRight, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -17,6 +21,17 @@ interface Post {
   id: number; authorUserId: string; body: string; linkUrl: string | null; imageUrl: string | null;
   capabilityTags: string[]; industrySlugs: string[]; likeCount: number; commentCount: number;
   createdAt: string; author: PostAuthor | null;
+}
+
+interface CapabilityMatch {
+  id: number;
+  slug: string;
+  name: string;
+  description: string;
+  industryId: number;
+  isLeaf: boolean;
+  benchmarkScore: number;
+  reviewStatus: string;
 }
 
 /** Render post body with @mentions and #hashtags as clickable spans. */
@@ -42,13 +57,28 @@ export default function HashtagPage() {
   const tag = params.tag ?? "";
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [capabilityMatch, setCapabilityMatch] = useState<CapabilityMatch | null>(null);
 
   const load = useCallback(async () => {
     if (!tag) return;
     setLoading(true);
+    // Fire both lookups in parallel — the capability lookup is a 404 for
+    // most tags and shouldn't block the post list.
     try {
-      const r = await fetch(`/api/hashtag/${tag}`);
-      if (r.ok) { const d = await r.json() as { posts: Post[] }; setPosts(d.posts); }
+      const [postsRes, capRes] = await Promise.all([
+        fetch(`/api/hashtag/${tag}`),
+        fetch(`/api/capabilities/by-slug/${encodeURIComponent(tag)}`),
+      ]);
+      if (postsRes.ok) {
+        const d = await postsRes.json() as { posts: Post[] };
+        setPosts(d.posts);
+      }
+      if (capRes.ok) {
+        const d = await capRes.json() as { capability: CapabilityMatch };
+        setCapabilityMatch(d.capability);
+      } else {
+        setCapabilityMatch(null);
+      }
     } finally { setLoading(false); }
   }, [tag]);
 
@@ -72,11 +102,55 @@ export default function HashtagPage() {
         </p>
       </div>
 
+      {/* Capability summary card — rendered when /hashtag/<term> aligns with
+          a capability slug or display name. Cross-links to /capability/:id
+          so the discoverability path "see a #fraud-detection post → learn
+          about the capability" stays one click. */}
+      {capabilityMatch && (
+        <Link href={`/capability/${capabilityMatch.id}`} className="block">
+          <Card className="border-accent/40 hover:border-accent transition-colors cursor-pointer">
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <Sparkles className="w-3.5 h-3.5 text-accent" />
+                    <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">
+                      Capability match
+                    </span>
+                  </div>
+                  <h2 className="font-serif text-xl tracking-tight mb-1">{capabilityMatch.name}</h2>
+                  <p className="text-sm text-muted-foreground line-clamp-3">{capabilityMatch.description}</p>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Badge variant="outline" className="text-[10px] font-mono uppercase tracking-wider">
+                      {capabilityMatch.isLeaf ? "Leaf" : "Rollup"}
+                    </Badge>
+                    <Badge variant="outline" className="text-[10px] font-mono uppercase tracking-wider">
+                      Benchmark {capabilityMatch.benchmarkScore.toFixed(0)}
+                    </Badge>
+                    {capabilityMatch.reviewStatus !== "approved" && (
+                      <Badge variant="outline" className="text-[10px] font-mono uppercase tracking-wider">
+                        {capabilityMatch.reviewStatus}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-sm text-accent shrink-0 self-center">
+                  <span className="hidden sm:inline">Open</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
+
       {loading ? (
         <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading…</div>
       ) : posts.length === 0 ? (
         <Card><CardContent className="py-10 text-center text-muted-foreground text-sm">
-          No posts tagged #{tag} yet. Be the first — write a post with #{tag} in it.
+          {capabilityMatch
+            ? <>No posts tagged #{tag} yet — but the capability above is real. Be the first to start the discussion.</>
+            : <>No posts tagged #{tag} yet. Be the first — write a post with #{tag} in it.</>}
         </CardContent></Card>
       ) : (
         <div className="space-y-3">

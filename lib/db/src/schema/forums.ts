@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { industriesTable } from "./industries";
 import { capabilitiesTable } from "./capabilities";
 
@@ -26,6 +26,13 @@ export const forumThreadsTable = pgTable(
     authorDisplayName: text("author_display_name"),
     title: text("title").notNull(),
     body: text("body").notNull(),
+    /**
+     * Auto-tagged capability slugs scanned from the OP body via
+     * `services/capability-autotag.ts`. Same shape as the member-post tags;
+     * powers chip rows on the thread list + the "filter by capability"
+     * dropdown on /forum/:industrySlug.
+     */
+    capabilityTags: jsonb("capability_tags").$type<string[]>().notNull().default([]),
     lockedAt: timestamp("locked_at"),
     postCount: integer("post_count").notNull().default(0),
     lastPostAt: timestamp("last_post_at").defaultNow().notNull(),
@@ -35,6 +42,7 @@ export const forumThreadsTable = pgTable(
     index("forum_threads_industry_idx").on(table.industryId, table.lastPostAt),
     index("forum_threads_capability_idx").on(table.capabilityId),
     index("forum_threads_author_idx").on(table.authorUserId),
+    index("forum_threads_capability_tags_idx").on(table.capabilityTags),
   ],
 );
 
