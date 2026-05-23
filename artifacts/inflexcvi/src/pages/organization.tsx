@@ -16,7 +16,7 @@ import {
 import {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
   Building2, ArrowRight, CheckCircle2, Upload, Loader2,
-  Sliders
+  Sliders, TrendingUp,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Slider } from "@/components/ui/slider";
@@ -24,6 +24,84 @@ import { Slider } from "@/components/ui/slider";
 const iconMap: Record<string, React.ElementType> = {
   Shield, Heart, Landmark, Factory, Cpu, ShoppingCart,
 };
+
+/**
+ * Inline "Your org CVI vs cohort" panel — shown on /organization once the
+ * user has selected an industry. Pulls the current CVI snapshot, locates the
+ * user's industry row, and ranks it against all peer industries. The cohort
+ * median is the median index across all industries with at least one scored
+ * capability.
+ */
+interface CviIndustryBreakdown {
+  industryName: string;
+  indexValue: number;
+  capabilityCount: number;
+}
+interface CviCurrentResponse {
+  industryBreakdowns: Record<string, CviIndustryBreakdown>;
+}
+
+function OrgVsCohortPanel({ industryName, industryId }: { industryName: string; industryId: number }) {
+  const [data, setData] = useState<CviCurrentResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void fetch("/api/cvi/current")
+      .then(r => r.ok ? r.json() as Promise<CviCurrentResponse> : null)
+      .then(d => setData(d))
+      .finally(() => setLoading(false));
+  }, [industryId]);
+
+  if (loading || !data) return null;
+
+  const breakdowns = Object.values(data.industryBreakdowns ?? {}).filter(b => b.capabilityCount > 0);
+  if (breakdowns.length === 0) return null;
+
+  const mine = breakdowns.find(b => b.industryName === industryName);
+  if (!mine) return null;
+
+  const sorted = [...breakdowns].sort((a, b) => b.indexValue - a.indexValue);
+  const rank = sorted.findIndex(b => b.industryName === industryName) + 1;
+  const sortedAsc = [...breakdowns].sort((a, b) => a.indexValue - b.indexValue);
+  const mid = sortedAsc.length >> 1;
+  const median = sortedAsc.length % 2 === 0
+    ? (sortedAsc[mid - 1].indexValue + sortedAsc[mid].indexValue) / 2
+    : sortedAsc[mid].indexValue;
+  const delta = mine.indexValue - median;
+  const tone = delta > 0 ? "text-emerald-500" : delta < 0 ? "text-rose-500" : "text-foreground";
+
+  return (
+    <Card className="rounded-none">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-primary" /> Your org CVI vs cohort
+        </CardTitle>
+        <CardDescription className="text-xs">
+          Where {industryName} sits in the current capability-value index across {sorted.length} peer industries.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Your CVI</div>
+            <div className="font-serif text-3xl tabular-nums text-foreground">{mine.indexValue.toFixed(1)}</div>
+          </div>
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Cohort median</div>
+            <div className="font-serif text-3xl tabular-nums text-foreground/70">{median.toFixed(1)}</div>
+            <div className={`text-xs font-mono mt-0.5 ${tone}`}>{delta >= 0 ? "+" : ""}{delta.toFixed(1)} vs median</div>
+          </div>
+          <div>
+            <div className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Rank</div>
+            <div className="font-serif text-3xl tabular-nums text-foreground">
+              {rank}<span className="text-muted-foreground text-lg">/{sorted.length}</span>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const investmentLevels = [
   { value: "minimal", label: "Minimal" },
@@ -257,6 +335,13 @@ export default function OrganizationSetup() {
           </div>
         </div>
       </section>
+
+      {/* Org CVI vs cohort — appears once an industry is known */}
+      {industryDetail && storedIndustryId > 0 && (
+        <section className="pt-8 container mx-auto px-4 max-w-5xl">
+          <OrgVsCohortPanel industryName={industryDetail.name} industryId={storedIndustryId} />
+        </section>
+      )}
 
       <section className="py-8 container mx-auto px-4 max-w-5xl">
         {industryDetail ? (
