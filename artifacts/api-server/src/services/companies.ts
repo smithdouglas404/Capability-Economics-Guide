@@ -536,3 +536,63 @@ export async function findSimilarCompanies(companyId: number, opts: { limit?: nu
   sims.sort((a, b) => b.similarity - a.similarity);
   return sims.slice(0, limit);
 }
+
+/**
+ * Batch version of findSimilarCompanies — for every company in the industry
+ * that has a capability fingerprint, return its top-N closest peers (cosine
+ * similarity over the same fingerprint vectors).
+ *
+ * One SQL pull, then O(C²·K) in-memory where C = #companies-with-fingerprints
+ * and K = avg fingerprint length. The pairwise loop is intentionally simple —
+ * realistic per-industry counts are <200 companies × <30 caps, so this is
+ * sub-millisecond. Keeps the /companies page from issuing C separate /similar
+ * calls.
+ */
+export async function findClosestPeersByIndustry(
+  industryId: number,
+  opts: { perCompanyLimit?: number } = {},
+): Promise<Record<number, Array<{ company: typeof companiesTable.$inferSelect; similarity: number; sharedCaps: number }>>> {
+  const perCompanyLimit = opts.perCompanyLimit ?? 3;
+  const rows = await db.select({
+    fp: companyCapabilityFingerprintTable,
+    company: companiesTable,
+  }).from(companyCapabilityFingerprintTable)
+    .innerJoin(companiesTable, eq(companiesTable.id, companyCapabilityFingerprintTable.companyId))
+    .where(eq(companiesTable.industryId, industryId));
+
+  const byCompany = new Map<number, { company: typeof companiesTable.$inferSelect; vec: Map<number, number>; norm: number }>();
+  for (const row of rows) {
+    let entry = byCompany.get(row.company.id);
+    if (!entry) {
+      entry = { company: row.company, vec: new Map(), norm: 0 };
+      byCompany.set(row.company.id, entry);
+    }
+    entry.vec.set(row.fp.capabilityId, row.fp.weight);
+  }
+  for (const entry of byCompany.values()) {
+    entry.norm = Math.sqrt(Array.from(entry.vec.values()).reduce((s, v) => s + v * v, 0));
+  }
+
+  const entries = Array.from(byCompany.values());
+  const out: Record<number, Array<{ company: typeof companiesTable.$inferSelect; similarity: number; sharedCaps: number }>> = {};
+  for (const target of entries) {
+    if (!target.norm) { out[target.company.id] = []; continue; }
+    const peers: Array<{ company: typeof companiesTable.$inferSelect; similarity: number; sharedCaps: number }> = [];
+    for (const peer of entries) {
+      if (peer.company.id === target.company.id) continue;
+      if (!peer.norm) continue;
+      let dot = 0;
+      let sharedCaps = 0;
+      for (const [capId, w] of peer.vec) {
+        const tw = target.vec.get(capId);
+        if (tw !== undefined) { dot += tw * w; sharedCaps++; }
+      }
+      if (!sharedCaps) continue;
+      const similarity = dot / (target.norm * peer.norm);
+      if (similarity > 0) peers.push({ company: peer.company, similarity, sharedCaps });
+    }
+    peers.sort((a, b) => b.similarity - a.similarity);
+    out[target.company.id] = peers.slice(0, perCompanyLimit);
+  }
+  return out;
+}

@@ -9,6 +9,7 @@ import {
   listCompaniesForIndustry,
   getCompanyDetail,
   findSimilarCompanies,
+  findClosestPeersByIndustry,
 } from "../services/companies";
 import {
   ingestExternalSignalsForIndustry,
@@ -111,6 +112,35 @@ router.get("/workbench/companies/_ingest-status", async (req, res) => {
     return;
   }
   res.json(status);
+});
+
+// Batch closest-peers for every fingerprinted company in an industry. Returns
+// a `{ [companyId]: peers[] }` map so the /companies shortlist can show an
+// inline "Closest peer" cell per row without firing N individual /similar
+// requests. Placed before /:id so the underscore-prefixed control-route
+// convention isn't violated (path segment is "closest-peers", not "_…", but
+// it's listed in the same control block).
+router.get("/workbench/companies/closest-peers", async (req, res) => {
+  const industryId = parseInt(String(req.query.industryId ?? ""), 10);
+  if (!industryId) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
+  const perCompanyLimit = Math.min(5, parseInt(String(req.query.limit ?? "3"), 10) || 3);
+  const peers = await findClosestPeersByIndustry(industryId, { perCompanyLimit });
+  // Slim wire payload — only the fields the UI actually renders.
+  const slim: Record<string, Array<{ id: number; name: string; ownership: string | null; publicTicker: string | null; similarity: number; sharedCaps: number }>> = {};
+  for (const [cid, arr] of Object.entries(peers)) {
+    slim[cid] = arr.map(p => ({
+      id: p.company.id,
+      name: p.company.name,
+      ownership: p.company.ownership,
+      publicTicker: p.company.publicTicker,
+      similarity: p.similarity,
+      sharedCaps: p.sharedCaps,
+    }));
+  }
+  res.json({ industryId, peers: slim });
 });
 
 router.post("/workbench/companies/_recompute", async (req, res) => {
