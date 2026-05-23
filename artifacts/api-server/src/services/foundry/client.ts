@@ -72,10 +72,14 @@ export async function uploadFile(
   if (!token) {
     throw new Error("Foundry token not available for upload — see foundryFetch error message for full diagnosis.");
   }
+  // TS lib version mismatch: Uint8Array is parametrized as
+  // Uint8Array<ArrayBufferLike> in the global types but fetch's BodyInit
+  // accepts Uint8Array<ArrayBuffer>. Cast through BodyInit since the
+  // runtime accepts either form unchanged.
   const resp = await fetch(url, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
-    body,
+    body: body as BodyInit,
   });
   if (!resp.ok) {
     const errBody = await resp.text().catch(() => "");
