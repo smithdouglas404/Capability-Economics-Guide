@@ -222,6 +222,9 @@ const SEED_CHAIN: Array<{ name: string; script: string }> = [
   { name: "Solvency II → Insurance capability requirements (16 mappings)", script: "seed:solvency-ii-requirements" },
   { name: "Dodd-Frank → Banking+Insurance capability requirements (12 mappings)", script: "seed:dodd-frank-requirements" },
   { name: "NAIC Model Audit Rule → Insurance capability requirements (12 mappings)", script: "seed:naic-mar-requirements" },
+  { name: "FedRAMP → Technology capability requirements (14 mappings, NIST 800-53)", script: "seed:fedramp-requirements" },
+  { name: "FDA 21 CFR Part 11 → Healthcare+Manufacturing capability requirements (12 mappings)", script: "seed:21-cfr-part-11-requirements" },
+  { name: "OSHA → Manufacturing capability requirements (10 mappings)", script: "seed:osha-requirements" },
 ];
 
 async function runSeeds(): Promise<void> {
