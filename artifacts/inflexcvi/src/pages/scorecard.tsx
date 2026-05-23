@@ -8,6 +8,7 @@ import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
 import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
+import { ConsensusView } from "@/components/consensus-view";
 
 const API_BASE = "/api";
 
@@ -329,7 +330,16 @@ export default function CapabilityScorecard() {
               <tbody>
                 {sortedByGap.map((row) => (
                   <tr key={row.capabilityId} className="border-b hover:bg-muted/30">
-                    <td className="py-2 px-2 font-medium">{row.capabilityName}</td>
+                    <td className="py-2 px-2 font-medium">
+                      <ConsensusView
+                        capabilityId={row.capabilityId}
+                        ourScore={row.consensusScore ?? row.benchmark ?? null}
+                        precision={0}
+                        className="font-medium text-foreground"
+                      >
+                        {row.capabilityName}
+                      </ConsensusView>
+                    </td>
                     <td className="py-2 px-2"><LifecycleChip stage={row.lifecycleStage} /></td>
                     <td className="text-right py-2 px-2">
                       {row.myScore !== null ? (
