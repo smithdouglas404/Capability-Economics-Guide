@@ -30,6 +30,7 @@ import { StreamingBrief } from "@/components/streaming-brief";
 import { LiveBacktestBadge } from "@/components/live-backtest-badge";
 import { FourLensesGrid } from "@/components/four-lenses-grid";
 import { ConsensusView } from "@/components/consensus-view";
+import { ConsensusNarrative } from "@/components/consensus-narrative";
 
 const API_BASE = "/api";
 
@@ -298,6 +299,9 @@ export default function CapabilityDetailPage() {
       </div>
 
       <Separator />
+
+      {/* ─── Model vs sources — narrative, not hover ─────────────────────── */}
+      <ConsensusNarrative capabilityId={cap.id} precision={1} />
 
       {/* ─── Score-change explainability ─────────────────────────────────────── */}
       <Card className="rounded-none border-border/60">

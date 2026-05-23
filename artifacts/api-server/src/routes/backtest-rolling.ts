@@ -21,19 +21,26 @@ router.get("/backtest/rolling", async (req, res) => {
   try {
     const days = Math.min(365, Math.max(7, Number(req.query.days) || 90));
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-    const rows = await db
+    const rowsRaw = await db
       .select()
       .from(backtestRunsTable)
       .where(gte(backtestRunsTable.ranAt, since))
       .orderBy(desc(backtestRunsTable.ranAt));
 
+    // Skip rows where the harness ran but scored nothing (no historical events
+    // seeded yet, or all cap names failed to match). They're meaningless data
+    // points — including them as "0% accuracy" pulls the rolling average down
+    // for runs that literally had nothing to be right or wrong about.
+    const rows = rowsRaw.filter((r) => r.aggregateScored > 0);
+
     if (rows.length === 0) {
       // Nothing in the window — fall back to the most recent N runs ever
-      const fallback = await db
+      const fallbackRaw = await db
         .select()
         .from(backtestRunsTable)
         .orderBy(desc(backtestRunsTable.ranAt))
-        .limit(10);
+        .limit(20);
+      const fallback = fallbackRaw.filter((r) => r.aggregateScored > 0).slice(0, 10);
       if (fallback.length === 0) {
         res.json({ available: false, windowDays: days });
         return;
