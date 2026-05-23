@@ -695,7 +695,24 @@ function SinglePaneInbox({ inbox, onChanged }: { inbox: InboxResponse; onChanged
     await onChanged(); setBusyId(null);
   }
 
-  if (items.length === 0 && filter === "all") return <Card><CardContent className="py-16 text-center text-muted-foreground">Single pane is clear. Pending findings and client questions will appear here as the agent runs cycles.</CardContent></Card>;
+  if (items.length === 0 && filter === "all") return (
+    <Card>
+      <CardContent className="py-16 text-center space-y-4 max-w-xl mx-auto">
+        <Bot className="w-10 h-10 mx-auto text-muted-foreground/40" />
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Single pane is clear</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This inbox is where the autonomous research agent surfaces findings + intake questions across all your
+            active campaigns. As cycles complete (1/day per campaign), high-confidence findings ("Acme is hiring 12
+            ML engineers in Q3 — capability signal: NLP infrastructure") land here for your approve/reject decision.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Start a campaign on the <strong>New Campaign</strong> tab — the first cycle posts findings here within ~10 minutes.
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
     <div className="space-y-4">
