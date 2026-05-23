@@ -26,6 +26,7 @@ import { VoiceAdvisor } from "@/components/voice-advisor";
 import { MobileNotice } from "@/components/mobile";
 import { AITourGuide } from "@/components/ai-tour-guide";
 import { NotificationBell } from "@/components/notification-bell";
+import { GlobalQABar } from "@/components/global-qa-bar";
 import { ReturningUserBar } from "@/components/returning-user-bar";
 import { usePersonalizedPage } from "@/lib/use-personalized-page";
 
@@ -510,6 +511,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </>
             ) : (
               <>
+                {/* Global Q&A bar — slash-key activated, available on every page */}
+                <GlobalQABar />
+
                 {/* Credit balance chip */}
                 {creditBalance !== null && (
                   <Link href="/membership">

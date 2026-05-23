@@ -27,6 +27,7 @@ import { CapabilityAnnotations } from "@/components/capability-annotations";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
 import { FourLensesGrid } from "@/components/four-lenses-grid";
+import { ConsensusView } from "@/components/consensus-view";
 
 const API_BASE = "/api";
 
@@ -274,9 +275,16 @@ export default function CapabilityDetailPage() {
           <div className="text-right shrink-0">
             <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">CVI score</div>
             <div className="font-mono text-4xl tabular-nums">
-              {quality?.consensusScore !== null && quality?.consensusScore !== undefined
-                ? quality.consensusScore.toFixed(1)
-                : cap.benchmarkScore.toFixed(1)}
+              <ConsensusView
+                capabilityId={cap.id}
+                ourScore={quality?.consensusScore ?? cap.benchmarkScore}
+                precision={1}
+                className="font-mono text-4xl tabular-nums hover:no-underline"
+              >
+                {quality?.consensusScore !== null && quality?.consensusScore !== undefined
+                  ? quality.consensusScore.toFixed(1)
+                  : cap.benchmarkScore.toFixed(1)}
+              </ConsensusView>
             </div>
             {quality?.ciLow !== null && quality?.ciHigh !== null && quality?.ciLow !== undefined && quality?.ciHigh !== undefined && (
               <div className="font-mono text-[11px] tabular-nums text-muted-foreground">

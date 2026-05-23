@@ -13,6 +13,7 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { PersonaDescription } from "@/components/page-header";
 import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
+import { ConsensusView } from "@/components/consensus-view";
 
 type AlphaViewState = { tab: string };
 
@@ -524,7 +525,11 @@ function EvarTab() {
                     <tr key={it.capabilityId}
                         className={`border-b cursor-pointer hover:bg-muted/30 ${selectedId === it.capabilityId ? "bg-amber-50 dark:bg-amber-950/30" : ""}`}
                         onClick={() => setSelectedId(it.capabilityId)}>
-                      <td className="py-2 px-3 font-medium">{it.capabilityName}</td>
+                      <td className="py-2 px-3 font-medium">
+                        <ConsensusView capabilityId={it.capabilityId} ourScore={null} className="font-medium text-foreground">
+                          {it.capabilityName}
+                        </ConsensusView>
+                      </td>
                       <td className="py-2 px-2 text-muted-foreground text-xs">{it.industryName}</td>
                       <td className="py-2 px-2 text-right tabular-nums">{fmtMoney(it.evar12)}</td>
                       <td className="py-2 px-2 text-right tabular-nums font-semibold text-red-600">{fmtMoney(it.evar36)}</td>
