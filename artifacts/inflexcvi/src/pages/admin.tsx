@@ -410,6 +410,10 @@ export default function AdminDashboard() {
                 <button onClick={() => setTab("enrichment")} className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
                   <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> Trigger capability enrichment</span>
                 </button>
+                <Link href="/admin/regulations" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
+                  <span className="flex items-center gap-2"><Layers className="w-4 h-4 text-primary" /> Regulations editor</span>
+                  <span className="text-xs text-muted-foreground">Edit regs + requirements live (no deploy)</span>
+                </Link>
                 <Link href="/admin/platform-signups" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
                   <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Platform sign-up requests</span>
                   <span className="text-xs font-mono text-muted-foreground flex items-center gap-2">

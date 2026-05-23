@@ -69,8 +69,29 @@ export function SynthesisBriefCard({ compact = false }: { compact?: boolean }) {
 
   if (loading) return null;
   if (!data?.available || !data.synthesis) {
-    // Quiet — don't show a noisy "not available" panel by default
-    return null;
+    // Friendly placeholder instead of silent hide — tells the user the
+    // platform is actively composing a view rather than just leaving a
+    // suspicious gap on the page.
+    return (
+      <Card className="rounded-none border-l-2 border-l-accent/40 bg-muted/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-serif flex items-center gap-2 text-muted-foreground">
+            <Sparkles className="w-3.5 h-3.5" />
+            House view — synthesis warming up
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            The Synthesis Agent composes a cross-agent strategic brief from the
+            five specialized agents (macro-event, disruption, peer-coop, stack-optimizer,
+            ontology). The first brief lands ~5 minutes after a fresh deploy and is
+            refreshed daily as the upstream agents complete their cycles. Once
+            available, every page on the platform surfaces the brief here as
+            the house view.
+          </p>
+        </CardContent>
+      </Card>
+    );
   }
 
   const { synthesis, temporalShifts } = data;

@@ -294,6 +294,70 @@ router.post("/regulations", requireAdmin, async (req, res) => {
   }
 });
 
+// Edit existing regulation — global catalog write, admin-only.
+router.patch("/regulations/:id", requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: "Invalid id" }); return; }
+    const body = req.body as Partial<{
+      name: string;
+      description: string | null;
+      jurisdiction: string;
+      effectiveDate: string | null;
+      industries: number[];
+    }>;
+    const patch: Record<string, unknown> = {};
+    if (typeof body.name === "string") patch.name = body.name;
+    if (body.description !== undefined) patch.description = body.description;
+    if (typeof body.jurisdiction === "string") patch.jurisdiction = body.jurisdiction;
+    if (body.effectiveDate !== undefined) patch.effectiveDate = body.effectiveDate ? new Date(body.effectiveDate) : null;
+    if (Array.isArray(body.industries)) patch.industries = body.industries;
+    if (Object.keys(patch).length === 0) { res.status(400).json({ error: "Nothing to patch" }); return; }
+    const [row] = await db.update(regulationsTable).set(patch).where(eq(regulationsTable.id, id)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Edit existing requirement — admin-only.
+router.patch("/regulations/:id/requirements/:reqId", requireAdmin, async (req, res) => {
+  try {
+    const reqId = Number(req.params.reqId);
+    if (!Number.isInteger(reqId) || reqId <= 0) { res.status(400).json({ error: "Invalid reqId" }); return; }
+    const body = req.body as Partial<{
+      requiredMaturity: number;
+      priority: string;
+      evidenceNotes: string | null;
+      article: string | null;
+    }>;
+    const patch: Record<string, unknown> = {};
+    if (typeof body.requiredMaturity === "number") patch.requiredMaturity = body.requiredMaturity;
+    if (typeof body.priority === "string") patch.priority = body.priority;
+    if (body.evidenceNotes !== undefined) patch.evidenceNotes = body.evidenceNotes;
+    if (body.article !== undefined) patch.article = body.article;
+    if (Object.keys(patch).length === 0) { res.status(400).json({ error: "Nothing to patch" }); return; }
+    const [row] = await db.update(regulationCapabilityRequirementsTable).set(patch).where(eq(regulationCapabilityRequirementsTable.id, reqId)).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Delete a requirement — admin-only.
+router.delete("/regulations/:id/requirements/:reqId", requireAdmin, async (req, res) => {
+  try {
+    const reqId = Number(req.params.reqId);
+    if (!Number.isInteger(reqId) || reqId <= 0) { res.status(400).json({ error: "Invalid reqId" }); return; }
+    await db.delete(regulationCapabilityRequirementsTable).where(eq(regulationCapabilityRequirementsTable.id, reqId));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // Add capability requirement — global catalog write, admin-only.
 router.post("/regulations/:id/requirements", requireAdmin, async (req, res) => {
   try {

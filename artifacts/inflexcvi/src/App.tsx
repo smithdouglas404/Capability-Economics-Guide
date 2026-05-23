@@ -25,6 +25,7 @@ import AdminAgentProposalsPage from "@/pages/admin-agent-proposals";
 import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
 import AdminReviewQueuePage from "@/pages/admin-review-queue";
 import AdminPlatformSignupsPage from "@/pages/admin-platform-signups";
+import AdminRegulationsPage from "@/pages/admin-regulations";
 import SourcePage from "@/pages/source";
 import PortfolioPage from "@/pages/portfolio";
 import ComparablesPage from "@/pages/comparables";
@@ -279,6 +280,7 @@ function Router() {
       <Route path="/admin/economic-rules">{() => <AdminOnly component={AdminEconomicRulesPage} />}</Route>
       <Route path="/admin/review-queue">{() => <AdminOnly component={AdminReviewQueuePage} />}</Route>
       <Route path="/admin/platform-signups">{() => <AdminOnly component={AdminPlatformSignupsPage} />}</Route>
+      <Route path="/admin/regulations">{() => <AdminOnly component={AdminRegulationsPage} />}</Route>
       <Route path="/source" component={SourcePage} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/comparables/:companyId" component={ComparablesPage} />

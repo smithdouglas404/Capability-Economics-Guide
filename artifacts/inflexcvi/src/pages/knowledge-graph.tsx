@@ -905,9 +905,6 @@ export default function KnowledgeGraph() {
           <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
             Industry Capability Explorer
           </h1>
-          <p className="text-lg text-foreground/60 font-serif italic max-w-2xl">
-            Explore the capability landscape across six key industries. Each industry has 8-12 core capabilities with benchmarks, metrics, dependencies, and C-suite relevance mappings.
-          </p>
           <PersonaDescription
             descriptions={{
               default: "Browse industries → click capabilities → see how they depend on each other. The Quadrant tab is the high-level view; Dependencies shows the graph.",
