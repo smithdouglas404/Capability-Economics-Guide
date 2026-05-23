@@ -7,11 +7,110 @@ import {
   dependencyEdgeScoresTable,
   capabilitiesTable,
   capabilityDependenciesTable,
+  industriesTable,
+  type MacroEvent,
 } from "@workspace/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { resolveSessionToken, forSession, forSessionRow } from "../lib/tenant-scope";
+import { computeCVI } from "../services/cvi-engine";
 
 const router = Router();
+
+/**
+ * POST /api/simulation/forecast
+ *
+ * 12-month forward CVI trajectory under a hypothetical shock.
+ *
+ * Body: { industryId, shockType, shockMagnitude }
+ *   - industryId: which industry's CVI trajectory to render
+ *   - shockType: free-form label ("interest_rate", "ai_displacement", "macro_event", etc.)
+ *   - shockMagnitude: 0..10 severity. Sign convention: positive magnitude = negative shock
+ *     (rates rising, AI displacing, etc.) — we project a CVI decline. Frontend can flip
+ *     the sign for stimulus-style shocks via "sentimentDirection".
+ *
+ * Returns: { months: [{ month: 0..11, baselineCvi, shockedCvi }], industryName, baselineCviCurrent }
+ *
+ * Mechanism: builds a synthetic MacroEvent against the industry's capabilities and runs
+ * computeCVI({ persist: false, additionalEvents: [shock] }) for each month, varying the
+ * synthetic event's startedAt so its decayFactor decreases over time. Baseline is the
+ * same engine call with no synthetic event. This reuses the real CVI engine math
+ * (Bayesian posterior, dependency multiplier, GDP weighting) — no separate model.
+ */
+router.post("/simulation/forecast", async (req, res) => {
+  try {
+    const { industryId, shockType, shockMagnitude, sentimentDirection } = req.body as {
+      industryId: number;
+      shockType?: string;
+      shockMagnitude: number;
+      sentimentDirection?: "positive" | "negative" | "neutral";
+    };
+    if (!industryId || typeof shockMagnitude !== "number") {
+      res.status(400).json({ error: "industryId + shockMagnitude required" });
+      return;
+    }
+
+    const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, industryId));
+    if (!industry) { res.status(404).json({ error: "industry not found" }); return; }
+
+    const caps = await db.select({ id: capabilitiesTable.id })
+      .from(capabilitiesTable).where(eq(capabilitiesTable.industryId, industryId));
+    const affectedCapabilityIds = caps.map(c => c.id);
+    if (!affectedCapabilityIds.length) { res.status(400).json({ error: "industry has no capabilities" }); return; }
+
+    const direction: "positive" | "negative" | "neutral" = sentimentDirection ?? "negative";
+    const severity = Math.max(0, Math.min(10, shockMagnitude));
+
+    // Baseline once — no shock injected.
+    const baseline = await computeCVI({ persist: false });
+    const baselineIndex = baseline.industryBreakdowns[industry.slug]?.indexValue ?? baseline.overallIndex;
+
+    // Twelve monthly snapshots. Each iteration injects a synthetic event whose
+    // startedAt sits N months in the past so decayFactor falls linearly:
+    // decayFactor = max(0, 1 - elapsedDays/decayDays). decayDays=365 → month-12 ≈ 0.
+    const decayDays = 365;
+    const now = Date.now();
+    const months: Array<{ month: number; baselineCvi: number; shockedCvi: number }> = [];
+
+    for (let m = 0; m < 12; m++) {
+      const startedAt = new Date(now - (m * 30) * 24 * 60 * 60 * 1000);
+      const shockEvent: MacroEvent = {
+        id: -1,
+        eventType: shockType ?? "scenario",
+        severity,
+        title: `What-if: ${shockType ?? "scenario"} (mag ${severity})`,
+        description: "Synthetic scenario event — not persisted.",
+        affectedIndustryIds: [industryId],
+        affectedCapabilityIds,
+        sentimentDirection: direction,
+        startedAt,
+        decayDays,
+        source: "whatif",
+        citations: [],
+        createdBy: "whatif",
+        createdAt: startedAt,
+      };
+      const shocked = await computeCVI({ persist: false, additionalEvents: [shockEvent] });
+      const shockedIndex = shocked.industryBreakdowns[industry.slug]?.indexValue ?? shocked.overallIndex;
+      months.push({
+        month: m,
+        baselineCvi: Math.round(baselineIndex * 10) / 10,
+        shockedCvi: Math.round(shockedIndex * 10) / 10,
+      });
+    }
+
+    res.json({
+      industryId,
+      industryName: industry.name,
+      shockType: shockType ?? "scenario",
+      shockMagnitude: severity,
+      sentimentDirection: direction,
+      baselineCviCurrent: Math.round(baselineIndex * 10) / 10,
+      months,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
 
 // List scenarios for a session
 router.get("/simulation/scenarios", async (req, res) => {

@@ -1,302 +1,223 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { FlaskConical, TrendingUp, TrendingDown, Shield, AlertTriangle, ArrowRight, Trash2, Plus, Play } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { FlaskConical, Play, Loader2, TrendingDown, TrendingUp, Link as LinkIcon } from "lucide-react";
+import { Link } from "wouter";
+import {
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
+} from "recharts";
 
 const API_BASE = "/api";
 
-type Capability = { id: number; name: string; benchmarkScore: number; industryId: number };
-type Scenario = {
-  id: number;
-  name: string;
-  baselineCvi: number;
-  projectedCvi: number;
-  investments: Array<{ capabilityId: number; capabilityName: string; investmentUsdMm: number; targetMaturityDelta: number; timelineMonths: number }>;
-  results: {
-    cviDelta: number;
-    moatChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
-    fragilitChanges: Array<{ capabilityId: number; name: string; before: number; after: number }>;
-    evarReduction: Array<{ capabilityId: number; name: string; before12mo: number; after12mo: number }>;
-    cascadeEffects: Array<{ fromId: number; fromName: string; toId: number; toName: string; impactDelta: number }>;
-  };
-  createdAt: string;
-};
+interface Industry { id: number; name: string; slug: string }
+
+interface ForecastResponse {
+  industryId: number;
+  industryName: string;
+  shockType: string;
+  shockMagnitude: number;
+  sentimentDirection: "positive" | "negative" | "neutral";
+  baselineCviCurrent: number;
+  months: Array<{ month: number; baselineCvi: number; shockedCvi: number }>;
+}
+
+// Curated shock presets. The free-form `shockType` string flows through to the
+// backend and into the synthetic MacroEvent's eventType field — it's purely a
+// label for downstream attribution; the engine math is driven by severity +
+// direction + decayDays, not by the type string itself.
+const SHOCK_PRESETS: Array<{ value: string; label: string; defaultMagnitude: number; direction: "positive" | "negative" | "neutral"; blurb: string }> = [
+  { value: "interest_rate_rise", label: "Interest rates rise 200bps", defaultMagnitude: 5, direction: "negative", blurb: "Cost of capital up, valuations compress." },
+  { value: "ai_displacement_accel", label: "AI displacement accelerates 30%", defaultMagnitude: 7, direction: "negative", blurb: "Routine labor capabilities lose half-life." },
+  { value: "regulatory_tightening", label: "Major regulatory tightening", defaultMagnitude: 6, direction: "negative", blurb: "Compliance burden, slower throughput." },
+  { value: "macro_shock_war", label: "Geopolitical conflict / supply shock", defaultMagnitude: 8, direction: "negative", blurb: "Sector-wide volatility spike." },
+  { value: "tech_breakthrough", label: "Positive tech breakthrough", defaultMagnitude: 5, direction: "positive", blurb: "Capabilities re-rated upward." },
+  { value: "demand_surge", label: "Demand surge / sector tailwind", defaultMagnitude: 4, direction: "positive", blurb: "Revenue exposure expands." },
+];
 
 export default function Simulation() {
-  const [capabilities, setCapabilities] = useState<Capability[]>([]);
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [name, setName] = useState("Investment Scenario");
-  const [investments, setInvestments] = useState<Array<{ capabilityId: number; investmentUsdMm: number; targetMaturityDelta: number; timelineMonths: number }>>([]);
-  const [activeScenario, setActiveScenario] = useState<Scenario | null>(null);
+  const [industries, setIndustries] = useState<Industry[]>([]);
+  const [industryId, setIndustryId] = useState<number | null>(null);
+  const [shockKey, setShockKey] = useState<string>(SHOCK_PRESETS[0].value);
+  const [magnitude, setMagnitude] = useState<number>(SHOCK_PRESETS[0].defaultMagnitude);
+  const [forecast, setForecast] = useState<ForecastResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const sessionToken = localStorage.getItem("ce_session_token") ?? "";
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/capabilities`).then((r) => r.json()).then(setCapabilities).catch(() => {});
-    if (sessionToken) {
-      fetch(`${API_BASE}/simulation/scenarios?sessionToken=${sessionToken}`).then((r) => r.json()).then(setScenarios).catch(() => {});
-    }
+    fetch(`${API_BASE}/industries`).then(r => r.json()).then((d: Industry[]) => {
+      setIndustries(d ?? []);
+      if (d?.length && industryId == null) setIndustryId(d[0].id);
+    }).catch(() => {});
   }, []);
 
-  const addInvestment = () => {
-    if (!capabilities.length) return;
-    setInvestments([...investments, { capabilityId: capabilities[0].id, investmentUsdMm: 1, targetMaturityDelta: 10, timelineMonths: 12 }]);
-  };
+  const preset = SHOCK_PRESETS.find(p => p.value === shockKey) ?? SHOCK_PRESETS[0];
 
-  const removeInvestment = (idx: number) => setInvestments(investments.filter((_, i) => i !== idx));
+  function pickPreset(value: string) {
+    const p = SHOCK_PRESETS.find(x => x.value === value);
+    setShockKey(value);
+    if (p) setMagnitude(p.defaultMagnitude);
+  }
 
-  const updateInvestment = (idx: number, field: string, value: any) => {
-    const next = [...investments];
-    (next[idx] as any)[field] = value;
-    setInvestments(next);
-  };
-
-  const runSimulation = async () => {
-    if (!investments.length) return;
+  async function run() {
+    if (!industryId) return;
     setLoading(true);
+    setErr(null);
+    setForecast(null);
     try {
-      const res = await fetch(`${API_BASE}/simulation/run`, {
+      const r = await fetch(`${API_BASE}/simulation/forecast`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionToken, name, investments }),
+        body: JSON.stringify({
+          industryId,
+          shockType: shockKey,
+          shockMagnitude: magnitude,
+          sentimentDirection: preset.direction,
+        }),
       });
-      const scenario = await res.json();
-      setActiveScenario(scenario);
-      setScenarios((prev) => [scenario, ...prev]);
-    } catch (err) {
-      console.error(err);
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        throw new Error(j?.error ?? `HTTP ${r.status}`);
+      }
+      setForecast(await r.json() as ForecastResponse);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Forecast failed");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }
 
-  const deleteScenario = async (id: number) => {
-    await fetch(`${API_BASE}/simulation/scenarios/${id}`, { method: "DELETE" });
-    setScenarios((prev) => prev.filter((s) => s.id !== id));
-    if (activeScenario?.id === id) setActiveScenario(null);
-  };
-
-  const r = activeScenario?.results;
+  const terminalDelta = forecast
+    ? forecast.months[forecast.months.length - 1].shockedCvi - forecast.months[forecast.months.length - 1].baselineCvi
+    : 0;
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="container mx-auto px-4 py-8 max-w-6xl space-y-6">
       <div>
-        <div className="inline-flex items-center gap-2 mb-3">
+        <div className="inline-flex items-center gap-2 mb-2">
           <span className="h-px w-5 bg-accent" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Innovation</span>
+          <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Scenario engine</span>
         </div>
-        <h1 className="text-3xl font-serif tracking-tight">What-If Simulation Engine</h1>
-        <p className="text-muted-foreground text-sm mt-1">Model capability investments and see projected impact on CVI, moat, fragility, and cascade effects.</p>
+        <h1 className="text-3xl font-serif tracking-tight">12-month forward simulation</h1>
+        <p className="text-sm text-muted-foreground mt-1 max-w-3xl">
+          Project the industry's CVI trajectory under a hypothetical shock. Uses the same Bayesian
+          posterior + GDP-weighted rollup as the live CVI engine — the shock injects a synthetic
+          macro event that decays over twelve months.
+        </p>
+        <Link href="/whatif" className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-2">
+          <LinkIcon className="w-3 h-3" /> See instead: capability-level what-if
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Input Panel */}
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1 rounded-none border-border/60">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><FlaskConical className="w-5 h-5" /> Configure Scenario</CardTitle>
+            <CardTitle className="flex items-center gap-2"><FlaskConical className="w-5 h-5" /> Configure shock</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Scenario Name</label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
+              <Label htmlFor="sim-industry">Industry</Label>
+              <select
+                id="sim-industry"
+                value={industryId ?? ""}
+                onChange={e => setIndustryId(Number(e.target.value))}
+                className="w-full h-9 px-2 text-sm border border-input bg-background rounded-none"
+              >
+                {industries.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+              </select>
             </div>
 
-            <div className="space-y-3">
+            <div>
+              <Label htmlFor="sim-shock">Shock type</Label>
+              <select
+                id="sim-shock"
+                value={shockKey}
+                onChange={e => pickPreset(e.target.value)}
+                className="w-full h-9 px-2 text-sm border border-input bg-background rounded-none"
+              >
+                {SHOCK_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">{preset.blurb}</p>
+            </div>
+
+            <div>
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Investments</span>
-                <Button size="sm" variant="outline" onClick={addInvestment}><Plus className="w-4 h-4 mr-1" /> Add</Button>
+                <Label>Magnitude</Label>
+                <span className="font-mono text-sm tabular-nums">{magnitude.toFixed(1)} / 10</span>
               </div>
-
-              {investments.map((inv, idx) => (
-                <div key={idx} className="border rounded-none p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <select
-                      className="text-sm border rounded px-2 py-1 flex-1 mr-2 bg-background"
-                      value={inv.capabilityId}
-                      onChange={(e) => updateInvestment(idx, "capabilityId", Number(e.target.value))}
-                    >
-                      {capabilities.filter((c) => (c as any).isLeaf !== false).map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <Button size="sm" variant="ghost" onClick={() => removeInvestment(idx)}><Trash2 className="w-4 h-4" /></Button>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground">Investment: ${inv.investmentUsdMm}M</span>
-                    <Slider value={[inv.investmentUsdMm]} min={0.5} max={50} step={0.5} onValueChange={([v]) => updateInvestment(idx, "investmentUsdMm", v)} />
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground">Maturity uplift: +{inv.targetMaturityDelta} pts</span>
-                    <Slider value={[inv.targetMaturityDelta]} min={1} max={40} step={1} onValueChange={([v]) => updateInvestment(idx, "targetMaturityDelta", v)} />
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground">Timeline: {inv.timelineMonths} months</span>
-                    <Slider value={[inv.timelineMonths]} min={3} max={36} step={3} onValueChange={([v]) => updateInvestment(idx, "timelineMonths", v)} />
-                  </div>
-                </div>
-              ))}
+              <Slider value={[magnitude]} min={0} max={10} step={0.5} onValueChange={([v]) => setMagnitude(v)} />
+              <div className="flex justify-between text-[10px] uppercase font-mono tracking-wider text-muted-foreground mt-1">
+                <span>mild</span><span>severe</span>
+              </div>
             </div>
 
-            <Button className="w-full" onClick={runSimulation} disabled={loading || !investments.length}>
-              <Play className="w-4 h-4 mr-2" /> {loading ? "Simulating..." : "Run Simulation"}
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Direction: <span className={preset.direction === "positive" ? "text-emerald-500" : preset.direction === "negative" ? "text-rose-500" : ""}>{preset.direction}</span>
+            </div>
+
+            <Button onClick={run} disabled={loading || !industryId} className="w-full rounded-none">
+              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              Run 12-month forecast
             </Button>
+
+            {err && <div className="border border-rose-500/40 bg-rose-500/10 text-rose-500 px-3 py-2 text-sm font-mono">{err}</div>}
           </CardContent>
         </Card>
 
-        {/* Results Panel */}
         <div className="lg:col-span-2 space-y-4">
-          {activeScenario && r ? (
+          {forecast ? (
             <>
-              {/* CVI Impact */}
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-3 gap-4 text-center">
+              <Card className="rounded-none border-border/60">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
-                      <p className="text-sm text-muted-foreground">Baseline CVI</p>
-                      <p className="text-3xl font-mono font-bold">{activeScenario.baselineCvi?.toFixed(1)}</p>
+                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Industry</div>
+                      <div className="font-serif text-xl">{forecast.industryName}</div>
                     </div>
-                    <div className="flex items-center justify-center">
-                      <ArrowRight className="w-8 h-8 text-primary" />
+                    <div className="text-right">
+                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Terminal Δ (mo 12)</div>
+                      <div className={`font-mono text-2xl tabular-nums inline-flex items-center gap-1 ${terminalDelta >= 0 ? "text-emerald-500" : "text-rose-500"}`}>
+                        {terminalDelta >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                        {terminalDelta >= 0 ? "+" : ""}{terminalDelta.toFixed(1)}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Projected CVI</p>
-                      <p className="text-3xl font-mono font-bold text-primary">{activeScenario.projectedCvi?.toFixed(1)}</p>
-                    </div>
-                  </div>
-                  <div className="text-center mt-2">
-                    <Badge variant={r.cviDelta >= 0 ? "default" : "destructive"}>
-                      {r.cviDelta >= 0 ? "+" : ""}{r.cviDelta.toFixed(1)} CVI points
+                    <Badge variant="outline" className="rounded-none">
+                      {forecast.shockType} · mag {forecast.shockMagnitude.toFixed(1)}
                     </Badge>
+                  </div>
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={forecast.months} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                        <XAxis dataKey="month" tickFormatter={m => `mo ${m}`} tick={{ fontSize: 11 }} />
+                        <YAxis domain={["auto", "auto"]} tick={{ fontSize: 11 }} />
+                        <Tooltip
+                          contentStyle={{ background: "var(--background)", border: "1px solid var(--border)", borderRadius: 0, fontFamily: "monospace", fontSize: 12 }}
+                          formatter={(value: number) => value.toFixed(1)}
+                          labelFormatter={(m) => `Month ${m}`}
+                        />
+                        <Legend wrapperStyle={{ fontSize: 12 }} />
+                        <ReferenceLine y={forecast.baselineCviCurrent} stroke="var(--muted-foreground)" strokeDasharray="2 4" opacity={0.4} />
+                        <Line type="monotone" dataKey="baselineCvi" name="Baseline CVI" stroke="hsl(244 47% 50%)" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="shockedCvi" name="Shocked CVI" stroke="hsl(0 72% 51%)" strokeWidth={2} dot={false} strokeDasharray="5 3" />
+                      </LineChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Moat Changes */}
-              {r.moatChanges.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><Shield className="w-5 h-5" /> Moat Impact</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {r.moatChanges.map((m, i) => (
-                        <div key={i} className="flex items-center justify-between border-b pb-2">
-                          <span className="text-sm font-medium">{m.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">{m.before}</span>
-                            <ArrowRight className="w-4 h-4" />
-                            <span className="text-sm font-bold text-primary">{m.after}</span>
-                            <Badge variant="outline" className="text-xs">+{m.after - m.before}</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Fragility Changes */}
-              {r.fragilitChanges.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Fragility Impact</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {r.fragilitChanges.map((f, i) => (
-                        <div key={i} className="flex items-center justify-between border-b pb-2">
-                          <span className="text-sm font-medium">{f.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">{f.before}</span>
-                            <ArrowRight className="w-4 h-4" />
-                            <span className="text-sm font-bold text-emerald-500">{f.after}</span>
-                            <Badge variant="outline" className="text-xs text-emerald-500">{f.after - f.before}</Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* EVaR Reduction */}
-              {r.evarReduction.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><TrendingDown className="w-5 h-5" /> EVaR Reduction (12mo)</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {r.evarReduction.map((e, i) => (
-                        <div key={i} className="flex items-center justify-between border-b pb-2">
-                          <span className="text-sm font-medium">{e.name}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-muted-foreground">${e.before12mo}M</span>
-                            <ArrowRight className="w-4 h-4" />
-                            <span className="text-sm font-bold">${e.after12mo}M</span>
-                            <Badge variant="outline" className="text-xs text-emerald-500">
-                              -${(e.before12mo - e.after12mo).toFixed(1)}M
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* Cascade Effects */}
-              {r.cascadeEffects.length > 0 && (
-                <Card>
-                  <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5" /> Cascade Effects</CardTitle></CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      {r.cascadeEffects.map((c, i) => (
-                        <div key={i} className="flex items-center gap-2 text-sm border-b pb-2">
-                          <Badge variant="outline">{c.fromName}</Badge>
-                          <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                          <Badge variant="outline">{c.toName}</Badge>
-                          <span className="ml-auto text-muted-foreground">{c.impactDelta > 0 ? "+" : ""}{c.impactDelta}M impact</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
             </>
           ) : (
-            <Card>
-              <CardContent className="py-12 text-center text-muted-foreground">
+            <Card className="rounded-none border-border/60">
+              <CardContent className="py-16 text-center text-muted-foreground">
                 <FlaskConical className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p>Add investments and run a simulation to see projected impact.</p>
+                <p className="text-sm">Configure a shock and run a forecast to see the 12-month CVI trajectory.</p>
               </CardContent>
             </Card>
           )}
         </div>
       </div>
-
-      {/* Past Scenarios */}
-      {scenarios.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Saved Scenarios</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {scenarios.map((s) => (
-                <div key={s.id} className="flex items-center justify-between border-b pb-2 cursor-pointer hover:bg-muted/30 px-2 rounded" onClick={() => setActiveScenario(s)}>
-                  <div>
-                    <span className="font-medium text-sm">{s.name}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{s.investments.length} investment(s)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={s.results?.cviDelta >= 0 ? "default" : "destructive"}>
-                      {s.results?.cviDelta >= 0 ? "+" : ""}{s.results?.cviDelta?.toFixed(1)} CVI
-                    </Badge>
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); deleteScenario(s.id); }}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
