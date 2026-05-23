@@ -120,6 +120,42 @@ function getMem0Client(): MemoryClient | null {
 }
 
 /**
+ * Self-hosted Mem0 OSS REST helper.
+ *
+ * The npm `mem0ai` SDK's methods (add, getAll, search, update, delete,
+ * history) hit cloud-only paths (e.g. /v1/orgs/.../memories) that 404 on
+ * self-hosted OSS. The OSS server exposes the simpler /memories surface
+ * documented at GET https://<host>/openapi.json — paths without /v1/ prefix.
+ *
+ * Auth: X-API-Key with a server-issued API key (created via /api-keys
+ * after /auth/register). NOT the cloud "Token m0-…" scheme.
+ *
+ * Used only when cfg.isCloud === false. Each wrapper below routes to
+ * either the SDK (cloud) or this helper (self-hosted). The SDK path is
+ * unchanged so the Mem0 Cloud configuration keeps working.
+ */
+async function mem0SelfHostedRequest<T>(
+  cfg: Mem0Config,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const res = await fetch(`${cfg.baseUrl}${path}`, {
+    method,
+    headers: {
+      "X-API-Key": cfg.apiKey,
+      ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Mem0 self-hosted ${method} ${path} → ${res.status}: ${text.slice(0, 200)}`);
+  }
+  return (await res.json()) as T;
+}
+
+/**
  * Translate the SDK's typed error classes into operator-friendly messages
  * with concrete remediation. The SDK throws AuthenticationError, NetworkError,
  * RateLimitError, MemoryNotFoundError, MemoryQuotaExceededError — we surface
@@ -279,33 +315,57 @@ export async function storeMemory(
   let mem0Status: string | null = null;
 
   const client = getMem0Client();
-  if (client) {
+  const cfg = getMem0Config();
+  if (client && cfg) {
     try {
       const messages = buildConversationalMessages(type, category, content, context, metadata);
       // enable_graph: true is the SDK's documented per-request flag for
       // graph-store storage on Mem0 Cloud. Account/plan tier must support
       // graph mode — if not, the server silently degrades to vector-only.
+      // (Self-hosted OSS doesn't have graph mode and the flag is ignored
+      // there; we leave it out of the self-hosted body for cleanliness.)
       // tags: application-layer identity metadata that travels WITH each
       // memory — replaces server-side identity tracking (deprecated by Letta
       // upstream) and works with Mem0 Cloud's metadata.tags filter.
       const tags = buildIdentityTags(agentName);
-      const result = await client.add(messages, {
-        agent_id: resolvedAgentId,
-        ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
-        enable_graph: true,
-        metadata: {
-          ...metadata,
-          memoryType: type,
-          category: category ?? type,
-          runId: runId ?? null,
-          ttlDays,
-          tags,
-          // Stamp the ISO expiry so mem0Prune can filter on metadata.expiresAt
-          // server-side. Without this, ttlDays is opaque to Mem0 and pgvector
-          // grows unbounded.
-          expiresAt: expiresAt.toISOString(),
-        },
-      });
+      const baseMetadata = {
+        ...metadata,
+        memoryType: type,
+        category: category ?? type,
+        runId: runId ?? null,
+        ttlDays,
+        tags,
+        // Stamp the ISO expiry so mem0Prune can filter on metadata.expiresAt
+        // server-side. Without this, ttlDays is opaque to Mem0 and pgvector
+        // grows unbounded.
+        expiresAt: expiresAt.toISOString(),
+      };
+      let result: Mem0Memory[] | undefined;
+      if (cfg.isCloud) {
+        result = await client.add(messages, {
+          agent_id: resolvedAgentId,
+          ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
+          enable_graph: true,
+          metadata: baseMetadata,
+        });
+      } else {
+        // Self-hosted OSS: POST /memories returns { results: Memory[] } where
+        // each item may have { id, memory, event, event_id, ... }. Empty
+        // `results` is normal when no facts could be extracted (e.g., a
+        // single-token user message); we surface that as a null id.
+        const resp = await mem0SelfHostedRequest<{ results?: Mem0Memory[] }>(
+          cfg,
+          "POST",
+          "/memories",
+          {
+            messages,
+            agent_id: resolvedAgentId,
+            ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
+            metadata: baseMetadata,
+          },
+        );
+        result = resp.results ?? [];
+      }
 
       const first = result?.[0];
       mem0Id = first?.id ?? null;
@@ -369,12 +429,17 @@ export async function storeMemory(
 
 export async function updateMemory(memoryId: string, newContent: string): Promise<boolean> {
   const client = getMem0Client();
-  if (!client) return false;
+  const cfg = getMem0Config();
+  if (!client || !cfg) return false;
   try {
-    // SDK's update() takes { text, metadata?, timestamp? }. The historical
-    // self-hosted-vs-cloud field-name divergence (`data` vs `text`) is
-    // handled inside the SDK — we just pass `text` and it routes correctly.
-    await client.update(memoryId, { text: newContent });
+    if (cfg.isCloud) {
+      // SDK's update() takes { text, metadata?, timestamp? }. The cloud
+      // path uses /v1/memories/{id}; SDK handles routing.
+      await client.update(memoryId, { text: newContent });
+    } else {
+      // Self-hosted OSS: PUT /memories/{id} with { text } body.
+      await mem0SelfHostedRequest<unknown>(cfg, "PUT", `/memories/${memoryId}`, { text: newContent });
+    }
     await db.update(agentMemoriesTable)
       .set({ content: newContent })
       .where(eq(agentMemoriesTable.mem0Id, memoryId));
@@ -388,9 +453,14 @@ export async function updateMemory(memoryId: string, newContent: string): Promis
 
 export async function deleteMemory(memoryId: string): Promise<boolean> {
   const client = getMem0Client();
-  if (!client) return false;
+  const cfg = getMem0Config();
+  if (!client || !cfg) return false;
   try {
-    await client.delete(memoryId);
+    if (cfg.isCloud) {
+      await client.delete(memoryId);
+    } else {
+      await mem0SelfHostedRequest<unknown>(cfg, "DELETE", `/memories/${memoryId}`);
+    }
     await db.delete(agentMemoriesTable).where(eq(agentMemoriesTable.mem0Id, memoryId));
     console.log(`[Mem0] deleted ${memoryId.slice(0, 8)}`);
     return true;
@@ -402,9 +472,15 @@ export async function deleteMemory(memoryId: string): Promise<boolean> {
 
 export async function getMemoryHistory(memoryId: string): Promise<unknown[]> {
   const client = getMem0Client();
-  if (!client) return [];
+  const cfg = getMem0Config();
+  if (!client || !cfg) return [];
   try {
-    const result = await client.history(memoryId);
+    if (cfg.isCloud) {
+      const result = await client.history(memoryId);
+      return Array.isArray(result) ? result : [];
+    }
+    // Self-hosted OSS: GET /memories/{id}/history returns an array.
+    const result = await mem0SelfHostedRequest<unknown>(cfg, "GET", `/memories/${memoryId}/history`);
     return Array.isArray(result) ? result : [];
   } catch (err) {
     console.error("[Mem0]", describeMem0Error("history", err));
@@ -440,12 +516,13 @@ export async function recallMemories(
   const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
   const client = getMem0Client();
-  if (client) {
+  const cfg = getMem0Config();
+  if (client && cfg) {
     try {
       // SDK's search() takes a flat options object — agent_id at top level,
-      // metadata as a flat dict, enable_graph for graph-mode recall. The
-      // SDK normalises cloud-vs-self-hosted payload shape internally, so we
-      // don't need the AND-filter branching that the old mem0Fetch path had.
+      // metadata as a flat dict, enable_graph for graph-mode recall. On
+      // self-hosted OSS we POST /search with the same shape minus the
+      // cloud-only enable_graph flag.
       const meta: Record<string, unknown> = {};
       if (type) meta.memoryType = type;
       if (options.category) meta.category = options.category;
@@ -453,15 +530,26 @@ export async function recallMemories(
       const searchOpts: Record<string, unknown> = {
         agent_id: resolvedAgentId,
         limit,
-        enable_graph: true,
         threshold: 0.35,
       };
+      if (cfg.isCloud) searchOpts.enable_graph = true;
       if (options.runId) searchOpts.run_id = `cycle-${options.runId}`;
       if (Object.keys(meta).length > 0) searchOpts.metadata = meta;
       if (options.criteria) searchOpts.criteria = options.criteria;
       if (options.createdAfter) searchOpts.start_date = options.createdAfter.toISOString();
 
-      const found = await client.search(query, searchOpts);
+      let found: Mem0Memory[];
+      if (cfg.isCloud) {
+        found = await client.search(query, searchOpts);
+      } else {
+        const resp = await mem0SelfHostedRequest<Mem0Memory[] | { results?: Mem0Memory[] }>(
+          cfg,
+          "POST",
+          "/search",
+          { query, ...searchOpts },
+        );
+        found = Array.isArray(resp) ? resp : resp.results ?? [];
+      }
 
       for (const m of found) {
         const mMeta = (m.metadata && typeof m.metadata === "object" ? m.metadata : {}) as Record<string, unknown>;
@@ -542,9 +630,21 @@ export async function recallMemoriesBatch(type: MemoryType, limit: number = 100)
   const results: AgentMemory[] = [];
 
   const client = getMem0Client();
-  if (client) {
+  const cfg = getMem0Config();
+  if (client && cfg) {
     try {
-      const found = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+      let found: Mem0Memory[] | { results?: Mem0Memory[] };
+      if (cfg.isCloud) {
+        found = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+      } else {
+        // Self-hosted OSS: GET /memories?agent_id=…&page_size=… returns
+        // { results: Memory[] } directly.
+        found = await mem0SelfHostedRequest<{ results?: Mem0Memory[] }>(
+          cfg,
+          "GET",
+          `/memories?agent_id=${encodeURIComponent(MEM0_AGENT_ID)}&page_size=${limit}`,
+        );
+      }
       const list = Array.isArray(found) ? found : (found as { results?: Mem0Memory[] }).results ?? [];
       for (const m of list) {
         const meta = (m.metadata && typeof m.metadata === "object" ? m.metadata : {}) as Record<string, unknown>;
