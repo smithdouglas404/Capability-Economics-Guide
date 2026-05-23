@@ -4,6 +4,7 @@ import pinoHttp from "pino-http";
 import path from "node:path";
 import fs from "node:fs";
 import { clerkMiddleware } from "@clerk/express";
+import { serve as inngestServe } from "inngest/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import { apiKeyAuth } from "./middlewares/apiKeyAuth";
 import { rateLimitMiddleware } from "./middlewares/rateLimit";
@@ -12,6 +13,8 @@ import v1Router from "./routes/v1";
 import stripeWebhookRouter from "./routes/stripe-webhook";
 import kycWebhookRouter from "./routes/kyc-webhook";
 import nowpaymentsWebhookRouter from "./routes/nowpayments-webhook";
+import { inngest } from "./inngest/client";
+import { functions as inngestFunctions } from "./inngest/functions";
 import { logger } from "./lib/logger";
 import { buildFrameAncestorsCsp } from "./lib/embed-csp";
 
@@ -47,6 +50,18 @@ app.use("/api", nowpaymentsWebhookRouter);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.text({ type: "text/csv" }));
+
+// Inngest webhook handler — INNGEST_SIGNING_KEY is configured on the client
+// (see ./inngest/client.ts) and the SDK authenticates inbound requests itself,
+// so mount this BEFORE Clerk/apiKey middleware to avoid those rejecting
+// Inngest's HMAC-signed calls. See plan: feat/inngest-migration.
+app.use(
+  "/api/inngest",
+  inngestServe({
+    client: inngest,
+    functions: inngestFunctions,
+  }),
+);
 
 app.use(clerkMiddleware());
 // Runs after Clerk so a real browser session always wins. Only falls back to
