@@ -106,6 +106,34 @@ export default function KnowledgeGraph() {
   const { data: industries, isLoading: loadingIndustries } = useListIndustries();
   const { data: comparison, isLoading: loadingComparison } = useCompareIndustries();
 
+  // Per-industry intel: regulation count + active macro-event count. Two
+  // round-trips, computed once, merged into the Industries-tab cards so the
+  // cards are data-driven (current shipping state) instead of marketing copy.
+  const [regCountByIndustry, setRegCountByIndustry] = useState<Record<number, number>>({});
+  const [activeEventsByIndustry, setActiveEventsByIndustry] = useState<Record<number, number>>({});
+  useEffect(() => {
+    let abort = false;
+    Promise.all([
+      fetch("/api/regulations").then(r => r.ok ? r.json() : []).catch(() => []),
+      fetch("/api/macro-events/active").then(r => r.ok ? r.json() : { events: [] }).catch(() => ({ events: [] })),
+    ]).then(([regs, events]) => {
+      if (abort) return;
+      const regMap: Record<number, number> = {};
+      for (const r of regs as Array<{ industries?: number[] }>) {
+        for (const id of r.industries ?? []) regMap[id] = (regMap[id] ?? 0) + 1;
+      }
+      setRegCountByIndustry(regMap);
+      const evMap: Record<number, number> = {};
+      const evArr = (events as { events?: Array<{ affectedIndustryIds?: number[]; industryId?: number | null }> }).events ?? [];
+      for (const e of evArr) {
+        const ids = e.affectedIndustryIds ?? (e.industryId ? [e.industryId] : []);
+        for (const id of ids) evMap[id] = (evMap[id] ?? 0) + 1;
+      }
+      setActiveEventsByIndustry(evMap);
+    });
+    return () => { abort = true; };
+  }, []);
+
   const [graphError, setGraphError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1104,6 +1132,8 @@ export default function KnowledgeGraph() {
             <motion.div variants={container} initial="hidden" animate="show" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
               {industries?.map((industry: Industry) => {
                 const Icon = iconMap[industry.icon] || Shield;
+                const regCount = regCountByIndustry[industry.id] ?? 0;
+                const eventCount = activeEventsByIndustry[industry.id] ?? 0;
                 return (
                   <motion.div key={industry.id} variants={item}>
                     <button
@@ -1117,8 +1147,28 @@ export default function KnowledgeGraph() {
                         <div className="flex-1">
                           <h3 className="text-xl font-serif text-foreground mb-1">{industry.name}</h3>
                           <p className="text-sm text-muted-foreground line-clamp-3">{industry.description}</p>
+
+                          {/* Data-driven intel chips — replaces the previous single
+                              "X capabilities" line. Each chip is a live count
+                              composed from the listing endpoints fetched once on
+                              page mount. */}
+                          <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
+                            <div className="border border-border bg-muted/30 px-2 py-1.5">
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Capabilities</div>
+                              <div className="font-mono tabular-nums text-sm font-medium">{industry.capabilityCount}</div>
+                            </div>
+                            <div className={`border px-2 py-1.5 ${regCount > 0 ? "border-primary/30 bg-primary/[0.04]" : "border-border bg-muted/30"}`}>
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Regulations</div>
+                              <div className="font-mono tabular-nums text-sm font-medium">{regCount}</div>
+                            </div>
+                            <div className={`border px-2 py-1.5 ${eventCount > 0 ? "border-amber-500/30 bg-amber-500/[0.04]" : "border-border bg-muted/30"}`}>
+                              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Active events</div>
+                              <div className={`font-mono tabular-nums text-sm font-medium ${eventCount > 0 ? "text-amber-700 dark:text-amber-400" : ""}`}>{eventCount}</div>
+                            </div>
+                          </div>
+
                           <div className="flex items-center gap-2 mt-4 text-primary text-sm font-medium">
-                            {industry.capabilityCount} capabilities
+                            Explore
                             <ChevronRight className="w-4 h-4" />
                           </div>
                         </div>

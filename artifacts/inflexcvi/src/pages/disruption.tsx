@@ -80,9 +80,21 @@ const LIFECYCLE_TONE: Record<string, string> = {
   obsolete: "bg-rose-500/15 text-rose-500 border-rose-500/40",
 };
 
+interface MacroEvent {
+  id: number;
+  title: string;
+  description: string | null;
+  severity: number;
+  sentimentDirection: "positive" | "negative" | "neutral" | string;
+  startedAt: string;
+  affectedIndustryIds?: number[];
+  industryId?: number | null;
+}
+
 export default function DisruptionPage() {
   const [watch, setWatch] = useState<WatchResult | null>(null);
   const [newCaps, setNewCaps] = useState<NewCapResult | null>(null);
+  const [macroEvents, setMacroEvents] = useState<MacroEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
@@ -91,11 +103,15 @@ export default function DisruptionPage() {
     Promise.all([
       fetch(`${API_BASE}/disruption/watch`).then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))),
       fetch(`${API_BASE}/capabilities/new?maxAgeMonths=24&minScore=30&limit=30`).then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))),
+      fetch(`${API_BASE}/macro-events/active`).then(r => r.ok ? r.json() : { events: [] }).catch(() => ({ events: [] })),
     ])
-      .then(([w, n]) => {
+      .then(([w, n, m]) => {
         if (cancelled) return;
         setWatch(w);
         setNewCaps(n);
+        const evs = (m as { events?: MacroEvent[] }).events ?? [];
+        // Top-severity first, take 5
+        setMacroEvents([...evs].sort((a, b) => (b.severity ?? 0) - (a.severity ?? 0)).slice(0, 5));
       })
       .catch(e => { if (!cancelled) setErr(e instanceof Error ? e.message : "Failed to load"); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -141,6 +157,51 @@ export default function DisruptionPage() {
 
       {/* House view — cross-agent synthesis grounding for what follows below */}
       <SynthesisBriefCard compact />
+
+      {/* Triggered-by panel — surfaces the 5 most-severe active macro events
+          driving the disruption signals below. Without this, the watch + new-
+          caps feeds look like opinion; this turns them into traceable
+          consequences of named real-world events. */}
+      {macroEvents.length > 0 && (
+        <Card className="rounded-none border-l-2 border-l-rose-500">
+          <CardContent className="py-4">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-0.5">Triggered by</div>
+                <div className="font-serif text-base">Top {macroEvents.length} active macro events driving the watch list</div>
+              </div>
+              <Link href="/cvi" className="text-xs text-primary hover:underline whitespace-nowrap">
+                View all on CVI →
+              </Link>
+            </div>
+            <ul className="space-y-1.5">
+              {macroEvents.map(ev => (
+                <li key={ev.id} className="flex items-start gap-3 text-sm">
+                  <span
+                    className={`mt-0.5 inline-flex items-center justify-center min-w-[1.75rem] h-5 px-1.5 rounded-none font-mono text-[10px] font-bold ${
+                      ev.severity >= 7 ? "bg-rose-500/15 text-rose-600 border border-rose-500/40"
+                        : ev.severity >= 4 ? "bg-amber-500/15 text-amber-600 border border-amber-500/40"
+                        : "bg-muted text-muted-foreground border border-border"
+                    }`}
+                    title={`Severity ${ev.severity}/10`}
+                  >
+                    {ev.severity}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium leading-tight">{ev.title}</div>
+                    {ev.description && (
+                      <div className="text-xs text-muted-foreground line-clamp-1">{ev.description}</div>
+                    )}
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground whitespace-nowrap mt-1">
+                    {ev.sentimentDirection === "negative" ? "↘" : ev.sentimentDirection === "positive" ? "↗" : "→"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Move 5: Disruption Index hero — surfaces the DVX score that was already
           computed but invisible. Lives above the existing watch/new-cap feeds. */}
