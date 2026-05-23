@@ -59,3 +59,4 @@ Thumbs.db
 # Scrubbed from history Oct 2026 after a Palantir Foundry JWT was caught
 # by GitHub push protection. Never re-track.
 .claude/settings.local.json
+.claude/
