@@ -20,9 +20,47 @@ import {
   memberPostCommentsTable,
   memberConnectionsTable,
   memberNotificationsTable,
+  capabilitiesTable,
   connectionPairFor,
 } from "@workspace/db";
 import { eq, and, or, desc, sql, inArray, ilike } from "drizzle-orm";
+
+/**
+ * Auto-tag a post body with capabilities. Pulls capability {id, slug, name}
+ * rows and looks for case-insensitive name occurrences in the body. Returns
+ * the matched capability slugs deduped, capped at 5 to keep chip rows tidy.
+ *
+ * Cheap word-boundary match — no embedding lookup. With ~600 capabilities
+ * the in-memory filter is fast enough; revisit with a Postgres full-text
+ * search if the catalog grows past ~5000.
+ */
+async function autoTagCapabilities(body: string): Promise<string[]> {
+  if (!body || body.length < 3) return [];
+  // Pull the capability catalog once per call. Capability names are short
+  // (avg 3-5 words) and unique enough that substring + word-boundary works.
+  const caps = await db.select({
+    slug: capabilitiesTable.slug,
+    name: capabilitiesTable.name,
+  }).from(capabilitiesTable);
+  if (caps.length === 0) return [];
+
+  const lowerBody = body.toLowerCase();
+  const matched = new Set<string>();
+  for (const c of caps) {
+    if (!c.name || c.name.length < 4) continue; // skip 1–3 char names (too many false positives)
+    const needle = c.name.toLowerCase();
+    // Word-boundary check — look for the name as a delimited token.
+    // RegExp wrap is safe here: capability names come from staff-reviewed
+    // data, no user input. Still escape for safety.
+    const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`\\b${escaped}\\b`, "i");
+    if (re.test(lowerBody)) {
+      matched.add(c.slug);
+      if (matched.size >= 5) break;
+    }
+  }
+  return Array.from(matched);
+}
 
 const router: IRouter = Router();
 
@@ -188,12 +226,28 @@ router.post("/posts", async (req, res) => {
   const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
   if (body.length < 1) { res.status(400).json({ error: "body required" }); return; }
   if (body.length > 8000) { res.status(400).json({ error: "body too long" }); return; }
+
+  // Explicit tags from the composer win; auto-detect runs only when the
+  // composer sent an empty array. Cap at 10 either way (column constraint).
+  const explicitTags: string[] = Array.isArray(req.body?.capabilityTags)
+    ? req.body.capabilityTags.slice(0, 10).map(String)
+    : [];
+  let capabilityTags = explicitTags;
+  if (capabilityTags.length === 0) {
+    try {
+      capabilityTags = await autoTagCapabilities(body);
+    } catch {
+      // Auto-tag is best-effort — never block the post creation.
+      capabilityTags = [];
+    }
+  }
+
   const [row] = await db.insert(memberPostsTable).values({
     authorUserId: auth.userId,
     body,
     linkUrl: typeof req.body?.linkUrl === "string" ? req.body.linkUrl.slice(0, 500) : null,
     imageUrl: typeof req.body?.imageUrl === "string" ? req.body.imageUrl.slice(0, 500) : null,
-    capabilityTags: Array.isArray(req.body?.capabilityTags) ? req.body.capabilityTags.slice(0, 10).map(String) : [],
+    capabilityTags,
     industrySlugs: Array.isArray(req.body?.industrySlugs) ? req.body.industrySlugs.slice(0, 5).map(String) : [],
   }).returning();
 
@@ -331,24 +385,41 @@ router.post("/posts/:id/comments", async (req, res) => {
  * Returns the signed-in user's home feed: posts from accepted connections +
  * posts tagged with industries in their profile, ordered by recency. Falls
  * back to global recent if they have no connections or industries yet.
+ *
+ * Optional `?filter=followed-capabilities` narrows results to posts whose
+ * capabilityTags overlap with the caller's profile capabilityTags (treated
+ * as the user's followed-capabilities list). Returns the empty list when
+ * the user hasn't followed any capabilities yet.
  */
 router.get("/feed", async (req, res) => {
   const auth = getAuth(req);
   if (!auth.userId) { res.status(401).json({ error: "Sign in" }); return; }
+  const filterMode = typeof req.query.filter === "string" ? req.query.filter : "";
   // Connections
   const conns = await db.select().from(memberConnectionsTable).where(and(
     or(eq(memberConnectionsTable.userA, auth.userId), eq(memberConnectionsTable.userB, auth.userId)),
     eq(memberConnectionsTable.status, "accepted"),
   ));
   const connectionIds = conns.map(c => c.userA === auth.userId ? c.userB : c.userA);
-  // Profile (for industry filter)
+  // Profile (for industry filter + followed-capabilities filter)
   const [profile] = await db.select().from(memberProfilesTable).where(eq(memberProfilesTable.userId, auth.userId)).limit(1);
   const myIndustries = profile?.industrySlugs ?? [];
-  // Build the feed query — union of connection authors + posts whose
-  // industrySlugs overlap with mine. If neither bucket has signal, fall
-  // back to the global recent.
+  const myCapabilities = profile?.capabilityTags ?? [];
+
   let postRows: typeof memberPostsTable.$inferSelect[];
-  if (connectionIds.length === 0 && myIndustries.length === 0) {
+
+  if (filterMode === "followed-capabilities") {
+    // Narrow mode: only posts whose capabilityTags overlap the caller's
+    // followed-capabilities. JSON ?| operator over the jsonb array column.
+    if (myCapabilities.length === 0) {
+      postRows = [];
+    } else {
+      postRows = await db.select().from(memberPostsTable)
+        .where(sql`${memberPostsTable.capabilityTags} ?| ${myCapabilities}`)
+        .orderBy(desc(memberPostsTable.createdAt))
+        .limit(40);
+    }
+  } else if (connectionIds.length === 0 && myIndustries.length === 0) {
     postRows = await db.select().from(memberPostsTable).orderBy(desc(memberPostsTable.createdAt)).limit(40);
   } else {
     const conditions: ReturnType<typeof sql>[] = [];
@@ -377,6 +448,8 @@ router.get("/feed", async (req, res) => {
   const authorMap = new Map(authors.map(a => [a.userId, a]));
   res.json({
     posts: postRows.map(p => ({ ...p, author: authorMap.get(p.authorUserId) ?? null })),
+    followedCapabilities: myCapabilities,
+    filterMode: filterMode || "default",
   });
 });
 

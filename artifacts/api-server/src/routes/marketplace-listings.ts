@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import multer from "multer";
-import { db, marketplaceListingsTable, marketplaceSellersTable } from "@workspace/db";
-import { and, desc, eq, gt, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { db, marketplaceListingsTable, marketplaceSellersTable, marketplacePurchasesTable } from "@workspace/db";
+import { and, desc, eq, gt, ilike, inArray, isNull, or, sql, ne } from "drizzle-orm";
 import { z } from "zod/v4";
 import { getAuth } from "@clerk/express";
 import { saveUpload, readFile } from "../services/marketplace-storage";
@@ -119,6 +119,119 @@ router.get("/marketplace/listings/search", async (req, res) => {
     .orderBy(desc(marketplaceListingsTable.featured), desc(marketplaceListingsTable.approvedAt))
     .limit(50);
   res.json({ listings: rows, source: "keyword_fallback", query: q });
+});
+
+/**
+ * "Buyers of X also bought Y" cross-sell strip.
+ *
+ * Returns up to 5 approved listings related to `:listingId`, ranked by:
+ *   1. co-purchase signal — other listings paid-purchased by users who also
+ *      paid-purchased this one
+ *   2. capability/tag overlap — listings that share tags (capability slugs)
+ *      with the source listing, weighted by the number of overlapping tags
+ *
+ * The source listing itself is excluded; only approved (non-archived) listings
+ * count. Catalog is small (~22 listings) so the join is cheap — no caching
+ * needed yet.
+ *
+ * Response: { related: Listing[] } where Listing matches the /marketplace/listings
+ * card shape so the frontend can render the same card component.
+ */
+router.get("/marketplace/co-purchased-with/:listingId", async (req, res) => {
+  const listingId = Number(req.params.listingId);
+  if (!Number.isFinite(listingId)) { res.status(400).json({ error: "bad id" }); return; }
+
+  const [source] = await db
+    .select({ id: marketplaceListingsTable.id, tags: marketplaceListingsTable.tags })
+    .from(marketplaceListingsTable)
+    .where(eq(marketplaceListingsTable.id, listingId));
+  if (!source) { res.status(404).json({ error: "Listing not found" }); return; }
+
+  const sourceTags = (source.tags ?? []) as string[];
+
+  // ── 1) Co-purchase signal: buyers of this listing → other listings they paid for.
+  // Find paid buyers of this listing, then their other paid purchases, then
+  // count occurrences. Self-listing excluded.
+  const buyersOfThis = await db
+    .select({ buyerUserId: marketplacePurchasesTable.buyerUserId })
+    .from(marketplacePurchasesTable)
+    .where(and(
+      eq(marketplacePurchasesTable.listingId, listingId),
+      eq(marketplacePurchasesTable.status, "paid"),
+      isNull(marketplacePurchasesTable.refundedAt),
+    ));
+  const buyerIds = Array.from(new Set(buyersOfThis.map(b => b.buyerUserId)));
+
+  const coPurchaseCounts = new Map<number, number>();
+  if (buyerIds.length > 0) {
+    const otherPurchases = await db
+      .select({ listingId: marketplacePurchasesTable.listingId })
+      .from(marketplacePurchasesTable)
+      .where(and(
+        inArray(marketplacePurchasesTable.buyerUserId, buyerIds),
+        ne(marketplacePurchasesTable.listingId, listingId),
+        eq(marketplacePurchasesTable.status, "paid"),
+        isNull(marketplacePurchasesTable.refundedAt),
+      ));
+    for (const p of otherPurchases) {
+      coPurchaseCounts.set(p.listingId, (coPurchaseCounts.get(p.listingId) ?? 0) + 1);
+    }
+  }
+
+  // ── 2) Tag/capability overlap: pull all other approved listings, score by overlap.
+  const candidatePool = await db
+    .select({
+      id: marketplaceListingsTable.id,
+      sellerId: marketplaceListingsTable.sellerId,
+      sellerName: marketplaceSellersTable.displayName,
+      sellerTier: marketplaceSellersTable.tier,
+      sellerUserId: marketplaceSellersTable.userId,
+      type: marketplaceListingsTable.type,
+      title: marketplaceListingsTable.title,
+      description: marketplaceListingsTable.description,
+      priceCents: marketplaceListingsTable.priceCents,
+      coverImageUrl: marketplaceListingsTable.coverImageUrl,
+      tags: marketplaceListingsTable.tags,
+      featured: marketplaceListingsTable.featured,
+      featuredUntil: marketplaceListingsTable.featuredUntil,
+      approvedAt: marketplaceListingsTable.approvedAt,
+    })
+    .from(marketplaceListingsTable)
+    .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+    .where(and(
+      eq(marketplaceListingsTable.status, "approved"),
+      ne(marketplaceListingsTable.id, listingId),
+      or(
+        isNull(marketplaceListingsTable.expiresAt),
+        gt(marketplaceListingsTable.expiresAt, sql`now()`),
+      ),
+    ));
+
+  // Compute score per candidate: 10 * co_purchase_count + tag_overlap.
+  // Co-purchase weighted heavily so social-proof beats raw tag matching.
+  type Scored = typeof candidatePool[number] & { score: number; coPurchaseCount: number; tagOverlap: number };
+  const scored: Scored[] = candidatePool
+    .map(c => {
+      const candidateTags = (c.tags ?? []) as string[];
+      const tagOverlap = sourceTags.length > 0
+        ? candidateTags.filter(t => sourceTags.includes(t)).length
+        : 0;
+      const coPurchaseCount = coPurchaseCounts.get(c.id) ?? 0;
+      const score = coPurchaseCount * 10 + tagOverlap;
+      return { ...c, score, coPurchaseCount, tagOverlap };
+    })
+    .filter(c => c.score > 0)
+    .sort((a, b) => b.score - a.score || (b.approvedAt?.getTime() ?? 0) - (a.approvedAt?.getTime() ?? 0))
+    .slice(0, 5);
+
+  // Project featured flag honoring featuredUntil — match the main list route.
+  const now = Date.now();
+  const related = scored.map(r => ({
+    ...r,
+    featured: r.featured && (!r.featuredUntil || r.featuredUntil.getTime() > now),
+  }));
+
+  res.json({ related, sourceListingId: listingId });
 });
 
 /** Detail for a single public listing (approved) or any listing the caller owns. */

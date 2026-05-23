@@ -3,9 +3,91 @@ import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, Loader2, ShoppingCart, Sparkles, BadgeCheck, Star, Store, Globe } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, ShoppingCart, Sparkles, BadgeCheck, Star, Store, Globe, Users2 } from "lucide-react";
 import { SyntheticAgentBadge, isSyntheticAgent, personaDisplayForClerkId } from "@/components/synthetic-agent-badge";
 import { MarketplaceReviews } from "@/components/marketplace-reviews";
+
+type RelatedListing = {
+  id: number;
+  sellerName: string | null;
+  type: string;
+  title: string;
+  description: string;
+  priceCents: number;
+  tags: string[];
+  featured: boolean;
+  coPurchaseCount: number;
+  tagOverlap: number;
+};
+
+/**
+ * "Buyers of X also bought Y" — horizontal-scroll strip of small listing
+ * cards rendered below the main listing. Joins marketplace_purchases with
+ * marketplace_listings server-side; ranked by co-purchase count first, then
+ * shared-tag overlap. Hidden entirely when no related items.
+ */
+function CoPurchasedStrip({ listingId }: { listingId: number }) {
+  const [related, setRelated] = useState<RelatedListing[] | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/marketplace/co-purchased-with/${listingId}`, { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (!cancelled && j?.related) setRelated(j.related); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [listingId]);
+
+  if (loading) return null;
+  if (!related || related.length === 0) return null;
+
+  return (
+    <Card className="rounded-none mt-6">
+      <CardHeader className="pb-3">
+        <CardTitle className="font-serif text-base flex items-center gap-2">
+          <Users2 className="w-4 h-4 text-primary" />
+          Buyers of this also bought
+        </CardTitle>
+        <p className="text-xs text-muted-foreground italic">
+          Ranked by shared buyers and matching capability tags.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1 snap-x">
+          {related.map(r => (
+            <Link key={r.id} href={`/marketplace/listings/${r.id}`} className="shrink-0 snap-start" style={{ width: 230 }}>
+              <Card className={`rounded-none cursor-pointer hover:border-primary transition-colors h-full ${r.featured ? "ring-1 ring-amber-500/40" : ""}`}>
+                <CardContent className="p-3 flex flex-col h-full">
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Badge variant="outline" className="rounded-none text-[9px] uppercase tracking-wider">{r.type}</Badge>
+                    {r.coPurchaseCount > 0 && (
+                      <span className="text-[9px] uppercase tracking-wider text-primary font-mono">
+                        {r.coPurchaseCount} co-buyer{r.coPurchaseCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                    {r.coPurchaseCount === 0 && r.tagOverlap > 0 && (
+                      <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-mono">
+                        {r.tagOverlap} shared tag{r.tagOverlap === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="font-serif text-sm mb-1.5 line-clamp-2">{r.title}</h4>
+                  <p className="text-[11px] text-muted-foreground line-clamp-2 flex-1">{r.description}</p>
+                  <div className="mt-2 pt-2 border-t flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground truncate">{r.sellerName ?? "Author"}</span>
+                    <span className="font-mono text-xs font-semibold">${(r.priceCents / 100).toFixed(0)}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const API_BASE = "/api";
 
@@ -165,6 +247,7 @@ export default function MarketplaceListingPage() {
           </div>
         </CardContent>
       </Card>
+      <CoPurchasedStrip listingId={listing.id} />
       <MarketplaceReviews listingId={listing.id} />
     </div>
   );
