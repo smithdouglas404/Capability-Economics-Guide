@@ -272,6 +272,33 @@ MEM0_API_KEY=<cloud token, m0- prefix, from app.mem0.ai>
 
 **Letta** — see `### Letta — RESTORED (via Letta Cloud)` above. Letta Cloud runs at `https://api.letta.com`; the self-hosted Letta Railway service was already deleted.
 
+### Inngest — self-hosted (2026-05-23, in the AI Genome Project — NOT Capability Economics)
+
+Inngest provides durable execution, scheduled triggers, event-driven coordination, retries, replay, and observability. Self-hosted OSS (no Inngest Cloud).
+
+**Where it lives** — Railway "**AI Genome Project**" (`projectId 56d5a0a0-2abc-41ec-a798-ff065fde2533`), NOT the Capability Economics project. The user explicitly placed it there 2026-05-23 to isolate from the main app. Three services back it:
+- `inngest` — `inngest/inngest:latest`, serviceId `90753004-301c-44a7-9f1b-a44f803bfe95`, public domain **`https://inngest-production-2b26.up.railway.app`** (dashboard + Event API + `/health`). Start command: `inngest start`. Reads `INNGEST_POSTGRES_URI`, `INNGEST_REDIS_URI`, `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` from env.
+- `inngest-redis` — `redis:7-alpine`, serviceId `f2bfea7e-d197-4dfb-8d49-fc3ced448121`, internal-only at `inngest-redis.railway.internal:6379` (no auth).
+- shares the existing `Postgres` service (serviceId `3698f59f-dba4-4853-a026-a2d771e8fd53`) — Inngest's tables are prefixed so they coexist safely with whatever else uses that DB.
+
+**The `feat/inngest-migration` branch** in this Capability Economics monorepo wired the api-server to talk to it: `inngest@^4.4.0` in `artifacts/api-server/package.json`, `src/inngest/client.ts` (singleton), `src/inngest/functions/index.ts` (`pingFn` on `test/ping`), and `src/app.ts` mounts `serve()` at `/api/inngest` BEFORE Clerk/apiKey middleware (Inngest's signing-key check authenticates the inbound request itself — auth middleware would reject it).
+
+**Cross-project wiring (still TODO — user action)**: this api-server runs in the **Capability Economics** Railway project but talks to Inngest in **AI Genome**. To complete Phase 0 the operator must set these env vars on the `capabilityeconomics` Railway service (NOT in this repo, NOT in Replit Secrets):
+```env
+INNGEST_BASE_URL=https://inngest-production-2b26.up.railway.app
+INNGEST_EVENT_KEY=<value in /home/runner/.claude/secrets/inngest-ai-genome.env>
+INNGEST_SIGNING_KEY=<value in same file — pure hex, NOT signkey-prod-… prefix>
+```
+Then deploy `feat/inngest-migration` to capabilityeconomics. The api-server will auto-register with Inngest on first boot; `test/ping` events sent via the dashboard will then route to `pingFn`. Verify by visiting Inngest's dashboard → Apps tab.
+
+**Gotchas learned the hard way (so future Claude doesn't re-learn them)**:
+- Railway's `startCommand` runs WITHOUT a shell, so `$VAR` expansion doesn't work. Use bare commands and let the binary read env vars itself — `inngest start` reads `INNGEST_POSTGRES_URI` / `INNGEST_REDIS_URI` directly. Do NOT try `inngest start --postgres-uri "$INNGEST_POSTGRES_URI"`; the literal `$INNGEST_POSTGRES_URI` will be passed to the binary and it'll error `unsupported database URL`.
+- The self-hosted Inngest binary's `--signing-key` flag requires **pure hex** (`openssl rand -hex 32` → 64 hex chars). The `signkey-prod-…` prefix you see in Inngest Cloud SDK examples is a Cloud convention — passing a prefixed value to the OSS binary causes `Error: signing-key must be hex string with even number of chars` and an infinite crashloop.
+- Inngest in the OSS binary listens on `:8288` by default. Railway's `serviceDomainCreate` needs `targetPort: 8288`. Setting `PORT=8288` in env vars is redundant but not harmful.
+- Inngest's tables auto-create on first boot — no manual migration step needed.
+
+**Local secrets store**: `/home/runner/.claude/secrets/inngest-ai-genome.env` holds the generated EVENT_KEY + SIGNING_KEY + BASE_URL with `0600` perms. NOT committed. Source it from a Claude Code shell to recover values; rotate by running another `openssl rand` + `variableCollectionUpsert`.
+
 ### LangSmith — observability across both stacks
 
 When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
