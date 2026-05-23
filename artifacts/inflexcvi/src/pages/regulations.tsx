@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { PersonaDescription } from "@/components/page-header";
 import { RequirementProvenanceTooltip } from "@/components/requirement-provenance-tooltip";
+import { ConsensusView } from "@/components/consensus-view";
 
 const API_BASE = "/api";
 
@@ -485,7 +486,14 @@ export default function Regulations() {
                       ""
                     }`}>
                       <div>
-                        <span className="font-medium text-sm">{r.capabilityName}</span>
+                        <ConsensusView
+                          capabilityId={r.capabilityId}
+                          ourScore={r.myScore ?? r.requiredMaturity}
+                          precision={0}
+                          className="font-medium text-sm text-foreground"
+                        >
+                          {r.capabilityName ?? `Capability ${r.capabilityId}`}
+                        </ConsensusView>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="rounded-none text-xs">{r.priority}</Badge>
                           <RequirementProvenanceTooltip

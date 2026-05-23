@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
 import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 import { DvxHero } from "@/components/dvx-hero";
+import { ConsensusView } from "@/components/consensus-view";
 
 const API_BASE = "/api";
 
@@ -456,7 +457,12 @@ export default function DisruptionPage() {
                       </div>
                       <div>
                         <div className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground">CVI</div>
-                        <div className="font-mono text-lg tabular-nums">{r.consensusScore === null ? "—" : r.consensusScore.toFixed(0)}</div>
+                        <ConsensusView
+                          capabilityId={r.capabilityId}
+                          ourScore={r.consensusScore}
+                          precision={0}
+                          className="font-mono text-lg tabular-nums"
+                        />
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-wrap pt-1">
@@ -540,7 +546,13 @@ export default function DisruptionPage() {
                             </Badge>
                           </td>
                           <td className="px-4 py-2 text-right font-mono tabular-nums">{r.ageMonths.toFixed(1)}</td>
-                          <td className="px-4 py-2 text-right font-mono tabular-nums">{r.consensusScore === null ? "—" : r.consensusScore.toFixed(1)}</td>
+                          <td className="px-4 py-2 text-right font-mono tabular-nums">
+                            <ConsensusView
+                              capabilityId={r.capabilityId}
+                              ourScore={r.consensusScore}
+                              precision={1}
+                            />
+                          </td>
                           <td className="px-4 py-2 text-right font-mono tabular-nums inline-flex items-center gap-1 justify-end">
                             {(r.velocity ?? 0) > 0.5 && <TrendingUp className="w-3 h-3 text-emerald-500" />}
                             {r.velocity === null ? "—" : (r.velocity > 0 ? "+" : "") + r.velocity.toFixed(2)}
