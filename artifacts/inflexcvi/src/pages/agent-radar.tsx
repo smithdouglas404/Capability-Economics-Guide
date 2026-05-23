@@ -9,7 +9,11 @@
  *      filter chips, event-type filter, replay scrubber for the last hour,
  *      and a click-through detail panel.
  *
- * SSE source: /api/agent/events/stream (shared with cvi-dashboard).
+ * SSE source: /api/agent/events/stream (shared with cvi-dashboard). Behind
+ *   the SSE wire the api-server now forwards messages from the Inngest
+ *   Realtime `agent-events` channel so events emitted on any replica reach
+ *   every replica's connected clients (Phase 3, 2026-05-23). The browser
+ *   transport stays plain SSE — no client-side Inngest dependency.
  * Replay source: /api/agent/runs/replay?since=<iso>.
  * KPI source: /api/agent/runs/aggregates.
  */

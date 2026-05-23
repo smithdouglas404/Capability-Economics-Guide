@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startScheduler } from "./services/agent";
+import { startScheduler, startRealtimeBridge } from "./services/agent";
 import { db, capabilitiesTable, capabilityAlphaTable, dependencyEdgeScoresTable, capabilityDependenciesTable, enrichmentRunsTable } from "@workspace/db";
 import { eq, inArray, isNull, and } from "drizzle-orm";
 import { verifySchema } from "./lib/schema-check";
@@ -83,6 +83,14 @@ app.listen(port, (err) => {
 
   startScheduler();
   logger.info("Agent scheduler started (30min interval)");
+
+  // Inngest Realtime → SSE bridge. When INNGEST_BASE_URL + INNGEST_EVENT_KEY
+  // are configured (and INNGEST_REALTIME != 0), this opens a long-lived
+  // subscription so events published by OTHER api-server replicas land on
+  // this replica's SSE clients. No-op if Inngest env vars aren't set.
+  void startRealtimeBridge().then(() => {
+    logger.info("Agent Realtime bridge bootstrap finished");
+  });
 
   // Auto-rotation checker — daily tick that rotates ADMIN_API_KEY when
   // cadence is reached (and the operator has enabled auto-rotation +
