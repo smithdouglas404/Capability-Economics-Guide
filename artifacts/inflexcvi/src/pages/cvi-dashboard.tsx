@@ -335,6 +335,43 @@ function ScoreErrorBar({ score, ciLow, ciHigh }: { score: number; ciLow: number;
   );
 }
 
+function CviSparkline({ points, color }: { points: { timestamp: number; index: number }[]; color: string }) {
+  if (points.length < 2) return null;
+  const width = 180;
+  const height = 36;
+  const indices = points.map(p => p.index);
+  const min = Math.min(...indices);
+  const max = Math.max(...indices);
+  const span = max - min || 1;
+  const xs = points.map((_p, i) => (i / (points.length - 1)) * (width - 4) + 2);
+  const ys = points.map(p => height - 4 - ((p.index - min) / span) * (height - 8));
+  const path = xs.map((x, i) => `${i === 0 ? "M" : "L"}${x.toFixed(1)},${ys[i]!.toFixed(1)}`).join(" ");
+  const last = points[points.length - 1]!;
+  const first = points[0]!;
+  const delta = last.index - first.index;
+  const deltaSign = delta >= 0 ? "+" : "";
+  return (
+    <div className="mt-3 w-44 flex items-center gap-2">
+      <svg width={width} height={height} className="overflow-visible">
+        <polyline
+          fill="none"
+          stroke={color}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          points={xs.map((x, i) => `${x.toFixed(1)},${ys[i]!.toFixed(1)}`).join(" ")}
+        />
+        <path d={`${path} L${xs[xs.length - 1]},${height - 4} L${xs[0]},${height - 4} Z`} fill={color} fillOpacity={0.1} />
+        <circle cx={xs[xs.length - 1]} cy={ys[ys.length - 1]} r={2.5} fill={color} />
+      </svg>
+      <div className="font-mono text-[10px] text-white whitespace-nowrap">
+        {points.length}d<br />
+        <span style={{ color: delta >= 0 ? "#10b981" : "#ef4444" }}>{deltaSign}{delta.toFixed(1)}</span>
+      </div>
+    </div>
+  );
+}
+
 function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
   value: number; ciLow: number; ciHigh: number; color: string;
 }) {
@@ -949,6 +986,10 @@ export default function CVIDashboard() {
                     ciHigh={cei.overallCiHigh}
                     color={indexColor}
                   />
+                )}
+                {/* 30-day sparkline — shows movement, not just the snapshot */}
+                {historyData.length >= 2 && (
+                  <CviSparkline points={historyData} color={indexColor} />
                 )}
                 <div className="text-xs text-amber-500 mt-2">
                   Updated {new Date(cei.timestamp).toLocaleString()}
