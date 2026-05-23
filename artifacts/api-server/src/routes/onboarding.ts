@@ -34,6 +34,73 @@ router.use("/onboarding", requireSession());
 
 const StartBody = z.object({
   industryId: z.number().int().positive(),
+  // Optional onboarding signals — captured by the multi-step guided flow.
+  // They flow into the board name/description and the concierge prompt;
+  // never required, so the legacy "just give me an industryId" caller path
+  // continues to work unchanged.
+  persona: z.enum(["pe", "vc", "f500", "student", "professor"]).nullable().optional(),
+  goal: z.string().max(200).nullable().optional(),
+  freeFormDescription: z.string().max(2000).nullable().optional(),
+});
+
+const SuggestBody = z.object({
+  description: z.string().min(8).max(2000),
+  persona: z.enum(["pe", "vc", "f500", "student", "professor"]).nullable().optional(),
+});
+
+/**
+ * Free-form concierge endpoint. The user types a sentence like
+ * "I'm a CFO at a regional bank looking at digital-banking risk" and the
+ * onboarding-concierge workflow returns a recommended industry hint plus
+ * a short narrative answer. The frontend uses this to pre-fill the
+ * industry pick step. Never persists anything; always safe to call.
+ */
+router.post("/onboarding/suggest", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const parsed = SuggestBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid body", details: parsed.error.issues });
+    return;
+  }
+
+  const description = parsed.data.description;
+  const persona = parsed.data.persona ?? null;
+
+  // First — try to match against an existing industry by name (cheap,
+  // deterministic). The concierge workflow can run alongside; whichever
+  // comes back useful gets returned. Never throws on LLM failure.
+  const all = await db
+    .select({ id: industriesTable.id, name: industriesTable.name, slug: industriesTable.slug })
+    .from(industriesTable);
+  const desc = description.toLowerCase();
+  let matchedIndustry: { id: number; name: string; slug: string } | null = null;
+  for (const ind of all) {
+    const hay = `${ind.name} ${ind.slug}`.toLowerCase();
+    const tokens = hay.split(/[\s/_-]+/).filter(t => t.length > 3);
+    if (tokens.some(t => desc.includes(t))) {
+      matchedIndustry = ind;
+      break;
+    }
+  }
+
+  let conciergeAnswer: string | null = null;
+  try {
+    const result = await runOnboardingConcierge({
+      clerkUserId: auth.userId,
+      clerkOrgId: auth.orgId ?? null,
+      selectedIndustry: matchedIndustry?.name,
+      signals: { freeFormDescription: description, persona },
+    });
+    if (result) conciergeAnswer = result.answer;
+  } catch (err) {
+    logger.warn({ err }, "[onboarding] suggest: concierge call failed — returning deterministic match only");
+  }
+
+  res.json({
+    suggestedIndustry: matchedIndustry,
+    answer: conciergeAnswer,
+  });
 });
 
 router.get("/onboarding/state", async (req, res) => {
@@ -48,6 +115,75 @@ router.get("/onboarding/state", async (req, res) => {
   res.json({ completed, boardCount: row?.c ?? 0 });
 });
 
+/**
+ * Fetch the top-5 ranked capabilities for an industry — the same set the
+ * /start endpoint would seed into a workbench board, but without creating
+ * anything. Used by the onboarding preview UI to show "here's what your
+ * dashboard will look like" before the user commits.
+ */
+async function rankTopCapabilities(industryId: number) {
+  const candidates = await db
+    .select({
+      cap: capabilitiesTable,
+      comp: cviComponentsTable,
+    })
+    .from(capabilitiesTable)
+    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
+    .where(and(
+      eq(capabilitiesTable.industryId, industryId),
+      eq(capabilitiesTable.reviewStatus, "approved"),
+    ))
+    .orderBy(asc(capabilitiesTable.id));
+
+  const ranked = [...candidates]
+    .map(r => ({
+      cap: r.cap,
+      comp: r.comp,
+      score: r.comp?.consensusScore ?? r.cap.benchmarkScore ?? 0,
+      hasComp: !!r.comp,
+      isLeaf: r.cap.isLeaf,
+    }))
+    .sort((a, b) => {
+      const aRank = (a.hasComp ? 2 : 0) + (a.isLeaf ? 1 : 0);
+      const bRank = (b.hasComp ? 2 : 0) + (b.isLeaf ? 1 : 0);
+      if (aRank !== bRank) return bRank - aRank;
+      return b.score - a.score;
+    })
+    .slice(0, 5);
+
+  return { candidates, ranked };
+}
+
+router.get("/onboarding/preview", async (req, res) => {
+  const auth = getAuth(req);
+  if (!auth?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const industryId = Number(req.query.industryId);
+  if (!Number.isFinite(industryId) || industryId <= 0) {
+    res.status(400).json({ error: "industryId required" });
+    return;
+  }
+  const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, industryId));
+  if (!industry) { res.status(404).json({ error: "Industry not found" }); return; }
+  const { ranked } = await rankTopCapabilities(industryId);
+  // Average consensus score across the top-5 — close enough to a "mini CVI
+  // snapshot" for the preview card without hitting the full CVI compute path.
+  const scored = ranked.filter(r => r.hasComp);
+  const cviPreview = scored.length > 0
+    ? Math.round(scored.reduce((s, r) => s + r.score, 0) / scored.length)
+    : null;
+  res.json({
+    industryName: industry.name,
+    cviPreview,
+    capabilities: ranked.map(r => ({
+      id: r.cap.id,
+      name: r.cap.name,
+      description: r.cap.description,
+      score: r.hasComp ? Math.round(r.score) : null,
+      isLeaf: r.isLeaf,
+    })),
+  });
+});
+
 router.post("/onboarding/start", async (req, res) => {
   const auth = getAuth(req);
   if (!auth?.userId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -60,38 +196,7 @@ router.post("/onboarding/start", async (req, res) => {
   const [industry] = await db.select().from(industriesTable).where(eq(industriesTable.id, parsed.data.industryId));
   if (!industry) { res.status(404).json({ error: "Industry not found" }); return; }
 
-  // Pick top 5 capabilities for that industry. Ranking: approved + has CVI
-  // component + ordered by consensusScore desc. We prefer leaf capabilities
-  // since they're the most concrete to ideate against.
-  const candidates = await db
-    .select({
-      cap: capabilitiesTable,
-      comp: cviComponentsTable,
-    })
-    .from(capabilitiesTable)
-    .leftJoin(cviComponentsTable, eq(cviComponentsTable.capabilityId, capabilitiesTable.id))
-    .where(and(
-      eq(capabilitiesTable.industryId, industry.id),
-      eq(capabilitiesTable.reviewStatus, "approved"),
-    ))
-    .orderBy(asc(capabilitiesTable.id));
-
-  // Prefer leaf + scored caps; fall back to anything in the industry.
-  const ranked = [...candidates]
-    .map(r => ({
-      cap: r.cap,
-      score: r.comp?.consensusScore ?? r.cap.benchmarkScore ?? 0,
-      hasComp: !!r.comp,
-      isLeaf: r.cap.isLeaf,
-    }))
-    .sort((a, b) => {
-      // Prefer scored leaf caps first, then unscored leaf, then anything.
-      const aRank = (a.hasComp ? 2 : 0) + (a.isLeaf ? 1 : 0);
-      const bRank = (b.hasComp ? 2 : 0) + (b.isLeaf ? 1 : 0);
-      if (aRank !== bRank) return bRank - aRank;
-      return b.score - a.score;
-    })
-    .slice(0, 5);
+  const { candidates, ranked } = await rankTopCapabilities(industry.id);
 
   if (ranked.length === 0) {
     res.status(422).json({ error: "No capabilities available for that industry yet — try another." });
@@ -99,10 +204,13 @@ router.post("/onboarding/start", async (req, res) => {
   }
 
   // ── Create the board ──────────────────────────────────────────────────
+  // If the guided flow gathered a goal, weave it into the board description
+  // so the user lands on something that reflects the framing they gave us.
+  const goalSuffix = parsed.data.goal ? ` Your stated goal: "${parsed.data.goal.trim()}".` : "";
   const [board] = await db.insert(workbenchBoardsTable).values({
     clerkUserId: auth.userId,
     name: `Welcome — ${industry.name} starter board`,
-    description: `Seeded by onboarding with the five highest-signal capabilities in ${industry.name}. Drag them through Scan → Frame → Ideate → Validate → Launch and run Claude actions on each card.`,
+    description: `Seeded by onboarding with the five highest-signal capabilities in ${industry.name}. Drag them through Scan → Frame → Ideate → Validate → Launch and run Claude actions on each card.${goalSuffix}`,
   }).returning();
 
   // ── Add the 5 cards: 3 in scan, 2 in frame ─────────────────────────────
@@ -155,7 +263,13 @@ router.post("/onboarding/start", async (req, res) => {
       clerkUserId: auth.userId!,
       clerkOrgId: auth.orgId ?? null,
       selectedIndustry: industry.name,
-      signals: { firstCapability: firstCap.name, score: firstComp.score },
+      signals: {
+        firstCapability: firstCap.name,
+        score: firstComp.score,
+        persona: parsed.data.persona ?? undefined,
+        goal: parsed.data.goal ?? undefined,
+        freeFormDescription: parsed.data.freeFormDescription ?? undefined,
+      },
     }).catch((err) => {
       logger.warn({ err }, "[onboarding] concierge failed — falling back to runIdeation");
       return null;
