@@ -51,6 +51,7 @@ import {
   memberNotificationsTable,
   vcrAssessmentsTable,
   vcrResearchItemsTable,
+  strategyCommentsTable,
 } from "@workspace/db";
 import { eq, inArray, and, gte, desc } from "drizzle-orm";
 import {
@@ -498,6 +499,23 @@ async function executeTrigger(t: PendingTrigger): Promise<boolean> {
       .where(eq(autoVcrTriggersTable.vcrAssessmentId, campaignId));
   } catch (err) {
     console.warn(`[AutoVcrTrigger] member_notification failed for campaign ${campaignId}:`, err instanceof Error ? err.message : err);
+  }
+
+  // 6. For capability_drop triggers, also post a strategy_comments row anchored
+  //    to the capability so the brief surfaces on /capability/:id inline —
+  //    "the platform is actively defending its claims" loop from the spec.
+  if (t.signalSource === "capability_drop" && t.targetId !== null && cycleSummary?.trim()) {
+    try {
+      await db.insert(strategyCommentsTable).values({
+        targetType: "capability",
+        targetId: t.targetId,
+        authorRole: "Auto-VCR",
+        authorName: "Inflexcvi VCR",
+        body: `${t.reason}\n\n${cycleSummary.trim()}\n\n→ Open VCR campaign #${campaignId} for full findings.`,
+      });
+    } catch (err) {
+      console.warn(`[AutoVcrTrigger] capability strategy_comment failed for capability ${t.targetId}:`, err instanceof Error ? err.message : err);
+    }
   }
 
   return true;
