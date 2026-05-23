@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, BookOpen, Calculator, Database, Scale, Sigma, GitBranch, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { PersonaDescription } from "@/components/page-header";
 
 function Section({
@@ -47,8 +50,85 @@ const TOC = [
   { id: "gdp-weighting", label: "GDP weighting & scale" },
   { id: "lifecycle", label: "Lifecycle derivation" },
   { id: "worked-example", label: "Worked example" },
+  { id: "evar-calculator", label: "Try it: live EVaR calculator" },
   { id: "limits", label: "Limits & caveats" },
 ];
+
+/**
+ * Interactive EVaR widget — the same `revenue × margin × (1 − 0.5^(12/halfLife))`
+ * formula that drives the alpha tab. Lives client-side so changes are instant
+ * and there's no backend round-trip; the math is pure and matches the
+ * production implementation.
+ */
+function EvarCalculator() {
+  const [revenue, setRevenue] = useState(100_000_000); // $100M
+  const [margin, setMargin] = useState(0.25);          // 25%
+  const [halfLife, setHalfLife] = useState(24);        // months
+
+  const safeHalfLife = halfLife > 0 ? halfLife : 1;
+  const decay = 1 - Math.pow(0.5, 12 / safeHalfLife);
+  const evar12 = revenue * margin * decay;
+
+  const fmt = (n: number) =>
+    n >= 1_000_000_000 ? `$${(n / 1_000_000_000).toFixed(2)}B`
+    : n >= 1_000_000     ? `$${(n / 1_000_000).toFixed(2)}M`
+    : n >= 1_000         ? `$${(n / 1_000).toFixed(1)}K`
+    : `$${n.toFixed(0)}`;
+
+  return (
+    <div className="not-prose my-4 border border-border/60 rounded-none bg-muted/20 p-4 space-y-4">
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div>
+          <Label htmlFor="evar-revenue" className="text-[10px] uppercase tracking-wider text-muted-foreground">Revenue ($)</Label>
+          <Input
+            id="evar-revenue"
+            type="number"
+            min={0}
+            step={1_000_000}
+            value={revenue}
+            onChange={e => setRevenue(Number(e.target.value) || 0)}
+            className="font-mono text-sm mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="evar-margin" className="text-[10px] uppercase tracking-wider text-muted-foreground">Margin (0–1)</Label>
+          <Input
+            id="evar-margin"
+            type="number"
+            min={0}
+            max={1}
+            step={0.01}
+            value={margin}
+            onChange={e => setMargin(Number(e.target.value) || 0)}
+            className="font-mono text-sm mt-1"
+          />
+        </div>
+        <div>
+          <Label htmlFor="evar-halflife" className="text-[10px] uppercase tracking-wider text-muted-foreground">Half-life (months)</Label>
+          <Input
+            id="evar-halflife"
+            type="number"
+            min={1}
+            step={1}
+            value={halfLife}
+            onChange={e => setHalfLife(Number(e.target.value) || 0)}
+            className="font-mono text-sm mt-1"
+          />
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 pt-3 border-t border-border/60">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">12-month EVaR</div>
+          <div className="font-serif text-3xl tabular-nums text-foreground mt-0.5">{fmt(evar12)}</div>
+        </div>
+        <div className="font-mono text-[11px] text-muted-foreground text-right leading-relaxed">
+          evar12 = revenue × margin × (1 − 0.5^(12/halfLife))
+          {"\n"}      = {fmt(revenue)} × {margin.toFixed(2)} × {decay.toFixed(4)}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Methodology() {
   return (
@@ -406,6 +486,21 @@ export default function Methodology() {
                 They are not derived from any single capability's data — they
                 are an industry-wide valuation prior applied uniformly across
                 capabilities in the arbitrage view.
+              </p>
+            </Section>
+
+            <Section id="evar-calculator" icon={Calculator} title="Try it: live EVaR calculator">
+              <p>
+                The 12-month <strong>EVaR</strong> (Economic Value at Risk) for a capability is the
+                discounted-margin tail given its half-life. The formula below is the same one used by
+                the <code>/alpha</code> tab in production. Adjust the inputs to see how the result
+                shifts in real time:
+              </p>
+              <EvarCalculator />
+              <p className="text-muted-foreground">
+                Half-life captures how quickly the capability&apos;s margin contribution decays — shorter half-lives
+                pull the 12-month tail closer to the full margin. The same logic drives the deal-time-value
+                figure on every capability detail page.
               </p>
             </Section>
 

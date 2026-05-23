@@ -10,9 +10,12 @@
  * white-paper text deep-dive). Different audience: this is the at-a-glance
  * "what does the engine do."
  */
+import { useState } from "react";
 import { Link } from "wouter";
-import { ArrowLeft, ArrowRight, Globe2, Search, Sigma, Calculator, Crosshair, Network, Users, Bell, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Globe2, Search, Sigma, Calculator, Crosshair, Network, Users, Bell, BookOpen, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 
 type Source = "perplexity" | "claude" | "mem0";
@@ -95,7 +98,84 @@ export default function HowItWorksPage() {
           <Link href="/provenance" className="text-accent hover:underline">/provenance</Link>.
         </CardContent>
       </Card>
+
+      <MethodologyQABox />
     </div>
+  );
+}
+
+/**
+ * Inline Q&A box — sends a question to /api/nl-query (the same Claude RAG
+ * pipeline that powers the global nav search). Surfaced here so a reader can
+ * stay on the page and ask a clarifying question about the methodology without
+ * jumping into the full assistant surface.
+ */
+function MethodologyQABox() {
+  const [query, setQuery] = useState("");
+  const [answer, setAnswer] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function ask() {
+    const q = query.trim();
+    if (!q || loading) return;
+    setLoading(true);
+    setError(null);
+    setAnswer(null);
+    try {
+      const sessionToken = typeof window !== "undefined" ? localStorage.getItem("ce_session_token") ?? undefined : undefined;
+      const res = await fetch("/api/nl-query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: q, sessionToken }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { response?: string };
+      setAnswer(data.response ?? "(no response)");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-accent" />
+          <h3 className="font-serif text-lg tracking-tight">Ask anything about the methodology</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Live Q&amp;A grounded in the engine&apos;s knowledge graph + cited sources. Try &ldquo;how is confidence computed?&rdquo; or &ldquo;what's the difference between a posterior mean and a benchmark score?&rdquo;
+        </p>
+        <form
+          className="flex gap-2"
+          onSubmit={e => {
+            e.preventDefault();
+            void ask();
+          }}
+        >
+          <Input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="What would you like to know?"
+            disabled={loading}
+          />
+          <Button type="submit" disabled={loading || !query.trim()}>
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Ask"}
+          </Button>
+        </form>
+        {error && (
+          <p className="text-xs text-rose-500">Couldn&apos;t reach the Q&amp;A service: {error}</p>
+        )}
+        {answer && (
+          <div className="mt-2 px-4 py-3 rounded-none border border-border/60 bg-muted/40 text-sm leading-relaxed whitespace-pre-wrap">
+            {answer}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
