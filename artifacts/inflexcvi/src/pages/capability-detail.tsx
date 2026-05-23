@@ -576,6 +576,9 @@ export default function CapabilityDetailPage() {
       {/* ─── SEC filings panel ─────────────────────────────────────────────── */}
       {cap && <SecFilingsPanel capabilityId={id} capabilityName={cap.name} />}
 
+      {/* ─── Peer-company investment panel (this quarter) ─────────────────── */}
+      {cap && <PeerInvestmentPanel capabilityId={id} capabilityName={cap.name} />}
+
       {/* ─── Peer benchmark card ───────────────────────────────────────────── */}
       {cap && <PeerBenchmarkCard capabilityId={id} industryId={cap.industryId} />}
 
@@ -1111,5 +1114,100 @@ function AgentRecommendationCard({ capabilityId }: { capabilityId: number }) {
         </div>
       )}
     </div>
+  );
+}
+
+interface PeerInvestmentsResp {
+  capabilityId: number;
+  quarter: string;
+  quarterStart: string;
+  totalCandidates: number;
+  peers: Array<{
+    company: string;
+    disclosure: string;
+    source: string;
+    date: string;
+    type: "sec_filing" | "macro_event";
+    formType?: string;
+  }>;
+}
+
+function PeerInvestmentPanel({ capabilityId, capabilityName }: { capabilityId: number; capabilityName: string }) {
+  const [data, setData] = useState<PeerInvestmentsResp | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/peer-investments?limit=3`)
+      .then(async r => (r.ok ? r.json() : null))
+      .then((j: PeerInvestmentsResp | null) => { if (!cancelled) setData(j); })
+      .catch(() => { /* show empty state */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId]);
+
+  return (
+    <Card className="rounded-none border-border/60">
+      <CardContent className="pt-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          <h2 className="font-serif text-xl tracking-tight">Peers investing this quarter</h2>
+          {data && (
+            <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+              {data.quarter}
+            </Badge>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Public-company disclosures + macro events naming peers investing in
+          <span className="font-medium text-foreground"> {capabilityName}</span> during the current calendar quarter. Source: 10-K / 10-Q filings + tagged macro events.
+        </p>
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Scanning peer disclosures…
+          </div>
+        )}
+        {!loading && data && data.peers.length === 0 && (
+          <p className="text-sm text-muted-foreground italic">
+            No peer disclosures naming this capability landed yet this quarter. As 10-K / 10-Q filings come in and macro events get tagged, peers will appear here.
+          </p>
+        )}
+        {!loading && data && data.peers.length > 0 && (
+          <ul className="divide-y divide-border/60">
+            {data.peers.map((p, i) => (
+              <li key={`${p.company}-${i}`} className="py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-sm">{p.company}</span>
+                      <Badge variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-[0.12em]">
+                        {p.type === "sec_filing" ? p.formType ?? "filing" : "macro event"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2 italic">"{p.disclosure}"</p>
+                  </div>
+                  <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                    <div>{new Date(p.date).toLocaleDateString()}</div>
+                    {p.source.startsWith("http") ? (
+                      <a href={p.source} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-1 text-foreground hover:underline">
+                        Source <ExternalLink className="w-3 h-3" />
+                      </a>
+                    ) : (
+                      <span className="font-mono text-[10px] text-muted-foreground-soft mt-1 inline-block">{p.source}</span>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data && data.totalCandidates > data.peers.length && (
+          <p className="text-[10px] text-muted-foreground-soft">
+            Showing top {data.peers.length} of {data.totalCandidates} candidate disclosures (deduped by company, most recent first).
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

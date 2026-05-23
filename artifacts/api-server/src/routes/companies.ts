@@ -179,6 +179,30 @@ router.get("/workbench/companies/:id/similar", async (req, res) => {
   res.json({ similar: sims });
 });
 
+/**
+ * Trade-thesis generator (long / short / pair) for /comparables/:companyId.
+ * Cached 24h per company; pass ?fresh=1 to bypass cache. Returns null
+ * (= 503) when LLM is unavailable so the UI can render an empty state.
+ */
+router.get("/workbench/companies/:id/trade-theses", async (req, res) => {
+  const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
+  if (!Number.isFinite(id)) {
+    res.status(404).json({ error: "not found" });
+    return;
+  }
+  try {
+    const { getOrGenerateTradeTheses } = await import("../services/recommendations/trade-theses");
+    const result = await getOrGenerateTradeTheses(id, { forceFresh: req.query.fresh === "1" });
+    if (!result) {
+      res.status(503).json({ error: "Trade-thesis generation unavailable — LLM call failed or company has no fingerprint." });
+      return;
+    }
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to generate trade theses" });
+  }
+});
+
 router.post("/workbench/companies/:id/recompute-scores", async (req, res) => {
   const id = parseInt(String(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id), 10);
   if (!Number.isFinite(id)) {
