@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowLeft,
@@ -9,10 +10,62 @@ import {
   AlertCircle,
   CheckCircle2,
   ExternalLink,
+  Scale,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
+interface RegOverviewRow {
+  regulation: { id: number; shortCode: string; jurisdiction: string };
+  overallCompliance: number | null;
+  total: number;
+  criticalGaps: number;
+}
+
+function CompliancePostureCard() {
+  const [rows, setRows] = useState<RegOverviewRow[] | null>(null);
+  useEffect(() => {
+    fetch("/api/regulations/overview")
+      .then(r => r.ok ? r.json() : null)
+      .then((d: { rows?: RegOverviewRow[] } | null) => setRows(d?.rows ?? null))
+      .catch(() => setRows(null));
+  }, []);
+  if (!rows || rows.length === 0) return null;
+  const top5 = rows.slice(0, 5);
+  return (
+    <Card className="rounded-none border-l-2 border-l-emerald-500/40">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <Scale className="w-4 h-4 text-emerald-600" />
+            <h2 className="font-serif text-xl tracking-tight">Live compliance posture</h2>
+          </div>
+          <Link href="/regulations" className="text-xs text-primary hover:underline">View full board →</Link>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
+          {rows.length} regulations mapped to your capability requirements. Showing top 5 by EVaR-weighted exposure.
+        </p>
+        <ul className="space-y-1.5">
+          {top5.map(r => (
+            <li key={r.regulation.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="font-mono text-xs">{r.regulation.shortCode}</span>
+              <span className="flex items-center gap-3 text-xs">
+                <span className="text-muted-foreground">{r.total} reqs</span>
+                {r.criticalGaps > 0 && <span className="text-destructive">{r.criticalGaps} critical gaps</span>}
+                {r.overallCompliance !== null && (
+                  <span className={r.overallCompliance >= 80 ? "text-emerald-600 dark:text-emerald-400" : r.overallCompliance >= 50 ? "text-amber-600" : "text-destructive"}>
+                    {r.overallCompliance}%
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function SecurityPage() {
   return (
@@ -32,6 +85,9 @@ export default function SecurityPage() {
           For procurement documentation or a signed DPA, contact <a href="mailto:security@inflexcvi.ai" className="text-primary hover:underline">security@inflexcvi.ai</a>.
         </p>
       </div>
+
+      {/* Live compliance posture — CISO/CSO visible-posture tile pulled from /regulations */}
+      <CompliancePostureCard />
 
       <Card className="rounded-none border-border/60">
         <CardContent className="p-5 space-y-3">
