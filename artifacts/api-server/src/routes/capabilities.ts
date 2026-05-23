@@ -7,8 +7,11 @@ import {
   capabilityRoleMappingsTable,
   cSuiteRolesTable,
   cviComponentsTable,
+  macroEventsTable,
+  capabilityFilingsTable,
+  companiesTable,
 } from "@workspace/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { ListCapabilitiesQueryParams, GetCapabilityParams } from "@workspace/api-zod";
 import { buildLifecycleMap, deriveLifecycleStage } from "../services/lifecycle";
 import { getOrFetchCapabilityFilings } from "../services/edgar/capability-filings";
@@ -249,6 +252,106 @@ router.get("/capabilities/:id/filings", async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch SEC filings" });
+  }
+});
+
+/**
+ * Peer companies investing in / disclosing this capability this quarter.
+ *
+ * Pulls from two evidence streams:
+ *   1. macro_events whose affected_capability_ids includes this cap, with a
+ *      company-name hit somewhere in title/description (matched against the
+ *      companies table). One row per (event × company).
+ *   2. capability_filings (10-K / 10-Q only) where filing_date is within
+ *      the current calendar quarter. One row per filing.
+ *
+ * Returns the top N (default 3) most-recent peer disclosures with company
+ * name, what was disclosed, source citation, and date.
+ */
+router.get("/capabilities/:id/peer-investments", async (req, res) => {
+  const idRaw = req.params.id;
+  const capId = parseInt(Array.isArray(idRaw) ? (idRaw[0] ?? "") : idRaw, 10);
+  if (!Number.isFinite(capId)) { res.status(400).json({ error: "Invalid capability id" }); return; }
+  try {
+    const limit = Math.max(1, Math.min(10, Number(req.query.limit) || 3));
+    // Current calendar quarter window.
+    const now = new Date();
+    const q = Math.floor(now.getMonth() / 3);
+    const quarterStart = new Date(now.getFullYear(), q * 3, 1);
+    const quarterLabel = `Q${q + 1} ${now.getFullYear()}`;
+
+    // Stream 1: 10-K / 10-Q filings filed this quarter that mention this cap.
+    const filings = await dbConn.select().from(capabilityFilingsTable)
+      .where(and(
+        eq(capabilityFilingsTable.capabilityId, capId),
+        inArray(capabilityFilingsTable.formType, ["10-K", "10-Q"]),
+        gte(capabilityFilingsTable.filingDate, quarterStart),
+      ))
+      .orderBy(descOrder(capabilityFilingsTable.filingDate))
+      .limit(20);
+
+    // Stream 2: macro events flagged for this cap, within current quarter,
+    // where the title/description name a known company. We pull all
+    // companies in the same industry as the capability and look for
+    // case-insensitive substring matches.
+    const [cap] = await dbConn.select({ industryId: capabilitiesTable.industryId })
+      .from(capabilitiesTable).where(eq(capabilitiesTable.id, capId)).limit(1);
+    let macroPeers: Array<{ company: string; disclosure: string; source: string; date: string; type: "macro_event" }> = [];
+    if (cap) {
+      const allCompanies = await dbConn.select({ id: companiesTable.id, name: companiesTable.name, ticker: companiesTable.publicTicker })
+        .from(companiesTable).where(eq(companiesTable.industryId, cap.industryId));
+      const events = await dbConn.select().from(macroEventsTable)
+        .where(and(
+          sql`${macroEventsTable.affectedCapabilityIds}::jsonb @> ${JSON.stringify([capId])}::jsonb`,
+          gte(macroEventsTable.startedAt, quarterStart),
+        ))
+        .orderBy(descOrder(macroEventsTable.startedAt))
+        .limit(50);
+      for (const e of events) {
+        const haystack = `${e.title} ${e.description}`.toLowerCase();
+        for (const co of allCompanies) {
+          const needle = co.name.toLowerCase();
+          if (needle.length < 3) continue;
+          if (haystack.includes(needle)) {
+            const citations = (e.citations ?? []) as string[];
+            macroPeers.push({
+              company: co.ticker ? `${co.name} (${co.ticker})` : co.name,
+              disclosure: e.title,
+              source: citations[0] ?? `macro-event:${e.id}`,
+              date: e.startedAt.toISOString(),
+              type: "macro_event",
+            });
+            break; // one peer per event
+          }
+        }
+      }
+    }
+
+    const filingPeers = filings.map(f => ({
+      company: f.ticker ? `${f.companyName} (${f.ticker})` : f.companyName,
+      disclosure: f.excerpt ?? `${f.formType} disclosure referencing this capability`,
+      source: f.filingUrl,
+      date: f.filingDate.toISOString(),
+      type: "sec_filing" as const,
+      formType: f.formType,
+    }));
+
+    // Merge + dedupe by company name (keep most recent), then sort by date desc.
+    const merged = [...filingPeers, ...macroPeers] as Array<{ company: string; disclosure: string; source: string; date: string; type: string; formType?: string }>;
+    const byCompany = new Map<string, typeof merged[number]>();
+    for (const p of merged) {
+      const existing = byCompany.get(p.company);
+      if (!existing || new Date(p.date).getTime() > new Date(existing.date).getTime()) {
+        byCompany.set(p.company, p);
+      }
+    }
+    const peers = Array.from(byCompany.values())
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, limit);
+
+    res.json({ capabilityId: capId, quarter: quarterLabel, quarterStart: quarterStart.toISOString(), peers, totalCandidates: merged.length });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch peer investments" });
   }
 });
 

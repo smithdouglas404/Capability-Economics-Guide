@@ -18,7 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Building2, Calculator, AlertCircle } from "lucide-react";
+import { ArrowLeft, Building2, Calculator, AlertCircle, TrendingUp, TrendingDown, ArrowLeftRight, Loader2, RefreshCw } from "lucide-react";
 
 interface Company {
   id: number;
@@ -207,6 +207,9 @@ export default function ComparablesPage() {
         </Card>
       )}
 
+      {/* Trade theses (LLM-generated, 24h cached) */}
+      {targetId && <TradeThesesPanel companyId={targetId} />}
+
       {/* Peer table */}
       <Card>
         <CardHeader>
@@ -258,5 +261,130 @@ export default function ComparablesPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+interface TradeThesesResp {
+  companyId: number;
+  companyName: string;
+  generatedAt: string;
+  cached: boolean;
+  evarPortfolioMm: number | null;
+  theses: Array<{
+    kind: "long" | "short" | "pair";
+    headline: string;
+    rationale: string;
+    sizing: string;
+    capabilities: string[];
+  }>;
+}
+
+function TradeThesesPanel({ companyId }: { companyId: number }) {
+  const [data, setData] = useState<TradeThesesResp | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load(fresh = false) {
+    if (fresh) setRefreshing(true); else setLoading(true);
+    setError(null);
+    fetch(`/api/workbench/companies/${companyId}/trade-theses${fresh ? "?fresh=1" : ""}`)
+      .then(async r => {
+        if (r.status === 503) {
+          setError("Trade-thesis generation is unavailable — the LLM call failed or this company has no capability fingerprint.");
+          return null;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((j: TradeThesesResp | null) => setData(j))
+      .catch(e => setError(e instanceof Error ? e.message : "Failed to load theses"))
+      .finally(() => { setLoading(false); setRefreshing(false); });
+  }
+
+  useEffect(() => { load(false); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [companyId]);
+
+  const ICON = (kind: "long" | "short" | "pair") =>
+    kind === "long" ? <TrendingUp className="w-4 h-4 text-emerald-600" />
+      : kind === "short" ? <TrendingDown className="w-4 h-4 text-rose-600" />
+      : <ArrowLeftRight className="w-4 h-4 text-indigo-600" />;
+  const TONE = (kind: "long" | "short" | "pair") =>
+    kind === "long" ? "border-emerald-500/40 bg-emerald-500/5"
+      : kind === "short" ? "border-rose-500/40 bg-rose-500/5"
+      : "border-indigo-500/40 bg-indigo-500/5";
+
+  return (
+    <Card data-testid="trade-theses">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle className="font-serif text-lg flex items-center gap-2">
+              <ArrowLeftRight className="w-4 h-4" /> Trade theses
+              {data?.cached && (
+                <Badge variant="outline" className="text-[10px] font-mono uppercase tracking-[0.12em]">cached 24h</Badge>
+              )}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              LLM-generated trade ideas grounded in the target's capability fingerprint, peer-cohort moat scores, and portfolio-level EVaR. Three theses: long, short, pair-trade vs. closest fingerprint peer.
+            </p>
+          </div>
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            className="inline-flex items-center gap-1 border border-border px-2 py-1 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" /> Composing trade theses…
+          </div>
+        )}
+        {error && (
+          <div className="flex items-center gap-2 text-sm text-amber-700">
+            <AlertCircle className="w-4 h-4" /> {error}
+          </div>
+        )}
+        {!loading && data && (
+          <>
+            {data.evarPortfolioMm != null && (
+              <div className="text-[11px] text-muted-foreground font-mono">
+                Portfolio EVaR(12m): <span className="text-foreground">${data.evarPortfolioMm.toFixed(1)}M</span> · sizing ranges are calibrated to this figure.
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {data.theses.map((t, i) => (
+                <div key={i} className={`border-l-2 ${TONE(t.kind)} p-3 space-y-2`}>
+                  <div className="flex items-center gap-2">
+                    {ICON(t.kind)}
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{t.kind === "pair" ? "Pair trade" : t.kind}</span>
+                  </div>
+                  <div className="font-medium text-sm leading-snug">{t.headline}</div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{t.rationale}</p>
+                  <div className="border-t border-border/40 pt-2 space-y-1">
+                    <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Sizing</div>
+                    <div className="text-sm tabular-nums">{t.sizing}</div>
+                  </div>
+                  {t.capabilities.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {t.capabilities.slice(0, 4).map(c => (
+                        <Badge key={c} variant="outline" className="rounded-none font-mono text-[9px] uppercase tracking-[0.12em]">{c}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="text-[10px] text-muted-foreground italic pt-1">
+              Not investment advice. Generated {new Date(data.generatedAt).toLocaleString()} — refreshes on demand or every 24h.
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
