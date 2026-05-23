@@ -115,6 +115,11 @@ function getMem0Client(): MemoryClient | null {
   if (mem0ClientSingleton) return mem0ClientSingleton;
   const cfg = getMem0Config();
   if (!cfg) return null;
+  // Self-hosted OSS has its own REST surface — see mem0SelfHostedRequest.
+  // We deliberately do NOT construct the cloud SDK for self-hosted because
+  // the SDK auto-pings via _initializeClient on first method access, which
+  // 404s against the OSS server (no /v1/ping endpoint) and spams the log.
+  if (!cfg.isCloud) return null;
   mem0ClientSingleton = new MemoryClient({ apiKey: cfg.apiKey, host: cfg.baseUrl });
   return mem0ClientSingleton;
 }
@@ -314,9 +319,9 @@ export async function storeMemory(
   let mem0EventId: string | null = null;
   let mem0Status: string | null = null;
 
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (client && cfg) {
+  const client = cfg?.isCloud ? getMem0Client() : null;
+  if (cfg && (client || !cfg.isCloud)) {
     try {
       const messages = buildConversationalMessages(type, category, content, context, metadata);
       // enable_graph: true is the SDK's documented per-request flag for
@@ -428,11 +433,12 @@ export async function storeMemory(
 }
 
 export async function updateMemory(memoryId: string, newContent: string): Promise<boolean> {
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (!client || !cfg) return false;
+  if (!cfg) return false;
   try {
     if (cfg.isCloud) {
+      const client = getMem0Client();
+      if (!client) return false;
       // SDK's update() takes { text, metadata?, timestamp? }. The cloud
       // path uses /v1/memories/{id}; SDK handles routing.
       await client.update(memoryId, { text: newContent });
@@ -452,11 +458,12 @@ export async function updateMemory(memoryId: string, newContent: string): Promis
 }
 
 export async function deleteMemory(memoryId: string): Promise<boolean> {
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (!client || !cfg) return false;
+  if (!cfg) return false;
   try {
     if (cfg.isCloud) {
+      const client = getMem0Client();
+      if (!client) return false;
       await client.delete(memoryId);
     } else {
       await mem0SelfHostedRequest<unknown>(cfg, "DELETE", `/memories/${memoryId}`);
@@ -471,11 +478,12 @@ export async function deleteMemory(memoryId: string): Promise<boolean> {
 }
 
 export async function getMemoryHistory(memoryId: string): Promise<unknown[]> {
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (!client || !cfg) return [];
+  if (!cfg) return [];
   try {
     if (cfg.isCloud) {
+      const client = getMem0Client();
+      if (!client) return [];
       const result = await client.history(memoryId);
       return Array.isArray(result) ? result : [];
     }
@@ -515,9 +523,9 @@ export async function recallMemories(
   // Resolve the Mem0 agent_id for this recall. Falls back to the shared pool.
   const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (client && cfg) {
+  const client = cfg?.isCloud ? getMem0Client() : null;
+  if (cfg && (client || !cfg.isCloud)) {
     try {
       // SDK's search() takes a flat options object — agent_id at top level,
       // metadata as a flat dict, enable_graph for graph-mode recall. On
@@ -629,9 +637,9 @@ export async function recallMemories(
 export async function recallMemoriesBatch(type: MemoryType, limit: number = 100): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
 
-  const client = getMem0Client();
   const cfg = getMem0Config();
-  if (client && cfg) {
+  const client = cfg?.isCloud ? getMem0Client() : null;
+  if (cfg && (client || !cfg.isCloud)) {
     try {
       let found: Mem0Memory[] | { results?: Mem0Memory[] };
       if (cfg.isCloud) {
