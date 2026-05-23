@@ -13,9 +13,11 @@
  * to a vertical stack on small screens.
  */
 import { Link } from "wouter";
-import { ArrowLeft, Activity, ScanSearch, Lightbulb, Users, Network } from "lucide-react";
+import { ArrowLeft, Activity, ScanSearch, Lightbulb, Users, Network, CheckCircle2, AlertTriangle, MinusCircle, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
+import { useServiceHealth, type ServiceStatus } from "@/hooks/use-service-health";
 
 interface Module {
   slug: string;
@@ -152,6 +154,68 @@ export default function ArchitecturePage() {
           );
         })}
       </div>
+
+      <LiveModuleStatus />
     </div>
+  );
+}
+
+const STATUS_TONE: Record<ServiceStatus, { icon: React.ComponentType<{ className?: string }>; cls: string; label: string }> = {
+  ok:              { icon: CheckCircle2, cls: "text-emerald-500", label: "ok" },
+  degraded:        { icon: AlertTriangle, cls: "text-amber-500",   label: "degraded" },
+  down:            { icon: AlertTriangle, cls: "text-rose-500",    label: "down" },
+  not_configured:  { icon: MinusCircle,   cls: "text-muted-foreground", label: "not configured" },
+  initializing:    { icon: Loader2,       cls: "text-blue-500",    label: "initializing" },
+};
+
+/**
+ * Live module status — pulls /api/health/services so the static "Five
+ * Interconnected Modules" diagram above has a verifiable, real-time
+ * counterpart. Refreshes every 60s via the shared useServiceHealth hook.
+ */
+function LiveModuleStatus() {
+  const { data, isLoading, isError } = useServiceHealth();
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h3 className="font-serif text-lg tracking-tight">Live module status</h3>
+            <p className="text-xs text-muted-foreground">
+              Real-time health of the upstream services that back every module above. Refreshes every 60 seconds.
+            </p>
+          </div>
+          {data && (
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+              overall: {data.overall.replace("_", " ")}
+            </Badge>
+          )}
+        </div>
+        {isLoading && <p className="text-xs text-muted-foreground">Loading service status…</p>}
+        {isError && <p className="text-xs text-rose-500">Couldn&apos;t reach /api/health/services.</p>}
+        {data && (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {data.services.map(s => {
+              const tone = STATUS_TONE[s.status];
+              const Icon = tone.icon;
+              return (
+                <div key={s.service} className="flex items-center justify-between gap-2 border border-border/60 rounded-none px-3 py-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${tone.cls} ${s.status === "initializing" ? "animate-spin" : ""}`} />
+                    <span className="text-sm font-medium truncate">{s.service}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{tone.label}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground-soft tabular-nums">
+                      {s.latencyMs != null ? `${s.latencyMs}ms` : "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

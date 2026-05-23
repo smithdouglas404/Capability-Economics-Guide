@@ -11,12 +11,21 @@
  * both the page and the SourceBadge palette in one edit.
  */
 import { Link } from "wouter";
-import { Database, ExternalLink, ArrowLeft, ShieldCheck, AlertCircle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Database, ExternalLink, ArrowLeft, ShieldCheck, AlertCircle, Activity, RefreshCw, AlertOctagon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { PersonaDescription } from "@/components/page-header";
 import { DATA_SOURCES, SOURCE_GROUPS, type DataSource } from "@/lib/data-sources";
+
+interface SourceStats {
+  totalSources: number;
+  queriedLast7d: number;
+  mostActiveSource: string | null;
+  mostActiveSourceCount: number;
+  contradictedLast7d: number;
+}
 
 const TRUST_TONE: Record<DataSource["trust"], string> = {
   high: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30",
@@ -56,6 +65,8 @@ export default function ProvenancePage() {
           className="mt-6"
         />
       </div>
+
+      <SourceStatsPanel />
 
       {SOURCE_GROUPS.map(group => (
         <section key={group.heading}>
@@ -121,5 +132,66 @@ export default function ProvenancePage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * Live source-quality stats — pulls aggregate counts from
+ * /api/source-quality/stats (backed by the source_triangulations table).
+ * Surfaced at the top of /provenance so the static source registry below
+ * has a verifiable, real-time counterpart: how many sources, how active
+ * have they been this week, which one is doing the heaviest lifting, and
+ * how often do they disagree with each other.
+ */
+function SourceStatsPanel() {
+  const { data, isLoading, isError } = useQuery<SourceStats>({
+    queryKey: ["source-quality-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/source-quality/stats");
+      if (!res.ok) throw new Error(`/api/source-quality/stats → ${res.status}`);
+      return res.json();
+    },
+    refetchInterval: 5 * 60_000,
+    staleTime: 4 * 60_000,
+    retry: 1,
+  });
+
+  const tile = (label: string, value: React.ReactNode, icon: React.ReactNode, sub?: string) => (
+    <div className="border border-border/60 rounded-none p-3 bg-muted/20">
+      <div className="flex items-center gap-2 mb-1">
+        {icon}
+        <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      </div>
+      <div className="font-serif text-2xl tabular-nums">{value}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-3">
+        <div>
+          <h3 className="font-serif text-lg tracking-tight">Source query / contradict stats</h3>
+          <p className="text-xs text-muted-foreground">
+            Aggregate activity across <code>source_triangulations</code> — refreshed every 5 minutes from the live database.
+          </p>
+        </div>
+        {isLoading && <p className="text-xs text-muted-foreground">Loading source stats…</p>}
+        {isError && <p className="text-xs text-rose-500">Couldn&apos;t reach /api/source-quality/stats.</p>}
+        {data && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {tile("Total sources", data.totalSources.toLocaleString(), <Database className="w-3.5 h-3.5 text-muted-foreground" />, "all-time triangulations")}
+            {tile("Queried (7d)", data.queriedLast7d.toLocaleString(), <RefreshCw className="w-3.5 h-3.5 text-blue-500" />, "rows added this week")}
+            {tile(
+              "Most active source",
+              <span className="text-base">{data.mostActiveSource ?? "—"}</span>,
+              <Activity className="w-3.5 h-3.5 text-emerald-500" />,
+              data.mostActiveSource ? `${data.mostActiveSourceCount.toLocaleString()} queries (7d)` : "no activity",
+            )}
+            {tile("Contradicted (7d)", data.contradictedLast7d.toLocaleString(), <AlertOctagon className="w-3.5 h-3.5 text-amber-500" />, ">25-pt disagreement vs peer mean")}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
