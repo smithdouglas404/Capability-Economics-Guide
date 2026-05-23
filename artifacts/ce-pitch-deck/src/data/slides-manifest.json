@@ -128,8 +128,32 @@
     "speakerNotes": "CVI is the moat, marketplace is the revenue mechanism. Take rates: 20/15/12 across the three tiers."
   },
   {
-    "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+    "id": "f8a9b0c1-d2e3-4567-89ab-678901234567",
     "position": 17,
+    "filepath": "src/pages/slides/UploadWedgeSlide.tsx",
+    "title": "The Wedge: Drop a doc, get a report",
+    "description": "Drag-your-doc → capability extraction → streaming Vercel AI SDK report. The cold-prospect-to-diligence wedge.",
+    "speakerNotes": "This is the conversion lever. The buyer never has to fill out a form to see value — they drop a doc and watch the report stream in."
+  },
+  {
+    "id": "a9b0c1d2-e3f4-5678-9abc-789012345678",
+    "position": 18,
+    "filepath": "src/pages/slides/VcPePortfolioSlide.tsx",
+    "title": "VC/PE: Source, Comparables, Portfolio",
+    "description": "Three surfaces that turn capability intelligence into the daily VC/PE workflow — sourcing, peer matching, and portfolio monitoring.",
+    "speakerNotes": "Same capability graph powers all three. Source finds the target, Comparables vets it, Portfolio monitors it over time."
+  },
+  {
+    "id": "b0c1d2e3-f4a5-6789-abcd-890123456789",
+    "position": 19,
+    "filepath": "src/pages/slides/NetworkSlide.tsx",
+    "title": "Network &amp; Community",
+    "description": "LinkedIn-style member graph layered on CVI — profiles, DMs, per-industry forums, three-column feed, hashtags + mentions.",
+    "speakerNotes": "Capability intelligence is more useful with the people who own it. The network is the retention layer on top of the data moat."
+  },
+  {
+    "id": "b4c5d6e7-f8a9-0123-bcde-234567890123",
+    "position": 20,
     "filepath": "src/pages/slides/NextSteps.tsx",
     "title": "Next Steps",
     "description": "Three engagement paths: Quick Assessment, Deep-Dive Workshop, Platform License",

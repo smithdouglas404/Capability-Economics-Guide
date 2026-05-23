@@ -9,7 +9,7 @@ export default function Cover() {
         alt="Abstract data network"
         className="absolute inset-0 w-full h-full object-cover opacity-40"
       />
-      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(10,10,15,0.85) 0%, rgba(10,10,15,0.5) 50%, rgba(10,10,15,0.85) 100%)" }} />
+      <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, rgba(10,22,40,0.85) 0%, rgba(10,22,40,0.5) 50%, rgba(10,22,40,0.85) 100%)" }} />
       <div className="absolute top-[6vh] left-[6vw] flex items-center gap-[1vw]">
         <div className="w-[2.8vw] h-[2.8vw] rounded-sm flex items-center justify-center" style={{ background: "linear-gradient(135deg, #4f6ef7, #6366f1)" }}>
           <span className="font-display font-bold text-white" style={{ fontSize: "1.4vw" }}>CE</span>

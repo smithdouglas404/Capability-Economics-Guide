@@ -1,6 +1,6 @@
 export default function KnowledgeGraphSlide() {
   return (
-    <div className="w-screen h-screen overflow-hidden relative" style={{ background: "linear-gradient(180deg, #0a0a0f 0%, #0f1018 100%)" }}>
+    <div className="w-screen h-screen overflow-hidden relative" style={{ background: "linear-gradient(180deg, #0a1628 0%, #0f1f3a 100%)" }}>
       <div className="absolute top-[5vh] left-[6vw] max-w-[40vw]">
         <p className="font-body font-medium text-primary uppercase tracking-widest" style={{ fontSize: "1.3vw" }}>Knowledge Graph</p>
         <h2 className="font-display font-bold text-text tracking-tight" style={{ fontSize: "3.2vw", marginTop: "1vh" }}>Spider Network</h2>

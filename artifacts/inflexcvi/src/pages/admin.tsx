@@ -214,6 +214,18 @@ export default function AdminDashboard() {
   const paymentsData = usePaymentApprovalsData();
   const pendingCount = paymentsData.summary?.byStatus.pending ?? 0;
 
+  // Pending platform-signup requests (human-in-the-loop sign-up approval queue).
+  const [pendingSignupCount, setPendingSignupCount] = useState(0);
+  useEffect(() => {
+    const load = () => fetch("/api/admin/platform-signups/pending-count", { credentials: "include" })
+      .then(r => r.ok ? r.json() : { count: 0 })
+      .then((j: { count: number }) => setPendingSignupCount(Number(j.count ?? 0)))
+      .catch(() => setPendingSignupCount(0));
+    load();
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   const [triggering, setTriggering] = useState<string | null>(null);
   const [enrichRunning, setEnrichRunning] = useState(false);
   const [enrichResult, setEnrichResult] = useState<{
@@ -398,6 +410,17 @@ export default function AdminDashboard() {
                 <button onClick={() => setTab("enrichment")} className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
                   <span className="flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> Trigger capability enrichment</span>
                 </button>
+                <Link href="/admin/platform-signups" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
+                  <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-emerald-600" /> Platform sign-up requests</span>
+                  <span className="text-xs font-mono text-muted-foreground flex items-center gap-2">
+                    {pendingSignupCount > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[1.5rem] h-5 px-1.5 rounded-full bg-amber-500/15 text-amber-600 font-semibold">
+                        {pendingSignupCount}
+                      </span>
+                    )}
+                    {pendingSignupCount > 0 ? "pending" : "All clear"}
+                  </span>
+                </Link>
                 <Link href="/admin/source-quality" className="w-full text-left p-3 border border-border hover:bg-muted/50 flex items-center justify-between transition-colors">
                   <span className="flex items-center gap-2"><ShieldAlert className="w-4 h-4 text-amber-600" /> Source quality audit</span>
                   <span className="text-xs text-muted-foreground">Stale / single-source / no consulting</span>

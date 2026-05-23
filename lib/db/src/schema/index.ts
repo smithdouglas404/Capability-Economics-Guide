@@ -60,3 +60,4 @@ export * from "./uploaded-analyses";
 export * from "./member-profiles";
 export * from "./forums";
 export * from "./user-learning";
+export * from "./platform-signup-requests";

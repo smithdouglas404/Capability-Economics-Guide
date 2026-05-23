@@ -127,7 +127,7 @@ function SlideEditor() {
 
 function AllSlides() {
   return (
-    <div className="bg-black">
+    <div className="bg-bg">
       {slides.map((slide) => (
         <div
           key={slide.id}
@@ -179,7 +179,7 @@ function SlideViewer() {
 
   return (
     <div
-      className="slide-viewer h-screen w-screen overflow-hidden bg-black flex items-center justify-center"
+      className="slide-viewer h-screen w-screen overflow-hidden bg-bg flex items-center justify-center"
       onClick={() => iframeRef.current?.focus()}
     >
       <iframe

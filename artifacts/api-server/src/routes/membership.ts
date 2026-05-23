@@ -131,7 +131,7 @@ const DEFAULT_TIERS = [
       "Unlimited watchlist items and benchmark sessions",
       "Record strategy decisions with investment tracking and audit trail",
     ],
-    ctaLabel: "Talk to sales",
+    ctaLabel: "Sign up",
     highlight: false,
     active: true,
   },
@@ -157,6 +157,14 @@ async function ensureSeeded() {
         updated_at = NOW()
     WHERE slug = 'ledger'
       AND NOT EXISTS (SELECT 1 FROM membership_tiers WHERE slug = 'console')
+  `);
+
+  // One-shot CTA rename: Platform tier moved from "Talk to sales" → "Sign up"
+  // when the human-in-the-loop signup-approval flow shipped (May 2026). Idempotent.
+  await db.execute(sql`
+    UPDATE membership_tiers
+    SET cta_label = 'Sign up', updated_at = NOW()
+    WHERE slug = 'platform' AND cta_label = 'Talk to sales'
   `);
 
   // Insert any DEFAULT_TIERS slug that isn't already in the DB. We deliberately

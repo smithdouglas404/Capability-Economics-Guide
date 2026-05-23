@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider, SignIn, SignUp, useAuth } from "@clerk/react";
@@ -23,6 +24,7 @@ import AdminAuditChainPage from "@/pages/admin-audit-chain";
 import AdminAgentProposalsPage from "@/pages/admin-agent-proposals";
 import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
 import AdminReviewQueuePage from "@/pages/admin-review-queue";
+import AdminPlatformSignupsPage from "@/pages/admin-platform-signups";
 import SourcePage from "@/pages/source";
 import PortfolioPage from "@/pages/portfolio";
 import ComparablesPage from "@/pages/comparables";
@@ -119,12 +121,83 @@ function SignInPage() {
   );
 }
 
+interface InviteSummary {
+  email: string;
+  name: string;
+  organization: string;
+}
+
 function SignUpPage() {
   // To update login providers, app branding, or OAuth settings use the Auth
   // pane in the workspace toolbar. More information can be found in the Replit docs.
+  const params = new URLSearchParams(window.location.search);
+  const inviteToken = params.get("invite");
+  const [invite, setInvite] = useState<InviteSummary | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteChecked, setInviteChecked] = useState(!inviteToken);
+  const { isSignedIn } = useAuth();
+  const [consumed, setConsumed] = useState(false);
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    fetch(`/api/platform-signup/verify/${encodeURIComponent(inviteToken)}`)
+      .then(async r => {
+        if (!r.ok) {
+          const j = await r.json().catch(() => ({}));
+          setInviteError(String(j.error ?? `Invite check failed (${r.status})`));
+          setInviteChecked(true);
+          return;
+        }
+        const j = (await r.json()) as InviteSummary & { ok: boolean };
+        setInvite({ email: j.email, name: j.name, organization: j.organization });
+        setInviteChecked(true);
+      })
+      .catch(() => {
+        setInviteError("Unable to reach the server. Please try again.");
+        setInviteChecked(true);
+      });
+  }, [inviteToken]);
+
+  // Consume invite once the user is signed in.
+  useEffect(() => {
+    if (!inviteToken || !isSignedIn || consumed) return;
+    fetch("/api/platform-signup/consume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ token: inviteToken }),
+    }).then(() => setConsumed(true)).catch(() => undefined);
+  }, [inviteToken, isSignedIn, consumed]);
+
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md space-y-4">
+        {inviteToken && inviteChecked && invite && (
+          <div className="border border-emerald-500/30 bg-emerald-500/[0.06] px-4 py-3 text-sm">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-400 mb-1">
+              Approved invitation
+            </div>
+            <div>Welcome, <strong>{invite.name}</strong> ({invite.organization}).</div>
+            <div className="text-muted-foreground mt-1">
+              Sign up with <strong>{invite.email}</strong> using any provider below. Identity verification will be requested before checkout.
+            </div>
+          </div>
+        )}
+        {inviteToken && inviteChecked && inviteError && (
+          <div className="border border-destructive/30 bg-destructive/[0.06] px-4 py-3 text-sm">
+            <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-destructive mb-1">
+              Invite issue
+            </div>
+            <div>{inviteError}</div>
+            <div className="text-muted-foreground mt-1">
+              You can still sign up below, but the Platform tier remains locked until an admin approves a new request.
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-center">
+          <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} />
+        </div>
+      </div>
     </div>
   );
 }
@@ -205,6 +278,7 @@ function Router() {
       <Route path="/admin/agent/proposals">{() => <AdminOnly component={AdminAgentProposalsPage} />}</Route>
       <Route path="/admin/economic-rules">{() => <AdminOnly component={AdminEconomicRulesPage} />}</Route>
       <Route path="/admin/review-queue">{() => <AdminOnly component={AdminReviewQueuePage} />}</Route>
+      <Route path="/admin/platform-signups">{() => <AdminOnly component={AdminPlatformSignupsPage} />}</Route>
       <Route path="/source" component={SourcePage} />
       <Route path="/portfolio" component={PortfolioPage} />
       <Route path="/comparables/:companyId" component={ComparablesPage} />

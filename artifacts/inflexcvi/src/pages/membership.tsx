@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Bitcoin } from "lucide-react";
 import { motion } from "framer-motion";
+import { PlatformSignupDialog } from "@/components/platform-signup-dialog";
 
 type Tier = {
   id: number;
@@ -32,8 +33,10 @@ async function startCheckout(tier: Tier, billing: "monthly" | "annual", method: 
   const isFree = !tier.isContactSales && monthly === 0 && annual === 0;
   const cents = billing === "annual" ? tier.annualPriceCents : tier.monthlyPriceCents;
 
+  // Contact-sales tiers (Platform) now use the human-in-the-loop signup-request
+  // flow — the caller opens the PlatformSignupDialog instead. Never reach this
+  // function with a contact-sales tier, but guard just in case.
   if (tier.isContactSales) {
-    window.location.href = `mailto:sales@inflexcvi.ai?subject=${encodeURIComponent(`Inquiry: ${tier.name}`)}`;
     return;
   }
 
@@ -165,7 +168,12 @@ function PriceDisplay({ tier, billing }: { tier: Tier; billing: "monthly" | "ann
 
 function TierRow({ tier, billing, index }: { tier: Tier; billing: "monthly" | "annual"; index: number }) {
   const [loading, setLoading] = useState<null | "card" | "crypto">(null);
+  const [signupOpen, setSignupOpen] = useState(false);
   const onPurchase = async (method: "card" | "crypto" = "card") => {
+    if (tier.isContactSales) {
+      setSignupOpen(true);
+      return;
+    }
     setLoading(method);
     try { await startCheckout(tier, billing, method); } finally { setLoading(null); }
   };
@@ -260,8 +268,21 @@ function TierRow({ tier, billing, index }: { tier: Tier; billing: "monthly" | "a
               {loading === "crypto" ? "Redirecting…" : "Or pay with crypto"}
             </button>
           )}
+          {tier.isContactSales && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground text-center">
+              Admin-approved · KYC required
+            </p>
+          )}
         </div>
       </div>
+      {tier.isContactSales && (
+        <PlatformSignupDialog
+          open={signupOpen}
+          onOpenChange={setSignupOpen}
+          tierName={tier.name}
+          tierSlug={tier.slug}
+        />
+      )}
     </motion.div>
   );
 }
@@ -411,10 +432,9 @@ export default function Membership() {
           <div>
             <div className="text-foreground/80 mb-2">Enterprise</div>
             <p className="normal-case tracking-normal font-sans text-sm leading-relaxed">
-              Procurement, security review, SSO, and custom industries supported on Platform.{" "}
-              <a href="mailto:sales@inflexcvi.ai" className="underline underline-offset-2 hover:text-foreground">
-                Talk to sales
-              </a>.
+              Procurement, security review, SSO, and custom industries supported on Platform.
+              Use the <strong>Sign up</strong> button on the Platform tier — an admin will review
+              your request and reach out with an invite link.
             </p>
           </div>
         </div>
