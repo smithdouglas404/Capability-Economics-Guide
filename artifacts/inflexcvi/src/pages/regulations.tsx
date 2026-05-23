@@ -32,6 +32,12 @@ type OverviewRow = {
   criticalGaps: number;
   totalGapPoints: number;
   evarWeightedExposure: number;
+  enforcementForecast: {
+    direction: "stricter" | "steady" | "softer";
+    confidence: number;
+    summary: string;
+    forecastedAt: string;
+  } | null;
 };
 
 type Requirement = {
@@ -280,6 +286,7 @@ export default function Regulations() {
                         <th className="px-3 py-2 text-left">Jurisdiction</th>
                         <th className="px-3 py-2 text-left">Effective</th>
                         <th className="px-3 py-2 text-right">Compliance</th>
+                        <th className="px-3 py-2 text-left">Enforcement</th>
                         <th className="px-3 py-2 text-right">Critical gaps</th>
                         <th className="px-3 py-2 text-right">EVaR-weighted exposure</th>
                         <th className="px-3 py-2 text-right w-32"></th>
@@ -326,6 +333,25 @@ export default function Regulations() {
                             </td>
                             <td className={`px-3 py-3 text-right font-mono tabular-nums ${complianceTone(row.overallCompliance)}`}>
                               {row.overallCompliance !== null ? `${row.overallCompliance}%` : "—"}
+                            </td>
+                            <td className="px-3 py-3">
+                              {row.enforcementForecast ? (
+                                <span
+                                  title={`${row.enforcementForecast.summary} (confidence ${(row.enforcementForecast.confidence * 100).toFixed(0)}%)`}
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-wider border ${
+                                    row.enforcementForecast.direction === "stricter"
+                                      ? "border-destructive/40 bg-destructive/10 text-destructive"
+                                      : row.enforcementForecast.direction === "softer"
+                                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                        : "border-border bg-muted text-muted-foreground"
+                                  }`}
+                                >
+                                  {row.enforcementForecast.direction === "stricter" ? "↗" : row.enforcementForecast.direction === "softer" ? "↘" : "→"}{" "}
+                                  {row.enforcementForecast.direction}
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">—</span>
+                              )}
                             </td>
                             <td className="px-3 py-3 text-right font-mono tabular-nums">
                               {row.criticalGaps > 0 ? (

@@ -8,8 +8,9 @@ import {
   organizationCapabilitiesTable,
   capabilityAlphaTable,
   regulationWatchesTable,
+  regulationEnforcementForecastsTable,
 } from "@workspace/db";
-import { eq, inArray, and, sql } from "drizzle-orm";
+import { eq, inArray, and, sql, desc, gt } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { getAuth } from "@clerk/express";
 
@@ -198,6 +199,17 @@ router.get("/regulations/overview", async (req, res) => {
       reqsByReg.set(r.regulationId, arr);
     }
 
+    // Latest in-window enforcement forecast per regulation, if any.
+    const forecasts = await db
+      .select()
+      .from(regulationEnforcementForecastsTable)
+      .where(and(inArray(regulationEnforcementForecastsTable.regulationId, regIds), gt(regulationEnforcementForecastsTable.validUntil, new Date())))
+      .orderBy(desc(regulationEnforcementForecastsTable.forecastedAt));
+    const forecastByReg = new Map<number, typeof forecasts[number]>();
+    for (const f of forecasts) {
+      if (!forecastByReg.has(f.regulationId)) forecastByReg.set(f.regulationId, f);
+    }
+
     const rows = regs.map((reg) => {
       const reqList = reqsByReg.get(reg.id) ?? [];
       let assessed = 0;
@@ -225,6 +237,7 @@ router.get("/regulations/overview", async (req, res) => {
         }
       }
 
+      const forecast = forecastByReg.get(reg.id);
       return {
         regulation: reg,
         overallCompliance: assessed > 0 ? Math.round((compliant / assessed) * 100) : null,
@@ -235,6 +248,14 @@ router.get("/regulations/overview", async (req, res) => {
         criticalGaps,
         totalGapPoints: Math.round(totalGapPoints * 10) / 10,
         evarWeightedExposure: Math.round(evarWeightedExposure * 10) / 10,
+        enforcementForecast: forecast
+          ? {
+              direction: forecast.direction as "stricter" | "steady" | "softer",
+              confidence: forecast.confidence,
+              summary: forecast.summary,
+              forecastedAt: forecast.forecastedAt.toISOString(),
+            }
+          : null,
       };
     });
 
