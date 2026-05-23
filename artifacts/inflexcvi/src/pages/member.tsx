@@ -14,7 +14,7 @@ import { useUser } from "@clerk/react";
 import {
   Globe, Linkedin, MessageCircle, MapPin, Briefcase, GraduationCap, Award,
   ThumbsUp, MessageSquare, Calendar, ArrowLeft, FileText, Share2, UserPlus, Check,
-  Loader2, Building2, Sparkles, Eye,
+  Loader2, Building2, Sparkles, Eye, Tag, Target, TrendingUp, MessagesSquare,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -62,6 +62,33 @@ interface Recommendation {
   createdAt: string;
   giverSlug: string | null; giverDisplayName: string | null;
   giverAvatarUrl: string | null; giverHeadline: string | null;
+}
+interface ExpertiseItem {
+  slug: string;
+  name: string;
+  capabilityId: number | null;
+  postHits: number;
+  forumHits: number;
+  declared: boolean;
+  score: number;
+}
+interface WatchedCapability {
+  capabilityId: number;
+  name: string;
+  slug: string;
+  source: "profile" | "watchlist";
+}
+interface ActivityFeedItem {
+  kind: "post" | "forum-thread";
+  id: number;
+  title: string | null;
+  body: string;
+  capabilityTags: string[];
+  industrySlugs: string[];
+  likeCount: number;
+  commentCount: number;
+  createdAt: string;
+  href: string;
 }
 
 const OPEN_TO_LABELS: Record<string, { label: string; tone: string }> = {

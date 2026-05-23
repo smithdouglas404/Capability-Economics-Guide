@@ -17,6 +17,66 @@ import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   Radar, Legend, ResponsiveContainer, Tooltip
 } from "recharts";
+import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
+
+/**
+ * Rough live "CVI delta" estimate for the active question phase.
+ *
+ * We do NOT call the LLM on every keystroke — instead this is a cheap
+ * heuristic computed in the browser so the user gets immediate signal as
+ * they answer. The actual delta is recomputed server-side during /analyze.
+ *
+ * The shape of the heuristic:
+ *   - Each answer is scored 0..1 on richness (length, specifics, numbers).
+ *   - Direction (positive vs negative confidence-affecting) is inferred
+ *     from positive/negative keyword presence.
+ *   - Delta band is +/- 6 CVI points scaled by total richness across all
+ *     answered questions, biased by sentiment.
+ */
+function estimateCviDelta(answers: string[]): { delta: number; direction: "up" | "down" | "flat"; rationale: string } {
+  if (!answers.length) return { delta: 0, direction: "flat", rationale: "Answer the first question to preview the delta." };
+  const text = answers.join(" ").toLowerCase();
+  const filled = answers.filter(a => a.trim().length > 0).length;
+  if (filled === 0) return { delta: 0, direction: "flat", rationale: "No answers yet — preview will populate as you type." };
+
+  const charLen = text.length;
+  // 0..1 ceiling at ~600 chars total — diminishing returns after that
+  const richness = Math.min(1, charLen / 600);
+  // Bonus for specifics: numbers, percentages, dollar amounts
+  const hasNumbers = /\$|%|\b\d{2,}\b/.test(text) ? 0.15 : 0;
+  // Bonus for differentiators
+  const specificityWords = ["because", "specifically", "measured", "kpi", "metric", "we have", "we don't", "we are"];
+  const specificityHits = specificityWords.filter(w => text.includes(w)).length;
+  const specificityBonus = Math.min(0.2, specificityHits * 0.04);
+
+  // Sentiment lean for direction
+  const posWords = ["strong", "leading", "ahead", "scale", "advantage", "competitive", "ready", "mature", "robust"];
+  const negWords = ["gap", "behind", "lagging", "weak", "missing", "blocker", "stalled", "fragile", "limited", "tail risk", "fail"];
+  const posHits = posWords.filter(w => text.includes(w)).length;
+  const negHits = negWords.filter(w => text.includes(w)).length;
+  const sentiment = posHits - negHits; // negative means we're flagging risks
+
+  const magnitudeBase = (richness + hasNumbers + specificityBonus) * 6; // up to ~7.5
+  const signedDelta = sentiment >= 0
+    ? Math.round(magnitudeBase * 0.6 * 10) / 10 // optimistic answers nudge confidence higher
+    : Math.round(-magnitudeBase * 0.6 * 10) / 10;
+
+  const direction: "up" | "down" | "flat" =
+    Math.abs(signedDelta) < 0.5 ? "flat" : signedDelta > 0 ? "up" : "down";
+
+  const rationaleBits: string[] = [];
+  rationaleBits.push(`${filled} answer${filled === 1 ? "" : "s"}`);
+  if (hasNumbers) rationaleBits.push("includes specifics");
+  if (specificityHits > 0) rationaleBits.push(`${specificityHits} differentiator${specificityHits === 1 ? "" : "s"}`);
+  if (sentiment < 0) rationaleBits.push("flagged risks");
+  else if (sentiment > 0) rationaleBits.push("positive lean");
+
+  return {
+    delta: signedDelta,
+    direction,
+    rationale: rationaleBits.join(" · "),
+  };
+}
 
 interface SecCompanyResult {
   entityName: string;
@@ -162,6 +222,28 @@ interface AssessmentHistoryItem {
   createdAt: string;
 }
 
+interface PeerPercentilesRow {
+  capabilityId: number;
+  capabilityName: string;
+  n: number;
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+  mean: number;
+  myScore: number | null;
+  myPercentileBand: "bottom" | "below_median" | "above_median" | "top" | "unknown";
+}
+
+interface PeerPercentilesResp {
+  cohort: { industryId: number | null; geography: string | null; revenueBand: string | null };
+  cohortContributorCount: number;
+  cohortEligible: boolean;
+  minK: number;
+  rows: PeerPercentilesRow[];
+  organizationId: number;
+}
+
 const actionBadge: Record<string, string> = {
   INVEST: "bg-primary/15 text-primary border border-primary/20",
   HOLD: "bg-muted text-muted-foreground border border-border",
@@ -233,6 +315,9 @@ export default function Assess() {
 
   const [industryOptions, setIndustryOptions] = useState<IndustryOption[]>([]);
   const [researchSources, setResearchSources] = useState<ResearchSource[]>([]);
+  const [peerPercentiles, setPeerPercentiles] = useState<PeerPercentilesResp | null>(null);
+  const [peerLoading, setPeerLoading] = useState(false);
+  const [peerError, setPeerError] = useState<string | null>(null);
 
   const [companySearchResults, setCompanySearchResults] = useState<SecCompanyResult[]>([]);
   const [companySearchLoading, setCompanySearchLoading] = useState(false);
@@ -282,6 +367,28 @@ export default function Assess() {
       .catch(() => {});
     refreshHistory();
   }, [refreshHistory]);
+
+  // Pull peer-cohort percentiles once an analysis exists. This requires an
+  // org session token (only contributor orgs can see real cohort data).
+  // Quietly degrade if missing — the comparison strip then renders an
+  // explanatory placeholder rather than disappearing.
+  useEffect(() => {
+    if (step !== "results" || !analysis) return;
+    if (!orgSessionToken) { setPeerError("no_session"); return; }
+    let cancelled = false;
+    setPeerLoading(true);
+    setPeerError(null);
+    fetch(`${API}/peer-coop/percentiles?sessionToken=${encodeURIComponent(orgSessionToken)}`)
+      .then(async r => {
+        if (r.status === 403 || r.status === 401) { throw new Error("not_contributor"); }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data: PeerPercentilesResp) => { if (!cancelled) setPeerPercentiles(data); })
+      .catch(err => { if (!cancelled) setPeerError(err instanceof Error ? err.message : "fetch_failed"); })
+      .finally(() => { if (!cancelled) setPeerLoading(false); });
+    return () => { cancelled = true; };
+  }, [step, analysis, orgSessionToken]);
 
   const recognitionRef = useRef<unknown>(null);
   const interimRef = useRef<string>("");
@@ -870,6 +977,9 @@ export default function Assess() {
             {step === "input" && (
               <motion.div key="input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.25 }} className="space-y-8">
 
+                {/* House view — synthesis brief gives the assessment its strategic context up-front */}
+                <SynthesisBriefCard compact />
+
                 {/* Quick assess toggle */}
                 <div className="flex items-center justify-between border border-border p-4 bg-muted/10">
                   <div>
@@ -1201,6 +1311,46 @@ export default function Assess() {
                   <p className="text-muted-foreground text-sm">Your answers triangulate the assessment and sharpen the confidence score. Be direct.</p>
                 </div>
 
+                {/* Live CVI delta preview — recomputes locally as the user types */}
+                {(() => {
+                  const preview = estimateCviDelta(answers);
+                  const deltaColor =
+                    preview.direction === "up" ? "text-emerald-500" :
+                    preview.direction === "down" ? "text-rose-500" :
+                    "text-muted-foreground";
+                  const bgColor =
+                    preview.direction === "up" ? "bg-emerald-500/5 border-emerald-500/30" :
+                    preview.direction === "down" ? "bg-rose-500/5 border-rose-500/30" :
+                    "bg-muted/20 border-border";
+                  const arrow =
+                    preview.direction === "up" ? "↑" :
+                    preview.direction === "down" ? "↓" :
+                    "→";
+                  return (
+                    <div className={`border ${bgColor} p-4 flex items-center justify-between gap-4`}>
+                      <div className="flex items-center gap-3">
+                        <div className="shrink-0 w-9 h-9 rounded-full bg-background border border-border flex items-center justify-center">
+                          <TrendingUp className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-wider text-foreground">Live CVI delta preview</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 italic">
+                            {preview.rationale}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`text-2xl font-mono font-semibold ${deltaColor}`}>
+                          {arrow} {preview.delta > 0 ? "+" : ""}{preview.delta.toFixed(1)}
+                        </div>
+                        <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">
+                          est. confidence shift
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 <div className="space-y-6">
                   {questions.map((q, i) => {
                     const recording = activeQVoice === i;
@@ -1406,6 +1556,108 @@ export default function Assess() {
                           {analysis.confidenceFactors?.jobPostingProvided && <div className="flex items-center gap-1"><CheckCircle2 className="w-3 h-3 text-primary" /> Job posting</div>}
                         </div>
                       </div>
+                    </div>
+
+                    {/* Peer Cohort Comparison Strip — real percentiles from /peer-coop */}
+                    <div className="border border-border p-5">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-primary" />
+                          <div>
+                            <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">Peer Cohort Comparison</h3>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Live percentiles from peer-coop contributor cohort — anonymous, k-anonymized at the minK threshold.
+                            </p>
+                          </div>
+                        </div>
+                        {peerLoading && <Loader2 className="w-3.5 h-3.5 text-muted-foreground animate-spin shrink-0" />}
+                      </div>
+
+                      {peerError === "no_session" && (
+                        <div className="text-xs text-muted-foreground italic border border-dashed border-border bg-muted/20 px-3 py-3">
+                          Set up your organization profile to unlock real peer-cohort percentiles. Without it, only the WEF peer average above can be shown.
+                        </div>
+                      )}
+                      {peerError === "not_contributor" && (
+                        <div className="text-xs text-muted-foreground italic border border-dashed border-border bg-muted/20 px-3 py-3">
+                          Cohort data is contributor-only. Opt in via the peer-coop settings to share aggregated capability scores and see how you stack up.
+                        </div>
+                      )}
+                      {peerError && peerError !== "no_session" && peerError !== "not_contributor" && (
+                        <div className="text-xs text-destructive italic">Failed to load peer cohort data ({peerError}).</div>
+                      )}
+
+                      {peerPercentiles && peerPercentiles.cohortEligible && peerPercentiles.rows.length > 0 && (
+                        <>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
+                            <span className="inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              {peerPercentiles.cohortContributorCount} contributors in your cohort
+                            </span>
+                            <span>·</span>
+                            <span>min-k = {peerPercentiles.minK}</span>
+                            {peerPercentiles.cohort.industryId && (
+                              <>
+                                <span>·</span>
+                                <span>industry-scoped</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                              <thead>
+                                <tr className="border-b border-border bg-muted/20 text-muted-foreground">
+                                  <th className="text-left py-2 px-2 font-semibold">Capability</th>
+                                  <th className="text-right py-2 px-2 font-semibold">You</th>
+                                  <th className="text-right py-2 px-2 font-semibold">P25</th>
+                                  <th className="text-right py-2 px-2 font-semibold">P50</th>
+                                  <th className="text-right py-2 px-2 font-semibold">P75</th>
+                                  <th className="text-right py-2 px-2 font-semibold">P90</th>
+                                  <th className="text-left py-2 px-2 font-semibold">Band</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {peerPercentiles.rows.slice(0, 12).map(row => {
+                                  const bandColor =
+                                    row.myPercentileBand === "top" ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/40" :
+                                    row.myPercentileBand === "above_median" ? "bg-primary/10 text-primary border-primary/40" :
+                                    row.myPercentileBand === "bottom" ? "bg-rose-500/15 text-rose-500 border-rose-500/40" :
+                                    row.myPercentileBand === "below_median" ? "bg-amber-500/15 text-amber-500 border-amber-500/40" :
+                                    "bg-muted text-muted-foreground border-border";
+                                  return (
+                                    <tr key={row.capabilityId} className="border-b border-border/40 hover:bg-muted/10">
+                                      <td className="py-2 px-2 text-foreground font-medium">{row.capabilityName}</td>
+                                      <td className="py-2 px-2 text-right font-mono tabular-nums text-foreground font-semibold">
+                                        {row.myScore !== null ? row.myScore.toFixed(1) : "—"}
+                                      </td>
+                                      <td className="py-2 px-2 text-right font-mono tabular-nums text-muted-foreground">{row.p25.toFixed(1)}</td>
+                                      <td className="py-2 px-2 text-right font-mono tabular-nums text-muted-foreground">{row.p50.toFixed(1)}</td>
+                                      <td className="py-2 px-2 text-right font-mono tabular-nums text-muted-foreground">{row.p75.toFixed(1)}</td>
+                                      <td className="py-2 px-2 text-right font-mono tabular-nums text-muted-foreground">{row.p90.toFixed(1)}</td>
+                                      <td className="py-2 px-2">
+                                        <span className={`inline-flex items-center text-[10px] font-mono uppercase tracking-wider border px-1.5 py-0.5 rounded-sm ${bandColor}`}>
+                                          {row.myPercentileBand.replace("_", " ")}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                          {peerPercentiles.rows.length > 12 && (
+                            <div className="text-xs text-muted-foreground italic mt-2">
+                              Showing 12 of {peerPercentiles.rows.length} capabilities tracked in the cohort.
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {peerPercentiles && !peerPercentiles.cohortEligible && (
+                        <div className="text-xs text-muted-foreground italic border border-dashed border-border bg-muted/20 px-3 py-3">
+                          Cohort below the min-k threshold of {peerPercentiles.minK}. Encourage more peers in your industry / size band to opt in, and the percentiles will surface here.
+                        </div>
+                      )}
                     </div>
 
                     {/* Radar Chart */}
