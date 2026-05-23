@@ -9,6 +9,7 @@ import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
 import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
 import { ConsensusView } from "@/components/consensus-view";
+import { CapabilityCascadeChip } from "@/components/capability-cascade-chip";
 
 const API_BASE = "/api";
 
@@ -225,17 +226,23 @@ export default function CapabilityScorecard() {
       {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (
         <div className="space-y-2">
           {criticalAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-destructive/10 border border-destructive/30">
-              <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
-              <span className="text-sm">{a.message}</span>
-              <Badge variant="destructive" className="ml-auto">Critical</Badge>
+            <div key={i} className="rounded-none bg-destructive/10 border border-destructive/30 p-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-destructive shrink-0" />
+                <span className="text-sm flex-1">{a.message}</span>
+                <Badge variant="destructive">Critical</Badge>
+              </div>
+              {a.capabilityId > 0 && <CapabilityCascadeChip capabilityId={a.capabilityId} />}
             </div>
           ))}
           {warningAlerts.map((a, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-none bg-amber-500/10 border border-amber-500/30">
-              <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-              <span className="text-sm">{a.message}</span>
-              <Badge variant="outline" className="ml-auto text-amber-500">Warning</Badge>
+            <div key={i} className="rounded-none bg-amber-500/10 border border-amber-500/30 p-3 space-y-2">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <span className="text-sm flex-1">{a.message}</span>
+                <Badge variant="outline" className="text-amber-500">Warning</Badge>
+              </div>
+              {a.capabilityId > 0 && <CapabilityCascadeChip capabilityId={a.capabilityId} />}
             </div>
           ))}
         </div>

@@ -10,6 +10,7 @@ import {
 import { PersonaDescription } from "@/components/page-header";
 import { RequirementProvenanceTooltip } from "@/components/requirement-provenance-tooltip";
 import { ConsensusView } from "@/components/consensus-view";
+import { CapabilityCascadeChip } from "@/components/capability-cascade-chip";
 
 const API_BASE = "/api";
 
@@ -501,6 +502,11 @@ export default function Regulations() {
                             evidenceNotes={r.evidenceNotes}
                           />
                         </div>
+                        {r.compliant === false && (
+                          <div className="mt-2">
+                            <CapabilityCascadeChip capabilityId={r.capabilityId} />
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-4 text-sm">
                         <div className="text-right">
