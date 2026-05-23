@@ -1030,34 +1030,42 @@ export function startScheduler(): void {
   // current graph weights against 30-day baselines. High-signal shifts are
   // written to Mem0 so all agents recall them in future cycles.
   const TEMPORAL_SHIFT_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  sched("temporalShift", () => {
-    setTimeout(() => {
-      detectTemporalShifts()
-        .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-        .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-    }, 120_000);
-    temporalShiftTimer = setInterval(() => {
-      detectTemporalShifts()
-        .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-        .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-    }, TEMPORAL_SHIFT_INTERVAL_MS);
-  });
+  if (process.env["INNGEST_OWNS_TEMPORAL_SHIFT"] !== "1") {
+    sched("temporalShift", () => {
+      setTimeout(() => {
+        detectTemporalShifts()
+          .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+          .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+      }, 120_000);
+      temporalShiftTimer = setInterval(() => {
+        detectTemporalShifts()
+          .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
+          .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
+      }, TEMPORAL_SHIFT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Temporal shift detector handed to Inngest (INNGEST_OWNS_TEMPORAL_SHIFT=1)");
+  }
   // Memory-relation snapshot — daily. Idempotent per (relation_id, day).
   // Once 30+ days of history accumulate, the temporal-shift detector uses
   // these snapshots instead of the legacy fictional 0.1 baseline.
   const MEMORY_REL_SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
-  sched("memoryRelationSnapshot", () => {
-    setTimeout(() => {
-      writeMemoryRelationSnapshots()
-        .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-        .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-    }, 180_000);
-    memoryRelationSnapshotTimer = setInterval(() => {
-      writeMemoryRelationSnapshots()
-        .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-        .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-    }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
-  });
+  if (process.env["INNGEST_OWNS_MEMORY_SNAPSHOT"] !== "1") {
+    sched("memoryRelationSnapshot", () => {
+      setTimeout(() => {
+        writeMemoryRelationSnapshots()
+          .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+          .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+      }, 180_000);
+      memoryRelationSnapshotTimer = setInterval(() => {
+        writeMemoryRelationSnapshots()
+          .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
+          .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
+      }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Memory-relation snapshot writer handed to Inngest (INNGEST_OWNS_MEMORY_SNAPSHOT=1)");
+  }
 }
 
 /**
