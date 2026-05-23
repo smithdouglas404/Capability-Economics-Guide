@@ -65,12 +65,21 @@ app.use("/api", nowpaymentsWebhookRouter);
 // (SDK does its own auth via INNGEST_SIGNING_KEY).
 app.use(
   "/api/inngest",
-  express.text({ type: "application/json", limit: "10mb" }),
+  // Manually stream the raw body for ALL methods. express.text() skips bodies
+  // on GET by default, but self-hosted Inngest sends step-execution as GET
+  // with a body, so we need to read it ourselves.
   (req, _res, next) => {
-    if (req.method === "GET" && typeof req.body === "string" && req.body.length > 0) {
-      Object.defineProperty(req, "method", { value: "POST", configurable: true });
-    }
-    next();
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      const raw = Buffer.concat(chunks).toString("utf-8");
+      req.body = raw;
+      if (req.method === "GET" && raw.length > 0) {
+        Object.defineProperty(req, "method", { value: "POST", configurable: true });
+      }
+      next();
+    });
+    req.on("error", next);
   },
   inngestServe({
     client: inngest,
