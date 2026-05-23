@@ -11,7 +11,7 @@ import {
   dvxComponentsTable,
   sourceTriangulationsTable,
 } from "@workspace/db";
-import { and, desc, eq, or, ilike, lt, inArray } from "drizzle-orm";
+import { and, desc, eq, or, ilike, lt, gte, inArray } from "drizzle-orm";
 import { recallMemories, type MemoryCategory } from "../services/agent/memory";
 import { applyProposal, SUPPORTED_PROPOSAL_TYPES } from "../services/agent/proposal-appliers";
 import { syncEconomicRulesToLetta } from "../services/agent/economic-rules-sync";
@@ -117,6 +117,155 @@ router.get("/agent/history", async (req, res) => {
 
 router.get("/agent/events", (req, res) => {
   addSSEClient(res);
+});
+
+// ---------------------------------------------------------------------------
+// /agent/runs/aggregates — per-agent KPI strip data for /agent-radar.
+//
+// Returns success-rate / avg-duration / last-error / 24h-run-count grouped by
+// `trigger` (which is the closest thing to an "agent label" the table has —
+// `routine`/`autonomous`/`world_scan`/`rotation`/`startup`/`rerun` etc).
+// Each trigger becomes one row in the KPI strip. Cheap query: one SELECT
+// over the last 24h slice of agent_runs.
+// ---------------------------------------------------------------------------
+router.get("/agent/runs/aggregates", async (_req, res) => {
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const rows = await db.select().from(agentRunsTable)
+      .where(gte(agentRunsTable.startedAt, since))
+      .orderBy(desc(agentRunsTable.startedAt));
+
+    // Group by trigger and compute success rate, avg duration, last error.
+    const byAgent = new Map<string, {
+      runs: number;
+      completed: number;
+      failed: number;
+      totalDurationMs: number;
+      lastErrorAt: string | null;
+      lastRunAt: string | null;
+    }>();
+
+    for (const r of rows) {
+      const agent = r.trigger || "scheduled";
+      const a = byAgent.get(agent) ?? { runs: 0, completed: 0, failed: 0, totalDurationMs: 0, lastErrorAt: null, lastRunAt: null };
+      a.runs += 1;
+      if (r.status === "completed") a.completed += 1;
+      if (r.status === "failed" || r.errorMessage) a.failed += 1;
+      if (r.completedAt) a.totalDurationMs += r.completedAt.getTime() - r.startedAt.getTime();
+      if (r.errorMessage && !a.lastErrorAt) a.lastErrorAt = r.startedAt.toISOString();
+      if (!a.lastRunAt) a.lastRunAt = r.startedAt.toISOString();
+      byAgent.set(agent, a);
+    }
+
+    const aggregates = Array.from(byAgent.entries()).map(([agent, a]) => ({
+      agent,
+      runs24h: a.runs,
+      successRate: a.runs > 0 ? Math.round((a.completed / a.runs) * 100) : 0,
+      failedCount: a.failed,
+      avgDurationMs: a.completed > 0 ? Math.round(a.totalDurationMs / a.completed) : 0,
+      lastErrorAt: a.lastErrorAt,
+      lastRunAt: a.lastRunAt,
+    })).sort((a, b) => b.runs24h - a.runs24h);
+
+    res.json({ since: since.toISOString(), aggregates });
+  } catch (err) {
+    console.error("Agent runs aggregates failed:", err);
+    res.status(500).json({ error: "Failed to compute aggregates" });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /agent/runs/replay — historical event replay for the scrubber.
+//
+// Returns a virtual event stream synthesized from `agent_runs` records since
+// the given timestamp (defaults to 60min ago). Each run yields up to 4
+// pseudo-events: run_started, decide_complete, cvi_updated, and either
+// run_completed or run_failed. The shape matches the live SSE event types
+// so the same renderer can reuse them.
+// ---------------------------------------------------------------------------
+router.get("/agent/runs/replay", async (req, res) => {
+  try {
+    const sinceParam = typeof req.query.since === "string" ? req.query.since : "";
+    const sinceDate = sinceParam ? new Date(sinceParam) : new Date(Date.now() - 60 * 60 * 1000);
+    if (!Number.isFinite(sinceDate.getTime())) {
+      res.status(400).json({ error: "invalid `since` ISO timestamp" });
+      return;
+    }
+
+    const runs = await db.select().from(agentRunsTable)
+      .where(gte(agentRunsTable.startedAt, sinceDate))
+      .orderBy(desc(agentRunsTable.startedAt))
+      .limit(200);
+
+    type ReplayEvent = {
+      type: string;
+      timestamp: string;
+      runId: number;
+      agent: string;
+      phase?: string;
+      message?: string;
+      overallIndex?: number;
+      researched?: number;
+      skipped?: number;
+      error?: string;
+    };
+    const events: ReplayEvent[] = [];
+
+    for (const r of runs) {
+      const agent = r.trigger || "scheduled";
+      events.push({
+        type: "run_started",
+        timestamp: r.startedAt.toISOString(),
+        runId: r.id,
+        agent,
+        message: `Run #${r.id} started (${agent})`,
+      });
+      if (r.capabilitiesResearched > 0 || r.capabilitiesSkipped > 0) {
+        events.push({
+          type: "decide_complete",
+          timestamp: r.startedAt.toISOString(),
+          runId: r.id,
+          agent,
+          researched: r.capabilitiesResearched,
+          skipped: r.capabilitiesSkipped,
+        });
+      }
+      if (r.cviAfterIndex != null) {
+        events.push({
+          type: "cvi_updated",
+          timestamp: (r.completedAt ?? r.startedAt).toISOString(),
+          runId: r.id,
+          agent,
+          overallIndex: r.cviAfterIndex,
+        });
+      }
+      if (r.errorMessage) {
+        events.push({
+          type: "run_failed",
+          timestamp: (r.completedAt ?? r.startedAt).toISOString(),
+          runId: r.id,
+          agent,
+          error: r.errorMessage,
+        });
+      } else if (r.completedAt) {
+        events.push({
+          type: "run_completed",
+          timestamp: r.completedAt.toISOString(),
+          runId: r.id,
+          agent,
+          message: `Run #${r.id} completed`,
+        });
+      }
+    }
+
+    // Chronological for scrubbing.
+    events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+    res.json({ since: sinceDate.toISOString(), count: events.length, events });
+  } catch (err) {
+    console.error("Agent runs replay failed:", err);
+    res.status(500).json({ error: "Failed to build replay stream" });
+  }
 });
 
 // `/stream` is the spec'd public name (referenced in docs and the new
