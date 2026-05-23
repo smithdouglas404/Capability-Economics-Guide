@@ -1,29 +1,26 @@
 /**
- * Regulation PROPOSALS — writes to regulations_proposed for admin review.
+ * Starter regulation seed — writes the 17 well-known frameworks DIRECTLY
+ * into the live `regulations` table (idempotent on shortCode).
  *
- * Cutover 2026-05-19: previously this script wrote directly into the live
- * regulations table. That baked content decisions into a script that
- * nobody re-validates. Now it writes proposals into the review queue;
- * an admin approves at /admin/review-queue.
+ * Cutover 2026-05-23: previously this script wrote to regulations_proposed
+ * and required an admin to manually approve each on /admin/review-queue.
+ * That left /regulations empty on every fresh deploy, which is the wrong
+ * default — the 17 frameworks here are well-known reference data, not
+ * curation decisions.
  *
- * Existing live rows (the 18 currently in regulations) are untouched.
- * Re-running this script is idempotent against the proposed table on
- * (shortCode, proposedBy) — re-runs refresh proposal content without
- * duplicating rows.
+ * The proposal flow is still the right path for *new*, less well-known
+ * regulations submitted by users or other seed scripts. This script
+ * specifically covers the starter pack only.
  *
- * Each proposal carries provenance: proposedBy='seed:regulations',
- * verificationNotes describing why it was proposed, sourceCitation
- * pointing at the regulatory body where applicable.
+ * Idempotent on (short_code): re-running refreshes name, description,
+ * jurisdiction, effective_date, and industries[] but never duplicates.
  *
  * Exit codes:
  *   0 — success (incl. idempotent no-op)
  *   1 — only on DB connection / catastrophic errors
  */
-import { db, regulationsProposedTable, industriesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
-
-const FORCE = process.env.FORCE === "1" || process.env.FORCE === "true";
-const PROPOSED_BY = "seed:regulations";
+import { db, regulationsTable, industriesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 interface RegSeed {
   shortCode: string;
@@ -179,14 +176,11 @@ async function main(): Promise<void> {
   const slugToId = new Map<string, number>();
   for (const i of allIndustries) slugToId.set(i.slug, i.id);
 
-  // Existing PROPOSALS from this seeder (we own the proposedBy='seed:regulations'
-  // namespace — uniqueness is on (shortCode, proposedBy))
-  const existingProposals = await db.select()
-    .from(regulationsProposedTable)
-    .where(eq(regulationsProposedTable.proposedBy, PROPOSED_BY));
-  const proposalsByShortCode = new Map(existingProposals.map(p => [p.shortCode, p]));
+  // Index existing live regulations by short_code so we can upsert.
+  const existingLive = await db.select().from(regulationsTable);
+  const liveByShortCode = new Map(existingLive.map(r => [r.shortCode, r]));
 
-  let proposed = 0, refreshed = 0, alreadyApproved = 0;
+  let inserted = 0, updated = 0;
 
   for (const reg of SEED) {
     const industries = reg.industrySlugs
@@ -194,49 +188,35 @@ async function main(): Promise<void> {
       .filter((id): id is number => typeof id === "number");
 
     if (industries.length === 0) {
-      console.warn(`[seed:regulations] ${reg.shortCode} — no matching industries (${reg.industrySlugs.join(", ")}); proposing with empty array`);
+      console.warn(`[seed:regulations] ${reg.shortCode} — no matching industries (${reg.industrySlugs.join(", ")})`);
     }
 
-    const existing = proposalsByShortCode.get(reg.shortCode);
+    const existing = liveByShortCode.get(reg.shortCode);
     if (existing) {
-      // Don't re-propose if already approved/rejected — respect the reviewer
-      if (existing.reviewStatus === "approved") {
-        alreadyApproved++;
-        continue;
-      }
-      if (existing.reviewStatus === "rejected" && !FORCE) {
-        console.log(`[seed:regulations] ${reg.shortCode} previously rejected — skip (set FORCE=1 to re-propose)`);
-        continue;
-      }
-      // Pending or needs-edit: refresh the content but keep the proposal id
-      await db.update(regulationsProposedTable).set({
+      await db.update(regulationsTable).set({
         name: reg.name,
         description: reg.description,
         jurisdiction: reg.jurisdiction,
         effectiveDate: reg.effectiveDate,
         industries,
-        verificationNotes: `Updated by ${PROPOSED_BY} on ${new Date().toISOString()}`,
-      }).where(eq(regulationsProposedTable.id, existing.id));
-      refreshed++;
+      }).where(eq(regulationsTable.id, existing.id));
+      updated++;
       continue;
     }
 
-    await db.insert(regulationsProposedTable).values({
+    await db.insert(regulationsTable).values({
       name: reg.name,
       shortCode: reg.shortCode,
       description: reg.description,
       jurisdiction: reg.jurisdiction,
       effectiveDate: reg.effectiveDate,
       industries,
-      proposedBy: PROPOSED_BY,
-      verificationNotes: `Well-known regulation, content seeded from the starter pack. Admin to verify scope + current jurisdiction.`,
     });
-    proposed++;
-    console.log(`[seed:regulations] proposed ${reg.shortCode} → review queue (${industries.length} industries)`);
+    inserted++;
+    console.log(`[seed:regulations] inserted ${reg.shortCode} → live (${industries.length} industries)`);
   }
 
-  console.log(`\n[seed:regulations] done — proposed=${proposed} refreshed=${refreshed} already-approved=${alreadyApproved}`);
-  console.log(`[seed:regulations] Review at /admin/review-queue`);
+  console.log(`\n[seed:regulations] done — inserted=${inserted} updated=${updated}`);
 }
 
 main()

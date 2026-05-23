@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Swords, AlertTriangle, Shield, TrendingDown, RefreshCw } from "lucide-react";
+import { Swords, AlertTriangle, Shield, TrendingDown, RefreshCw, X } from "lucide-react";
 import { LifecycleChip, LIFECYCLE_STAGES, lifecycleLabel, type LifecycleStage } from "@/components/lifecycle-chip";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
@@ -47,6 +47,34 @@ export default function CapabilityScorecard() {
   const [sortBy, setSortBy] = useState<"gap" | "stage">("gap");
   const sessionToken = localStorage.getItem("ce_session_token") ?? "";
 
+  // Query-param deep-link: ?capabilityIds=1,2,3&source=DORA filters the
+  // matrix to a specific subset and shows a "Showing remediation priorities
+  // from <source>" banner with a Clear button. Read once on mount, persist
+  // until the user clears.
+  const [focusedCapabilityIds, setFocusedCapabilityIds] = useState<Set<number> | null>(null);
+  const [focusedSource, setFocusedSource] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("capabilityIds");
+    if (raw) {
+      const ids = raw.split(",").map((s) => parseInt(s.trim(), 10)).filter((n) => Number.isFinite(n) && n > 0);
+      if (ids.length > 0) setFocusedCapabilityIds(new Set(ids));
+    }
+    const src = params.get("source");
+    if (src) setFocusedSource(src);
+  }, []);
+  const clearFocus = () => {
+    setFocusedCapabilityIds(null);
+    setFocusedSource(null);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("capabilityIds");
+      url.searchParams.delete("source");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
   const load = async (overrideIndustryId?: number | null) => {
     setLoading(true);
     try {
@@ -84,7 +112,10 @@ export default function CapabilityScorecard() {
     }).catch(() => setLoading(false));
   }, []);
 
-  const filteredMatrix = stageFilter === "all" ? matrix : matrix.filter((m) => m.lifecycleStage === stageFilter);
+  const stageScoped = stageFilter === "all" ? matrix : matrix.filter((m) => m.lifecycleStage === stageFilter);
+  const filteredMatrix = focusedCapabilityIds
+    ? stageScoped.filter((m) => focusedCapabilityIds.has(m.capabilityId))
+    : stageScoped;
   // Stable lifecycle ordering for the optional sort: emerging → adopted → mature → decaying → obsolete.
   const STAGE_ORDER: Record<LifecycleStage, number> = { emerging: 0, adopted: 1, mature: 2, decaying: 3, obsolete: 4 };
   const sortedByGap = [...filteredMatrix]
@@ -156,6 +187,23 @@ export default function CapabilityScorecard() {
           <Button onClick={() => load()} disabled={loading} variant="outline"><RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh</Button>
         </div>
       </div>
+
+      {/* Focus banner — deep-linked from /regulations or other pages */}
+      {focusedCapabilityIds && (
+        <div className="flex items-center justify-between gap-3 p-3 bg-primary/[0.06] border border-primary/30">
+          <div className="text-sm">
+            Showing remediation priorities for{" "}
+            <strong>{focusedSource ?? "the selected source"}</strong> —{" "}
+            <span className="font-mono text-xs text-muted-foreground">
+              {focusedCapabilityIds.size} {focusedCapabilityIds.size === 1 ? "capability" : "capabilities"}
+            </span>
+          </div>
+          <Button variant="ghost" size="sm" onClick={clearFocus} className="rounded-none">
+            <X className="w-4 h-4 mr-1.5" />
+            Clear filter
+          </Button>
+        </div>
+      )}
 
       {/* Alert Banner */}
       {(criticalAlerts.length > 0 || warningAlerts.length > 0) && (

@@ -61,3 +61,4 @@ export * from "./member-profiles";
 export * from "./forums";
 export * from "./user-learning";
 export * from "./platform-signup-requests";
+export * from "./regulation-watches";
