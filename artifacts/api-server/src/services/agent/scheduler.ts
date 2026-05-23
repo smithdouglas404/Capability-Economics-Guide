@@ -814,7 +814,17 @@ export function startScheduler(): void {
   const watchdogMinutes = WATCHDOG_INTERVAL_MS / (60 * 1000);
   console.log(`[Agent] Autonomous monitoring started — routine cadence read from agent_tuning every ${checkMinutes}min, urgency watchdog every ${watchdogMinutes}min`);
 
-  sched("routine",          () => { routineTimer        = setInterval(() => routineCheck(),                  ROUTINE_CHECK_INTERVAL_MS); });
+  // Phase 1 (feat/inngest-migration): each of the 7 agent crons gates on
+  // INNGEST_OWNS_<NAME>=1. When set, Inngest's cron-triggered function
+  // (artifacts/api-server/src/inngest/functions/agents.ts) owns the schedule
+  // and the in-process setInterval is a no-op. When unset, this setInterval
+  // remains the source of truth. Set both to "1" briefly during cutover →
+  // confirm Inngest dashboard shows runs → leave the in-process version off.
+  if (process.env["INNGEST_OWNS_CVI"] !== "1") {
+    sched("routine",          () => { routineTimer        = setInterval(() => routineCheck(),                  ROUTINE_CHECK_INTERVAL_MS); });
+  } else {
+    console.log("[Agent] CVI routineCheck handed to Inngest (INNGEST_OWNS_CVI=1)");
+  }
   sched("watchdog",         () => { watchdogTimer       = setInterval(() => watchdogCheck(),                 WATCHDOG_INTERVAL_MS); });
   sched("rotation",         () => { rotationTimer       = setInterval(() => executeRotation("daily"),        ROTATION_INTERVAL_MS); });
   sched("worldScan",        () => { worldScanTimer      = setInterval(() => executeWorldScan("daily"),       WORLD_SCAN_INTERVAL_MS); });
@@ -869,41 +879,61 @@ export function startScheduler(): void {
   // (Weekly prompt optimizer removed — was the LangMem-equivalent learning
   // code the user explicitly rejected when Letta was restored. Letta's own
   // sleeptime + core_memory_replace pattern handles learning autonomously.)
-  sched("macroEvent", () => {
-    macroEventAgentTimer = setInterval(withRuntimeGate("macroEvent", () => {
-      return runMacroEventAgent()
-        .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-        .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
-    }), MACRO_EVENT_AGENT_INTERVAL_MS);
-  });
-  sched("disruption", () => {
-    disruptionAgentTimer = setInterval(withRuntimeGate("disruption", () => {
-      return runDisruptionAgent()
-        .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-        .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
-    }), DISRUPTION_AGENT_INTERVAL_MS);
-  });
-  sched("peerCoop", () => {
-    peerCoopAgentTimer = setInterval(withRuntimeGate("peerCoop", () => {
-      return runPeerCoopAgent()
-        .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-        .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
-    }), PEER_COOP_AGENT_INTERVAL_MS);
-  });
-  sched("stackOptimizer", () => {
-    stackOptimizerAgentTimer = setInterval(withRuntimeGate("stackOptimizer", () => {
-      return runStackOptimizerAgent()
-        .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-        .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
-    }), STACK_OPTIMIZER_AGENT_INTERVAL_MS);
-  });
-  sched("ontology", () => {
-    ontologyAgentTimer = setInterval(withRuntimeGate("ontology", () => {
-      return runOntologyAgent()
-        .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-        .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
-    }), ONTOLOGY_AGENT_INTERVAL_MS);
-  });
+  if (process.env["INNGEST_OWNS_MACRO_EVENT"] !== "1") {
+    sched("macroEvent", () => {
+      macroEventAgentTimer = setInterval(withRuntimeGate("macroEvent", () => {
+        return runMacroEventAgent()
+          .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+          .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
+      }), MACRO_EVENT_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Macro-event handed to Inngest (INNGEST_OWNS_MACRO_EVENT=1)");
+  }
+  if (process.env["INNGEST_OWNS_DISRUPTION"] !== "1") {
+    sched("disruption", () => {
+      disruptionAgentTimer = setInterval(withRuntimeGate("disruption", () => {
+        return runDisruptionAgent()
+          .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+          .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
+      }), DISRUPTION_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Disruption handed to Inngest (INNGEST_OWNS_DISRUPTION=1)");
+  }
+  if (process.env["INNGEST_OWNS_PEER_COOP"] !== "1") {
+    sched("peerCoop", () => {
+      peerCoopAgentTimer = setInterval(withRuntimeGate("peerCoop", () => {
+        return runPeerCoopAgent()
+          .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+          .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
+      }), PEER_COOP_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Peer-coop handed to Inngest (INNGEST_OWNS_PEER_COOP=1)");
+  }
+  if (process.env["INNGEST_OWNS_STACK_OPTIMIZER"] !== "1") {
+    sched("stackOptimizer", () => {
+      stackOptimizerAgentTimer = setInterval(withRuntimeGate("stackOptimizer", () => {
+        return runStackOptimizerAgent()
+          .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+          .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
+      }), STACK_OPTIMIZER_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Stack-optimizer handed to Inngest (INNGEST_OWNS_STACK_OPTIMIZER=1)");
+  }
+  if (process.env["INNGEST_OWNS_ONTOLOGY"] !== "1") {
+    sched("ontology", () => {
+      ontologyAgentTimer = setInterval(withRuntimeGate("ontology", () => {
+        return runOntologyAgent()
+          .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
+          .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
+      }), ONTOLOGY_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Ontology handed to Inngest (INNGEST_OWNS_ONTOLOGY=1)");
+  }
   // Synthesis Agent — daily, staggered 5 minutes after startup so all
   // other agents have had a chance to publish their first digests.
   //
@@ -921,18 +951,22 @@ export function startScheduler(): void {
     const r = await runSynthesisAgent();
     return { source: "in-process", duration: r.durationMs, toolCallCount: r.toolCallCount };
   };
-  sched("synthesis", () => {
-    setTimeout(() => {
-      runSynthesis()
-        .then(r => console.log(`[Agent] Synthesis agent (startup, source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-        .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-    }, 300_000);
-    synthesisAgentTimer = setInterval(() => {
-      runSynthesis()
-        .then(r => console.log(`[Agent] Synthesis agent (source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-        .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-    }, SYNTHESIS_AGENT_INTERVAL_MS);
-  });
+  if (process.env["INNGEST_OWNS_SYNTHESIS"] !== "1") {
+    sched("synthesis", () => {
+      setTimeout(() => {
+        runSynthesis()
+          .then(r => console.log(`[Agent] Synthesis agent (startup, source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
+          .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+      }, 300_000);
+      synthesisAgentTimer = setInterval(() => {
+        runSynthesis()
+          .then(r => console.log(`[Agent] Synthesis agent (source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
+          .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
+      }, SYNTHESIS_AGENT_INTERVAL_MS);
+    });
+  } else {
+    console.log("[Agent] Synthesis handed to Inngest (INNGEST_OWNS_SYNTHESIS=1)");
+  }
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
   startConsolidator();

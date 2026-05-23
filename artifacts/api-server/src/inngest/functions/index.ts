@@ -1,4 +1,5 @@
 import { inngest } from "../client";
+import { agentFunctions } from "./agents";
 
 const pingFn = inngest.createFunction(
   {
@@ -15,4 +16,4 @@ const pingFn = inngest.createFunction(
   },
 );
 
-export const functions = [pingFn];
+export const functions = [pingFn, ...agentFunctions];
