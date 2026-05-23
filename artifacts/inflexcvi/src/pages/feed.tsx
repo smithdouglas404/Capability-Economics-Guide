@@ -14,7 +14,7 @@ import { useUser, SignInButton } from "@clerk/react";
 import {
   ThumbsUp, MessageSquare, Send, Loader2, Image as ImageIcon, Link2,
   Sparkles, Bookmark, Share2, MoreHorizontal, UserPlus, Activity,
-  Users, Eye, FileText, ArrowRight,
+  Users, Eye, FileText, ArrowRight, Target,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -160,12 +160,18 @@ function SuggestionsRail() {
   );
 }
 
+type FeedFilterMode = "default" | "followed-capabilities";
+
 export default function FeedPage() {
   const { user, isSignedIn, isLoaded } = useUser();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<ProfileStats | null>(null);
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+  // Capability-keyed filter — flips the GET /api/feed query to narrow to posts
+  // tagged with capabilities the caller follows (profile.capabilityTags).
+  const [filterMode, setFilterMode] = useState<FeedFilterMode>("default");
+  const [followedCapabilities, setFollowedCapabilities] = useState<string[]>([]);
 
   // Composer
   const [body, setBody] = useState("");
@@ -180,19 +186,26 @@ export default function FeedPage() {
     if (!isSignedIn) return;
     setLoading(true);
     try {
+      const feedUrl = filterMode === "followed-capabilities"
+        ? "/api/feed?filter=followed-capabilities"
+        : "/api/feed";
       const [feedR, statsR, savedR] = await Promise.all([
-        fetch("/api/feed"),
+        fetch(feedUrl),
         fetch("/api/me/profile-stats"),
         fetch("/api/me/saved-posts"),
       ]);
-      if (feedR.ok) { const d = await feedR.json() as { posts: Post[] }; setPosts(d.posts); }
+      if (feedR.ok) {
+        const d = await feedR.json() as { posts: Post[]; followedCapabilities?: string[] };
+        setPosts(d.posts);
+        if (Array.isArray(d.followedCapabilities)) setFollowedCapabilities(d.followedCapabilities);
+      }
       if (statsR.ok) { setStats(await statsR.json()); }
       if (savedR.ok) {
         const d = await savedR.json() as { saved: Array<{ id: number }> };
         setSavedIds(new Set(d.saved.map(s => s.id)));
       }
     } finally { setLoading(false); }
-  }, [isSignedIn]);
+  }, [isSignedIn, filterMode]);
 
   useEffect(() => { void loadFeed(); }, [loadFeed]);
 
@@ -275,6 +288,39 @@ export default function FeedPage() {
             }}
           />
 
+          {/* Capability filter strip — flips the feed to "Posts about
+              capabilities you follow" (matches profile.capabilityTags). */}
+          <div className="flex items-center gap-2 text-xs">
+            <button
+              onClick={() => setFilterMode("default")}
+              className={`px-3 py-1.5 rounded-sm border transition-colors ${
+                filterMode === "default"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border hover:border-primary/50"
+              }`}
+            >
+              All recent
+            </button>
+            <button
+              onClick={() => setFilterMode("followed-capabilities")}
+              disabled={followedCapabilities.length === 0 && filterMode !== "followed-capabilities"}
+              className={`px-3 py-1.5 rounded-sm border transition-colors inline-flex items-center gap-1.5 ${
+                filterMode === "followed-capabilities"
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-background border-border hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"
+              }`}
+              title={followedCapabilities.length === 0 ? "Follow capabilities on your profile to enable this filter" : ""}
+            >
+              <Target className="w-3 h-3" />
+              Posts about capabilities you follow
+              {followedCapabilities.length > 0 && (
+                <span className={`text-[10px] font-mono ${filterMode === "followed-capabilities" ? "opacity-80" : "text-muted-foreground"}`}>
+                  ({followedCapabilities.length})
+                </span>
+              )}
+            </button>
+          </div>
+
           {/* Composer */}
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -319,7 +365,11 @@ export default function FeedPage() {
             <div className="text-sm text-muted-foreground flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading feed…</div>
           ) : posts.length === 0 ? (
             <Card><CardContent className="py-8 text-center text-muted-foreground text-sm">
-              No posts yet. Connect with members or follow industries to populate your feed.
+              {filterMode === "followed-capabilities"
+                ? followedCapabilities.length === 0
+                  ? "Follow capabilities on your profile to populate this view."
+                  : "No recent posts tagged with capabilities you follow."
+                : "No posts yet. Connect with members or follow industries to populate your feed."}
             </CardContent></Card>
           ) : (
             <div className="space-y-3">

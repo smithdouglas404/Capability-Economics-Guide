@@ -11,8 +11,13 @@ import {
   cviComponentsTable,
   industriesTable,
   dataSourcesTable,
+  watchlistsTable,
+  watchlistItemsTable,
+  cviCapabilityHistoryTable,
+  macroEventsTable,
 } from "@workspace/db";
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, and, gte, sql } from "drizzle-orm";
+import { forSession } from "../lib/tenant-scope";
 import {
   ListThresholdsQueryParams,
   ListInsightsQueryParams,
@@ -37,6 +42,134 @@ const InsightsSchema = z.object({
 });
 
 const router: IRouter = Router();
+
+/**
+ * GET /insights/for-you?sessionToken=...&windowDays=14
+ *
+ * Personalized "what changed in capabilities you watch" feed. Joins:
+ *
+ *   - watchlist_items (filtered to caller's session-token-scoped watchlist)
+ *   - cvi_capability_history (latest vs windowDays-ago snapshot, delta per
+ *     watched capability)
+ *   - macro_events overlap (events whose affected_capability_ids JSON includes
+ *     a watched capability, within the same window)
+ *
+ * Response: { watchedCount, windowDays, movements: [...], macroEvents: [...] }
+ * where each movement carries capabilityId/name/currentScore/priorScore/delta
+ * and each macroEvent carries id/title/severity/startedAt/sentimentDirection.
+ *
+ * Returns empty arrays (not 404) when the user has no watchlist yet, so the
+ * frontend can render a friendly "follow some capabilities to populate this"
+ * empty state without branching on HTTP status.
+ */
+router.get("/insights/for-you", async (req, res) => {
+  const token = typeof req.query.sessionToken === "string" ? req.query.sessionToken : "";
+  const windowDays = (() => {
+    const raw = Number(req.query.windowDays);
+    if (!Number.isFinite(raw) || raw <= 0) return 14;
+    return Math.min(Math.max(Math.floor(raw), 1), 90);
+  })();
+
+  if (!token) {
+    res.json({ watchedCount: 0, windowDays, movements: [], macroEvents: [] });
+    return;
+  }
+
+  // Watchlist for the caller. forSession() enforces session-token scope.
+  const [watchlist] = await db.select().from(watchlistsTable).where(forSession("watchlists", token));
+  if (!watchlist) {
+    res.json({ watchedCount: 0, windowDays, movements: [], macroEvents: [] });
+    return;
+  }
+
+  const items = await db.select({
+    capabilityId: watchlistItemsTable.capabilityId,
+    industryId: watchlistItemsTable.industryId,
+  }).from(watchlistItemsTable).where(eq(watchlistItemsTable.watchlistId, watchlist.id));
+
+  const capIds = Array.from(new Set(items.map(i => i.capabilityId)));
+  if (capIds.length === 0) {
+    res.json({ watchedCount: 0, windowDays, movements: [], macroEvents: [] });
+    return;
+  }
+
+  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+
+  // ── Movements: latest vs prior-window snapshot per watched capability.
+  // Pull all history for those caps in the window + the most recent snapshot
+  // overall. Then build current = max(snapshotAt), prior = oldest in window.
+  const [historyRows, caps] = await Promise.all([
+    db.select().from(cviCapabilityHistoryTable)
+      .where(and(
+        inArray(cviCapabilityHistoryTable.capabilityId, capIds),
+        gte(cviCapabilityHistoryTable.snapshotAt, since),
+      ))
+      .orderBy(desc(cviCapabilityHistoryTable.snapshotAt)),
+    db.select({
+      id: capabilitiesTable.id,
+      name: capabilitiesTable.name,
+      slug: capabilitiesTable.slug,
+      industryId: capabilitiesTable.industryId,
+    }).from(capabilitiesTable).where(inArray(capabilitiesTable.id, capIds)),
+  ]);
+  const capMap = new Map(caps.map(c => [c.id, c]));
+
+  type Row = typeof cviCapabilityHistoryTable.$inferSelect;
+  const byCapability = new Map<number, Row[]>();
+  for (const r of historyRows) {
+    const arr = byCapability.get(r.capabilityId);
+    if (arr) arr.push(r); else byCapability.set(r.capabilityId, [r]);
+  }
+
+  const movements = Array.from(byCapability.entries()).map(([capabilityId, rows]) => {
+    const sorted = [...rows].sort((a, b) => a.snapshotAt.getTime() - b.snapshotAt.getTime());
+    const prior = sorted[0];
+    const current = sorted[sorted.length - 1];
+    const meta = capMap.get(capabilityId);
+    const delta = current.consensusScore - prior.consensusScore;
+    return {
+      capabilityId,
+      capabilityName: meta?.name ?? `Capability #${capabilityId}`,
+      capabilitySlug: meta?.slug ?? null,
+      industryId: meta?.industryId ?? prior.industryId,
+      currentScore: current.consensusScore,
+      priorScore: prior.consensusScore,
+      delta,
+      direction: delta > 0.5 ? "up" : delta < -0.5 ? "down" : "flat",
+      velocity: current.velocity,
+      snapshotAt: current.snapshotAt,
+    };
+  }).sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+
+  // ── Macro events: those whose affected_capability_ids JSON array overlaps
+  // the watched cap ids, started within the window. Postgres jsonb @> check
+  // per-id is the safest portable form here.
+  const eventRows = await db.select().from(macroEventsTable)
+    .where(and(
+      gte(macroEventsTable.startedAt, since),
+      sql`(${macroEventsTable.affectedCapabilityIds})::jsonb ?| ${capIds.map(String)}`,
+    ))
+    .orderBy(desc(macroEventsTable.startedAt))
+    .limit(20);
+
+  const macroEvents = eventRows.map(e => ({
+    id: e.id,
+    title: e.title,
+    description: e.description,
+    eventType: e.eventType,
+    severity: e.severity,
+    sentimentDirection: e.sentimentDirection,
+    startedAt: e.startedAt,
+    affectedCapabilityIds: ((e.affectedCapabilityIds ?? []) as number[]).filter(id => capIds.includes(id)),
+  }));
+
+  res.json({
+    watchedCount: capIds.length,
+    windowDays,
+    movements,
+    macroEvents,
+  });
+});
 
 router.get("/insights", async (req, res) => {
   const parsed = ListInsightsQueryParams.safeParse(req.query);

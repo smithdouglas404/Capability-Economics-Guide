@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { PersonaDescription } from "@/components/page-header";
 import { StreamingBrief } from "@/components/streaming-brief";
 import {
-  Lightbulb, AlertTriangle, TrendingUp, Shield, Trophy,
+  Lightbulb, AlertTriangle, TrendingUp, TrendingDown, Shield, Trophy,
   FileText, Brain, Loader2, Sparkles, ArrowRight, ExternalLink,
   CircleDot, ChevronRight, BookOpen, Award, Target, Zap,
-  RefreshCw, Filter
+  RefreshCw, Filter, Eye, Minus
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -233,6 +233,179 @@ const relTypeColors: Record<string, string> = {
   substitutes: "#8b5cf6",
 };
 
+type WatchedMovement = {
+  capabilityId: number;
+  capabilityName: string;
+  capabilitySlug: string | null;
+  industryId: number;
+  currentScore: number;
+  priorScore: number;
+  delta: number;
+  direction: "up" | "down" | "flat";
+  velocity: number;
+  snapshotAt: string;
+};
+
+type WatchedMacroEvent = {
+  id: number;
+  title: string;
+  description: string;
+  eventType: string;
+  severity: number;
+  sentimentDirection: string;
+  startedAt: string;
+  affectedCapabilityIds: number[];
+};
+
+type WatchedChangesResponse = {
+  watchedCount: number;
+  windowDays: number;
+  movements: WatchedMovement[];
+  macroEvents: WatchedMacroEvent[];
+};
+
+/**
+ * "What's changed in capabilities you watch" — personalized strip at the
+ * top of /insights. Pulls the caller's session-scoped watchlist + recent CVI
+ * history movements + recent macro events affecting those capabilities.
+ *
+ * Renders inline when the user has a watchlist; otherwise hides quietly so
+ * we don't push noise on unauthenticated/anonymous sessions. The full global
+ * insights stream renders below regardless.
+ */
+function WatchedChangesSection() {
+  const [data, setData] = useState<WatchedChangesResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [windowDays, setWindowDays] = useState<7 | 14 | 30>(14);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const token = typeof window !== "undefined" ? localStorage.getItem("ce_session_token") ?? "" : "";
+    if (!token) { setLoading(false); return; }
+    fetch(`${API_BASE}/insights/for-you?sessionToken=${encodeURIComponent(token)}&windowDays=${windowDays}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(j => { if (!cancelled && j) setData(j as WatchedChangesResponse); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [windowDays]);
+
+  // Hide entirely when the user has no watchlist — keeps anonymous sessions
+  // from seeing an empty stripe of "What's changed".
+  if (loading) {
+    return (
+      <Card className="rounded-none border-l-4 border-l-primary">
+        <CardContent className="py-4 text-sm text-muted-foreground italic flex items-center gap-2">
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading your watched capabilities…
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!data || data.watchedCount === 0) return null;
+
+  const hasSignal = data.movements.length > 0 || data.macroEvents.length > 0;
+
+  return (
+    <Card className="rounded-none border-l-4 border-l-primary bg-gradient-to-r from-primary/[0.03] to-transparent">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <CardTitle className="font-serif text-lg flex items-center gap-2">
+              <Eye className="w-4 h-4 text-primary" />
+              What's changed in capabilities you watch
+            </CardTitle>
+            <CardDescription className="mt-1">
+              {data.watchedCount} watched · CVI movements + macro events from the last {data.windowDays} days
+            </CardDescription>
+          </div>
+          <div className="inline-flex items-center gap-1 text-xs">
+            {([7, 14, 30] as const).map(d => (
+              <button
+                key={d}
+                onClick={() => setWindowDays(d)}
+                className={`px-2 py-1 rounded-sm border transition-colors ${
+                  windowDays === d
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background border-border hover:border-primary/50"
+                }`}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {!hasSignal && (
+          <p className="text-sm text-muted-foreground italic">
+            No CVI movement or macro events for your watched capabilities in this window — the score is steady.
+          </p>
+        )}
+
+        {data.movements.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              CVI movements
+            </h4>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {data.movements.slice(0, 6).map(m => {
+                const Icon = m.direction === "up" ? TrendingUp : m.direction === "down" ? TrendingDown : Minus;
+                const tone = m.direction === "up"
+                  ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                  : m.direction === "down"
+                  ? "text-red-600 bg-red-50 border-red-200"
+                  : "text-muted-foreground bg-muted/30 border-border";
+                return (
+                  <div key={m.capabilityId} className={`flex items-center gap-2 p-2.5 rounded-sm border ${tone}`}>
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-foreground truncate">{m.capabilityName}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono">
+                        {m.priorScore.toFixed(1)} → {m.currentScore.toFixed(1)} ({m.delta >= 0 ? "+" : ""}{m.delta.toFixed(1)})
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {data.macroEvents.length > 0 && (
+          <div>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+              Macro events touching your watchlist
+            </h4>
+            <div className="space-y-2">
+              {data.macroEvents.slice(0, 5).map(e => (
+                <div key={e.id} className="flex items-start gap-2 p-2.5 rounded-sm border border-amber-200 bg-amber-50/60">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-medium text-foreground">{e.title}</span>
+                      <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800 font-mono">
+                        {e.eventType}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        sev {e.severity.toFixed(1)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{e.description}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                      {new Date(e.startedAt).toISOString().slice(0, 10)} · affects {e.affectedCapabilityIds.length} of your watched
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Insights() {
   const [activeTab, setActiveTab] = useState<"overview" | "leaderboard" | "ontology" | "papers">("overview");
   const [selectedIndustry, setSelectedIndustry] = useState<number | null>(null);
@@ -351,6 +524,7 @@ export default function Insights() {
       </section>
 
       <div className="container mx-auto px-4 max-w-6xl py-8 space-y-6">
+        <WatchedChangesSection />
         {selectedIndustry !== null && (
           <StreamingBrief
             api="/api/insights/stream"
