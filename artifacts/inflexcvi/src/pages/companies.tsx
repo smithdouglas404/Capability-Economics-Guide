@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
+import { Building2, TrendingUp, Target, Activity, Zap, Trophy, RefreshCw, ChevronDown, ChevronRight, Layers, Loader2, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
 import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
@@ -99,12 +101,23 @@ type IngestStatus =
   | { state: "done"; industryId: number; startedAt: string; finishedAt: string; inserted: number; updated: number; companies: number; errors: string[] }
   | { state: "failed"; industryId: number; startedAt: string; finishedAt: string; error: string };
 
+type ClosestPeer = {
+  id: number;
+  name: string;
+  ownership: string | null;
+  publicTicker: string | null;
+  similarity: number;
+  sharedCaps: number;
+};
+type ClosestPeersMap = Record<string, ClosestPeer[]>;
+
 export default function Companies() {
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [industryId, setIndustryId] = useState<number | null>(null);
   const [companies, setCompanies] = useState<CompanyRow[]>([]);
   const [stages, setStages] = useState<StageRow[]>([]);
   const [quad, setQuad] = useState<QuadPoint[]>([]);
+  const [closestPeers, setClosestPeers] = useState<ClosestPeersMap>({});
   const [loading, setLoading] = useState(false);
   const [ingestStatus, setIngestStatus] = useState<IngestStatus | null>(null);
   const [ingestDismissed, setIngestDismissed] = useState(false);
@@ -153,10 +166,18 @@ export default function Companies() {
       fetch(`/api/workbench/companies?industryId=${id}&limit=100`).then(r => r.json()),
       fetch(`/api/workbench/value-chain/${id}`).then(r => r.json()),
       fetch(`/api/workbench/quadrant/${id}`).then(r => r.json()),
-    ]).then(([co, vc, q]) => {
+      // Batch closest-peers — one call returns top-3 per company so the
+      // shortlist can show inline CCA chips without firing N /similar calls.
+      // Tolerates 404 on older deploys (endpoint absent) — the column then
+      // just renders an em-dash.
+      fetch(`/api/workbench/companies/closest-peers?industryId=${id}&limit=3`)
+        .then(r => r.ok ? r.json() : { peers: {} })
+        .catch(() => ({ peers: {} })),
+    ]).then(([co, vc, q, peers]) => {
       setCompanies(co.companies ?? []);
       setStages(vc.stages ?? []);
       setQuad(q.points ?? []);
+      setClosestPeers(peers.peers ?? {});
       setLoading(false);
     }).catch(() => setLoading(false));
   };
@@ -464,6 +485,7 @@ export default function Companies() {
                         <th className="py-2 pr-2">Acq. Prob</th>
                         <th className="py-2 pr-2">AI Disrupt</th>
                         <th className="py-2 pr-2">Aged</th>
+                        <th className="py-2 pr-2">Closest peer</th>
                         <th className="py-2 pr-2">Revenue</th>
                         <th className="py-2 pr-2">Funding</th>
                       </tr>
@@ -568,12 +590,69 @@ export default function Companies() {
                             </td>
                             </>;
                             })()}
+                            <td className="py-2 pr-2 w-44">
+                              {(() => {
+                                const peers = closestPeers[String(row.company.id)] ?? [];
+                                if (peers.length === 0) {
+                                  return <span className="font-mono text-xs text-muted-foreground">—</span>;
+                                }
+                                const top = peers[0];
+                                return (
+                                  <HoverCard openDelay={120} closeDelay={80}>
+                                    <HoverCardTrigger asChild>
+                                      <Link
+                                        href={`/comparables/${row.company.id}`}
+                                        className="inline-flex items-center gap-1.5 max-w-full"
+                                        data-testid={`closest-peer-${row.company.id}`}
+                                      >
+                                        <Badge variant="outline" className="text-[10px] font-normal max-w-[120px] truncate hover:bg-muted/60 cursor-pointer gap-1">
+                                          <Sparkles className="w-2.5 h-2.5 shrink-0 text-accent" />
+                                          <span className="truncate">{top.name}</span>
+                                        </Badge>
+                                        <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                                          {(top.similarity * 100).toFixed(0)}%
+                                        </span>
+                                      </Link>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent align="start" className="w-72 p-3">
+                                      <div className="flex items-center gap-1.5 mb-2">
+                                        <Sparkles className="w-3 h-3 text-accent" />
+                                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-mono">Capability-fingerprint peers</span>
+                                      </div>
+                                      <ul className="space-y-1.5">
+                                        {peers.map((p, idx) => (
+                                          <li key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <span className="font-mono text-[10px] text-muted-foreground tabular-nums w-3">{idx + 1}</span>
+                                              <span className="truncate font-medium">{p.name}</span>
+                                              {p.publicTicker && (
+                                                <span className="text-[10px] text-muted-foreground font-mono shrink-0">{p.publicTicker}</span>
+                                              )}
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                              <span className="font-mono tabular-nums">{(p.similarity * 100).toFixed(0)}%</span>
+                                              <span className="text-[10px] text-muted-foreground tabular-nums">·{p.sharedCaps}c</span>
+                                            </div>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <Link
+                                        href={`/comparables/${row.company.id}`}
+                                        className="block mt-2 pt-2 border-t text-[10px] uppercase tracking-wider text-accent font-mono hover:underline"
+                                      >
+                                        Full comparable-deal analysis →
+                                      </Link>
+                                    </HoverCardContent>
+                                  </HoverCard>
+                                );
+                              })()}
+                            </td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.revenueUsd)}</td>
                             <td className="py-2 pr-2 text-xs">{fmtMoney(row.company.fundingUsd)}</td>
                           </tr>
                           {isOpen && (
                             <tr className="bg-muted/20 border-b">
-                              <td colSpan={13} className="p-4">
+                              <td colSpan={14} className="p-4">
                                 <div className="flex items-center gap-2 mb-3">
                                   <Layers className="w-4 h-4 text-primary" />
                                   <h4 className="text-sm font-semibold">Products grouped by capability</h4>
