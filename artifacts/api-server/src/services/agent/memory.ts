@@ -320,8 +320,7 @@ export async function storeMemory(
   let mem0Status: string | null = null;
 
   const cfg = getMem0Config();
-  const client = cfg?.isCloud ? getMem0Client() : null;
-  if (cfg && (client || !cfg.isCloud)) {
+  if (cfg) {
     try {
       const messages = buildConversationalMessages(type, category, content, context, metadata);
       // enable_graph: true is the SDK's documented per-request flag for
@@ -347,6 +346,8 @@ export async function storeMemory(
       };
       let result: Mem0Memory[] | undefined;
       if (cfg.isCloud) {
+        const client = getMem0Client();
+        if (!client) throw new Error("Mem0 SDK client unavailable for cloud mode");
         result = await client.add(messages, {
           agent_id: resolvedAgentId,
           ...(runId !== null && runId !== undefined ? { run_id: `cycle-${runId}` } : {}),
@@ -524,8 +525,7 @@ export async function recallMemories(
   const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
   const cfg = getMem0Config();
-  const client = cfg?.isCloud ? getMem0Client() : null;
-  if (cfg && (client || !cfg.isCloud)) {
+  if (cfg) {
     try {
       // SDK's search() takes a flat options object — agent_id at top level,
       // metadata as a flat dict, enable_graph for graph-mode recall. On
@@ -548,6 +548,8 @@ export async function recallMemories(
 
       let found: Mem0Memory[];
       if (cfg.isCloud) {
+        const client = getMem0Client();
+        if (!client) throw new Error("Mem0 SDK client unavailable for cloud mode");
         found = await client.search(query, searchOpts);
       } else {
         const resp = await mem0SelfHostedRequest<Mem0Memory[] | { results?: Mem0Memory[] }>(
@@ -638,11 +640,12 @@ export async function recallMemoriesBatch(type: MemoryType, limit: number = 100)
   const results: AgentMemory[] = [];
 
   const cfg = getMem0Config();
-  const client = cfg?.isCloud ? getMem0Client() : null;
-  if (cfg && (client || !cfg.isCloud)) {
+  if (cfg) {
     try {
       let found: Mem0Memory[] | { results?: Mem0Memory[] };
       if (cfg.isCloud) {
+        const client = getMem0Client();
+        if (!client) throw new Error("Mem0 SDK client unavailable for cloud mode");
         found = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
       } else {
         // Self-hosted OSS: GET /memories?agent_id=…&page_size=… returns
