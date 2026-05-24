@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2 } from "lucide-react";
 
@@ -68,38 +69,32 @@ export default function CaseStudies() {
         ) : (
           <div className="border-t border-border/40 divide-y divide-border/40">
             {rows.map((row, i) => (
-              <motion.div
+              <Link
                 key={row.id}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.6, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
+                href={`/case-study/${row.industrySlug}`}
+                className="group block grid lg:grid-cols-[48px_160px_1fr_auto] gap-x-8 gap-y-3 py-9 lg:py-11 hover:bg-muted/20 transition-colors duration-200 px-3 -mx-3"
               >
-                <a href={`/case-study/${row.industrySlug}`} className="block group">
-                  <article className="grid lg:grid-cols-[48px_160px_1fr_auto] gap-x-8 gap-y-3 py-9 lg:py-11 hover:bg-muted/20 transition-colors duration-200 px-3 -mx-3">
-                    <div className="font-mono text-[10px] tabular-nums tracking-[0.22em] text-muted-foreground/60 self-start pt-0.5">
-                      {String(i + 1).padStart(2, "0")}
-                    </div>
-                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent self-start pt-0.5">
-                      {row.industryName}
-                    </div>
-                    <div>
-                      <h2 className="font-serif text-3xl lg:text-[2rem] leading-tight tracking-tight group-hover:text-foreground/70 transition-colors mb-3">
-                        {row.title}
-                      </h2>
-                      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 max-w-2xl">
-                        {row.executiveSummary}
-                      </p>
-                      <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60 mt-4">
-                        {new Date(row.generatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
-                      </div>
-                    </div>
-                    <div className="self-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
-                      Read <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                    </div>
-                  </article>
-                </a>
-              </motion.div>
+                <div className="font-mono text-[10px] tabular-nums tracking-[0.22em] text-muted-foreground/60 self-start pt-0.5">
+                  {String(i + 1).padStart(2, "0")}
+                </div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent self-start pt-0.5">
+                  {row.industryName}
+                </div>
+                <div>
+                  <h2 className="font-serif text-3xl lg:text-[2rem] leading-tight tracking-tight group-hover:text-foreground/70 transition-colors mb-3">
+                    {row.title}
+                  </h2>
+                  <p className="text-sm text-muted-foreground leading-relaxed line-clamp-3 max-w-2xl">
+                    {row.executiveSummary}
+                  </p>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground/60 mt-4">
+                    {new Date(row.generatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
+                  </div>
+                </div>
+                <div className="self-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
+                  Read <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </Link>
             ))}
           </div>
         )}
