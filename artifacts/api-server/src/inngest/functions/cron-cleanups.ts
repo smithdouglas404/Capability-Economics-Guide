@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { runMarketplaceAutoArchive } from "../../services/marketplace-auto-archive";
 import { runEdgarRssWatcherOnce } from "../../services/edgar/rss-watcher";
+import { runGdpWeightsRefresh } from "../../services/gdp-weights-refresh";
 import { withStep } from "../step-context";
 
 // Phase 1.x — Inngest wrappers around long-running cleanup pollers.
@@ -46,4 +47,25 @@ export const edgarRssWatcherCron = inngest.createFunction(
   },
 );
 
-export const cronCleanupFunctions = [marketplaceAutoArchiveCron, edgarRssWatcherCron];
+// Weekly GDP weight refresh. Re-runs the seed logic against the live World
+// Bank API + the in-code allocation rules. The refresh function auto-detects
+// drift >10% between stored value and rule-computed value and updates in
+// place — so retuned multipliers or new World Bank data flow through without
+// requiring a deploy or a FORCE flag.
+//
+// Cadence: weekly (Sundays 04:30 UTC). WB indicators update annually, so
+// weekly is plenty fresh without hammering the public API.
+export const gdpWeightsRefreshCron = inngest.createFunction(
+  {
+    id: "gdp-weights-refresh",
+    triggers: [{ cron: "30 4 * * 0" }],
+    concurrency: { limit: 1 },
+    retries: 2,
+  },
+  async ({ step }) => {
+    if (!ownedBy("INNGEST_OWNS_GDP_WEIGHTS_REFRESH")) return { skipped: "flag-off" };
+    return await withStep(step, () => runGdpWeightsRefresh());
+  },
+);
+
+export const cronCleanupFunctions = [marketplaceAutoArchiveCron, edgarRssWatcherCron, gdpWeightsRefreshCron];
