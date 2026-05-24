@@ -104,7 +104,7 @@ export function ScoreWithProvenance({
           data-testid="score-with-provenance-trigger"
         >
           <span>{rendered}</span>
-          <Info className="w-3 h-3 self-center text-muted-foreground/50 group-hover:text-foreground group-focus-visible:text-foreground transition-colors shrink-0" />
+          <Info className="w-3.5 h-3.5 self-center text-accent/80 group-hover:text-accent group-focus-visible:text-accent transition-colors shrink-0" />
         </button>
       </PopoverTrigger>
       <PopoverContent
