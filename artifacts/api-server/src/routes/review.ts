@@ -12,6 +12,7 @@ import { requireReviewer, type Reviewer } from "../middlewares/requireReviewer";
 import { decomposeCapability } from "../services/sub-capability-generator";
 import { logger } from "../lib/logger";
 import { inngest } from "../inngest/client";
+import { buildIdempotencyKey } from "../inngest/invoke";
 
 const router: IRouter = Router();
 
@@ -219,12 +220,18 @@ router.post("/review/:id/reject", async (req, res) => {
   // persists revision_prompts to research_artifacts which the next
   // fireDraftEnrichment pass picks up as guidance. Inngest handles retries
   // and surfaces failures in the dashboard — better than the old void.
+  const currentDraft = JSON.stringify({ name: cap.name, description: cap.description, traditionalView: cap.traditionalView, economicView: cap.economicView }).slice(0, 8000);
   await inngest.send({
     name: "workflow/capability-review-assist",
+    // Same reviewer comment on the same draft should not trigger two runs
+    // — e.g. an HTTP 502 retry from the dashboard, or a double-click.
+    id: buildIdempotencyKey("workflow/capability-review-assist", [
+      id, comment, currentDraft,
+    ]),
     data: {
       capabilityId: id,
       reviewerComment: comment,
-      currentDraft: JSON.stringify({ name: cap.name, description: cap.description, traditionalView: cap.traditionalView, economicView: cap.economicView }).slice(0, 8000),
+      currentDraft,
     },
   }).catch((err) => {
     logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: id }, "[review-assist] failed to enqueue review-assist event");

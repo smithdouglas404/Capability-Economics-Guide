@@ -115,6 +115,10 @@ router.post("/admin/foundry/rotate-token", async (req: Request, res: Response) =
     if (expiresAt) {
       inngest.send({
         name: "system.secret.expiring",
+        // One alert per (secret, expiresAt) — guards against a retry of
+        // the rotate-token route accidentally scheduling two alert sleeps
+        // to the same expiry instant.
+        id: `system.secret.expiring:foundry:${expiresAt.toISOString()}`,
         data: { secretName: "foundry", expiresAt: expiresAt.toISOString() },
       }).catch(err => {
         logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-admin] inngest.send(system.secret.expiring) failed (non-fatal)");

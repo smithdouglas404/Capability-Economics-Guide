@@ -5,7 +5,7 @@ import { deductCredits } from "../middlewares/deductCredits";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import type { GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { sonnet, generateObject, generateText } from "../services/workflows/models";
 import { z } from "zod";
 
@@ -209,7 +209,15 @@ router.post("/assess/start", async (req: Request, res: Response) => {
       industryName: industry ?? "",
       orgContext: { companyName, opportunity, voiceTranscript: voiceTranscript?.slice(0, 4000), documentText: documentText?.slice(0, 4000), jobPostingText: jobPostingText?.slice(0, 1000), competitors: validCompetitors },
     },
-    { timeoutMs: 60_000 },
+    {
+      timeoutMs: 60_000,
+      // "start" phase is parameterized by sessionId + industry + the
+      // ingested context blob — same inputs should reuse the prior run.
+      idempotencyKey: buildIdempotencyKey("workflow/assessment-analyzer", [
+        "start", sessionId, industry ?? "", companyName ?? "", opportunity ?? "",
+        (voiceTranscript ?? "").slice(0, 400), (documentText ?? "").slice(0, 400),
+      ]),
+    },
   ).catch(() => null);
   if (analyzerStart?.payload && Array.isArray((analyzerStart.payload as { capabilities?: unknown }).capabilities)) {
     const cps = (analyzerStart.payload as { capabilities: Array<{ definition: string }> }).capabilities;
@@ -483,7 +491,15 @@ Rules:
       orgContext: { companyName: session?.companyName, opportunity: session?.opportunity, competitors: session?.competitors },
       responses: { answers, questions: session?.clarifyingQuestions ?? [] },
     },
-    { timeoutMs: 90_000 },
+    {
+      timeoutMs: 90_000,
+      // "analyze" phase keyed on sessionId + the answers blob — re-running
+      // with identical answers (network retry, double-submit) reuses the
+      // prior expensive Sonnet call instead of paying for it twice.
+      idempotencyKey: buildIdempotencyKey("workflow/assessment-analyzer", [
+        "analyze", sessionId, answers,
+      ]),
+    },
   ).catch(() => null);
   const analyzerPersisted = Boolean(analyzerResult?.payload);
 

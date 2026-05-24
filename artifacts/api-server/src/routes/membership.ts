@@ -20,7 +20,7 @@ import type {
   TierSelectorOutput,
   PaymentRecoveryOutput,
 } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import {
   sendWelcomeEmail,
   sendApprovalEmail,
@@ -338,7 +338,14 @@ router.post("/me/membership/concierge", async (req, res) => {
       query: parsed.data.query,
       conversationId: parsed.data.conversationId,
     },
-    { timeoutMs: 30_000 },
+    {
+      timeoutMs: 30_000,
+      // Same user resubmitting the same query in the same conversation
+      // (e.g. double-click "Send") should reuse the prior run.
+      idempotencyKey: buildIdempotencyKey("workflow/tier-selector", [
+        auth.userId, parsed.data.conversationId ?? "new", parsed.data.query,
+      ]),
+    },
   );
   if (!result) { res.status(503).json({ error: "Tier selector workflow unavailable" }); return; }
   res.json(result);
@@ -380,7 +387,12 @@ router.post("/me/payment-recovery", async (req, res) => {
       query: parsed.data.query,
       conversationId: parsed.data.conversationId,
     },
-    { timeoutMs: 30_000 },
+    {
+      timeoutMs: 30_000,
+      idempotencyKey: buildIdempotencyKey("workflow/payment-recovery", [
+        auth.userId, past.subId, parsed.data.conversationId ?? "new", parsed.data.query,
+      ]),
+    },
   );
   if (!result) { res.status(503).json({ error: "Payment recovery workflow unavailable" }); return; }
   res.json(result);

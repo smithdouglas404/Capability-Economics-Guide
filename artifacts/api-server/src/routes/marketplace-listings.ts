@@ -11,6 +11,7 @@ import { logger } from "../lib/logger";
 import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
 import { getClerkUserSummary } from "../services/clerk-user";
 import { inngest } from "../inngest/client";
+import { buildIdempotencyKey } from "../inngest/invoke";
 
 const router: IRouter = Router();
 
@@ -430,6 +431,12 @@ router.post("/marketplace/listings/:id/submit", async (req, res) => {
   // us dashboard visibility — better than the old void-promise pattern.
   await inngest.send({
     name: "workflow/listing-moderation",
+    // Resubmitting the same listing (no content change) within the dedup
+    // window should reuse the prior moderation verdict. Key bumps with
+    // the title+description so an edit re-triggers a fresh decision.
+    id: buildIdempotencyKey("workflow/listing-moderation", [
+      id, existing.title, existing.description ?? "",
+    ]),
     data: {
       listingId: id,
       title: existing.title,

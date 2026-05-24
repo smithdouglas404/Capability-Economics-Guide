@@ -27,7 +27,7 @@ import { requireSession } from "../middlewares/requireSession";
 import { runIdeation, ideationCacheKey, type IdeationKind } from "../services/ideation";
 import { deriveLifecycleStage } from "../services/lifecycle";
 import type { OnboardingConciergeOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -95,7 +95,15 @@ router.post("/onboarding/suggest", async (req, res) => {
         selectedIndustry: matchedIndustry?.name,
         signals: { freeFormDescription: description, persona },
       },
-      { timeoutMs: 30_000 },
+      {
+        timeoutMs: 30_000,
+        // Idempotency: a user resubmitting the same /onboarding/suggest
+        // body within Inngest's dedup window should reuse the prior run
+        // instead of re-burning concierge tokens.
+        idempotencyKey: buildIdempotencyKey("workflow/onboarding-concierge", [
+          "suggest", auth.userId, matchedIndustry?.id ?? null, description, persona ?? null,
+        ]),
+      },
     );
     if (result) conciergeAnswer = result.answer;
   } catch (err) {
@@ -278,7 +286,17 @@ router.post("/onboarding/start", async (req, res) => {
           freeFormDescription: parsed.data.freeFormDescription ?? undefined,
         },
       },
-      { timeoutMs: 30_000 },
+      {
+        timeoutMs: 30_000,
+        // A POST /onboarding/start retry (browser back+forward, retry,
+        // network blip) should not double-spend the concierge call. The
+        // board id isn't stable yet at this point, so we key on the
+        // (user, industry, persona/goal) signature instead.
+        idempotencyKey: buildIdempotencyKey("workflow/onboarding-concierge", [
+          "start", auth.userId!, industry.id, firstCap.id,
+          parsed.data.persona ?? null, parsed.data.goal ?? null,
+        ]),
+      },
     ).catch((err) => {
       logger.warn({ err }, "[onboarding] concierge failed — falling back to runIdeation");
       return null;

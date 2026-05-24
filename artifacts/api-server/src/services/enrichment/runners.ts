@@ -18,7 +18,7 @@ import {
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
 import type { GenericWorkflowOutput } from "../workflows";
-import { invokeWorkflowAndWait } from "../../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../../inngest/invoke";
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
 import { logLlmCall } from "../llm-usage";
@@ -88,7 +88,12 @@ async function tryWorkflowResearch(
   const result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
     "workflow/research-pipeline",
     { capabilityId, kind, prompt },
-    { timeoutMs: 120_000 },
+    {
+      timeoutMs: 120_000,
+      idempotencyKey: buildIdempotencyKey("workflow/research-pipeline", [
+        capabilityId, kind, prompt,
+      ]),
+    },
   ).catch(() => null);
   if (!result || result.status === "degraded") return null;
   return result.payload as Record<string, unknown>;

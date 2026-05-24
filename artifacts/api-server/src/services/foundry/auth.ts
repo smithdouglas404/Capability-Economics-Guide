@@ -173,6 +173,10 @@ async function persistMintedToken(token: string, expiresIn: number): Promise<voi
         const expiresAt = new Date(Date.now() + expiresIn * 1000);
         inngest.send({
           name: "system.secret.expiring",
+          // Idempotency: parallel `getFoundryToken()` callers can race into
+          // the mint path; only one should win the alert schedule for a
+          // given (secret, expiresAt) tuple.
+          id: `system.secret.expiring:foundry:${expiresAt.toISOString()}`,
           data: { secretName: "foundry", expiresAt: expiresAt.toISOString() },
         }).catch(err => {
           logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-auth] inngest.send(system.secret.expiring) failed (non-fatal)");

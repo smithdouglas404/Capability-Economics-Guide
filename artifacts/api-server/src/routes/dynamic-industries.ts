@@ -13,7 +13,7 @@ import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import type { GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 import { logLlmCall } from "../services/llm-usage";
 
@@ -124,7 +124,10 @@ router.post("/industries", requireAdmin, async (req, res) => {
   const bootstrapResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
     "workflow/industry-bootstrap",
     { industryName: name },
-    { timeoutMs: 120_000 },
+    {
+      timeoutMs: 120_000,
+      idempotencyKey: buildIdempotencyKey("workflow/industry-bootstrap", [name]),
+    },
   ).catch(() => null);
 
   if (bootstrapResult?.payload) {

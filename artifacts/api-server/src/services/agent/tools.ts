@@ -757,6 +757,10 @@ Severity rules: "critical" = immediate revenue or operational risk, "warning" = 
         .filter(({ recommendation }) => Boolean(recommendation))
         .map(({ row }) => ({
           name: "agent.insight.created",
+          // Idempotency: an agent retry that re-emits the same insight id
+          // must not double-schedule the 60-day recommendationFeedback
+          // sleeper. insightId is unique-per-row in capability_insights.
+          id: `agent.insight.created:${row.id}`,
           data: {
             insightId: row.id,
             industrySlug,

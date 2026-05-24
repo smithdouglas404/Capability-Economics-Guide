@@ -1,5 +1,5 @@
 /**
- * invokeWorkflowAndWait — synchronous bridge to Inngest.
+ * invokeWorkflowAndWait - synchronous bridge to Inngest.
  *
  * Sends an Inngest event and polls the REST `/v1/events/{eventId}/runs`
  * endpoint until the run is COMPLETED / FAILED / CANCELLED or the deadline
@@ -10,17 +10,47 @@
  * durable + observable in the Inngest dashboard.
  *
  * Per-route bypass: set env var `USE_INNGEST_INVOKE_<EVENT_NAME>=0` (event
- * name uppercased, non-alphanumerics → `_`) and the helper throws an
+ * name uppercased, non-alphanumerics -> `_`) and the helper throws an
  * `InngestInvokeBypassError`. Callers catch this and fall back to the
  * legacy in-process `runX()` wrapper.
  */
+import { createHash } from "node:crypto";
 import { inngest } from "./client";
+
+/**
+ * Build a deterministic idempotency key for `invokeWorkflowAndWait`. Pass
+ * the eventName and an array of meaningful input fields; identical inputs
+ * always hash to the same key, so a user double-tap or a route retry
+ * within Inngest's dedup window (~24h by default) won't spawn a parallel
+ * workflow run.
+ *
+ * Coerces undefined/null to the string "null" so two calls that differ
+ * only in optional fields still collide deterministically when those
+ * fields are absent on both sides.
+ */
+export function buildIdempotencyKey(eventName: string, parts: ReadonlyArray<unknown>): string {
+  const h = createHash("sha256");
+  h.update(eventName);
+  for (const p of parts) {
+    h.update(" ");
+    h.update(p == null ? "null" : typeof p === "string" ? p : JSON.stringify(p));
+  }
+  return `${eventName}:${h.digest("hex").slice(0, 24)}`;
+}
 
 export interface InvokeOpts {
   /** Total wait budget in ms before throwing a timeout error. Default 60_000. */
   timeoutMs?: number;
   /** Poll interval in ms between run-status checks. Default 500. */
   pollIntervalMs?: number;
+  /**
+   * Deterministic event id used by Inngest as an idempotency key. When two
+   * inngest.send calls share an `id`, Inngest deduplicates and the second
+   * one does NOT trigger a fresh run. Use a stable hash of the meaningful
+   * inputs (e.g. `onboarding-${sessionToken}-${messageHash}`) so a user
+   * double-tap or a route retry doesn't spawn parallel workflows.
+   */
+  idempotencyKey?: string;
 }
 
 interface RunStatus<T> {
@@ -68,7 +98,11 @@ export async function invokeWorkflowAndWait<T = unknown>(
     );
   }
 
-  const sendResult = await inngest.send({ name: eventName, data: data as Record<string, unknown> });
+  const sendResult = await inngest.send({
+    name: eventName,
+    data: data as Record<string, unknown>,
+    ...(opts.idempotencyKey ? { id: opts.idempotencyKey } : {}),
+  });
   const eventId = sendResult.ids[0];
   if (!eventId) {
     return null;

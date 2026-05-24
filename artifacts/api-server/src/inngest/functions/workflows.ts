@@ -312,6 +312,10 @@ export const industryBootstrapFn = inngest.createFunction(
     // double-clicks don't kick off parallel Perplexity bursts on one slug.
     concurrency: { limit: 1, key: "event.data.industryName" },
     throttle: { limit: 30, period: "1m", key: "global" },
+    // Forward-looking: when a user churns mid-bootstrap, stop the run.
+    // The `user.churned` event isn't emitted anywhere today — that's fine;
+    // this only fires once someone wires up a churn webhook + send.
+    cancelOn: [{ event: "user.churned", if: "async.data.userId == event.data.userId" }],
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runIndustryBootstrap>[0];
@@ -389,6 +393,7 @@ export const capabilityEnrichmentRetryFn = inngest.createFunction(
     triggers: [{ event: "workflow/capability-enrichment-retry" }],
     concurrency: { limit: 1, key: "event.data.capabilityId" },
     throttle: { limit: 30, period: "1m", key: "global" },
+    cancelOn: [{ event: "user.churned", if: "async.data.userId == event.data.userId" }],
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCapabilityEnrichmentRetry>[0];

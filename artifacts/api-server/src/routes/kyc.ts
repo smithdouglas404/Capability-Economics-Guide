@@ -5,7 +5,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import type { KycFailureCounselorOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import {
   sendEmailOtp,
   verifyEmailOtp,
@@ -108,6 +108,7 @@ router.post("/kyc/:verificationId/counselor", async (req, res) => {
   }
 
   const declineReason = (verification.declineReasons ?? [])[0] ?? "unspecified";
+  const conversationId = typeof req.body?.conversationId === "string" ? req.body.conversationId : undefined;
   const result = await invokeWorkflowAndWait<KycFailureCounselorOutput>(
     "workflow/kyc-failure-counselor",
     {
@@ -115,9 +116,14 @@ router.post("/kyc/:verificationId/counselor", async (req, res) => {
       declineReason,
       kycLevel: verification.kycLevel ?? undefined,
       query,
-      conversationId: typeof req.body?.conversationId === "string" ? req.body.conversationId : undefined,
+      conversationId,
     },
-    { timeoutMs: 30_000 },
+    {
+      timeoutMs: 30_000,
+      idempotencyKey: buildIdempotencyKey("workflow/kyc-failure-counselor", [
+        verification.id, conversationId ?? "new", query,
+      ]),
+    },
   );
   if (!result) { res.status(503).json({ error: "KYC counselor unavailable" }); return; }
   res.json(result);

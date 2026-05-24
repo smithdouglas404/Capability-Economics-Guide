@@ -28,7 +28,7 @@ import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-s
 import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
 import type { GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -280,7 +280,14 @@ router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res)
       lastError: cap.enrichmentError ?? undefined,
       attempt: 1,
     },
-    { timeoutMs: 120_000 },
+    {
+      timeoutMs: 120_000,
+      // Two operators clicking "retry enrichment" on the same draft
+      // within Inngest's dedup window should share a single run.
+      idempotencyKey: buildIdempotencyKey("workflow/capability-enrichment-retry", [
+        id, draft,
+      ]),
+    },
   ).catch(() => null);
 
   if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
@@ -319,7 +326,12 @@ router.post("/admin/config-propose", async (req, res) => {
       targetKey: body.targetKey,
       triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
     },
-    { timeoutMs: 60_000 },
+    {
+      timeoutMs: 60_000,
+      idempotencyKey: buildIdempotencyKey("workflow/admin-config-proposer", [
+        body.configArea, body.targetKey ?? null, body.currentValues, body.recentOutcomes,
+      ]),
+    },
   ).catch(() => null);
 
   if (!result) { res.status(503).json({ error: "Admin-config-proposer workflow unavailable" }); return; }

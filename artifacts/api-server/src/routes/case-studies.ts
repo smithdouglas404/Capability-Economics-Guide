@@ -16,7 +16,7 @@ import { generateCaseStudyContentTool } from "../services/agent/tools";
 import { logLlmCall } from "../services/llm-usage";
 import { logger } from "../lib/logger";
 import type { GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait } from "../inngest/invoke";
+import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 
 const router: IRouter = Router();
@@ -138,7 +138,12 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
         industryName: study.industries.name,
         currentText,
       },
-      { timeoutMs: 90_000 },
+      {
+        timeoutMs: 90_000,
+        idempotencyKey: buildIdempotencyKey("workflow/case-study-generator", [
+          id, study.industries.name, currentText,
+        ]),
+      },
     ).catch(() => null);
     if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
       res.json({ ok: true, breakdown: workflowResult.payload, source: "workflow" });
