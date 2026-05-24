@@ -376,8 +376,8 @@ export default function MemberPage() {
                     <div className="font-medium text-sm">{e.title}</div>
                     <div className="text-sm text-foreground/80">{e.company}{e.employmentType ? <span className="text-muted-foreground"> · {e.employmentType}</span> : null}</div>
                     <div className="text-xs text-muted-foreground">
-                      {formatDateRange(e.startDate, e.endDate)} <span className="opacity-60">· {durationOf(e.startDate, e.endDate)}</span>
-                      {e.location ? <span className="opacity-60"> · {e.location}</span> : null}
+                      {formatDateRange(e.startDate, e.endDate)} <span className="opacity-75">· {durationOf(e.startDate, e.endDate)}</span>
+                      {e.location ? <span className="opacity-75"> · {e.location}</span> : null}
                     </div>
                     {e.description && (
                       <p className="text-sm text-foreground/75 mt-1.5 whitespace-pre-wrap leading-relaxed">{e.description}</p>

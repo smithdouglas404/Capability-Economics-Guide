@@ -394,7 +394,7 @@ export default function ExplorePage() {
                           <div className="text-xs font-mono tabular-nums">
                             {m.benchmarkValue !== null
                               ? `${m.benchmarkValue.toFixed(1)} ${m.unit}`
-                              : <span className="opacity-50">no benchmark</span>}
+                              : <span className="opacity-75 italic">no benchmark</span>}
                           </div>
                         </div>
                       ))}

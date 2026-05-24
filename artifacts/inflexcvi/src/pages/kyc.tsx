@@ -61,7 +61,7 @@ function StepRow({ step, state, current }: { step: Exclude<Step, "done" | "decli
     state === "done" ? "text-green-600" :
     state === "failed" ? "text-red-600" :
     state === "active" ? "text-primary" :
-    state === "skipped" ? "text-muted-foreground/40" :
+    state === "skipped" ? "text-muted-foreground/70" :
     "text-muted-foreground";
   return (
     <div className={`flex items-center gap-3 py-2 ${current ? "" : "opacity-80"}`}>

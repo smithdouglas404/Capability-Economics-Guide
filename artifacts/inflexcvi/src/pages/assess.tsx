@@ -1421,7 +1421,7 @@ export default function Assess() {
                         initial={{ opacity: 0, x: -8 }}
                         animate={{ opacity: i <= progressStep ? 1 : 0.25, x: 0 }}
                         transition={{ delay: i * 0.1 }}
-                        className={`flex items-center gap-2 text-sm ${i === progressStep ? "text-foreground" : i < progressStep ? "text-muted-foreground line-through" : "text-muted-foreground/40"}`}
+                        className={`flex items-center gap-2 text-sm ${i === progressStep ? "text-foreground" : i < progressStep ? "text-muted-foreground line-through" : "text-muted-foreground/70"}`}
                       >
                         {i < progressStep ? (
                           <CheckCircle2 className="w-3.5 h-3.5 text-primary shrink-0" />

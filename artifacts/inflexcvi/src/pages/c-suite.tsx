@@ -445,7 +445,7 @@ export default function CSuite() {
                             {String(i + 1).padStart(2, "0")}
                           </span>
                           <span>
-                            <span className={`font-serif text-lg leading-tight block ${isActive ? "text-foreground" : "text-foreground/65 group-hover:text-foreground"}`}>
+                            <span className={`font-serif text-lg leading-tight block ${isActive ? "text-foreground" : "text-foreground/85 group-hover:text-foreground"}`}>
                               {role.title}
                             </span>
                             <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted-foreground mt-0.5 block">

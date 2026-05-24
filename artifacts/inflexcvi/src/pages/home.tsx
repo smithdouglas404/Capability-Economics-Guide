@@ -665,7 +665,7 @@ export default function Home() {
                   className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] border border-border hover:border-accent/50 hover:text-accent transition-colors group gap-2"
                 >
                   C-Suite Perspectives
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-75 group-hover:opacity-100 transition-opacity" />
                 </Link>
                 <Link
                   href={heroHref}
@@ -673,7 +673,7 @@ export default function Home() {
                   className="inline-flex h-11 items-center justify-center px-7 font-mono text-[11px] uppercase tracking-[0.18em] border border-border hover:border-accent/50 hover:text-accent transition-colors group gap-2"
                 >
                   {heroName} Case Study
-                  <ArrowUpRight className="w-3.5 h-3.5 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-75 group-hover:opacity-100 transition-opacity" />
                 </Link>
               </motion.div>
             </div>
