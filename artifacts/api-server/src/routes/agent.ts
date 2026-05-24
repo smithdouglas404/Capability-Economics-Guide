@@ -19,8 +19,6 @@ import {
   getSchedulerStatus,
   startScheduler,
   stopScheduler,
-  addSSEClient,
-  getConnectedClients,
   getMemoryStats,
   getAllMemories,
   allTools,
@@ -32,6 +30,9 @@ import {
   lettaReadAllBlocks,
   getAllAgentPriorBlocks,
 } from "../services/agent";
+import { inngest } from "../inngest/client";
+import { getSubscriptionToken } from "inngest/realtime";
+import { agentEventsChannel } from "../services/agent/events-realtime";
 import { consolidationRunsTable } from "@workspace/db";
 import { generateOntologyTool } from "../services/agent/tools";
 import { requireAdmin } from "../middlewares/requireAdmin";
@@ -67,7 +68,7 @@ router.get("/agent/status", async (_req, res) => {
         errorMessage: latestRun.errorMessage,
       } : null,
       memory: memStats,
-      connectedClients: getConnectedClients(),
+      connectedClients: 0,
     });
   } catch (err) {
     console.error("Agent status failed:", err);
@@ -115,8 +116,22 @@ router.get("/agent/history", async (req, res) => {
   }
 });
 
-router.get("/agent/events", (req, res) => {
-  addSSEClient(res);
+// POST /api/agent/realtime-token — mints a short-lived subscription token
+// for the Inngest Realtime `agent-events` channel. Browsers call this once
+// per session before they open the WebSocket via `useRealtime`. The legacy
+// `GET /api/agent/events` SSE endpoint was removed when Realtime became
+// the sole transport — see services/agent/events.ts.
+router.post("/agent/realtime-token", async (_req, res) => {
+  try {
+    const token = await getSubscriptionToken(inngest, {
+      channel: agentEventsChannel,
+      topics: ["events"],
+    });
+    res.json({ token });
+  } catch (err) {
+    console.error("[agent/realtime-token] failed:", err);
+    res.status(500).json({ error: "Failed to mint realtime subscription token" });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -268,12 +283,9 @@ router.get("/agent/runs/replay", async (req, res) => {
   }
 });
 
-// `/stream` is the spec'd public name (referenced in docs and the new
-// shared `useEventStream` client). Keep `/agent/events` as the legacy alias
-// — both fan out to the same SSE bus so existing consumers don't break.
-router.get("/agent/events/stream", (req, res) => {
-  addSSEClient(res);
-});
+// /agent/events/stream removed — Inngest Realtime is the only transport now.
+// Browser clients call POST /agent/realtime-token then subscribe via
+// `inngest/react`'s `useRealtime`.
 
 router.get("/agent/memories", async (req, res) => {
   try {

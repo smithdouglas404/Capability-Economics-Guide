@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useAgentRealtime } from "@/hooks/use-agent-realtime";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sparkles, RefreshCw, AlertCircle, CheckCircle2, Clock, Database, LogIn, LogOut, CalendarClock, Save, Zap, ShieldAlert, Activity, Server, AlertTriangle, Brain, Layers } from "lucide-react";
@@ -712,9 +713,10 @@ export default function EnrichmentAdmin() {
           )}
         </div>
 
-        {/* Live graph state — subscribes to /api/agent/events SSE so the
-            user sees the current node + per-industry progress in real time
-            instead of waiting for the run record's final update. */}
+        {/* Live graph state — subscribes to the Inngest Realtime
+            agent-events channel via useAgentRealtime so the user sees the
+            current node + per-industry progress in real time instead of
+            waiting for the run record's final update. */}
         <LiveGraphState />
 
         {/* Memory Consolidation panel — surfaces the sleeptime job that compresses
@@ -1074,60 +1076,69 @@ function LiveGraphState() {
   const [perIndustry, setPerIndustry] = useState<Record<number, { name: string; classified: number; stages: number; profiled: number; mapped: number; alpha: number; detail: number; status: string }>>({});
   const [recentEvents, setRecentEvents] = useState<GraphEvent[]>([]);
 
+  // Realtime feed (replaces the legacy `/api/agent/events` EventSource).
+  // `useAgentRealtime` returns a newest-first buffer of agent events; we run
+  // every new event through the same reducer the old `onmessage` callback
+  // used. `lastSeenLen` lets us only process the delta on each render.
+  const { events: realtimeEvents } = useAgentRealtime<GraphEvent>({ maxBuffered: 200 });
+  const lastSeenLen = useRef(0);
   useEffect(() => {
-    const es = new EventSource(`${API_BASE}/agent/events`);
-    es.onmessage = (e) => {
-      try {
-        const evt = JSON.parse(e.data) as GraphEvent;
-        if (!evt.type?.startsWith("enrichment.") && !evt.type?.startsWith("industry.")) return;
+    if (realtimeEvents.length <= lastSeenLen.current) {
+      lastSeenLen.current = realtimeEvents.length;
+      return;
+    }
+    // Process oldest-first within the new slice so reducer state changes
+    // land in the original arrival order.
+    const newCount = realtimeEvents.length - lastSeenLen.current;
+    const newest = realtimeEvents.slice(0, newCount).reverse();
+    lastSeenLen.current = realtimeEvents.length;
+    for (const evt of newest) {
+      if (!evt.type?.startsWith("enrichment.") && !evt.type?.startsWith("industry.")) continue;
 
-        setRecentEvents(prev => [evt, ...prev].slice(0, 20));
+      setRecentEvents(prev => [evt, ...prev].slice(0, 20));
 
-        if (evt.type === "enrichment.run.start" && evt.runId) {
-          setCurrentRunId(evt.runId);
-          setActiveNode("load");
-          setNodeStatuses({});
-          setPerIndustry({});
-          return;
-        }
+      if (evt.type === "enrichment.run.start" && evt.runId) {
+        setCurrentRunId(evt.runId);
+        setActiveNode("load");
+        setNodeStatuses({});
+        setPerIndustry({});
+        continue;
+      }
 
-        const baseType = evt.type.replace(/^enrichment\./, "").replace(/^industry\./, "industry.");
-        if (baseType.endsWith(".start")) {
-          const node = baseType.replace(".start", "");
-          setActiveNode(node);
-          setNodeStatuses(s => ({ ...s, [node]: "running" }));
-        } else if (baseType.endsWith(".complete")) {
-          const node = baseType.replace(".complete", "");
-          setNodeStatuses(s => ({ ...s, [node]: "done" }));
-        }
+      const baseType = evt.type.replace(/^enrichment\./, "").replace(/^industry\./, "industry.");
+      if (baseType.endsWith(".start")) {
+        const node = baseType.replace(".start", "");
+        setActiveNode(node);
+        setNodeStatuses(s => ({ ...s, [node]: "running" }));
+      } else if (baseType.endsWith(".complete")) {
+        const node = baseType.replace(".complete", "");
+        setNodeStatuses(s => ({ ...s, [node]: "done" }));
+      }
 
-        if (evt.industryId && evt.industryName) {
-          setPerIndustry(p => {
-            const cur = p[evt.industryId!] ?? { name: evt.industryName!, classified: 0, stages: 0, profiled: 0, mapped: 0, alpha: 0, detail: 0, status: "running" };
-            return {
-              ...p,
-              [evt.industryId!]: {
-                name: evt.industryName!,
-                classified: evt.classified ?? cur.classified,
-                stages: evt.stages ?? cur.stages,
-                profiled: evt.profiled ?? cur.profiled,
-                mapped: evt.mapped ?? cur.mapped,
-                alpha: evt.type === "industry.economics_alpha.complete" ? (evt.enriched ?? cur.alpha) : cur.alpha,
-                detail: evt.type === "industry.economics_detail.complete" ? (evt.enriched ?? cur.detail) : cur.detail,
-                status: evt.type === "industry.complete" ? (evt.result?.errors?.length ? "failed" : "done") : cur.status,
-              },
-            };
-          });
-        }
+      if (evt.industryId && evt.industryName) {
+        setPerIndustry(p => {
+          const cur = p[evt.industryId!] ?? { name: evt.industryName!, classified: 0, stages: 0, profiled: 0, mapped: 0, alpha: 0, detail: 0, status: "running" };
+          return {
+            ...p,
+            [evt.industryId!]: {
+              name: evt.industryName!,
+              classified: evt.classified ?? cur.classified,
+              stages: evt.stages ?? cur.stages,
+              profiled: evt.profiled ?? cur.profiled,
+              mapped: evt.mapped ?? cur.mapped,
+              alpha: evt.type === "industry.economics_alpha.complete" ? (evt.enriched ?? cur.alpha) : cur.alpha,
+              detail: evt.type === "industry.economics_detail.complete" ? (evt.enriched ?? cur.detail) : cur.detail,
+              status: evt.type === "industry.complete" ? (evt.result?.errors?.length ? "failed" : "done") : cur.status,
+            },
+          };
+        });
+      }
 
-        if (evt.type === "enrichment.finalize.complete") {
-          setActiveNode(null);
-        }
-      } catch { /* ignore malformed events */ }
-    };
-    es.onerror = () => { /* keep connection alive; EventSource auto-reconnects */ };
-    return () => es.close();
-  }, []);
+      if (evt.type === "enrichment.finalize.complete") {
+        setActiveNode(null);
+      }
+    }
+  }, [realtimeEvents]);
 
   if (!currentRunId && Object.keys(nodeStatuses).length === 0) {
     return (

@@ -9,18 +9,18 @@
  *      filter chips, event-type filter, replay scrubber for the last hour,
  *      and a click-through detail panel.
  *
- * SSE source: /api/agent/events/stream (shared with cvi-dashboard). Behind
- *   the SSE wire the api-server now forwards messages from the Inngest
- *   Realtime `agent-events` channel so events emitted on any replica reach
- *   every replica's connected clients (Phase 3, 2026-05-23). The browser
- *   transport stays plain SSE — no client-side Inngest dependency.
+ * Event source: Inngest Realtime `agent-events` channel via `useAgentRealtime`
+ *   (shared with cvi-dashboard + enrichment-admin). Browsers fetch a
+ *   short-lived subscription token from POST /api/agent/realtime-token and
+ *   then open a WebSocket to the Inngest gateway directly. The legacy SSE
+ *   transport was removed when the in-process bus + bridge was deleted.
  * Replay source: /api/agent/runs/replay?since=<iso>.
  * KPI source: /api/agent/runs/aggregates.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ArrowLeft, Zap, TrendingUp, Activity, AlertTriangle, CheckCircle2, Clock, Play, Pause } from "lucide-react";
-import { useEventStream } from "@workspace/api-client-react";
+import { useAgentRealtime } from "@/hooks/use-agent-realtime";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -153,14 +153,11 @@ export default function AgentRadarPage() {
     return () => { cancelled = true; clearInterval(id); };
   }, []);
 
-  // Live SSE stream — unchanged from the cvi-dashboard pattern.
-  const { events: liveEvents, status } = useEventStream<AgentEvent>(
-    `${API_BASE}/agent/events/stream`,
-    {
-      maxBuffered: 100,
-      filter: (evt) => evt.type !== "connected",
-    },
-  );
+  // Live agent-events feed via Inngest Realtime (replaces the old SSE stream).
+  const { events: liveEvents, status } = useAgentRealtime<AgentEvent>({
+    maxBuffered: 100,
+    filter: (evt) => evt.type !== "connected",
+  });
 
   // When entering replay mode, fetch the last 60 min of events.
   useEffect(() => {

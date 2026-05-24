@@ -1,7 +1,6 @@
 export { runAgent } from "./graph";
 export { startScheduler, stopScheduler, getSchedulerStatus, executeScheduledRun } from "./scheduler";
-export { addSSEClient, emitAgentEvent, getConnectedClients, broadcastToLocalClients } from "./events";
-export { startRealtimeBridge, stopRealtimeBridge, getProcessOrigin } from "./realtime-bridge";
+export { emitAgentEvent } from "./events";
 export { isRealtimeEnabled } from "./events-realtime";
 export {
   recallMemories,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useEventStream } from "@workspace/api-client-react";
+import { useAgentRealtime } from "@/hooks/use-agent-realtime";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -206,21 +206,14 @@ interface AgentSSEEvent {
   skipped?: number;
 }
 
-// Backed by the shared `useEventStream` hook, which gives us
-// exponential-backoff reconnect and a portable parser (works in RN too).
-// We keep this thin wrapper so the rest of the page can keep its existing
-// `{ events, connected }` shape and event-type filter.
+// Backed by the Inngest Realtime subscription helper. We keep the
+// `{ events, connected }` return shape so the rest of the page is
+// unchanged after the SSE → Realtime cutover.
 function useAgentEvents() {
-  const { events, status } = useEventStream<AgentSSEEvent>(
-    `${API_BASE}/agent/events/stream`,
-    {
-      maxBuffered: 50,
-      // Drop the server's "connected" handshake from the visible feed —
-      // it's noise, not an agent event. We surface connection state via
-      // `status` instead.
-      filter: (evt) => evt.type !== "connected",
-    },
-  );
+  const { events, status } = useAgentRealtime<AgentSSEEvent>({
+    maxBuffered: 50,
+    filter: (evt) => evt.type !== "connected",
+  });
   return { events, connected: status === "open" };
 }
 

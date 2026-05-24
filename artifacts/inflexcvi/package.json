@@ -5,6 +5,7 @@
     "@ai-sdk/react": "^1.2.12",
     "@clerk/react": "^6.4.1",
     "d3": "^7.9.0",
+    "inngest": "^4.4.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1"
   },
