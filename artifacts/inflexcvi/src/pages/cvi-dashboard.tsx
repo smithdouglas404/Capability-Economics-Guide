@@ -11,7 +11,7 @@ import { SavedViewsMenu } from "@/components/saved-views-menu";
 import { useSavedView } from "@/hooks/use-saved-view";
 import { ScoreWithProvenance } from "@/components/score-with-provenance";
 import { PersonaDescription } from "@/components/page-header";
-import { SynthesisBriefCard } from "@/components/synthesis-brief-card";
+import { SynthesisBriefButton } from "@/components/synthesis-brief-button";
 
 type CVIViewState = {
   selectedIndustry: string | null;
@@ -1059,9 +1059,10 @@ export default function CVIDashboard() {
       </div>
 
       <div className="container mx-auto px-4 mt-6">
-        {/* Synthesis Agent brief — cross-agent house view, daily-refreshed */}
-        <div className="mb-4">
-          <SynthesisBriefCard />
+        {/* Synthesis Agent brief — compact button that pops the full brief in a
+            dialog so it doesn't steal vertical space on the dashboard. */}
+        <div className="mb-4 flex justify-start">
+          <SynthesisBriefButton />
         </div>
 
         {/* Macro Disruptions Panel */}
