@@ -271,68 +271,85 @@ router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res)
     economicView: cap.economicView,
   });
 
-  const result = await runCapabilityEnrichmentRetry({
+  const enrichInput = {
     capabilityId: id,
     currentDraft: draft,
     lastError: cap.enrichmentError ?? undefined,
     attempt: 1,
-  }).catch(() => null);
+  };
 
-  if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
-
-  // Persist the fresh payload when the workflow returned ok. Without this
-  // step the admin sees a payload in the response but the next page load
-  // still shows the broken capability — the bug that made the "enhance"
-  // feature feel like it never worked.
-  let persisted: { capabilities: boolean; capability_alpha: boolean } = { capabilities: false, capability_alpha: false };
-  if (result.status === "ok") {
-    const p = result.payload as {
-      narratives?: { traditional?: string; economic?: string; ai?: string };
-      moatTier?: string;
-      tamUsd?: number | null;
-      evarBp?: number | null;
-      citations?: Array<{ url: string; title: string }>;
-    };
-
-    // Update capabilities.traditional_view / economic_view if the LLM gave
-    // us new ones (better than what's there). enrichmentError is cleared
-    // on a successful retry — the row is no longer "failed".
-    const capUpdates: Record<string, string | null> = { enrichmentError: null };
-    if (p.narratives?.traditional && p.narratives.traditional.length > 20) {
-      capUpdates.traditionalView = p.narratives.traditional;
-    }
-    if (p.narratives?.economic && p.narratives.economic.length > 20) {
-      capUpdates.economicView = p.narratives.economic;
-    }
-    if (Object.keys(capUpdates).length > 0) {
-      await db.update(capabilitiesTable).set(capUpdates).where(eq(capabilitiesTable.id, id));
-      persisted.capabilities = true;
-    }
-
-    // Upsert into capability_alpha — the table that holds TAM/EVaR/moat
-    // tier + narratives. We update the most-recent row for this capability
-    // (the wrapper doesn't know the run id, so just patch latest).
-    const [latestAlpha] = await db
-      .select({ id: capabilityAlphaTable.id })
-      .from(capabilityAlphaTable)
-      .where(eq(capabilityAlphaTable.capabilityId, id))
-      .orderBy(desc(capabilityAlphaTable.generatedAt))
-      .limit(1);
-    if (latestAlpha) {
-      const alphaUpdates: Record<string, unknown> = {};
-      if (typeof p.tamUsd === "number") alphaUpdates.tamUsdMm = p.tamUsd / 1_000_000;
-      if (p.narratives?.traditional) alphaUpdates.traditionalNarrative = p.narratives.traditional;
-      if (p.narratives?.economic) alphaUpdates.alphaNarrative = p.narratives.economic;
-      if (p.narratives?.ai) alphaUpdates.aiNarrative = p.narratives.ai;
-      if (Object.keys(alphaUpdates).length > 0) {
-        await db.update(capabilityAlphaTable).set(alphaUpdates).where(eq(capabilityAlphaTable.id, latestAlpha.id));
-        persisted.capability_alpha = true;
+  // Persistence (capabilities + capability_alpha two-table update) lives
+  // inside the Inngest function via step.run("persist-capabilities") +
+  // step.run("persist-capability-alpha") so retries replay cleanly. The
+  // Inngest path returns `{ status, payload, persisted }` directly.
+  type EnrichmentRunResult = GenericWorkflowOutput & { persisted?: { capabilities: boolean; capability_alpha: boolean } };
+  let result: EnrichmentRunResult | null = null;
+  try {
+    try {
+      result = await invokeWorkflowAndWait<EnrichmentRunResult>(
+        "workflow/capability-enrichment-retry",
+        enrichInput,
+        { timeoutMs: 120_000 },
+      );
+    } catch (e) {
+      if (e instanceof InngestInvokeBypassError) {
+        // Bypass path: run inline + replicate the persistence the Inngest
+        // function would have done.
+        const inline = await runCapabilityEnrichmentRetry(enrichInput);
+        if (!inline) {
+          result = null;
+        } else {
+          const persisted: { capabilities: boolean; capability_alpha: boolean } = { capabilities: false, capability_alpha: false };
+          if (inline.status === "ok") {
+            const p = inline.payload as {
+              narratives?: { traditional?: string; economic?: string; ai?: string };
+              moatTier?: string;
+              tamUsd?: number | null;
+              evarBp?: number | null;
+              citations?: Array<{ url: string; title: string }>;
+            };
+            const capUpdates: Record<string, string | null> = { enrichmentError: null };
+            if (p.narratives?.traditional && p.narratives.traditional.length > 20) capUpdates.traditionalView = p.narratives.traditional;
+            if (p.narratives?.economic && p.narratives.economic.length > 20) capUpdates.economicView = p.narratives.economic;
+            if (Object.keys(capUpdates).length > 0) {
+              await db.update(capabilitiesTable).set(capUpdates).where(eq(capabilitiesTable.id, id));
+              persisted.capabilities = true;
+            }
+            const [latestAlpha] = await db
+              .select({ id: capabilityAlphaTable.id })
+              .from(capabilityAlphaTable)
+              .where(eq(capabilityAlphaTable.capabilityId, id))
+              .orderBy(desc(capabilityAlphaTable.generatedAt))
+              .limit(1);
+            if (latestAlpha) {
+              const alphaUpdates: Record<string, unknown> = {};
+              if (typeof p.tamUsd === "number") alphaUpdates.tamUsdMm = p.tamUsd / 1_000_000;
+              if (p.narratives?.traditional) alphaUpdates.traditionalNarrative = p.narratives.traditional;
+              if (p.narratives?.economic) alphaUpdates.alphaNarrative = p.narratives.economic;
+              if (p.narratives?.ai) alphaUpdates.aiNarrative = p.narratives.ai;
+              if (Object.keys(alphaUpdates).length > 0) {
+                await db.update(capabilityAlphaTable).set(alphaUpdates).where(eq(capabilityAlphaTable.id, latestAlpha.id));
+                persisted.capability_alpha = true;
+              }
+            }
+            log.info({ capabilityId: id, persisted }, "[capability-enrichment-retry] bypass-path payload persisted");
+          }
+          result = { ...inline, persisted };
+        }
+      } else {
+        throw e;
       }
     }
-    log.info({ capabilityId: id, persisted }, "[capability-enrichment-retry] payload persisted");
+  } catch {
+    result = null;
   }
 
-  res.json({ status: result.status, payload: result.payload, persisted });
+  if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
+  res.json({
+    status: result.status,
+    payload: result.payload,
+    persisted: result.persisted ?? { capabilities: false, capability_alpha: false },
+  });
 });
 
 /**

@@ -17,7 +17,8 @@ import {
 } from "@workspace/db";
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
-import { runResearchPipeline } from "../workflows";
+import { runResearchPipeline, type GenericWorkflowOutput } from "../workflows";
+import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../../inngest/invoke";
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
 import { logLlmCall } from "../llm-usage";
@@ -84,7 +85,25 @@ async function tryWorkflowResearch(
   kind: "quadrant" | "alpha" | "value_chain" | "generic",
   prompt: string,
 ): Promise<Record<string, unknown> | null> {
-  const result = await runResearchPipeline({ capabilityId, kind, prompt }).catch(() => null);
+  const input = { capabilityId, kind, prompt };
+  let result: GenericWorkflowOutput | null = null;
+  try {
+    try {
+      result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+        "workflow/research-pipeline",
+        input,
+        { timeoutMs: 120_000 },
+      );
+    } catch (e) {
+      if (e instanceof InngestInvokeBypassError) {
+        result = await runResearchPipeline(input);
+      } else {
+        throw e;
+      }
+    }
+  } catch {
+    result = null;
+  }
   if (!result || result.status === "degraded") return null;
   return result.payload as Record<string, unknown>;
 }

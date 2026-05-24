@@ -4,8 +4,10 @@ import {
   researchArtifactsTable,
   capabilityAssessmentsTable,
   caseStudiesTable,
+  capabilitiesTable,
+  capabilityAlphaTable,
 } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { z } from "zod";
 import { appendAgentArchive } from "../../services/agent/store";
 import { sonnet, generateObject } from "../../services/workflows/models";
@@ -124,8 +126,20 @@ export const capabilityReviewAssistFn = inngest.createFunction(
 
 export const researchPipelineFn = inngest.createFunction(
   { ...cfg("workflow-research-pipeline"), triggers: [{ event: "workflow/research-pipeline" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runResearchPipeline(event.data as Parameters<typeof runResearchPipeline>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runResearchPipeline>[0];
+    const result = await step.run("run", () => runResearchPipeline(input));
+    if (result?.status === "ok" && input.capabilityId) {
+      await step.run("persist-research-artifact", async () => {
+        await db.insert(researchArtifactsTable).values({
+          capabilityId: input.capabilityId ?? null,
+          kind: input.kind,
+          payload: result.payload as Record<string, unknown>,
+        });
+      });
+    }
+    return result;
+  },
 );
 
 export const synthesisBriefComposerFn = inngest.createFunction(
@@ -272,8 +286,62 @@ export const caseStudyGeneratorFn = inngest.createFunction(
 
 export const capabilityEnrichmentRetryFn = inngest.createFunction(
   { ...cfg("workflow-capability-enrichment-retry"), triggers: [{ event: "workflow/capability-enrichment-retry" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runCapabilityEnrichmentRetry(event.data as Parameters<typeof runCapabilityEnrichmentRetry>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runCapabilityEnrichmentRetry>[0];
+    const result = await step.run("run", () => runCapabilityEnrichmentRetry(input));
+    const persisted = { capabilities: false, capability_alpha: false };
+    if (result?.status === "ok") {
+      const p = result.payload as {
+        narratives?: { traditional?: string; economic?: string; ai?: string };
+        moatTier?: string;
+        tamUsd?: number | null;
+        evarBp?: number | null;
+        citations?: Array<{ url: string; title: string }>;
+      };
+
+      // Update capabilities.traditional_view / economic_view if the LLM gave
+      // us new ones (better than what's there). enrichmentError is cleared
+      // on a successful retry — the row is no longer "failed".
+      await step.run("persist-capabilities", async () => {
+        const capUpdates: Record<string, string | null> = { enrichmentError: null };
+        if (p.narratives?.traditional && p.narratives.traditional.length > 20) {
+          capUpdates.traditionalView = p.narratives.traditional;
+        }
+        if (p.narratives?.economic && p.narratives.economic.length > 20) {
+          capUpdates.economicView = p.narratives.economic;
+        }
+        if (Object.keys(capUpdates).length > 0) {
+          await db.update(capabilitiesTable).set(capUpdates).where(eq(capabilitiesTable.id, input.capabilityId));
+          persisted.capabilities = true;
+        }
+      });
+
+      // Upsert into capability_alpha — the table that holds TAM/EVaR/moat
+      // tier + narratives. We update the most-recent row for this capability
+      // (the wrapper doesn't know the run id, so just patch latest).
+      await step.run("persist-capability-alpha", async () => {
+        const [latestAlpha] = await db
+          .select({ id: capabilityAlphaTable.id })
+          .from(capabilityAlphaTable)
+          .where(eq(capabilityAlphaTable.capabilityId, input.capabilityId))
+          .orderBy(desc(capabilityAlphaTable.generatedAt))
+          .limit(1);
+        if (latestAlpha) {
+          const alphaUpdates: Record<string, unknown> = {};
+          if (typeof p.tamUsd === "number") alphaUpdates.tamUsdMm = p.tamUsd / 1_000_000;
+          if (p.narratives?.traditional) alphaUpdates.traditionalNarrative = p.narratives.traditional;
+          if (p.narratives?.economic) alphaUpdates.alphaNarrative = p.narratives.economic;
+          if (p.narratives?.ai) alphaUpdates.aiNarrative = p.narratives.ai;
+          if (Object.keys(alphaUpdates).length > 0) {
+            await db.update(capabilityAlphaTable).set(alphaUpdates).where(eq(capabilityAlphaTable.id, latestAlpha.id));
+            persisted.capability_alpha = true;
+          }
+        }
+      });
+      logger.info({ capabilityId: input.capabilityId, persisted }, "[inngest] capability-enrichment-retry payload persisted");
+    }
+    return result ? { status: result.status, payload: result.payload, persisted } : null;
+  },
 );
 
 export const adminConfigProposerFn = inngest.createFunction(
