@@ -13,8 +13,8 @@ import {
 import { eq, desc, inArray, isNull, and } from "drizzle-orm";
 import { logger as log } from "../../lib/logger";
 import { retry } from "../../lib/llm-retry";
-import { runResearchPipeline, type GenericWorkflowOutput } from "../workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../../inngest/invoke";
+import type { GenericWorkflowOutput } from "../workflows";
+import { invokeWorkflowAndWait } from "../../inngest/invoke";
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
 import { logLlmCall } from "../llm-usage";
@@ -75,25 +75,11 @@ interface PerplexityResult { content: string; sources: string[]; }
  * can short-circuit at the top of its function with this helper.
  */
 async function tryAlphaWorkflowResearch(capabilityId: number, prompt: string): Promise<Record<string, unknown> | null> {
-  const input = { capabilityId, kind: "alpha" as const, prompt };
-  let result: GenericWorkflowOutput | null = null;
-  try {
-    try {
-      result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-        "workflow/research-pipeline",
-        input,
-        { timeoutMs: 120_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        result = await runResearchPipeline(input);
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    result = null;
-  }
+  const result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+    "workflow/research-pipeline",
+    { capabilityId, kind: "alpha", prompt },
+    { timeoutMs: 120_000 },
+  ).catch(() => null);
   if (!result || result.status === "degraded") return null;
   return result.payload as Record<string, unknown>;
 }

@@ -4,8 +4,8 @@ import { kycVerificationsTable, KYC_LEVELS_BY_TIER } from "@workspace/db";
 import { eq, and, desc } from "drizzle-orm";
 import { getAuth } from "@clerk/express";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { runKycFailureCounselor, type KycFailureCounselorOutput } from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { KycFailureCounselorOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import {
   sendEmailOtp,
   verifyEmailOtp,
@@ -108,27 +108,17 @@ router.post("/kyc/:verificationId/counselor", async (req, res) => {
   }
 
   const declineReason = (verification.declineReasons ?? [])[0] ?? "unspecified";
-  const counselorInput = {
-    verificationId: String(verification.id),
-    declineReason,
-    kycLevel: verification.kycLevel ?? undefined,
-    query,
-    conversationId: typeof req.body?.conversationId === "string" ? req.body.conversationId : undefined,
-  };
-  let result: KycFailureCounselorOutput | null;
-  try {
-    result = await invokeWorkflowAndWait<KycFailureCounselorOutput>(
-      "workflow/kyc-failure-counselor",
-      counselorInput,
-      { timeoutMs: 30_000 },
-    );
-  } catch (e) {
-    if (e instanceof InngestInvokeBypassError) {
-      result = await runKycFailureCounselor(counselorInput);
-    } else {
-      throw e;
-    }
-  }
+  const result = await invokeWorkflowAndWait<KycFailureCounselorOutput>(
+    "workflow/kyc-failure-counselor",
+    {
+      verificationId: String(verification.id),
+      declineReason,
+      kycLevel: verification.kycLevel ?? undefined,
+      query,
+      conversationId: typeof req.body?.conversationId === "string" ? req.body.conversationId : undefined,
+    },
+    { timeoutMs: 30_000 },
+  );
   if (!result) { res.status(503).json({ error: "KYC counselor unavailable" }); return; }
   res.json(result);
 });

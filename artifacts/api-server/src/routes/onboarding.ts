@@ -26,8 +26,8 @@ import { and, eq, inArray, sql, asc } from "drizzle-orm";
 import { requireSession } from "../middlewares/requireSession";
 import { runIdeation, ideationCacheKey, type IdeationKind } from "../services/ideation";
 import { deriveLifecycleStage } from "../services/lifecycle";
-import { runOnboardingConcierge, type OnboardingConciergeOutput } from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { OnboardingConciergeOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -87,26 +87,16 @@ router.post("/onboarding/suggest", async (req, res) => {
 
   let conciergeAnswer: string | null = null;
   try {
-    const input = {
-      clerkUserId: auth.userId,
-      clerkOrgId: auth.orgId ?? null,
-      selectedIndustry: matchedIndustry?.name,
-      signals: { freeFormDescription: description, persona },
-    };
-    let result: OnboardingConciergeOutput | null;
-    try {
-      result = await invokeWorkflowAndWait<OnboardingConciergeOutput>(
-        "workflow/onboarding-concierge",
-        input,
-        { timeoutMs: 30_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        result = await runOnboardingConcierge(input);
-      } else {
-        throw e;
-      }
-    }
+    const result = await invokeWorkflowAndWait<OnboardingConciergeOutput>(
+      "workflow/onboarding-concierge",
+      {
+        clerkUserId: auth.userId,
+        clerkOrgId: auth.orgId ?? null,
+        selectedIndustry: matchedIndustry?.name,
+        signals: { freeFormDescription: description, persona },
+      },
+      { timeoutMs: 30_000 },
+    );
     if (result) conciergeAnswer = result.answer;
   } catch (err) {
     logger.warn({ err }, "[onboarding] suggest: concierge call failed — returning deterministic match only");
@@ -274,33 +264,25 @@ router.post("/onboarding/start", async (req, res) => {
     // When , try the in-process concierge first;
     // its answer becomes the seed insight body. Any null/error falls through
     // to the existing runIdeation path so the legacy behaviour never breaks.
-    const conciergeInput = {
-      clerkUserId: auth.userId!,
-      clerkOrgId: auth.orgId ?? null,
-      selectedIndustry: industry.name,
-      signals: {
-        firstCapability: firstCap.name,
-        score: firstComp.score,
-        persona: parsed.data.persona ?? undefined,
-        goal: parsed.data.goal ?? undefined,
-        freeFormDescription: parsed.data.freeFormDescription ?? undefined,
+    const workflowResult: OnboardingConciergeOutput | null = await invokeWorkflowAndWait<OnboardingConciergeOutput>(
+      "workflow/onboarding-concierge",
+      {
+        clerkUserId: auth.userId!,
+        clerkOrgId: auth.orgId ?? null,
+        selectedIndustry: industry.name,
+        signals: {
+          firstCapability: firstCap.name,
+          score: firstComp.score,
+          persona: parsed.data.persona ?? undefined,
+          goal: parsed.data.goal ?? undefined,
+          freeFormDescription: parsed.data.freeFormDescription ?? undefined,
+        },
       },
-    };
-    const workflowResult: OnboardingConciergeOutput | null = await (async () => {
-      try {
-        return await invokeWorkflowAndWait<OnboardingConciergeOutput>(
-          "workflow/onboarding-concierge",
-          conciergeInput,
-          { timeoutMs: 30_000 },
-        );
-      } catch (e) {
-        if (e instanceof InngestInvokeBypassError) {
-          return await runOnboardingConcierge(conciergeInput);
-        }
-        logger.warn({ err: e }, "[onboarding] concierge failed — falling back to runIdeation");
-        return null;
-      }
-    })();
+      { timeoutMs: 30_000 },
+    ).catch((err) => {
+      logger.warn({ err }, "[onboarding] concierge failed — falling back to runIdeation");
+      return null;
+    });
     const result = workflowResult
       ? { text: workflowResult.answer, bullets: [], modelUsed: "workflow/onboarding-concierge", fallbackCount: 0 }
       : await runIdeation(kind, ctx);

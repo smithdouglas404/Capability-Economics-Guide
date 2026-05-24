@@ -4,8 +4,8 @@ import { capabilityAssessmentsTable, CREDIT_COSTS } from "@workspace/db";
 import { deductCredits } from "../middlewares/deductCredits";
 import { eq, desc, and, isNotNull } from "drizzle-orm";
 import { randomUUID } from "crypto";
-import { runAssessmentAnalyzer, type GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import { sonnet, generateObject, generateText } from "../services/workflows/models";
 import { z } from "zod";
 
@@ -201,38 +201,16 @@ router.post("/assess/start", async (req: Request, res: Response) => {
   // OpenRouter call below if the workflow is off or fails. Persistence
   // (db.update clarifyingQuestions) lives inside the Inngest function via
   // step.run("persist-assessment-start") so retries replay cleanly.
-  const startInput = {
-    sessionId,
-    phase: "start" as const,
-    industryName: industry ?? "",
-    orgContext: { companyName, opportunity, voiceTranscript: voiceTranscript?.slice(0, 4000), documentText: documentText?.slice(0, 4000), jobPostingText: jobPostingText?.slice(0, 1000), competitors: validCompetitors },
-  };
-  let analyzerStart: GenericWorkflowOutput | null = null;
-  try {
-    try {
-      analyzerStart = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-        "workflow/assessment-analyzer",
-        startInput,
-        { timeoutMs: 60_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        analyzerStart = await runAssessmentAnalyzer(startInput);
-        // Bypass path: replicate the persistence the Inngest function would do.
-        if (analyzerStart?.payload && Array.isArray((analyzerStart.payload as { capabilities?: unknown }).capabilities)) {
-          const cps = (analyzerStart.payload as { capabilities: Array<{ definition: string }> }).capabilities;
-          const qs = cps.slice(0, 3).map(c => c.definition);
-          await db.update(capabilityAssessmentsTable)
-            .set({ clarifyingQuestions: qs })
-            .where(eq(capabilityAssessmentsTable.sessionId, sessionId));
-        }
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    analyzerStart = null;
-  }
+  const analyzerStart = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+    "workflow/assessment-analyzer",
+    {
+      sessionId,
+      phase: "start" as const,
+      industryName: industry ?? "",
+      orgContext: { companyName, opportunity, voiceTranscript: voiceTranscript?.slice(0, 4000), documentText: documentText?.slice(0, 4000), jobPostingText: jobPostingText?.slice(0, 1000), competitors: validCompetitors },
+    },
+    { timeoutMs: 60_000 },
+  ).catch(() => null);
   if (analyzerStart?.payload && Array.isArray((analyzerStart.payload as { capabilities?: unknown }).capabilities)) {
     const cps = (analyzerStart.payload as { capabilities: Array<{ definition: string }> }).capabilities;
     const qs = cps.slice(0, 3).map(c => c.definition);
@@ -496,35 +474,18 @@ Rules:
   // Persistence (analysisResult + roadmap + appendAgentArchive) lives inside
   // the Inngest function for the workflow path; the inline-fallback path
   // below still does its own persistence.
-  const analyzeInput = {
-    sessionId,
-    phase: "analyze" as const,
-    industryName: session?.industry ?? "",
-    orgContext: { companyName: session?.companyName, opportunity: session?.opportunity, competitors: session?.competitors },
-    responses: { answers, questions: session?.clarifyingQuestions ?? [] },
-  };
-  let analyzerResult: GenericWorkflowOutput | null = null;
-  let analyzerPersisted = false;
-  try {
-    try {
-      analyzerResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-        "workflow/assessment-analyzer",
-        analyzeInput,
-        { timeoutMs: 90_000 },
-      );
-      if (analyzerResult?.payload) analyzerPersisted = true;
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        analyzerResult = await runAssessmentAnalyzer(analyzeInput);
-        // Bypass path: persistence is the route's responsibility (handled
-        // by the shared block below since analyzerPersisted stays false).
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    analyzerResult = null;
-  }
+  const analyzerResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+    "workflow/assessment-analyzer",
+    {
+      sessionId,
+      phase: "analyze" as const,
+      industryName: session?.industry ?? "",
+      orgContext: { companyName: session?.companyName, opportunity: session?.opportunity, competitors: session?.competitors },
+      responses: { answers, questions: session?.clarifyingQuestions ?? [] },
+    },
+    { timeoutMs: 90_000 },
+  ).catch(() => null);
+  const analyzerPersisted = Boolean(analyzerResult?.payload);
 
   let rawText: string;
   if (analyzerResult?.payload) {

@@ -15,8 +15,8 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
 import { logLlmCall } from "../services/llm-usage";
 import { logger } from "../lib/logger";
-import { runCaseStudyGenerator, type GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 
 const router: IRouter = Router();
@@ -131,41 +131,16 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
       Array.isArray(cs.challenges) ? cs.challenges.join("\n") : "",
       body.transformationHint ?? "",
     ].filter(Boolean).join("\n\n").slice(0, 12000);
-    const caseStudyInput = {
-      caseStudyId: id,
-      industryName: study.industries.name,
-      currentText,
-    };
-    let workflowResult: GenericWorkflowOutput | null = null;
-    let workflowPersisted = false;
-    try {
-      try {
-        workflowResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-          "workflow/case-study-generator",
-          caseStudyInput,
-          { timeoutMs: 90_000 },
-        );
-        if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
-          workflowPersisted = true;
-        }
-      } catch (e) {
-        if (e instanceof InngestInvokeBypassError) {
-          workflowResult = await runCaseStudyGenerator(caseStudyInput);
-          if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
-            // Bypass path: replicate the Inngest function's persistence step.
-            await db.update(caseStudiesTable)
-              .set({ economicsBreakdown: workflowResult.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
-              .where(eq(caseStudiesTable.id, id));
-            workflowPersisted = true;
-          }
-        } else {
-          throw e;
-        }
-      }
-    } catch {
-      workflowResult = null;
-    }
-    if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0 && workflowPersisted) {
+    const workflowResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+      "workflow/case-study-generator",
+      {
+        caseStudyId: id,
+        industryName: study.industries.name,
+        currentText,
+      },
+      { timeoutMs: 90_000 },
+    ).catch(() => null);
+    if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
       res.json({ ok: true, breakdown: workflowResult.payload, source: "workflow" });
       return;
     }

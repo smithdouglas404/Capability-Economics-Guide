@@ -12,8 +12,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { runIndustryBootstrap, type GenericWorkflowOutput } from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 import { logLlmCall } from "../services/llm-usage";
 
@@ -121,25 +121,11 @@ router.post("/industries", requireAdmin, async (req, res) => {
   let research: { content: string; citations: string[] };
   let bridgedCaps: z.infer<typeof CapabilitySchema>[] | null = null;
 
-  const bootstrapInput = { industryName: name };
-  let bootstrapResult: GenericWorkflowOutput | null = null;
-  try {
-    try {
-      bootstrapResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-        "workflow/industry-bootstrap",
-        bootstrapInput,
-        { timeoutMs: 120_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        bootstrapResult = await runIndustryBootstrap(bootstrapInput);
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    bootstrapResult = null;
-  }
+  const bootstrapResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+    "workflow/industry-bootstrap",
+    { industryName: name },
+    { timeoutMs: 120_000 },
+  ).catch(() => null);
 
   if (bootstrapResult?.payload) {
     const p = bootstrapResult.payload as {

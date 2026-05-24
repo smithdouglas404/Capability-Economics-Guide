@@ -27,12 +27,8 @@ import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-signals/detector";
 import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
-import {
-  runCapabilityEnrichmentRetry,
-  runAdminConfigProposer,
-  type GenericWorkflowOutput,
-} from "../services/workflows";
-import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
+import type { GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait } from "../inngest/invoke";
 import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -271,78 +267,21 @@ router.post("/admin/capability-enrichment-retry/:capabilityId", async (req, res)
     economicView: cap.economicView,
   });
 
-  const enrichInput = {
-    capabilityId: id,
-    currentDraft: draft,
-    lastError: cap.enrichmentError ?? undefined,
-    attempt: 1,
-  };
-
   // Persistence (capabilities + capability_alpha two-table update) lives
   // inside the Inngest function via step.run("persist-capabilities") +
   // step.run("persist-capability-alpha") so retries replay cleanly. The
   // Inngest path returns `{ status, payload, persisted }` directly.
   type EnrichmentRunResult = GenericWorkflowOutput & { persisted?: { capabilities: boolean; capability_alpha: boolean } };
-  let result: EnrichmentRunResult | null = null;
-  try {
-    try {
-      result = await invokeWorkflowAndWait<EnrichmentRunResult>(
-        "workflow/capability-enrichment-retry",
-        enrichInput,
-        { timeoutMs: 120_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        // Bypass path: run inline + replicate the persistence the Inngest
-        // function would have done.
-        const inline = await runCapabilityEnrichmentRetry(enrichInput);
-        if (!inline) {
-          result = null;
-        } else {
-          const persisted: { capabilities: boolean; capability_alpha: boolean } = { capabilities: false, capability_alpha: false };
-          if (inline.status === "ok") {
-            const p = inline.payload as {
-              narratives?: { traditional?: string; economic?: string; ai?: string };
-              moatTier?: string;
-              tamUsd?: number | null;
-              evarBp?: number | null;
-              citations?: Array<{ url: string; title: string }>;
-            };
-            const capUpdates: Record<string, string | null> = { enrichmentError: null };
-            if (p.narratives?.traditional && p.narratives.traditional.length > 20) capUpdates.traditionalView = p.narratives.traditional;
-            if (p.narratives?.economic && p.narratives.economic.length > 20) capUpdates.economicView = p.narratives.economic;
-            if (Object.keys(capUpdates).length > 0) {
-              await db.update(capabilitiesTable).set(capUpdates).where(eq(capabilitiesTable.id, id));
-              persisted.capabilities = true;
-            }
-            const [latestAlpha] = await db
-              .select({ id: capabilityAlphaTable.id })
-              .from(capabilityAlphaTable)
-              .where(eq(capabilityAlphaTable.capabilityId, id))
-              .orderBy(desc(capabilityAlphaTable.generatedAt))
-              .limit(1);
-            if (latestAlpha) {
-              const alphaUpdates: Record<string, unknown> = {};
-              if (typeof p.tamUsd === "number") alphaUpdates.tamUsdMm = p.tamUsd / 1_000_000;
-              if (p.narratives?.traditional) alphaUpdates.traditionalNarrative = p.narratives.traditional;
-              if (p.narratives?.economic) alphaUpdates.alphaNarrative = p.narratives.economic;
-              if (p.narratives?.ai) alphaUpdates.aiNarrative = p.narratives.ai;
-              if (Object.keys(alphaUpdates).length > 0) {
-                await db.update(capabilityAlphaTable).set(alphaUpdates).where(eq(capabilityAlphaTable.id, latestAlpha.id));
-                persisted.capability_alpha = true;
-              }
-            }
-            log.info({ capabilityId: id, persisted }, "[capability-enrichment-retry] bypass-path payload persisted");
-          }
-          result = { ...inline, persisted };
-        }
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    result = null;
-  }
+  const result = await invokeWorkflowAndWait<EnrichmentRunResult>(
+    "workflow/capability-enrichment-retry",
+    {
+      capabilityId: id,
+      currentDraft: draft,
+      lastError: cap.enrichmentError ?? undefined,
+      attempt: 1,
+    },
+    { timeoutMs: 120_000 },
+  ).catch(() => null);
 
   if (!result) { res.status(503).json({ error: "Enrichment-retry workflow unavailable" }); return; }
   res.json({
@@ -371,31 +310,17 @@ router.post("/admin/config-propose", async (req, res) => {
   if (!body.currentValues) { res.status(400).json({ error: "currentValues required" }); return; }
   if (!body.recentOutcomes) { res.status(400).json({ error: "recentOutcomes required" }); return; }
 
-  const proposerInput = {
-    configArea: body.configArea,
-    currentValues: body.currentValues,
-    recentOutcomes: body.recentOutcomes,
-    targetKey: body.targetKey,
-    triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
-  };
-  let result: GenericWorkflowOutput | null = null;
-  try {
-    try {
-      result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
-        "workflow/admin-config-proposer",
-        proposerInput,
-        { timeoutMs: 60_000 },
-      );
-    } catch (e) {
-      if (e instanceof InngestInvokeBypassError) {
-        result = await runAdminConfigProposer(proposerInput);
-      } else {
-        throw e;
-      }
-    }
-  } catch {
-    result = null;
-  }
+  const result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+    "workflow/admin-config-proposer",
+    {
+      configArea: body.configArea,
+      currentValues: body.currentValues,
+      recentOutcomes: body.recentOutcomes,
+      targetKey: body.targetKey,
+      triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
+    },
+    { timeoutMs: 60_000 },
+  ).catch(() => null);
 
   if (!result) { res.status(503).json({ error: "Admin-config-proposer workflow unavailable" }); return; }
   res.json({ status: result.status, payload: result.payload });
