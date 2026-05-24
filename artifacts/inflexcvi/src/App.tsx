@@ -276,6 +276,9 @@ function Router() {
       <Route path="/insurance-example" component={InsuranceExample} />
       <Route path="/c-suite" component={CSuite} />
       <Route path="/knowledge-graph" component={KnowledgeGraph} />
+      {/* /industries is what the layout nav links to — same destination as
+          /knowledge-graph (which has an Industries tab as its default). */}
+      <Route path="/industries" component={KnowledgeGraph} />
       <Route path="/projects" component={Projects} />
       <Route path="/insights" component={InsightsPage} />
       <Route path="/organization" component={OrganizationSetup} />
