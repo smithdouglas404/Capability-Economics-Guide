@@ -14,12 +14,13 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { ArrowUpDown, GitBranch, Layers, Sparkles, ShieldCheck, TrendingDown, ScaleIcon, Flame, Loader2, Search } from "lucide-react";
+import { ArrowUpDown, GitBranch, Layers, Sparkles, ShieldCheck, TrendingDown, ScaleIcon, Flame, Loader2, Search, LayoutGrid, List as ListIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader, PersonaDescription } from "@/components/page-header";
 
 const API_BASE = "/api";
@@ -49,6 +50,24 @@ interface DiRow {
 
 interface Industry { id: number; name: string }
 interface Archetype { id: number; slug: string; name: string; summary: string }
+
+interface PlaybookMatch { playbookId: number; slug: string; name: string; similarity: number }
+interface IndustryGroupCap {
+  capabilityId: number;
+  capabilityName: string;
+  capabilitySlug: string;
+  compositeDi: number;
+  subscores: Record<string, number>;
+  topPlaybook: { id: number; name: string; slug: string; similarity: number } | null;
+  top5PlaybookMatches: PlaybookMatch[];
+  rank: number;
+}
+interface IndustryGroup {
+  industryId: number;
+  industryName: string;
+  industrySlug: string;
+  capabilities: IndustryGroupCap[];
+}
 
 const SORTABLE: Array<{ key: string; label: string }> = [
   { key: "composite_di", label: "Composite DI" },
@@ -90,8 +109,10 @@ export default function DisruptionIndexPage() {
   const [total, setTotal] = useState(0);
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [archetypes, setArchetypes] = useState<Archetype[]>([]);
+  const [byIndustry, setByIndustry] = useState<IndustryGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"per-industry" | "table">("per-industry");
 
   // Filters
   const [industryId, setIndustryId] = useState<string>("all");
@@ -106,6 +127,14 @@ export default function DisruptionIndexPage() {
     fetch(`${API_BASE}/industries`).then((r) => r.json()).then((r: Industry[]) => setIndustries(r)).catch(() => {});
     fetch(`${API_BASE}/disruption-index/archetypes`).then((r) => r.json()).then((d: { archetypes: Archetype[] }) => setArchetypes(d.archetypes ?? [])).catch(() => {});
   }, []);
+
+  // Load grouped-by-industry view (top-5 per industry).
+  useEffect(() => {
+    fetch(`${API_BASE}/disruption-index/by-industry?topPerIndustry=5&minDi=${minDi}`)
+      .then((r) => r.ok ? r.json() : Promise.reject())
+      .then((d: { industries: IndustryGroup[] }) => setByIndustry(d.industries ?? []))
+      .catch(() => {});
+  }, [minDi]);
 
   // Load DI list on filter change.
   useEffect(() => {
@@ -193,16 +222,24 @@ export default function DisruptionIndexPage() {
         </CardContent>
       </Card>
 
-      {/* Result count + lab CTA */}
+      {/* View toggle + Result count + lab CTA */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="font-mono text-[11px] text-muted-foreground">
-          {loading ? "Loading…" : `${filtered.length} of ${total} capabilities`}
+        <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
+          <TabsList>
+            <TabsTrigger value="per-industry"><LayoutGrid className="w-3.5 h-3.5 mr-1.5" /> Top 5 per industry</TabsTrigger>
+            <TabsTrigger value="table"><ListIcon className="w-3.5 h-3.5 mr-1.5" /> Full table</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="flex items-center gap-3">
+          <div className="font-mono text-[11px] text-muted-foreground">
+            {loading ? "Loading…" : view === "table" ? `${filtered.length} of ${total} capabilities` : `${byIndustry.length} industries`}
+          </div>
+          <Link href="/disruption-lab">
+            <Button variant="outline" size="sm" className="rounded-none font-mono text-[11px] uppercase tracking-wider">
+              <Flame className="w-3.5 h-3.5 mr-2" /> Open the Disruption Lab
+            </Button>
+          </Link>
         </div>
-        <Link href="/disruption-lab">
-          <Button variant="outline" size="sm" className="rounded-none font-mono text-[11px] uppercase tracking-wider">
-            <Flame className="w-3.5 h-3.5 mr-2" /> Open the Disruption Lab
-          </Button>
-        </Link>
       </div>
 
       {error && (
@@ -211,7 +248,56 @@ export default function DisruptionIndexPage() {
         </Card>
       )}
 
-      {loading ? (
+      {view === "per-industry" && (
+        byIndustry.length === 0 ? (
+          <Card className="rounded-none border-border/60"><CardContent className="p-8 text-center text-sm text-muted-foreground">No industries scored yet — the disruption-vector agent runs every 6 hours.</CardContent></Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {byIndustry.map((ind) => (
+              <Card key={ind.industryId} className="rounded-none border-border/60">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="font-serif text-base">{ind.industryName}</h3>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">top {ind.capabilities.length}</span>
+                  </div>
+                  <ol className="space-y-2.5">
+                    {ind.capabilities.map((cap) => (
+                      <li key={cap.capabilityId} className="border-t border-border/40 pt-2 first:border-t-0 first:pt-0">
+                        <div className="flex items-start justify-between gap-2 flex-wrap">
+                          <div className="min-w-0 flex-1">
+                            <Link href={`/capability/${cap.capabilityId}`} className="text-sm font-medium hover:underline">
+                              <span className="text-muted-foreground mr-1.5 font-mono">{cap.rank}.</span>
+                              {cap.capabilityName}
+                            </Link>
+                          </div>
+                          <span className={`inline-block px-2 py-0.5 text-xs font-mono tabular-nums font-medium border ${diTone(cap.compositeDi)} shrink-0`}>{cap.compositeDi.toFixed(0)}</span>
+                        </div>
+                        {cap.top5PlaybookMatches.length > 0 && (
+                          <div className="flex items-center gap-1 flex-wrap mt-1.5">
+                            {cap.top5PlaybookMatches.map((m, i) => (
+                              <Badge
+                                key={m.playbookId}
+                                variant="outline"
+                                className={`rounded-none font-mono text-[10px] uppercase tracking-wider ${i === 0 ? "border-accent text-accent" : "text-muted-foreground"}`}
+                                title={`${m.name} — ${(m.similarity * 100).toFixed(0)}% pattern match`}
+                              >
+                                {m.name.split(" (")[0]} {(m.similarity * 100).toFixed(0)}%
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      {view === "table" && (
+        loading ? (
         <Card className="rounded-none border-border/60"><CardContent className="p-8 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></CardContent></Card>
       ) : filtered.length === 0 ? (
         <Card className="rounded-none border-amber-500/40 bg-amber-500/[0.04]">
@@ -278,7 +364,7 @@ export default function DisruptionIndexPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+      ))}
 
       <p className="text-xs text-muted-foreground italic">
         DI rows refresh every 6 hours via the disruption-vector-agent. Admins can force a recompute on a single capability via{" "}

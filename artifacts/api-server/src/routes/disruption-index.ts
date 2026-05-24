@@ -137,6 +137,114 @@ router.get("/disruption-index", async (req: Request, res: Response) => {
   }
 });
 
+// ─── GET /api/disruption-index/by-industry — top-N per industry ─────────
+//
+// For each industry that has at least one scored capability, returns the
+// top-N capabilities by composite_di with their top-3 playbook matches.
+// Lets the listing page render a "best of each industry" grouped view
+// where the user can compare which industries' caps look most Uber-style
+// vs Airbnb-style vs OpenAI-style.
+router.get("/disruption-index/by-industry", async (req: Request, res: Response) => {
+  try {
+    const topPerIndustry = Math.min(20, Math.max(1, Number(req.query.topPerIndustry) || 5));
+    const minDi = req.query.minDi ? Number(req.query.minDi) : 0;
+
+    // Pull top-N per industry via window function — single SQL, no N+1.
+    const rows = await db.execute(sql`
+      WITH ranked AS (
+        SELECT
+          di.capability_id,
+          c.name AS capability_name,
+          c.slug AS capability_slug,
+          c.industry_id,
+          i.name AS industry_name,
+          i.slug AS industry_slug,
+          di.composite_di,
+          di.asset_friction, di.jtbd_abstractability, di.enabling_tech_strength,
+          di.trust_replaceability, di.latent_supply_multiplier, di.margin_asymmetry,
+          di.top_playbook_id,
+          pb.name AS top_playbook_name,
+          pb.slug AS top_playbook_slug,
+          di.top_playbook_similarity,
+          di.computed_at,
+          ROW_NUMBER() OVER (PARTITION BY c.industry_id ORDER BY di.composite_di DESC) AS rn
+        FROM capability_disruption_index di
+        JOIN capabilities c ON c.id = di.capability_id
+        JOIN industries i ON i.id = c.industry_id
+        LEFT JOIN disruption_playbook_archetypes pb ON pb.id = di.top_playbook_id
+        WHERE di.composite_di >= ${minDi}
+      )
+      SELECT * FROM ranked WHERE rn <= ${topPerIndustry}
+      ORDER BY industry_name, rn
+    `);
+    const data = (rows.rows ?? rows) as Array<Record<string, unknown>>;
+
+    // Batch-fetch top-5 playbook matches per cap (single query for all caps).
+    const capIds = data.map((r) => r.capability_id as number);
+    let matchesByCap = new Map<number, Array<{ playbookId: number; slug: string; name: string; similarity: number }>>();
+    if (capIds.length > 0) {
+      const matchRows = await db
+        .select({
+          capabilityId: disruptionPlaybookMatchesTable.capabilityId,
+          playbookId: disruptionPlaybookMatchesTable.playbookId,
+          similarity: disruptionPlaybookMatchesTable.similarity,
+          name: disruptionPlaybookArchetypesTable.name,
+          slug: disruptionPlaybookArchetypesTable.slug,
+        })
+        .from(disruptionPlaybookMatchesTable)
+        .innerJoin(disruptionPlaybookArchetypesTable, eq(disruptionPlaybookArchetypesTable.id, disruptionPlaybookMatchesTable.playbookId))
+        .where(inArray(disruptionPlaybookMatchesTable.capabilityId, capIds))
+        .orderBy(desc(disruptionPlaybookMatchesTable.similarity));
+      for (const m of matchRows) {
+        const arr = matchesByCap.get(m.capabilityId) ?? [];
+        if (arr.length < 5) arr.push({ playbookId: m.playbookId, slug: m.slug, name: m.name, similarity: m.similarity });
+        matchesByCap.set(m.capabilityId, arr);
+      }
+    }
+
+    // Group rows by industry, attach top-5 playbook matches per cap.
+    const byIndustry = new Map<string, { industryId: number; industryName: string; industrySlug: string; capabilities: Array<Record<string, unknown>> }>();
+    for (const r of data) {
+      const indName = r.industry_name as string;
+      if (!byIndustry.has(indName)) {
+        byIndustry.set(indName, {
+          industryId: r.industry_id as number,
+          industryName: indName,
+          industrySlug: r.industry_slug as string,
+          capabilities: [],
+        });
+      }
+      byIndustry.get(indName)!.capabilities.push({
+        capabilityId: r.capability_id,
+        capabilityName: r.capability_name,
+        capabilitySlug: r.capability_slug,
+        compositeDi: r.composite_di,
+        subscores: {
+          assetFriction: r.asset_friction,
+          jtbdAbstractability: r.jtbd_abstractability,
+          enablingTechStrength: r.enabling_tech_strength,
+          trustReplaceability: r.trust_replaceability,
+          latentSupplyMultiplier: r.latent_supply_multiplier,
+          marginAsymmetry: r.margin_asymmetry,
+        },
+        topPlaybook: r.top_playbook_id ? {
+          id: r.top_playbook_id,
+          name: r.top_playbook_name,
+          slug: r.top_playbook_slug,
+          similarity: r.top_playbook_similarity,
+        } : null,
+        top5PlaybookMatches: matchesByCap.get(r.capability_id as number) ?? [],
+        computedAt: r.computed_at,
+        rank: r.rn,
+      });
+    }
+
+    res.json({ topPerIndustry, minDi, industries: Array.from(byIndustry.values()) });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // ─── GET /api/disruption-index/capability/:id — full detail ─────────────
 router.get("/disruption-index/capability/:id", async (req: Request, res: Response) => {
   try {

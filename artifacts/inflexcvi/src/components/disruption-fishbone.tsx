@@ -214,15 +214,18 @@ export function DisruptionFishbone({ capabilityId }: { capabilityId: number }) {
             <div className="border-t border-border/40 pt-4 space-y-2">
               <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Playbook match</div>
               <div className="flex items-center gap-2 flex-wrap">
-                <Badge variant="outline" className="rounded-none font-mono text-[11px] uppercase tracking-wider">
+                <Badge variant="outline" className="rounded-none font-mono text-[11px] uppercase tracking-wider border-accent text-accent">
                   {playbook.name} · {(playbook.similarity * 100).toFixed(0)}%
                 </Badge>
-                {data.playbookMatches.slice(1, 4).map((p) => (
+                {data.playbookMatches.slice(1, 5).map((p) => (
                   <Badge key={p.playbookId} variant="outline" className="rounded-none font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     {p.name} · {(p.similarity * 100).toFixed(0)}%
                   </Badge>
                 ))}
               </div>
+              <p className="text-xs text-muted-foreground italic mt-1">
+                Top match in bold; next 4 shown for context. "X-style" labels describe the disruption pattern, not the company.
+              </p>
               <p className="text-sm leading-relaxed text-foreground">{playbook.summary}</p>
             </div>
           )}
