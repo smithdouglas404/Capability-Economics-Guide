@@ -16,6 +16,7 @@ import {
   GraduationCap, Award, Image as ImageIcon, Eye,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PersonaTopSwitcher } from "@/components/persona-top-switcher";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -160,6 +161,9 @@ export default function AccountProfilePage() {
       {/* Profile completion meter — counts populated profile fields + supporting
           sections. Drives the user to fill in the parts that move the needle. */}
       <ProfileCompletionMeter profile={profile} experienceCount={experience.length} educationCount={education.length} skillsCount={skills.length} />
+
+      {/* READING LENS (persona) — global preference that tailors copy across all pages */}
+      <PersonaTopSwitcher />
 
       {/* IDENTITY */}
       <Card>
