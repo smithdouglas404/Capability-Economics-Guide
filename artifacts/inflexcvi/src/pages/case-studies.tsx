@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { ArrowRight, Loader2 } from "lucide-react";
 
@@ -76,7 +75,7 @@ export default function CaseStudies() {
                 viewport={{ once: true, margin: "-40px" }}
                 transition={{ duration: 0.6, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
               >
-                <Link href={`/case-study/${row.industrySlug}`} className="block group">
+                <a href={`/case-study/${row.industrySlug}`} className="block group">
                   <article className="grid lg:grid-cols-[48px_160px_1fr_auto] gap-x-8 gap-y-3 py-9 lg:py-11 hover:bg-muted/20 transition-colors duration-200 px-3 -mx-3">
                     <div className="font-mono text-[10px] tabular-nums tracking-[0.22em] text-muted-foreground/60 self-start pt-0.5">
                       {String(i + 1).padStart(2, "0")}
@@ -99,7 +98,7 @@ export default function CaseStudies() {
                       Read <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
                     </div>
                   </article>
-                </Link>
+                </a>
               </motion.div>
             ))}
           </div>
