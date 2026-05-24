@@ -141,13 +141,13 @@ export default function CaseStudy() {
       {/* § 01 — Capability Transformation */}
       <section className="border-b border-border/40">
         <div className="max-w-7xl mx-auto px-6 lg:px-10 py-20 lg:py-28">
-          <div className="grid lg:grid-cols-[260px_1fr] gap-10 lg:gap-16 mb-16">
+          <div className="grid lg:grid-cols-[320px_1fr] gap-10 lg:gap-16 mb-16">
             <div>
               <div className="inline-flex items-center gap-2 mb-4">
                 <span className="h-px w-5 bg-accent" />
                 <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">§ 01 — Reframing</span>
               </div>
-              <h2 className="font-serif text-4xl lg:text-5xl leading-[1.0] tracking-tight">
+              <h2 className="font-serif text-3xl lg:text-4xl leading-[1.05] tracking-tight">
                 The capability<br /><em className="not-italic italic text-foreground/70">transformation.</em>
               </h2>
             </div>
