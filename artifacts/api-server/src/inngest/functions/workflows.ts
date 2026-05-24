@@ -183,7 +183,28 @@ export const capabilityReviewAssistFn = inngest.createFunction(
       });
       logger.info({ capabilityId: input.capabilityId, confidence: result.payload.confidence }, "[inngest] review-assist revision prompts persisted");
     }
-    return result;
+
+    // Phase: human review approval gate. The revision prompts are now
+    // persisted; the next loop in the reviewer UI fires `runRedraft` (via
+    // fireDraftEnrichment in routes/review.ts) and eventually a reviewer
+    // accepts or rejects. Instead of returning immediately and showing the
+    // Inngest dashboard a "Completed" status before any human touch, we
+    // suspend the run with step.waitForEvent until POST /review/:id/approve
+    // emits `review.approved` for this capability. Timeout 7d so a stale
+    // queue item still terminates the run cleanly (and shows as "Completed
+    // (timed out)" in Inngest) instead of leaking forever.
+    const approval = await step.waitForEvent("wait-for-approval", {
+      event: "review.approved",
+      timeout: "7d",
+      if: `async.data.capabilityId == event.data.capabilityId`,
+    });
+
+    return {
+      ...result,
+      approval: approval
+        ? { approved: true, approvedAt: new Date().toISOString() }
+        : { approved: false, timedOut: true },
+    };
   },
 );
 

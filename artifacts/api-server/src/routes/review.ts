@@ -173,6 +173,23 @@ router.post("/review/:id/approve", async (req, res) => {
     .where(and(eq(capabilitiesTable.id, id), eq(capabilitiesTable.reviewStatus, "pending_review")))
     .returning({ id: capabilitiesTable.id });
   if (updated.length === 0) { res.status(409).json({ error: "status changed concurrently" }); return; }
+  // Emit `review.approved` so the suspended `capability-review-assist`
+  // Inngest run (if one is waiting on `step.waitForEvent` for this
+  // capability) can resume and complete cleanly. Fire-and-forget — never
+  // fail the approval HTTP response if Inngest is unreachable.
+  inngest.send({
+    name: "review.approved",
+    // Idempotency: a double-tap on the Approve button (or an HTTP retry)
+    // should resume the run exactly once.
+    id: `review.approved:${id}`,
+    data: {
+      capabilityId: id,
+      approvedBy: reviewerLabel(req.reviewer),
+      approvedAt: new Date().toISOString(),
+    },
+  }).catch((err) => {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), capabilityId: id }, "[review] failed to emit review.approved event");
+  });
   // Fire-and-forget: every approved capability auto-decomposes into 4-6 factual sub-capabilities.
   // Children get triangulated by the next scheduler rotation (within minutes) for real scores.
   decomposeCapability(id, { count: 5, triangulateNow: false })
