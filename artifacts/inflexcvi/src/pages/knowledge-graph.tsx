@@ -42,6 +42,70 @@ const item = {
   show: { opacity: 1, y: 0, transition: { type: "spring" as const, stiffness: 300, damping: 24 } }
 };
 
+/**
+ * Polished empty / error / "no data yet" card. Replaces the dozen
+ * "<div className='flex justify-center py-32 text-muted-foreground'>"
+ * one-liners that previously read like dev console messages.
+ */
+function EmptyState({
+  kind = "info",
+  title,
+  body,
+  actionLabel,
+  onAction,
+}: {
+  kind?: "info" | "error" | "warning";
+  title: string;
+  body: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  const tones = {
+    info: "border-border/60 bg-muted/20",
+    error: "border-rose-500/40 bg-rose-500/[0.04]",
+    warning: "border-amber-500/40 bg-amber-500/[0.04]",
+  };
+  return (
+    <div className={`border ${tones[kind]} p-[var(--token-space-8)] text-center max-w-xl mx-auto my-[var(--token-space-12)]`}>
+      <h3 className="font-serif text-lg mb-[var(--token-space-2)]">{title}</h3>
+      <p className="text-sm text-muted-foreground leading-relaxed mb-[var(--token-space-3)]">{body}</p>
+      {actionLabel && onAction && (
+        <button
+          onClick={onAction}
+          className="font-mono text-[11px] uppercase tracking-wider px-[var(--token-space-3)] py-[var(--token-space-2)] border border-border hover:bg-muted transition-colors duration-[var(--token-motion-fast)]"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Skeleton loader for the chart-heavy tabs (Quadrant + Network). Replaces
+ * the giant py-32 spinner with a tasteful grid-of-pulses that telegraphs
+ * the shape of the incoming chart.
+ */
+function SkeletonChart({ label = "Loading…" }: { label?: string }) {
+  return (
+    <div className="border border-border/60 p-[var(--token-space-6)] space-y-[var(--token-space-4)]">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <span className="font-mono uppercase tracking-wider text-[10px]">{label}</span>
+      </div>
+      <div className="grid grid-cols-4 gap-[var(--token-space-2)]" style={{ minHeight: 280 }}>
+        {Array.from({ length: 16 }).map((_, i) => (
+          <div
+            key={i}
+            className="bg-muted/40 animate-pulse"
+            style={{ animationDelay: `${(i % 4) * 100}ms`, minHeight: 60 }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StrengthBadge({ strength }: { strength: string }) {
   const colors: Record<string, string> = {
     strong: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -868,14 +932,14 @@ export default function KnowledgeGraph() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
-      <section className="bg-muted/10 py-16 border-b border-border/40">
-        <div className="container mx-auto px-4 max-w-5xl">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <span className="h-px w-5 bg-accent" />
+    <div className="min-h-screen bg-background pb-[var(--token-space-12)]">
+      <section className="border-b border-border/60 bg-gradient-to-b from-muted/10 to-transparent">
+        <div className="container mx-auto px-4 max-w-7xl pt-[var(--token-space-8)] pb-[var(--token-space-6)]">
+          <div className="flex items-baseline gap-3 mb-2">
             <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-accent">Knowledge Graph</span>
+            <span className="h-px flex-1 max-w-16 bg-accent/50" />
           </div>
-          <h1 className="text-3xl md:text-5xl font-serif tracking-tight mb-4 text-foreground">
+          <h1 className="font-serif text-3xl md:text-4xl tracking-tight text-foreground mb-2">
             Industry Capability Explorer
           </h1>
           <PersonaDescription
@@ -887,10 +951,10 @@ export default function KnowledgeGraph() {
               student: "The clearest visual of capability-based strategy. Click around; every node and edge is real data with citations. Start with one industry, build a mental model.",
               professor: "Citable taxonomy. The 8–12 capabilities per industry are the de-facto value-chain decomposition we use throughout; assign students to extend it with a new industry.",
             }}
-            className="mt-4"
+            className="mt-[var(--token-space-2)] max-w-3xl"
           />
           {/* House view — cross-agent synthesis brief sets the lens for the four tabs below */}
-          <div className="mt-6">
+          <div className="mt-[var(--token-space-4)]">
             <SynthesisBriefCard compact />
           </div>
 
@@ -900,12 +964,12 @@ export default function KnowledgeGraph() {
               frame the deeper drill-downs. */}
           <CrossIndustryHeadlines />
 
-          <div className="flex gap-2 mt-6 flex-wrap">
+          <div className="flex gap-1.5 mt-[var(--token-space-6)] flex-wrap items-center">
             <Button
               variant={tab === "quadrant" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("quadrant")}
-              className="rounded-none"
+              className="rounded-none font-mono text-[11px] uppercase tracking-wider h-8"
             >
               <Crosshair className="w-4 h-4 mr-2" />
               Quadrant
@@ -914,7 +978,7 @@ export default function KnowledgeGraph() {
               variant={tab === "network" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("network")}
-              className="rounded-none hidden md:inline-flex"
+              className="rounded-none font-mono text-[11px] uppercase tracking-wider h-8 hidden md:inline-flex"
             >
               <Network className="w-4 h-4 mr-2" />
               Network
@@ -923,7 +987,7 @@ export default function KnowledgeGraph() {
               variant={tab === "industries" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("industries")}
-              className="rounded-none"
+              className="rounded-none font-mono text-[11px] uppercase tracking-wider h-8"
             >
               <Layers className="w-4 h-4 mr-2" />
               Industries
@@ -932,7 +996,7 @@ export default function KnowledgeGraph() {
               variant={tab === "compare" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("compare")}
-              className="rounded-none"
+              className="rounded-none font-mono text-[11px] uppercase tracking-wider h-8"
             >
               <BarChart3 className="w-4 h-4 mr-2" />
               Cross-Industry Comparison
@@ -957,14 +1021,12 @@ export default function KnowledgeGraph() {
       </section>
 
       {tab === "quadrant" ? (
-        <section>
+        <section className="container mx-auto px-4 max-w-7xl pt-[var(--token-space-4)]">
           {graphLoading ? (
-            <div className="flex justify-center items-center py-32">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <SkeletonChart label="Loading quadrant data…" />
           ) : graphData ? (
             graphData.capabilities.some((c) => c.quadrant) ? (
-              <Suspense fallback={<div className="flex justify-center items-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+              <Suspense fallback={<SkeletonChart label="Rendering quadrant…" />}>
                 <QuadrantScatter
                   industries={graphData.industries}
                   capabilities={graphData.capabilities}
@@ -994,31 +1056,37 @@ export default function KnowledgeGraph() {
               </div>
             )
           ) : graphError ? (
-            <div className="flex flex-col justify-center items-center py-32 text-muted-foreground gap-2">
-              <p>Failed to load capabilities: {graphError}</p>
-              <button onClick={() => { setGraphError(null); setGraphData(null); }} className="text-primary text-sm underline">Retry</button>
-            </div>
+            <EmptyState
+              kind="error"
+              title="Couldn't load the quadrant"
+              body={graphError}
+              actionLabel="Retry"
+              onAction={() => { setGraphError(null); setGraphData(null); }}
+            />
           ) : (
-            <div className="flex justify-center items-center py-32 text-muted-foreground">
-              No capability data available. Run the enrichment pipeline first.
-            </div>
+            <EmptyState
+              kind="info"
+              title="Quadrant is populating"
+              body="The enrichment pipeline classifies each capability into a Hot / Emerging / Stable / Decaying quadrant. Caps not yet enriched won't appear. The hourly auto-enrich cron is filling them in — check back shortly."
+            />
           )}
         </section>
       ) : tab === "network" ? (
-        <section className="relative" style={{ height: "calc(100vh - 260px)", minHeight: 500 }}>
+        <section className="relative container mx-auto px-4 max-w-7xl pt-[var(--token-space-4)]" style={{ height: "calc(100vh - 260px)", minHeight: 500 }}>
           {graphLoading ? (
-            <div className="flex justify-center items-center h-full">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <SkeletonChart label="Loading network…" />
           ) : graphData ? (
-            <Suspense fallback={<div className="flex justify-center items-center h-full"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+            <Suspense fallback={<SkeletonChart label="Rendering force-directed layout…" />}>
               <ForceGraph data={graphData} />
             </Suspense>
           ) : graphError ? (
-            <div className="flex flex-col justify-center items-center h-full text-muted-foreground gap-2">
-              <p>Failed to load graph: {graphError}</p>
-              <button onClick={() => { setGraphError(null); setGraphData(null); }} className="text-primary text-sm underline">Retry</button>
-            </div>
+            <EmptyState
+              kind="error"
+              title="Couldn't load the network"
+              body={graphError}
+              actionLabel="Retry"
+              onAction={() => { setGraphError(null); setGraphData(null); }}
+            />
           ) : (
             <div className="flex justify-center items-center h-full text-muted-foreground">
               No graph data available. Run the enrichment pipeline first.
@@ -1026,11 +1094,9 @@ export default function KnowledgeGraph() {
           )}
         </section>
       ) : tab === "compare" ? (
-        <section className="py-12 container mx-auto px-4 max-w-5xl">
+        <section className="container mx-auto px-4 max-w-7xl pt-[var(--token-space-8)] pb-[var(--token-space-12)]">
           {loadingComparison ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <SkeletonChart label="Loading cross-industry comparison…" />
           ) : comparison ? (
             <div className="space-y-10">
               <div>
@@ -1121,13 +1187,23 @@ export default function KnowledgeGraph() {
           ) : null}
         </section>
       ) : (
-        <section className="py-12 container mx-auto px-4 max-w-5xl">
+        <section className="container mx-auto px-4 max-w-7xl pt-[var(--token-space-8)] pb-[var(--token-space-12)]">
           {loadingIndustries ? (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-[var(--token-space-4)]">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="border border-border/60 p-[var(--token-space-6)] space-y-[var(--token-space-3)]">
+                  <div className="h-10 w-10 bg-muted/60 animate-pulse" />
+                  <div className="h-5 w-32 bg-muted/60 animate-pulse" />
+                  <div className="h-3 w-full bg-muted/40 animate-pulse" />
+                  <div className="h-3 w-3/4 bg-muted/40 animate-pulse" />
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    {Array.from({ length: 3 }).map((_, j) => <div key={j} className="h-10 bg-muted/30 animate-pulse" />)}
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <motion.div variants={container} initial="hidden" animate="show" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <motion.div variants={container} initial="hidden" animate="show" className="grid md:grid-cols-2 lg:grid-cols-3 gap-[var(--token-space-4)]">
               {industries?.map((industry: Industry) => {
                 const Icon = iconMap[industry.icon] || Shield;
                 return (
