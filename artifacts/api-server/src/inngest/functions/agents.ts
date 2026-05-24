@@ -8,6 +8,7 @@ import { runDisruptionAgentAgentKit } from "../../services/disruption-agent-agen
 import { runPeerCoopAgent } from "../../services/peer-coop-agent";
 import { runPeerCoopAgentAgentKit } from "../../services/peer-coop-agent-agentkit";
 import { runStackOptimizerAgent } from "../../services/stack-optimizer-agent";
+import { runStackOptimizerAgentAgentKit } from "../../services/stack-optimizer-agent-agentkit";
 import { runOntologyAgent } from "../../services/ontology-agent";
 import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit";
 import { runSynthesisAgent } from "../../services/synthesis-agent";
@@ -239,11 +240,11 @@ export const stackOptimizerAgentCron = inngest.createFunction(
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_STACK_OPTIMIZER")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_STACK_OPTIMIZER=1 forces the legacy
-    // LangGraph path. Default (flag unset) runs LangGraph until the
-    // AgentKit version is wired up in a later commit of this migration.
+    // LangGraph path. Default (flag unset) runs the AgentKit implementation.
     const useLangGraph = ownedBy("USE_LANGGRAPH_STACK_OPTIMIZER");
-    void useLangGraph;
-    const result = await withStep(step, () => runStackOptimizerAgent());
+    const result = useLangGraph
+      ? await withStep(step, () => runStackOptimizerAgent())
+      : await withStep(step, () => runStackOptimizerAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/stack-optimizer/digest-published",
       data: digestEventPayload("stack-optimizer-agent", result),
