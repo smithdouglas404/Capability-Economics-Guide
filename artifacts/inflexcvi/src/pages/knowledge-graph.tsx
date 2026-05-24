@@ -1207,22 +1207,20 @@ export default function KnowledgeGraph() {
               {industries?.map((industry: Industry) => {
                 const Icon = iconMap[industry.icon] || Shield;
                 return (
-                  <motion.div key={industry.id} variants={item}>
+                  <motion.div key={industry.id} variants={item} className="h-full">
                     <button
                       onClick={() => { setSelectedIndustryId(industry.id); setRadarParentId(null); }}
-                      className="w-full text-left bg-card border shadow-sm p-6 rounded-none hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
+                      className="w-full h-full text-left bg-card border shadow-sm p-6 rounded-none hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer flex items-start gap-4"
                     >
-                      <div className="flex items-start gap-4">
-                        <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-                          <Icon className="w-6 h-6" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-xl font-serif text-foreground mb-1">{industry.name}</h3>
-                          <p className="text-sm text-muted-foreground line-clamp-3">{industry.description}</p>
-                          <div className="flex items-center gap-2 mt-4 text-primary text-sm font-medium">
-                            {industry.capabilityCount} capabilities
-                            <ChevronRight className="w-4 h-4" />
-                          </div>
+                      <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors shrink-0">
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1 flex flex-col h-full min-h-[7.5rem]">
+                        <h3 className="text-xl font-serif text-foreground mb-1">{industry.name}</h3>
+                        <p className="text-sm text-muted-foreground line-clamp-3">{industry.description}</p>
+                        <div className="flex items-center gap-2 mt-auto pt-4 text-primary text-sm font-medium">
+                          {industry.capabilityCount} capabilities
+                          <ChevronRight className="w-4 h-4" />
                         </div>
                       </div>
                     </button>
