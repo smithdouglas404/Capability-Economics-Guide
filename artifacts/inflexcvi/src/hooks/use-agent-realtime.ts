@@ -79,8 +79,8 @@ export function useAgentRealtime<T extends { type: string } = AgentEvent>(
 
   const events = useMemo<T[]>(() => {
     const buffered = messages.all
-      .map((m) => m.data as T)
-      .filter((e): e is T => Boolean(e && typeof (e as { type?: unknown }).type === "string"));
+      .map((m: { data: unknown }) => m.data as T)
+      .filter((e: T): e is T => Boolean(e && typeof (e as { type?: unknown }).type === "string"));
     const filtered = filter ? buffered.filter(filter) : buffered;
     // Newest-first to match the old SSE buffer ordering.
     return filtered.slice(-maxBuffered).reverse();
