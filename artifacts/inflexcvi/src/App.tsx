@@ -90,6 +90,7 @@ import WorkbenchPage from "@/pages/workbench";
 import PatternsPage from "@/pages/patterns";
 import DisruptionPage from "@/pages/disruption";
 import DisruptionIndexPage from "@/pages/disruption-index";
+import DisruptionLabPage from "@/pages/disruption-lab";
 import SecurityPage from "@/pages/security";
 import DemoPage from "@/pages/demo";
 import MarketplaceWorkspacePage from "@/pages/marketplace-workspace";
@@ -260,6 +261,7 @@ function Router() {
       <Route path="/patterns/:slug" component={PatternsPage} />
       <Route path="/disruption" component={DisruptionPage} />
       <Route path="/disruption-index" component={DisruptionIndexPage} />
+      <Route path="/disruption-lab" component={DisruptionLabPage} />
       <Route path="/dvx" component={DisruptionPage} />
       <Route path="/security" component={SecurityPage} />
       <Route path="/demo">{() => <RequireAuth component={DemoPage} />}</Route>
