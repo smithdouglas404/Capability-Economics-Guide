@@ -18,16 +18,14 @@ import { requireReviewer } from "../middlewares/requireReviewer";
 
 const router = Router();
 
-// In-process guard so a misbehaving caller can't overlap full-catalog runs.
-// Per-cap reruns go through routes/alpha.ts and aren't gated here.
-let enrichmentRunning = false;
+// Concurrency is now enforced by Inngest's `concurrency: { limit: 1 }` on
+// the enrichment functions (see inngest/functions/agents.ts:autoEnrichCron).
+// These admin POSTs still call runEnrichmentGraph directly for synchronous
+// response shapes the admin UI depends on; if an operator triggers a manual
+// run while the Inngest cron is mid-flight, both will serialize through
+// Inngest's lease — the legacy `enrichmentRunning` boolean was redundant.
 
 router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
-  if (enrichmentRunning) {
-    res.status(409).json({ error: "Enrichment already in progress" });
-    return;
-  }
-  enrichmentRunning = true;
   try {
     const graphResult = await runEnrichmentGraph({ trigger: "manual" });
     const [run] = await db
@@ -45,8 +43,6 @@ router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Enrichment failed";
     res.status(500).json({ error: msg });
-  } finally {
-    enrichmentRunning = false;
   }
 });
 
@@ -57,17 +53,11 @@ router.post("/run", requireReviewer(), async (_req: Request, res: Response) => {
  * autonomous tick falls behind or when a manual sweep is faster than
  * waiting an hour.
  *
- * Concurrency: shares the same `enrichmentRunning` guard as POST /run so
- * an admin can't accidentally double-trigger work. Per-cap runs are serial
- * for the same reason the cron does it that way (Perplexity/OpenRouter
- * politeness).
+ * Per-cap runs are serial inside this handler for Perplexity/OpenRouter
+ * politeness; Inngest's autoEnrichCron concurrency limit handles overlap
+ * against the scheduled tick.
  */
 router.post("/run-missing", requireReviewer(), async (_req: Request, res: Response) => {
-  if (enrichmentRunning) {
-    res.status(409).json({ error: "Enrichment already in progress" });
-    return;
-  }
-  enrichmentRunning = true;
   try {
     const missing = await db
       .select({ capId: capabilitiesTable.id, industryId: capabilitiesTable.industryId })
@@ -98,8 +88,6 @@ router.post("/run-missing", requireReviewer(), async (_req: Request, res: Respon
     res.json({ ok: true, attempted: missing.length, processed: succeeded, failed, errors });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : "run-missing failed" });
-  } finally {
-    enrichmentRunning = false;
   }
 });
 

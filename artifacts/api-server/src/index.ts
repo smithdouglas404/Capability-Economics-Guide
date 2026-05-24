@@ -65,8 +65,8 @@ app.listen(port, (err) => {
 
   // Also clean up the legacy LangGraph enrichment_runs table — any row with
   // status="running" and no completedAt is from a Node process that died
-  // mid-run (most often a redeploy). The in-memory `enrichmentRunning`
-  // guard resets on boot, so any such row is by definition stale.
+  // mid-run (most often a redeploy). Inngest's concurrency:1 lease prevents
+  // overlap on fresh boots, so any such pre-boot row is by definition stale.
   void (async () => {
     try {
       const stale = await db
