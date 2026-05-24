@@ -162,6 +162,25 @@ async function persistMintedToken(token: string, expiresIn: number): Promise<voi
         notifyEmail: process.env.ADMIN_NOTIFY_EMAIL ?? null,
       });
     }
+    // Emit `system.secret.expiring` so the Inngest function
+    // `foundryTokenExpiryAlert` can step.sleepUntil(expiresAt - 30min) and
+    // email the operator. Lazy-import to avoid pulling the inngest client
+    // into the auth module's static graph (this file is hot on every API
+    // call via getFoundryToken — keep the cold dep behind a runtime branch).
+    if (expiresIn > 0) {
+      try {
+        const { inngest } = await import("../../inngest/client");
+        const expiresAt = new Date(Date.now() + expiresIn * 1000);
+        inngest.send({
+          name: "system.secret.expiring",
+          data: { secretName: "foundry", expiresAt: expiresAt.toISOString() },
+        }).catch(err => {
+          logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-auth] inngest.send(system.secret.expiring) failed (non-fatal)");
+        });
+      } catch (err) {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-auth] failed to import inngest client for expiry event");
+      }
+    }
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-auth] Failed to persist minted token (continuing with in-memory only)");
   }

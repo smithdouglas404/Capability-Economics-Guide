@@ -25,6 +25,7 @@ import { recallMemories, storeMemory } from "./memory";
 import { findCorrelations, findRelated } from "./graphMemory";
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 import { logLlmCall } from "../llm-usage";
+import { inngest } from "../../inngest/client";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let _anthropic: AnthropicClient | null = null;
@@ -730,7 +731,11 @@ Severity rules: "critical" = immediate revenue or operational risk, "warning" = 
 
       await db.delete(capabilityInsightsTable).where(eq(capabilityInsightsTable.industryId, industry.id));
 
-      await Promise.all(insights.map(insight => {
+      // Insert and capture the new rows so we can emit a
+      // `agent.insight.created` Inngest event per insight — the event-driven
+      // recommendation-feedback function listens on this event and sleeps
+      // 60 days before scoring the recommendation's CVI outcome.
+      const insertedRows = (await Promise.all(insights.map(insight => {
         const capId = insight.capabilityFocus ? capNameMap.get(insight.capabilityFocus) ?? null : null;
         return db.insert(capabilityInsightsTable).values({
           industryId: industry.id,
@@ -741,10 +746,30 @@ Severity rules: "critical" = immediate revenue or operational risk, "warning" = 
           severity: insight.severity as "critical" | "warning" | "info",
           recommendation: insight.recommendation,
           metadata: { source: "perplexity+claude", model: "claude-haiku-4-5", generatedAt: new Date().toISOString() },
-        });
-      }));
+        }).returning({ id: capabilityInsightsTable.id, generatedAt: capabilityInsightsTable.generatedAt });
+      }))).flat();
 
-      return JSON.stringify({ success: true, industry: industrySlug, insightsGenerated: insights.length });
+      // Fire-and-forget: don't fail the tool if Inngest is unreachable. Only
+      // emit for rows that actually carry a recommendation — feedback scoring
+      // is a no-op without one.
+      const eventsToSend = insertedRows
+        .map((row, idx) => ({ row, recommendation: insights[idx]?.recommendation }))
+        .filter(({ recommendation }) => Boolean(recommendation))
+        .map(({ row }) => ({
+          name: "agent.insight.created",
+          data: {
+            insightId: row.id,
+            industrySlug,
+            createdAt: (row.generatedAt ?? new Date()).toISOString(),
+          },
+        }));
+      if (eventsToSend.length > 0) {
+        inngest.send(eventsToSend).catch(err => {
+          console.warn("[generateInsightsTool] inngest.send failed (non-fatal):", err instanceof Error ? err.message : err);
+        });
+      }
+
+      return JSON.stringify({ success: true, industry: industrySlug, insightsGenerated: insertedRows.length });
     } catch (err) {
       return JSON.stringify({ success: false, error: err instanceof Error ? err.message : String(err) });
     }

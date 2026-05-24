@@ -10,6 +10,7 @@ import {
   invalidateFoundryTokenCache,
 } from "../services/foundry/auth";
 import { logger } from "../lib/logger";
+import { inngest } from "../inngest/client";
 
 const router: IRouter = Router();
 
@@ -85,17 +86,43 @@ router.post("/admin/foundry/rotate-token", async (req: Request, res: Response) =
   const rotatedByUserId = auth?.userId ?? "shared_key_holder";
   const token = typeof req.body?.token === "string" ? req.body.token.trim() : null;
   const reason = typeof req.body?.reason === "string" ? req.body.reason.slice(0, 240) : null;
+  // Optional: operator may declare the new token's expiry, OR provide
+  // expiresInSeconds (e.g. when forwarding an OAuth response). Either is
+  // accepted; expiresAt wins if both present. Missing → no expiry event
+  // emitted (Inngest can't schedule a sleepUntil without a target time).
+  const rawExpiresAt = typeof req.body?.expiresAt === "string" ? req.body.expiresAt : null;
+  const rawExpiresInSec = typeof req.body?.expiresInSeconds === "number" ? req.body.expiresInSeconds : null;
 
   if (!token) {
     res.status(400).json({ error: "token is required" });
     return;
   }
 
+  let expiresAt: Date | null = null;
+  if (rawExpiresAt) {
+    const d = new Date(rawExpiresAt);
+    if (!Number.isNaN(d.getTime()) && d.getTime() > Date.now()) expiresAt = d;
+  } else if (rawExpiresInSec && rawExpiresInSec > 0) {
+    expiresAt = new Date(Date.now() + rawExpiresInSec * 1000);
+  }
+
   try {
     await rotateFoundryToken(token, rotatedByUserId, reason);
+    // Emit `system.secret.expiring` so the Inngest function
+    // `foundryTokenExpiryAlert` can step.sleepUntil(expiresAt - 30min) and
+    // then email the operator. Fire-and-forget — never fail the rotation if
+    // Inngest is unreachable.
+    if (expiresAt) {
+      inngest.send({
+        name: "system.secret.expiring",
+        data: { secretName: "foundry", expiresAt: expiresAt.toISOString() },
+      }).catch(err => {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[foundry-admin] inngest.send(system.secret.expiring) failed (non-fatal)");
+      });
+    }
     // Immediately trigger a recheck so the UI sees the new token is valid
     const result = await runFoundrySyncAwait("post-rotation recheck");
-    res.json({ ok: true, rotatedAt: new Date().toISOString(), syncResult: result });
+    res.json({ ok: true, rotatedAt: new Date().toISOString(), expiresAt: expiresAt?.toISOString() ?? null, syncResult: result });
   } catch (err) {
     logger.error({ err: err instanceof Error ? err.message : String(err) }, "[foundry-admin] rotate-token failed");
     res.status(500).json({ error: "Token rotation failed; see server logs" });

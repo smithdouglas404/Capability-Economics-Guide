@@ -315,6 +315,21 @@ Implementation: `artifacts/api-server/src/inngest/connect-worker.ts` calls `conn
 
 **Local secrets store**: `/home/runner/.claude/secrets/inngest-ai-genome.env` holds the generated EVENT_KEY + SIGNING_KEY + BASE_URL with `0600` perms. NOT committed. Source it from a Claude Code shell to recover values; rotate by running another `openssl rand` + `variableCollectionUpsert`.
 
+**`INNGEST_OWNS_*` cutover flags** — every Inngest function gates itself on a per-feature flag so legacy in-process timers and the Inngest-owned path can co-exist during cutover. Set the flag to `1` on the `capabilityeconomics` Railway service to hand ownership to Inngest; leave unset (or set to anything other than `"1"`) to keep the legacy setInterval / cron path active. Each flag also gates the matching `setInterval` skip in `artifacts/api-server/src/services/agent/scheduler.ts` so the same job never double-runs.
+- `INNGEST_OWNS_CVI` — `cvi-agent` cron (every 5 min)
+- `INNGEST_OWNS_MACRO_EVENT` — `macro-event-agent` cron (every 30 min)
+- `INNGEST_OWNS_DISRUPTION` — `disruption-agent` cron (hourly)
+- `INNGEST_OWNS_PEER_COOP` — `peer-coop-agent` cron (every 6 h)
+- `INNGEST_OWNS_STACK_OPTIMIZER` — `stack-optimizer-agent` cron (daily)
+- `INNGEST_OWNS_ONTOLOGY` — `ontology-agent` cron (every 4 h)
+- `INNGEST_OWNS_SYNTHESIS` — `synthesis-agent` event-driven (10-min debounce on 5 specialized-agent digest events). `INNGEST_SYNTHESIS_DAILY_FLOOR=1` additionally enables the legacy `0 6 * * *` cron as a safety floor.
+- `INNGEST_OWNS_TEMPORAL_SHIFT` — `temporal-shift-detector` cron (every 6 h)
+- `INNGEST_OWNS_MEMORY_SNAPSHOT` — `memory-relation-snapshot` cron (daily)
+- `INNGEST_OWNS_RECOMMENDATION_FEEDBACK` — `recommendation-feedback` event-driven; sleeps 60 days after `agent.insight.created` emitted by `generateInsightsTool` (services/agent/tools.ts), then scores one insight's CVI trajectory via `scoreRecommendationByInsightId`. Legacy bulk poll (`scoreRecommendationAccuracy`) remains in services/agent/recommendation-feedback.ts as the fallback.
+- `INNGEST_OWNS_FOUNDRY_ALERT` — `foundry-token-expiry-alert` event-driven; sleeps until `(expiresAt - 30min)` after `system.secret.expiring` emitted by `POST /api/admin/foundry/rotate-token` (when caller provides `expiresAt` / `expiresInSeconds`) or by the OAuth client_credentials mint path in services/foundry/auth.ts. Emails `system_secrets.notifyEmail` (with `ADMIN_NOTIFY_EMAIL` env fallback).
+
+All flags default OFF. The cutover order is per-feature — flipping one flag has no effect on the others.
+
 ### LangSmith — observability across both stacks
 
 When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
