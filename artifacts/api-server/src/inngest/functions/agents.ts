@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { withStep } from "../step-context";
 import { runAgent } from "../../services/agent/graph";
 import { runMacroEventAgent } from "../../services/macro-event-agent";
+import { runMacroEventAgentAgentKit } from "../../services/macro-event-agent-agentkit";
 import { runDisruptionAgent } from "../../services/disruption-agent";
 import { runPeerCoopAgent } from "../../services/peer-coop-agent";
 import { runStackOptimizerAgent } from "../../services/stack-optimizer-agent";
@@ -167,11 +168,11 @@ export const macroEventAgentCron = inngest.createFunction(
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_MACRO_EVENT")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_MACRO_EVENT=1 forces the legacy LangGraph
-    // path. Default (flag unset) runs LangGraph until the AgentKit version
-    // is wired up in a later commit of this migration.
+    // path. Default (flag unset) runs the AgentKit implementation.
     const useLangGraph = ownedBy("USE_LANGGRAPH_MACRO_EVENT");
-    void useLangGraph;
-    const result = await withStep(step, () => runMacroEventAgent());
+    const result = useLangGraph
+      ? await withStep(step, () => runMacroEventAgent())
+      : await withStep(step, () => runMacroEventAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/macro-event/digest-published",
       data: digestEventPayload("macro-event-agent", result),
