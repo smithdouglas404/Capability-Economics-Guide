@@ -101,6 +101,12 @@ async function buildAll() {
       "puppeteer-core",
       "electron",
       "pdfkit",
+      // Inngest Connect spawns a worker_thread whose entry point (`runner.js`)
+      // is resolved at runtime via `fileURLToPath(import.meta.url)` + sibling
+      // path. If `inngest` is bundled into our single dist/index.mjs, that
+      // sibling file doesn't exist and the worker crashloops silently.
+      // Externalizing ships the SDK from node_modules where runner.js lives.
+      "inngest",
     ],
     sourcemap: "linked",
     plugins: [
