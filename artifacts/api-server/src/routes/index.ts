@@ -18,6 +18,7 @@ import adminMigrateScheduledExportsRouter from "./admin-migrate-scheduled-export
 import adminEnrichmentRunsRouter from "./admin-enrichment-runs";
 import adminSeedDisruptionRouter from "./admin-seed-disruption";
 import disruptionIndexRouter from "./disruption-index";
+import disruptionLabRouter from "./disruption-lab";
 import forumsRouter from "./forums";
 import cviRouter from "./cvi";
 import dvxRouter from "./dvx";
@@ -128,6 +129,7 @@ router.use(adminMigrateScheduledExportsRouter);
 router.use(adminEnrichmentRunsRouter);
 router.use(adminSeedDisruptionRouter);
 router.use(disruptionIndexRouter);
+router.use(disruptionLabRouter);
 router.use(forumsRouter);
 router.use(cviRouter);
 router.use(dvxRouter);
