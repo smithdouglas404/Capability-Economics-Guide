@@ -1,3 +1,10 @@
+import { db } from "@workspace/db";
+import {
+  marketplaceListingsTable,
+  researchArtifactsTable,
+} from "@workspace/db";
+import { eq } from "drizzle-orm";
+import pino from "pino";
 import { inngest } from "../client";
 import {
   runOnboardingConcierge,
@@ -15,6 +22,8 @@ import {
   runCapabilityEnrichmentRetry,
   runAdminConfigProposer,
 } from "../../services/workflows";
+
+const logger = pino({ name: "inngest-workflows" });
 
 // Phase 4 — Inngest function wrappers around the 14 one-shot workflows.
 //
@@ -55,8 +64,26 @@ export const marketplaceSearchV2Fn = inngest.createFunction(
 
 export const listingModerationFn = inngest.createFunction(
   { ...cfg("workflow-listing-moderation"), triggers: [{ event: "workflow/listing-moderation" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runListingModeration(event.data as Parameters<typeof runListingModeration>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runListingModeration>[0];
+    const result = await step.run("run", () => runListingModeration(input));
+    if (result) {
+      await step.run("persist-moderation-hints", async () => {
+        await db.update(marketplaceListingsTable).set({
+          moderationHints: {
+            verdict: result.verdict,
+            riskFlags: result.riskFlags,
+            confidence: result.confidence,
+            rationale: result.rationale,
+            decidedAt: new Date().toISOString(),
+          },
+          updatedAt: new Date(),
+        }).where(eq(marketplaceListingsTable.id, input.listingId));
+      });
+      logger.info({ listingId: input.listingId, verdict: result.verdict, confidence: result.confidence }, "[inngest] listing-moderation verdict persisted");
+    }
+    return result;
+  },
 );
 
 export const kycFailureCounselorFn = inngest.createFunction(
@@ -73,8 +100,21 @@ export const paymentRecoveryFn = inngest.createFunction(
 
 export const capabilityReviewAssistFn = inngest.createFunction(
   { ...cfg("workflow-capability-review-assist"), triggers: [{ event: "workflow/capability-review-assist" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runCapabilityReviewAssist(event.data as Parameters<typeof runCapabilityReviewAssist>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runCapabilityReviewAssist>[0];
+    const result = await step.run("run", () => runCapabilityReviewAssist(input));
+    if (result?.payload) {
+      await step.run("persist-revision-prompts", async () => {
+        await db.insert(researchArtifactsTable).values({
+          capabilityId: input.capabilityId,
+          kind: "revision_prompts",
+          payload: result.payload as Record<string, unknown>,
+        });
+      });
+      logger.info({ capabilityId: input.capabilityId, confidence: result.payload.confidence }, "[inngest] review-assist revision prompts persisted");
+    }
+    return result;
+  },
 );
 
 export const researchPipelineFn = inngest.createFunction(

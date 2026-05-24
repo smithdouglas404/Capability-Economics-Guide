@@ -10,7 +10,7 @@ import { logAdminAction } from "../services/audit-log";
 import { logger } from "../lib/logger";
 import { sendListingApprovedEmail, sendListingRejectedEmail } from "../services/email";
 import { getClerkUserSummary } from "../services/clerk-user";
-import { runListingModeration } from "../services/workflows";
+import { inngest } from "../inngest/client";
 
 const router: IRouter = Router();
 
@@ -424,26 +424,22 @@ router.post("/marketplace/listings/:id/submit", async (req, res) => {
     updatedAt: new Date(),
   }).where(eq(marketplaceListingsTable.id, id)).returning();
 
-  // Fire the listing-moderation workflow in parallel — its callback
-  // writes `moderation_hints` JSONB on the listing for the manual reviewer's
-  // dashboard. Advisory only; the human queue stays authoritative. Wrapped
-  // in a void-promise so it doesn't block the response.
-  void (async () => {
-    try {
-      const result = await runListingModeration({
-        listingId: id,
-        title: existing.title,
-        description: existing.description ?? "",
-        sellerHistory: undefined, // TODO: enrich with seller history if useful
-        pdfText: undefined,       // TODO: pipe extracted PDF text when available
-      });
-      if (result) {
-        logger.info({ listingId: id, verdict: result.verdict, confidence: result.confidence }, "[marketplace] moderation verdict");
-      }
-    } catch (err) {
-      logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: id }, "[marketplace] moderation failed");
-    }
-  })();
+  // Fire the listing-moderation workflow via Inngest. The function persists
+  // its verdict to `marketplace_listings.moderation_hints` (advisory; the
+  // human queue stays authoritative). Inngest retries on failure and gives
+  // us dashboard visibility — better than the old void-promise pattern.
+  await inngest.send({
+    name: "workflow/listing-moderation",
+    data: {
+      listingId: id,
+      title: existing.title,
+      description: existing.description ?? "",
+      sellerHistory: undefined, // TODO: enrich with seller history if useful
+      pdfText: undefined,       // TODO: pipe extracted PDF text when available
+    },
+  }).catch((err) => {
+    logger.warn({ err: err instanceof Error ? err.message : String(err), listingId: id }, "[marketplace] failed to enqueue moderation event");
+  });
 
   res.json({ listing: updated });
 });
