@@ -95,7 +95,7 @@ interface SeedArchetype {
 const ARCHETYPES: SeedArchetype[] = [
   {
     slug: "uber",
-    name: "Uber playbook",
+    name: "Marketplace + latent-supply pattern (Uber-style)",
     summary: "GPS + smartphone + ratings unlock latent vehicle supply, replacing medallion gatekeeping with two-sided marketplace + dynamic pricing.",
     subscoreProfile: { assetFriction: 95, jtbdAbstractability: 85, enablingTechStrength: 90, trustReplaceability: 90, latentSupplyMultiplier: 95, marginAsymmetry: 75 },
     canonicalActions: [
@@ -106,12 +106,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Scale supply by recruiting individuals (not B2B onboarding)",
     ],
     exampleCompanies: ["Uber", "Lyft", "Didi", "Grab", "Bolt"],
-    narrativeTemplate: "{capability} in {industry} is currently gated by [credential/asset]. The Uber playbook attacks this by routing demand to latent supply via a smartphone app, replacing [credential] with verified ratings + algorithmic match. Expect a 10-30x supply expansion within 36 months once a credible operator launches.",
+    narrativeTemplate: "{capability} in {industry} is currently gated by [credential/asset]. The marketplace + latent-supply pattern (Uber-style) attacks this by routing demand to latent supply via a smartphone app, replacing [credential] with verified ratings + algorithmic match. Expect a 10-30x supply expansion within 36 months once a credible operator launches.",
     citations: ["https://hbr.org/2014/01/uber-and-the-economics-of-tipping-platforms"],
   },
   {
     slug: "airbnb",
-    name: "Airbnb playbook",
+    name: "Spare-capacity aggregation pattern (Airbnb-style)",
     summary: "Photography + escrow + verified ID unlock spare-capacity inventory (homes, rooms, time) that asset-heavy incumbents can't economically address.",
     subscoreProfile: { assetFriction: 90, jtbdAbstractability: 90, enablingTechStrength: 75, trustReplaceability: 95, latentSupplyMultiplier: 95, marginAsymmetry: 90 },
     canonicalActions: [
@@ -122,12 +122,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Expand from spare-capacity to dedicated supply once unit economics work",
     ],
     exampleCompanies: ["Airbnb", "Vrbo", "Outdoorsy", "Turo", "Sniff"],
-    narrativeTemplate: "{capability} in {industry} is owned by asset-heavy incumbents (real estate, fleet, inventory). The Airbnb playbook surfaces latent spare capacity — people willing to monetize an asset they already own — via standardized listings + software trust. Disruption window opens once verified-ID + escrow + insurance stack mature in the vertical.",
+    narrativeTemplate: "{capability} in {industry} is owned by asset-heavy incumbents (real estate, fleet, inventory). The spare-capacity aggregation pattern (Airbnb-style) surfaces latent spare capacity — people willing to monetize an asset they already own — via standardized listings + software trust. Disruption window opens once verified-ID + escrow + insurance stack mature in the vertical.",
     citations: ["https://www.nber.org/papers/w20830"],
   },
   {
     slug: "google",
-    name: "Google playbook",
+    name: "Algorithmic ranking replaces curation (Google-style)",
     summary: "Replace editorial / portal-mediated discovery with an algorithm that uses structural signal (links, behavior, semantic match) as quality.",
     subscoreProfile: { assetFriction: 70, jtbdAbstractability: 95, enablingTechStrength: 95, trustReplaceability: 85, latentSupplyMultiplier: 70, marginAsymmetry: 95 },
     canonicalActions: [
@@ -138,12 +138,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Expand the indexed surface (web → images → video → maps → real-world)",
     ],
     exampleCompanies: ["Google", "Perplexity", "OpenAI (chat)", "Spotify (discovery)"],
-    narrativeTemplate: "{capability} in {industry} relies on human editorial / portal-style curation. The Google playbook replaces that with algorithmic ranking using structural signal at index time. The job-to-be-done is recast as 'find the answer' rather than 'browse the directory.' Disruption is locked once the algorithm exceeds curator quality on the job's primary metric.",
+    narrativeTemplate: "{capability} in {industry} relies on human editorial / portal-style curation. The algorithmic-ranking pattern (Google-style) replaces that with structural signal at index time. The job-to-be-done is recast as 'find the answer' rather than 'browse the directory.' Disruption is locked once the algorithm exceeds curator quality on the job's primary metric.",
     citations: ["https://infolab.stanford.edu/pub/papers/google.pdf"],
   },
   {
     slug: "amazon",
-    name: "Amazon playbook",
+    name: "Infinite shelf + reviews + logistics (Amazon-style)",
     summary: "Infinite-shelf catalog + customer reviews + logistics density obviate physical retail's location-based moat.",
     subscoreProfile: { assetFriction: 95, jtbdAbstractability: 80, enablingTechStrength: 85, trustReplaceability: 85, latentSupplyMultiplier: 90, marginAsymmetry: 85 },
     canonicalActions: [
@@ -154,12 +154,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Open the platform to third-party sellers (marketplace flywheel)",
     ],
     exampleCompanies: ["Amazon", "Shopify (enabler)", "MercadoLibre", "Coupang", "JD.com"],
-    narrativeTemplate: "{capability} in {industry} is built around physical-store density + branded inventory. The Amazon playbook collapses this with infinite-shelf catalog + reviews + last-mile logistics. The incumbent's real-estate moat becomes a stranded asset. Watch for {industry} verticals where 3PL coverage + return-friendliness now match in-store experience.",
+    narrativeTemplate: "{capability} in {industry} is built around physical-store density + branded inventory. The infinite-shelf + reviews + logistics pattern (Amazon-style) collapses this with infinite-shelf catalog + reviews + last-mile logistics. The incumbent's real-estate moat becomes a stranded asset. Watch for {industry} verticals where 3PL coverage + return-friendliness now match in-store experience.",
     citations: ["https://www.amazon.com/p/feature/cuwwruopv6tukmm"],
   },
   {
     slug: "stripe",
-    name: "Stripe playbook",
+    name: "Single-API wrapper over legacy integration (Stripe-style)",
     summary: "Hide a multi-step legacy integration behind a one-line API; capture the volume that was lost to integration friction.",
     subscoreProfile: { assetFriction: 75, jtbdAbstractability: 95, enablingTechStrength: 85, trustReplaceability: 70, latentSupplyMultiplier: 85, marginAsymmetry: 80 },
     canonicalActions: [
@@ -170,12 +170,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Expand horizontally as the developer relationship deepens (billing → tax → identity → treasury)",
     ],
     exampleCompanies: ["Stripe", "Plaid", "Twilio", "Adyen", "Persona"],
-    narrativeTemplate: "{capability} in {industry} requires a developer to integrate with 3+ legacy systems. The Stripe playbook collapses that to a single API + sells bottom-up to engineering. Disruption is fast (12-24 months) because the buyer is a developer making a one-day decision, not a procurement org making a 9-month one.",
+    narrativeTemplate: "{capability} in {industry} requires a developer to integrate with 3+ legacy systems. The single-API wrapper pattern (Stripe-style) collapses that to a single API + sells bottom-up to engineering. Disruption is fast (12-24 months) because the buyer is a developer making a one-day decision, not a procurement org making a 9-month one.",
     citations: ["https://stripe.com/atlas/guides"],
   },
   {
     slug: "openai-chat",
-    name: "OpenAI / ChatGPT playbook",
+    name: "Foundation model vs trained labor (OpenAI-style)",
     summary: "Apply a foundation model to a knowledge-work capability previously staffed by junior experts; capture margin asymmetry against trained labor.",
     subscoreProfile: { assetFriction: 60, jtbdAbstractability: 90, enablingTechStrength: 100, trustReplaceability: 75, latentSupplyMultiplier: 75, marginAsymmetry: 95 },
     canonicalActions: [
@@ -186,12 +186,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Expand the job scope as trust accrues; eventually the human layer thins",
     ],
     exampleCompanies: ["Harvey (legal)", "Hippocratic AI (clinical)", "Cursor (code)", "Sierra (CX)", "Decagon"],
-    narrativeTemplate: "{capability} in {industry} is staffed by trained knowledge workers performing repetitive synthesis. The OpenAI/ChatGPT playbook wraps a foundation model in domain context and sells at 10-50x cost disadvantage to the incumbent. Disruption window is open NOW for any cap whose primary inputs are text/visual that a 2025-class LLM can read.",
+    narrativeTemplate: "{capability} in {industry} is staffed by trained knowledge workers performing repetitive synthesis. The foundation-model-vs-trained-labor pattern (OpenAI-style) wraps a foundation model in domain context and sells at 10-50x cost disadvantage to the incumbent. Disruption window is open NOW for any cap whose primary inputs are text/visual that a 2025-class LLM can read.",
     citations: ["https://openai.com/research/gpt-4", "https://hai.stanford.edu/news/ai-index-report-2024"],
   },
   {
     slug: "tesla",
-    name: "Tesla playbook",
+    name: "Software-defined product, vertically integrated (Tesla-style)",
     summary: "Skip the legacy product architecture entirely; rebuild from first principles using new enabling tech (software-defined, vertically integrated, OTA-updated).",
     subscoreProfile: { assetFriction: 95, jtbdAbstractability: 70, enablingTechStrength: 90, trustReplaceability: 60, latentSupplyMultiplier: 60, marginAsymmetry: 80 },
     canonicalActions: [
@@ -202,12 +202,12 @@ const ARCHETYPES: SeedArchetype[] = [
       "Use direct-to-consumer brand to capture the customer relationship",
     ],
     exampleCompanies: ["Tesla", "Rivian", "Joby", "Anduril", "Figure AI"],
-    narrativeTemplate: "{capability} in {industry} relies on legacy product architecture + multi-step distribution. The Tesla playbook rebuilds from first principles using software-defined product + vertical integration + DTC distribution. The incumbent can't follow without abandoning years of capex + channel relationships.",
+    narrativeTemplate: "{capability} in {industry} relies on legacy product architecture + multi-step distribution. The software-defined-product pattern (Tesla-style) rebuilds from first principles using software-defined product + vertical integration + DTC distribution. The incumbent can't follow without abandoning years of capex + channel relationships.",
     citations: ["https://www.tesla.com/elon-musk/biography"],
   },
   {
     slug: "netflix",
-    name: "Netflix playbook",
+    name: "Subscription + data flywheel + originals (Netflix-style)",
     summary: "Convert a transaction-priced product into an unlimited subscription, then use the data flywheel to produce original supply that incumbents can't access.",
     subscoreProfile: { assetFriction: 80, jtbdAbstractability: 85, enablingTechStrength: 80, trustReplaceability: 65, latentSupplyMultiplier: 70, marginAsymmetry: 75 },
     canonicalActions: [
@@ -218,7 +218,7 @@ const ARCHETYPES: SeedArchetype[] = [
       "Make personalized discovery the actual product, not the catalog",
     ],
     exampleCompanies: ["Netflix", "Spotify", "Disney+", "Adobe (Creative Cloud SaaS transition)"],
-    narrativeTemplate: "{capability} in {industry} is sold per-transaction or per-unit. The Netflix playbook repackages it as flat-rate subscription, drives engagement through personalization, and reinvests recurring revenue into proprietary supply. The incumbent's per-unit P&L can't follow.",
+    narrativeTemplate: "{capability} in {industry} is sold per-transaction or per-unit. The subscription + data-flywheel pattern (Netflix-style) repackages it as flat-rate subscription, drives engagement through personalization, and reinvests recurring revenue into proprietary supply. The incumbent's per-unit P&L can't follow.",
     citations: ["https://hbr.org/2018/01/the-netflix-recommender-system-algorithms-business-value-and-innovation"],
   },
 ];

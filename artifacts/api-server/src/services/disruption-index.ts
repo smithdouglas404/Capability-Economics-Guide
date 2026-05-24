@@ -104,18 +104,49 @@ export function computeComposite(subscores: DisruptionSubscoreProfile): number {
   return Math.max(0, Math.min(100, sum));
 }
 
-/** Cosine similarity on the 6-dim sub-score vector. Returns 0..1. */
+/**
+ * Pattern similarity — Pearson correlation on the 6-dim sub-score vector.
+ * Returns 0..1.
+ *
+ * Why not pure cosine: cosine on raw magnitudes gives every archetype 0.9+
+ * for any moderately-disruptable capability — when all sub-scores are
+ * elevated, every vector looks the same. The "top match" became a noisy
+ * race where #1 was only 1-2 pts ahead of #5.
+ *
+ * Pearson correlation matches the SHAPE of the vector — how each cap
+ * sub-score deviates from its mean, against how each archetype sub-score
+ * deviates from ITS mean. A cap matches Uber only when its profile spikes
+ * on the same dimensions Uber's profile spikes on (latent supply +
+ * asset friction), regardless of how high the magnitudes are overall.
+ * Result: top match is meaningfully #1, archetype with a uniform profile
+ * stops matching every cap, and the lab "what if I add this tech" mode
+ * produces sharper playbook shifts when the techs only move 1-2 sub-scores.
+ *
+ * Output is clamped to [0, 1] by mapping the [-1, 1] correlation through
+ * (r + 1) / 2 so the UI's "0-100% similarity" framing still reads
+ * sensibly (-1 perfect-opposite → 0%, 0 unrelated → 50%, +1 perfect → 100%).
+ * For most archetype-vs-cap comparisons r is positive; mapping is just an
+ * insurance policy against negative-correlation surprises.
+ */
 export function cosineSimilarity(a: DisruptionSubscoreProfile, b: DisruptionSubscoreProfile): number {
   const keys = Object.keys(DI_WEIGHTS) as Array<keyof DisruptionSubscoreProfile>;
-  let dot = 0, na = 0, nb = 0;
+  let sumA = 0, sumB = 0;
+  for (const k of keys) { sumA += a[k] ?? 0; sumB += b[k] ?? 0; }
+  const meanA = sumA / keys.length;
+  const meanB = sumB / keys.length;
+
+  let num = 0, denA = 0, denB = 0;
   for (const k of keys) {
-    const av = a[k] ?? 0, bv = b[k] ?? 0;
-    dot += av * bv;
-    na += av * av;
-    nb += bv * bv;
+    const da = (a[k] ?? 0) - meanA;
+    const db = (b[k] ?? 0) - meanB;
+    num += da * db;
+    denA += da * da;
+    denB += db * db;
   }
-  if (na === 0 || nb === 0) return 0;
-  return Math.max(0, Math.min(1, dot / (Math.sqrt(na) * Math.sqrt(nb))));
+  if (denA === 0 || denB === 0) return 0.5; // degenerate (flat vector) → neutral
+  const r = num / (Math.sqrt(denA) * Math.sqrt(denB));
+  // Map [-1, 1] → [0, 1] so the UI's "% similarity" framing still works.
+  return Math.max(0, Math.min(1, (r + 1) / 2));
 }
 
 /** Match a sub-score vector against every loaded archetype, returning sorted similarities. */
