@@ -9,6 +9,7 @@ import { runOntologyAgent } from "../../services/ontology-agent";
 import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit";
 import { runSynthesisAgent } from "../../services/synthesis-agent";
 import { autoEnrichTick } from "../../services/agent/scheduler";
+import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
 import { db, agentShadowRunsTable } from "@workspace/db";
 
 // Phase 2 — Inngest cron wrappers around the 7 LangGraph agents, now using
@@ -315,6 +316,30 @@ export const autoEnrichCron = inngest.createFunction(
   },
 );
 
+/**
+ * Disruption Vector Agent — computes the forward-looking Capability
+ * Disruption Index for 8 stale capabilities per cycle, publishes a
+ * "disruption frontier" digest to the shared store for synthesis-agent.
+ *
+ * Cadence: every 6 hours (matches the cost discipline noted in
+ * services/disruption-vector-agent.ts — ~$0.56/cycle Sonnet budget).
+ * Activate via INNGEST_OWNS_DISRUPTION_INDEX=1 on capabilityeconomics.
+ * No in-process setInterval counterpart — this agent is Inngest-only.
+ */
+export const disruptionVectorAgentCron = inngest.createFunction(
+  {
+    id: "agent.disruption-vector",
+    triggers: [{ cron: "0 */6 * * *" }],
+    concurrency: { limit: 1 },
+    retries: 2,
+  },
+  async ({ step }) => {
+    if (!ownedBy("INNGEST_OWNS_DISRUPTION_INDEX")) return { skipped: "flag-off" };
+    const result = await withStep(step, () => runDisruptionVectorAgent());
+    return { ok: true, toolCallCount: result.toolCallCount, durationMs: result.durationMs };
+  },
+);
+
 export const agentFunctions = [
   cviAgentCron,
   macroEventAgentCron,
@@ -326,4 +351,5 @@ export const agentFunctions = [
   synthesisAgentOnDigest,
   synthesisAgentDailyFloor,
   autoEnrichCron,
+  disruptionVectorAgentCron,
 ];
