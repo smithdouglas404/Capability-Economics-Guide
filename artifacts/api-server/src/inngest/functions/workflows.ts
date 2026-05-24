@@ -2,8 +2,10 @@ import { db } from "@workspace/db";
 import {
   marketplaceListingsTable,
   researchArtifactsTable,
+  capabilityAssessmentsTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { appendAgentArchive } from "../../services/agent/store";
 import pino from "pino";
 import { inngest } from "../client";
 import {
@@ -130,8 +132,56 @@ export const synthesisBriefComposerFn = inngest.createFunction(
 
 export const assessmentAnalyzerFn = inngest.createFunction(
   { ...cfg("workflow-assessment-analyzer"), triggers: [{ event: "workflow/assessment-analyzer" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runAssessmentAnalyzer(event.data as Parameters<typeof runAssessmentAnalyzer>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runAssessmentAnalyzer>[0];
+    const result = await step.run("run", () => runAssessmentAnalyzer(input));
+    if (!result?.payload) return result;
+
+    // Phase "start" persists clarifyingQuestions; phase "analyze" persists
+    // the full analysis blob + roadmap + confidenceScore + status, and also
+    // appends an archive entry for downstream agents. Each write goes
+    // through step.run so Inngest retries replay them idempotently.
+    if (input.phase === "start") {
+      const payload = result.payload as { capabilities?: Array<{ definition: string }> };
+      if (Array.isArray(payload.capabilities)) {
+        const qs = payload.capabilities.slice(0, 3).map((c) => c.definition);
+        await step.run("persist-assessment-start", async () => {
+          await db.update(capabilityAssessmentsTable)
+            .set({ clarifyingQuestions: qs })
+            .where(eq(capabilityAssessmentsTable.sessionId, input.sessionId));
+        });
+      }
+    } else {
+      const payload = result.payload as Record<string, unknown>;
+      const confidenceScore = (payload.confidenceScore as number) || 0;
+      const roadmap = (payload.roadmap as Record<string, unknown> | null) ?? null;
+      await step.run("persist-assessment-analyze", async () => {
+        await db.update(capabilityAssessmentsTable)
+          .set({ analysisResult: payload, roadmap, confidenceScore, status: "complete" })
+          .where(eq(capabilityAssessmentsTable.sessionId, input.sessionId));
+      });
+      await step.run("append-archive", async () => {
+        try {
+          const ctx = input.orgContext ?? {};
+          const memoryText = [
+            `Company: ${(ctx.companyName as string) || "Unknown"} | Industry: ${input.industryName || "Unknown"}`,
+            `Executive Summary: ${(payload.executiveSummary as string) || ""}`,
+            `Confidence: ${confidenceScore}/100`,
+            `Top gaps: ${((payload.gaps as Array<{ capability: string }>) || []).slice(0, 3).map((g) => g.capability).join(", ")}`,
+            `Top recommendations: ${((payload.topRecommendations as Array<{ title: string }>) || []).slice(0, 3).map((r) => r.title).join(", ")}`,
+          ].join("\n");
+          await appendAgentArchive(
+            memoryText,
+            { kind: "assessment_complete", sessionId: input.sessionId, confidenceScore },
+            "assessment-agent",
+          );
+        } catch (e) {
+          logger.warn({ err: e instanceof Error ? e.message : String(e) }, "[inngest] assessment-analyzer archive append failed");
+        }
+      });
+    }
+    return result;
+  },
 );
 
 export const industryBootstrapFn = inngest.createFunction(
