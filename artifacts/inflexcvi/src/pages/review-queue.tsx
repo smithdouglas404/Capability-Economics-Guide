@@ -382,7 +382,7 @@ function QueueRow({ item, onAction }: { item: QueueItem; onAction: () => void })
               <span className="text-muted-foreground shrink-0">{new Date(n.ts).toLocaleString()}</span>
               <span className="px-1.5 py-0.5 rounded bg-muted text-[10px]">{n.role}</span>
               {n.reviewer && (
-                <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 text-[10px]">{n.reviewer}</span>
+                <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[10px]">{n.reviewer}</span>
               )}
               <span>{n.comment}</span>
             </div>
@@ -425,7 +425,7 @@ function ReviewerBadge() {
   const label = user.fullName || user.primaryEmailAddress?.emailAddress || user.username || user.id;
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs px-2 py-1 rounded bg-blue-500/10 text-blue-700">Signed in as <b>{label}</b></span>
+      <span className="text-xs px-2 py-1 rounded bg-primary/10 text-primary">Signed in as <b>{label}</b></span>
       <Button variant="ghost" size="sm" onClick={() => signOut()} className="gap-1.5"><LogOut className="w-3.5 h-3.5" /> Sign out</Button>
     </div>
   );

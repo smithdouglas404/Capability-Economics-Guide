@@ -189,7 +189,7 @@ function SourceStatsPanel() {
         {data && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {tile("Total sources", data.totalSources.toLocaleString(), <Database className="w-3.5 h-3.5 text-muted-foreground" />, "all-time triangulations")}
-            {tile("Queried (7d)", data.queriedLast7d.toLocaleString(), <RefreshCw className="w-3.5 h-3.5 text-blue-500" />, "rows added this week")}
+            {tile("Queried (7d)", data.queriedLast7d.toLocaleString(), <RefreshCw className="w-3.5 h-3.5 text-primary" />, "rows added this week")}
             {tile(
               "Most active source",
               <span className="text-base">{data.mostActiveSource ?? "—"}</span>,

@@ -100,7 +100,7 @@ const DOMINANT_LABEL: Record<string, string> = {
 function diTone(score: number): string {
   if (score >= 75) return "text-rose-500 bg-rose-500/10 border-rose-500/40";
   if (score >= 50) return "text-amber-500 bg-amber-500/10 border-amber-500/40";
-  if (score >= 25) return "text-blue-500 bg-blue-500/10 border-blue-500/40";
+  if (score >= 25) return "text-primary bg-primary/10 border-primary/40";
   return "text-emerald-500 bg-emerald-500/10 border-emerald-500/40";
 }
 

@@ -39,7 +39,7 @@ const MODULES: Module[] = [
 ];
 
 const TONE: Record<Module["tone"], { ring: string; bg: string; label: string; dot: string }> = {
-  blue:    { ring: "border-blue-500/60",    bg: "bg-blue-500/10",    label: "text-blue-500",    dot: "bg-blue-500" },
+  blue:    { ring: "border-primary/60",    bg: "bg-primary/10",    label: "text-primary",    dot: "bg-primary" },
   amber:   { ring: "border-amber-500/60",   bg: "bg-amber-500/10",   label: "text-amber-500",   dot: "bg-amber-500" },
   violet:  { ring: "border-violet-500/60",  bg: "bg-violet-500/10",  label: "text-violet-500",  dot: "bg-violet-500" },
   emerald: { ring: "border-emerald-500/60", bg: "bg-emerald-500/10", label: "text-emerald-500", dot: "bg-emerald-500" },
@@ -169,7 +169,7 @@ const STATUS_TONE: Record<ServiceStatus, { icon: React.ComponentType<{ className
   degraded:        { icon: AlertTriangle, cls: "text-amber-500",   label: "degraded" },
   down:            { icon: AlertTriangle, cls: "text-rose-500",    label: "down" },
   not_configured:  { icon: MinusCircle,   cls: "text-muted-foreground", label: "not configured" },
-  initializing:    { icon: Loader2,       cls: "text-blue-500",    label: "initializing" },
+  initializing:    { icon: Loader2,       cls: "text-primary",    label: "initializing" },
 };
 
 /**

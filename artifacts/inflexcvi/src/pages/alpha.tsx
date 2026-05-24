@@ -79,7 +79,7 @@ function QuadrantChip({ q }: { q: string | null | undefined }) {
   if (!q) return <span className="text-xs text-muted-foreground">—</span>;
   const color = q === "hot" ? "bg-red-500/15 text-red-600 border-red-500/30"
     : q === "emerging" ? "bg-amber-500/15 text-amber-600 border-amber-500/30"
-    : q === "cooling" ? "bg-blue-500/15 text-blue-600 border-blue-500/30"
+    : q === "cooling" ? "bg-primary/15 text-primary border-primary/30"
     : "bg-muted/40 text-muted-foreground border-border/40";
   return <Badge className={`${color} border capitalize text-xs font-medium`} variant="outline">{q.replace("_", " ")}</Badge>;
 }
@@ -597,7 +597,7 @@ function EvarSparkline({ curve, maxEvar }: { curve: { month: number; evar: numbe
       <path d={linePath} fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-600" />
       {[12, 24, 36].map(m => (
         <g key={m}>
-          <line x1={xs(m)} y1={h - pad} x2={xs(m)} y2={pad} stroke="currentColor" strokeDasharray="2 3" className="text-muted-foreground/60/40" />
+          <line x1={xs(m)} y1={h - pad} x2={xs(m)} y2={pad} stroke="currentColor" strokeDasharray="2 3" className="text-muted-foreground/40" />
           <text x={xs(m)} y={h - 4} textAnchor="middle" className="fill-muted-foreground text-[9px]">{m}mo</text>
         </g>
       ))}
@@ -827,7 +827,7 @@ function NarrativeColumn({ title, subtitle, items, color }: { title: string; sub
                 {it.sources.slice(0, 3).map((s, i) => {
                   let host = s;
                   try { host = new URL(s).hostname; } catch { host = s.substring(0, 40); }
-                  return <a key={i} href={s} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline truncate max-w-[160px]">{host}</a>;
+                  return <a key={i} href={s} target="_blank" rel="noreferrer" className="text-[10px] text-primary hover:underline truncate max-w-[160px]">{host}</a>;
                 })}
               </div>
             )}
@@ -868,7 +868,7 @@ type MoatResp = { items: MoatItem[]; coverage: { scored: number; totalCapabiliti
 function tierBadge(tier: string) {
   const map: Record<string, string> = {
     fortress: "bg-emerald-500/15 text-emerald-700 border-emerald-500/40",
-    defensible: "bg-blue-500/15 text-blue-700 border-blue-500/40",
+    defensible: "bg-primary/15 text-primary border-primary/40",
     contestable: "bg-amber-500/15 text-amber-700 border-amber-500/40",
     exposed: "bg-red-500/15 text-red-700 border-red-500/40",
   };
@@ -945,7 +945,7 @@ function MoatTab() {
 function MoatBar({ c }: { c: MoatItem["components"] }) {
   const segs: Array<{ label: string; val: number | null; color: string; w: number }> = [
     { label: "Half-life", val: c.halfLifeContribution, color: "bg-emerald-500", w: 0.30 },
-    { label: "Depth", val: c.dependencyDepth, color: "bg-blue-500", w: 0.25 },
+    { label: "Depth", val: c.dependencyDepth, color: "bg-primary", w: 0.25 },
     { label: "Impact", val: c.economicImpact, color: "bg-purple-500", w: 0.20 },
     { label: "Sticky", val: c.stickiness, color: "bg-amber-500", w: 0.15 },
     { label: "Conc.", val: c.supplierConcentration, color: "bg-pink-500", w: 0.10 },
@@ -1253,7 +1253,7 @@ function TalentTab() {
                     <div className="font-medium text-sm">{it.capabilityName}</div>
                     <div className="text-xs text-muted-foreground">{it.industryName} • {it.companies} cos · {Math.round(it.masteryRatio * 100)}% mastery</div>
                   </div>
-                  <Badge variant="outline" className={`text-[10px] capitalize ${it.status === "bottleneck" ? "border-red-500/50 text-red-600" : it.status === "saturated" ? "border-border text-muted-foreground" : it.status === "competitive" ? "border-amber-500/50 text-amber-600" : "border-blue-500/50 text-blue-600"}`}>{it.status}</Badge>
+                  <Badge variant="outline" className={`text-[10px] capitalize ${it.status === "bottleneck" ? "border-red-500/50 text-red-600" : it.status === "saturated" ? "border-border text-muted-foreground" : it.status === "competitive" ? "border-amber-500/50 text-amber-600" : "border-primary/50 text-primary"}`}>{it.status}</Badge>
                 </div>
               </button>
             ))}

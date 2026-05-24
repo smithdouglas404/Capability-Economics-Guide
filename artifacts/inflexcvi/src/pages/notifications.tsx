@@ -46,7 +46,7 @@ const TOPIC_META: Record<string, { label: string; icon: typeof Bell; tone: strin
   post:        { label: "Posts",         icon: FileText,    tone: "text-violet-700"  },
   mention:     { label: "Mentions",      icon: AtSign,      tone: "text-emerald-700" },
   recommendation: { label: "Recommendations", icon: Award,  tone: "text-amber-700"   },
-  announcement: { label: "Announcements", icon: Megaphone,  tone: "text-blue-700"    },
+  announcement: { label: "Announcements", icon: Megaphone,  tone: "text-primary"    },
 };
 const TOPIC_ORDER = ["capability", "regulation", "connection", "post", "mention", "recommendation", "announcement"];
 const FALLBACK_TOPIC = { label: "Other", icon: Inbox, tone: "text-muted-foreground" };

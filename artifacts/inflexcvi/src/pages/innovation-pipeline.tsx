@@ -8,7 +8,7 @@ import { Rocket, Plus, ChevronRight, Trash2, CheckCircle, XCircle, Lightbulb, Fl
 const API_BASE = "/api";
 
 const STAGES = [
-  { key: "ideation", label: "Ideation", icon: Lightbulb, color: "text-blue-500" },
+  { key: "ideation", label: "Ideation", icon: Lightbulb, color: "text-primary" },
   { key: "pilot", label: "Pilot", icon: FlaskConical, color: "text-amber-500" },
   { key: "scale", label: "Scale", icon: Scaling, color: "text-primary" },
   { key: "mature", label: "Mature", icon: Crown, color: "text-emerald-500" },

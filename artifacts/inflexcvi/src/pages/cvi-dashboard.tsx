@@ -662,7 +662,7 @@ function CVIAnalysisDialog({ cei, historyData, macroEvents, freshness, exemplars
             <p>
               <strong>Two different questions, two different numbers.</strong> Don't confuse them.
             </p>
-            <div className="bg-blue-50 dark:bg-blue-950/30 border-l-4 border-blue-500 p-3 space-y-1">
+            <div className="bg-primary dark:bg-primary/30 border-l-4 border-primary p-3 space-y-1">
               <div className="font-semibold">A. "Are humanity's capabilities good enough?" → look at underlying scores.</div>
               <div>
                 Average leaf capability across {leafCount} measurable sub-capabilities sits in the
@@ -1194,7 +1194,7 @@ export default function CVIDashboard() {
                                       {t.affectedIndustryNames.length > 0 && (
                                         <div className="flex flex-wrap gap-1">
                                           {t.affectedIndustryNames.map(n => (
-                                            <span key={n} className="text-[10px] px-1 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 rounded">{n.split(" ")[0]}</span>
+                                            <span key={n} className="text-[10px] px-1 py-0.5 bg-primary text-primary dark:bg-primary/40 dark:text-primary rounded">{n.split(" ")[0]}</span>
                                           ))}
                                         </div>
                                       )}
@@ -1488,7 +1488,7 @@ export default function CVIDashboard() {
                                     </td>
                                     <td className="py-1.5 pr-3">
                                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                        ev.source === "world_scan" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+                                        ev.source === "world_scan" ? "bg-primary text-primary dark:bg-primary/40 dark:text-primary"
                                         : ev.source === "catalog" ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
                                         : "bg-muted/50 text-muted-foreground dark:bg-muted dark:text-muted-foreground"
                                       }`}>
@@ -1514,7 +1514,7 @@ export default function CVIDashboard() {
 
                       <div className="mt-3 px-3 py-2.5 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
                         <div className="flex items-start gap-2">
-                          <Info className="w-3 h-3 mt-0.5 shrink-0 text-blue-600" />
+                          <Info className="w-3 h-3 mt-0.5 shrink-0 text-primary" />
                           <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="font-semibold text-foreground">How shocks apply</div>
                             <div className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 leading-relaxed">

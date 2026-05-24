@@ -90,7 +90,7 @@ function ScoreBar({ value, color = "bg-primary" }: { value: number; color?: stri
 
 const QUAD_LABELS: Record<QuadPoint["quadrant"], { label: string; color: string }> = {
   hot: { label: "Hot", color: "bg-red-500" },
-  emerging: { label: "Emerging", color: "bg-blue-500" },
+  emerging: { label: "Emerging", color: "bg-primary" },
   cooling: { label: "Cooling", color: "bg-amber-500" },
   table_stakes: { label: "Table Stakes", color: "bg-muted-foreground/50" },
 };
@@ -398,7 +398,7 @@ export default function Companies() {
             ingestStatus.errors.length > 0 ? "border-l-amber-500" : "border-l-emerald-500"
           }`}>
             <CardContent className="p-4 flex items-start gap-3">
-              {ingestStatus.state === "running" && <Loader2 className="w-4 h-4 mt-0.5 animate-spin text-blue-500 shrink-0" />}
+              {ingestStatus.state === "running" && <Loader2 className="w-4 h-4 mt-0.5 animate-spin text-primary shrink-0" />}
               {ingestStatus.state === "failed" && <AlertCircle className="w-4 h-4 mt-0.5 text-red-500 shrink-0" />}
               {ingestStatus.state === "done" && (ingestStatus.errors.length > 0
                 ? <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
@@ -434,7 +434,7 @@ export default function Companies() {
                   <div className="text-sm space-y-1">
                     <div className="font-medium">
                       Ingestion complete · <span className="text-emerald-700">{ingestStatus.inserted} new</span>
-                      {", "}<span className="text-blue-700">{ingestStatus.updated} updated</span>
+                      {", "}<span className="text-primary">{ingestStatus.updated} updated</span>
                       {ingestStatus.errors.length > 0 && <>, <span className="text-amber-700">{ingestStatus.errors.length} issue{ingestStatus.errors.length === 1 ? "" : "s"}</span></>}
                     </div>
                     {ingestStatus.errors.length > 0 && (
@@ -762,7 +762,7 @@ export default function Companies() {
                   <div className="absolute top-2 left-2 text-xs font-medium text-amber-600">Cooling</div>
                   <div className="absolute top-2 right-12 text-xs font-medium text-red-600">Hot</div>
                   <div className="absolute bottom-8 left-2 text-xs font-medium text-muted-foreground">Table-stakes</div>
-                  <div className="absolute bottom-8 right-12 text-xs font-medium text-blue-600">Emerging</div>
+                  <div className="absolute bottom-8 right-12 text-xs font-medium text-primary">Emerging</div>
                   {(() => {
                     // X-axis is velocity, but the static ±0.5 range that was
                     // assumed here doesn't match reality — current velocities

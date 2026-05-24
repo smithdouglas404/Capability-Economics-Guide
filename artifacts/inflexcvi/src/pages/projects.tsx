@@ -22,7 +22,7 @@ const iconMap: Record<string, React.ElementType> = {
 
 const categoryColors: Record<string, string> = {
   "Artificial Intelligence": "bg-purple-100 text-purple-700 border-purple-200",
-  "Application Modernization": "bg-blue-100 text-blue-700 border-blue-200",
+  "Application Modernization": "bg-primary text-primary border-primary",
   "Mainframe Modernization": "bg-orange-100 text-orange-700 border-orange-200",
   "Data Modernization": "bg-emerald-100 text-emerald-700 border-emerald-200",
 };

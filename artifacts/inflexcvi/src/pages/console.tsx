@@ -295,7 +295,7 @@ function BipartiteSpider({ data }: { data: GraphData }) {
       </div>
       <div className="text-xs text-muted-foreground mt-2 flex gap-4 flex-wrap">
         <span><span className="inline-block w-3 h-0.5 bg-amber-500 mr-1" />Core</span>
-        <span><span className="inline-block w-3 h-0.5 bg-blue-500 mr-1" />Adjacent</span>
+        <span><span className="inline-block w-3 h-0.5 bg-primary mr-1" />Adjacent</span>
         <span><span className="inline-block w-3 h-0.5 bg-emerald-500 mr-1" />Emerging</span>
         <span className="ml-auto">Company size = FEVI score</span>
       </div>
