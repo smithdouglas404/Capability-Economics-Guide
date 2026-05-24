@@ -45,6 +45,7 @@ export default function ExportsPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [tier, setTier] = useState<string>("discovery");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   // Scheduled-export ("email me a weekly digest") state.
   const [subs, setSubs] = useState<ScheduledExportSubscription[]>([]);
@@ -61,10 +62,11 @@ export default function ExportsPage() {
       try {
         const token = await getToken().catch(() => null);
         const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+        const timeoutSignal = AbortSignal.timeout(10_000);
         const [dRes, bRes, sRes] = await Promise.all([
-          fetch(`${API_BASE}/exports/datasets`, { headers }),
-          fetch(`${API_BASE}/credits/balance`, { headers }),
-          fetch(`${API_BASE}/me/scheduled-exports`, { headers }),
+          fetch(`${API_BASE}/exports/datasets`, { headers, signal: timeoutSignal }),
+          fetch(`${API_BASE}/credits/balance`, { headers, signal: timeoutSignal }),
+          fetch(`${API_BASE}/me/scheduled-exports`, { headers, signal: timeoutSignal }),
         ]);
         if (!cancelled && dRes.ok) {
           const j = await dRes.json() as { datasets: Dataset[] };
@@ -83,6 +85,8 @@ export default function ExportsPage() {
             setFormat(first.format);
           }
         }
+      } catch (err) {
+        if (!cancelled) setLoadError(err instanceof Error && err.name === "TimeoutError" ? "Loading timed out after 10s. Refresh to try again." : "Couldn't load datasets. Refresh to try again.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -303,6 +307,11 @@ export default function ExportsPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading datasets…
           </div>
+        ) : loadError ? (
+          <div className="border border-destructive/30 bg-destructive/[0.04] p-4 rounded-none">
+            <p className="text-sm text-foreground">{loadError}</p>
+            <button onClick={() => window.location.reload()} className="mt-3 px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-border hover:bg-muted">Retry</button>
+          </div>
         ) : (
           <div className="grid gap-4">
             {datasets.map(ds => (
@@ -327,23 +336,28 @@ export default function ExportsPage() {
                     CSV
                     {!canCsv && <Lock className="w-3 h-3 ml-2" />}
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-none"
-                    disabled={!canParquet || busy === `${ds.id}.parquet`}
-                    onClick={() => download(ds.id, "parquet")}
-                    data-testid={`button-parquet-${ds.id}`}
-                  >
-                    {busy === `${ds.id}.parquet` ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-                    Parquet
-                    {!canParquet && <Lock className="w-3 h-3 ml-2" />}
-                  </Button>
+                  {canParquet && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-none"
+                      disabled={busy === `${ds.id}.parquet`}
+                      onClick={() => download(ds.id, "parquet")}
+                      data-testid={`button-parquet-${ds.id}`}
+                    >
+                      {busy === `${ds.id}.parquet` ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                      Parquet
+                    </Button>
+                  )}
                   {!canCsv && (
-                    <span className="text-xs text-muted-foreground">CSV requires Briefing tier or higher.</span>
+                    <a href="/membership" className="text-xs text-primary hover:underline">
+                      CSV + Parquet require Briefing tier — upgrade →
+                    </a>
                   )}
                   {canCsv && !canParquet && (
-                    <span className="text-xs text-muted-foreground">Parquet requires Platform / Data License.</span>
+                    <a href="/membership" className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+                      Parquet available on Platform / Data License — upgrade →
+                    </a>
                   )}
                 </CardContent>
               </Card>

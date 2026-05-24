@@ -313,7 +313,8 @@ export default function DisruptionPage() {
               )}
               {!historicalLoading && historical?.outsideHistoryWindow && (
                 <div className="text-xs text-muted-foreground italic">
-                  No capability-history snapshots available {playback} days ago — the rotation hasn't backfilled that far yet.
+                  Capability snapshots are retained for the trailing 120 days — {playback} days ago falls outside that window.
+                  Pick a shorter playback to see entered/exited deltas.
                 </div>
               )}
               {!historicalLoading && historical && !historical.outsideHistoryWindow && diff && (
@@ -428,8 +429,12 @@ export default function DisruptionPage() {
           </div>
           {watch.rows.length === 0 ? (
             <Card className="rounded-none border-border/60">
-              <CardContent className="p-6 text-sm text-muted-foreground text-center">
-                No capabilities currently meet the disruption-watch criteria. Either the index is quiet, or the rotation needs a refresh.
+              <CardContent className="p-6 text-sm text-muted-foreground text-center space-y-2">
+                <p>No capabilities currently meet the disruption-watch criteria.</p>
+                <p className="text-xs">
+                  Active thresholds: band ≥ <strong>{watch.filters.minBand}</strong>, velocity ≥ <strong>{watch.filters.minVelocity}</strong>, age ≤ <strong>{watch.filters.maxAgeMonths}mo</strong>.
+                  An empty list typically means the index is in a quiet window — most capabilities are below the disruption-band cutoff or the rotation hasn't refreshed since the last meaningful shock.
+                </p>
               </CardContent>
             </Card>
           ) : (

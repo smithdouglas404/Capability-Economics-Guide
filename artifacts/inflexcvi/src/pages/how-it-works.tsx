@@ -167,7 +167,15 @@ function MethodologyQABox() {
           </Button>
         </form>
         {error && (
-          <p className="text-xs text-rose-500">Couldn&apos;t reach the Q&amp;A service: {error}</p>
+          <div className="border border-rose-500/30 bg-rose-500/[0.05] p-3 rounded-none space-y-1">
+            <p className="text-xs text-rose-600 dark:text-rose-400">
+              Couldn&apos;t reach the Q&amp;A service ({error}). The platform&apos;s synthesis agent may be cold-starting.
+            </p>
+            <p className="text-xs">
+              Try again in a few seconds, or use the full assistant at{" "}
+              <a href="/nl-query" className="underline">/nl-query</a> which has retry + history.
+            </p>
+          </div>
         )}
         {answer && (
           <div className="mt-2 px-4 py-3 rounded-none border border-border/60 bg-muted/40 text-sm leading-relaxed whitespace-pre-wrap">

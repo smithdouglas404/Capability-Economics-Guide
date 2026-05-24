@@ -502,6 +502,21 @@ export default function Methodology() {
                 pull the 12-month tail closer to the full margin. The same logic drives the deal-time-value
                 figure on every capability detail page.
               </p>
+              <div className="mt-4 p-4 border border-accent/40 bg-accent/[0.04] rounded-none">
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent mb-2">See it on real data</div>
+                <p className="text-sm leading-relaxed">
+                  This formula is what drives every score on the platform. Pick a populated capability and the same math runs against live source triangulations, dependency-edge EVaRs, and posterior credible intervals:
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  <a href="/capability/1" className="text-xs px-3 py-1.5 border border-border hover:bg-muted">Precision Underwriting (Insurance)</a>
+                  <a href="/capability/2" className="text-xs px-3 py-1.5 border border-border hover:bg-muted">Rapid Claims Resolution (Insurance)</a>
+                  <a href="/capability/11" className="text-xs px-3 py-1.5 border border-border hover:bg-muted">Clinical Decision Support (Healthcare)</a>
+                  <a href="/capability/41" className="text-xs px-3 py-1.5 border border-border hover:bg-muted">AI/ML Operations (Technology)</a>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Each opens the capability detail page — the &ldquo;Model vs sources&rdquo; narrative + cascade impact panel are computed by the formulas above. <a href="/scorecard" className="underline">/scorecard</a> applies the same math to every capability in an industry simultaneously.
+                </p>
+              </div>
             </Section>
 
             <Section id="limits" icon={Scale} title="Limits & caveats">

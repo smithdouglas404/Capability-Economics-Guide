@@ -87,7 +87,9 @@ export default function ArchitecturePage() {
         <CardContent className="p-6">
           <div className="relative w-full max-w-2xl mx-auto aspect-square">
             {/* SVG edges layer */}
-            <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" preserveAspectRatio="none" aria-hidden>
+            <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full" preserveAspectRatio="none" role="img" aria-label="Pentagram diagram showing the five core Inflexcvi modules connected by shared ontology and memory edges">
+              <title>Inflexcvi platform module map</title>
+              <desc>Five interconnected modules — Capability Value Index, Disruption Watch, VCR (research), Alpha, Knowledge Graph — sharing a unified capability ontology + research memory layer.</desc>
               {edges.map(([a, b], i) => {
                 const A = polarToCss(MODULES[a].pos.angle, MODULES[a].pos.radius);
                 const B = polarToCss(MODULES[b].pos.angle, MODULES[b].pos.radius);
@@ -100,7 +102,9 @@ export default function ArchitecturePage() {
                     strokeWidth="0.25"
                     strokeDasharray="0.8 0.8"
                     className="text-muted-foreground/40"
-                  />
+                  >
+                    <title>{MODULES[a].label} ↔ {MODULES[b].label}</title>
+                  </line>
                 );
               })}
             </svg>

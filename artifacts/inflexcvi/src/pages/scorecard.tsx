@@ -527,11 +527,23 @@ export default function CapabilityScorecard() {
             </table>
           </div>
           {!loading && sortedByGap.length === 0 && (
-            <p className="text-center text-muted-foreground py-8">
-              {matrix.length === 0
-                ? "No reference organizations seeded for this industry yet."
-                : "Capabilities are tracked for this industry but no maturity scores are available yet."}
-            </p>
+            <div className="text-center py-12 space-y-4 max-w-md mx-auto">
+              <Swords className="w-10 h-10 mx-auto text-muted-foreground/40" />
+              <div className="space-y-2">
+                <p className="font-serif text-base">
+                  {matrix.length === 0
+                    ? "This industry doesn't have peer benchmarks yet"
+                    : "No maturity scores tracked yet for this industry"}
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Upload your organization's capability inventory on <a href="/upload" className="underline">/upload</a> to see your gaps against industry benchmarks. Or pick a different industry above to see one that's already populated.
+                </p>
+                <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
+                  <a href="/upload" className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-primary bg-primary text-primary-foreground hover:opacity-90">Upload your data</a>
+                  <a href="/organization" className="px-3 py-1.5 text-xs font-mono uppercase tracking-wider border border-border hover:bg-muted">Set up your organization</a>
+                </div>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
