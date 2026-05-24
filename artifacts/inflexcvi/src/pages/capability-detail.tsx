@@ -31,6 +31,7 @@ import { LiveBacktestBadge } from "@/components/live-backtest-badge";
 import { FourLensesGrid } from "@/components/four-lenses-grid";
 import { ConsensusView } from "@/components/consensus-view";
 import { ConsensusNarrative } from "@/components/consensus-narrative";
+import { DisruptionFishbone } from "@/components/disruption-fishbone";
 
 const API_BASE = "/api";
 
@@ -302,6 +303,9 @@ export default function CapabilityDetailPage() {
 
       {/* ─── Model vs sources — narrative, not hover ─────────────────────── */}
       <ConsensusNarrative capabilityId={cap.id} precision={1} />
+
+      {/* ─── Forward-looking: how disruptable is this capability? ─────────── */}
+      <DisruptionFishbone capabilityId={cap.id} />
 
       {/* ─── Score-change explainability ─────────────────────────────────────── */}
       <Card className="rounded-none border-border/60">
