@@ -1893,8 +1893,10 @@ export default function CVIDashboard() {
                       ) : (
                         <Minus className="w-3.5 h-3.5 text-muted-foreground-soft" />
                       )}
-                      <span className={ind.velocity > 0 ? "text-emerald-600" : ind.velocity < 0 ? "text-red-600" : "text-muted-foreground"}>
-                        {ind.velocity > 0 ? "+" : ""}{(ind.velocity * 100).toFixed(1)}% velocity
+                      <span className={ind.velocity > 0 ? "text-emerald-600" : ind.velocity < 0 ? "text-red-600" : "text-muted-foreground italic"}>
+                        {Math.abs(ind.velocity) < 0.005
+                          ? "no movement yet"
+                          : `${ind.velocity > 0 ? "+" : ""}${(ind.velocity * 100).toFixed(1)}% velocity`}
                       </span>
                     </div>
                     <div className="text-muted-foreground">
@@ -1919,7 +1921,11 @@ export default function CVIDashboard() {
                             </div>
                             <div className="bg-muted/50 rounded-sm p-2">
                               <div className="text-[10px] text-muted-foreground uppercase">Top Mover Δ</div>
-                              <div className="text-sm font-mono font-bold">{ind.topMoverDelta > 0 ? "+" : ""}{ind.topMoverDelta.toFixed(1)} pts</div>
+                              <div className="text-sm font-mono font-bold">
+                                {Math.abs(ind.topMoverDelta) < 0.05
+                                  ? <span className="text-muted-foreground italic font-normal text-xs">no movement yet</span>
+                                  : `${ind.topMoverDelta > 0 ? "+" : ""}${ind.topMoverDelta.toFixed(1)} pts`}
+                              </div>
                             </div>
                           </div>
                           {capabilityTree && capabilityTree.roots.length > 0 ? (

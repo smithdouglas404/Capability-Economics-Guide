@@ -148,6 +148,26 @@ const ALLOCATIONS: Record<string, {
       "https://www.seia.org/us-solar-market-insight",
     ],
   },
+  hospitality: {
+    sector: "services",
+    shareWithinSector: 0.0125, // ~1.25% of services VA — Accommodation only per BEA NIPA Table 6.1D
+    rationale: "Hotels, short-term rentals, lodging-side of accommodation & food services per BEA NIPA Table 6.1D. Excludes restaurants/food services (separate). Cross-checked against WTTC's global lodging GDP share (~1% of world GDP).",
+    citations: [
+      "https://data.worldbank.org/indicator/NV.SRV.TOTL.ZS",
+      "https://www.bea.gov/data/gdp/gdp-industry",
+      "https://wttc.org/research/economic-impact",
+    ],
+  },
+  transportation: {
+    sector: "services",
+    shareWithinSector: 0.0375, // ~3.75% of services VA — Transportation & warehousing per BEA NIPA Table 6.1D
+    rationale: "Road, rail, air, water transport + courier + warehousing per BEA NIPA Table 6.1D Transportation & Warehousing (~3% of US GDP, ~3.75% of services VA). Includes operational stack for mobility platforms (ride-hail, EV charging, autonomous fleets).",
+    citations: [
+      "https://data.worldbank.org/indicator/NV.SRV.TOTL.ZS",
+      "https://www.bea.gov/data/gdp/gdp-industry",
+      "https://stats.oecd.org/Index.aspx?DataSetCode=ITF_GOODS_TRANSPORT",
+    ],
+  },
 };
 
 async function main(): Promise<void> {
@@ -197,10 +217,19 @@ async function main(): Promise<void> {
     const rationale = `${(sector.pct * 100).toFixed(2)}% (World Bank ${allocation.sector} VA, ${sector.year}) × ${(allocation.shareWithinSector * 100).toFixed(1)}% within-sector share = ${(gdpShare * 100).toFixed(3)}%. ${allocation.rationale}`;
 
     const [existing] = await db.select().from(industryGdpWeightsTable).where(eq(industryGdpWeightsTable.industryId, ind.id));
-    if (existing && !FORCE) {
-      console.log(`  [skip] ${ind.slug} — existing weight ${(existing.gdpShare * 100).toFixed(3)}% (FORCE=1 to refresh)`);
+    // Auto-refresh when stored value has drifted >10% relative from the
+    // rule-computed value. Catches the common case where rules get retuned
+    // but the table holds stale pre-tuning numbers (e.g. tech at 25.97%
+    // while the current rule resolves to ~6%). FORCE=1 still always refreshes.
+    const driftRel = existing ? Math.abs(existing.gdpShare - gdpShare) / Math.max(existing.gdpShare, gdpShare) : 0;
+    const driftedSignificantly = existing && driftRel > 0.10;
+    if (existing && !FORCE && !driftedSignificantly) {
+      console.log(`  [skip] ${ind.slug} — existing weight ${(existing.gdpShare * 100).toFixed(3)}% matches rule within 10% (FORCE=1 to refresh)`);
       skipped++;
       continue;
+    }
+    if (driftedSignificantly) {
+      console.log(`  [auto-refresh] ${ind.slug} — stored ${(existing.gdpShare * 100).toFixed(3)}% vs rule ${(gdpShare * 100).toFixed(3)}% (drift ${(driftRel * 100).toFixed(0)}%)`);
     }
     if (existing) {
       await db.update(industryGdpWeightsTable).set({
