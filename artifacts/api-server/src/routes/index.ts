@@ -116,6 +116,9 @@ router.use(healthRouter);
 router.use(dynamicIndustriesRouter);
 router.use(industriesRouter);
 router.use(enrichmentAliasRouter);
+// disruptionWatchRouter must be registered BEFORE capabilitiesRouter so its specific
+// /capabilities/new route wins over capabilitiesRouter's /capabilities/:id catch-all.
+router.use(disruptionWatchRouter);
 router.use(capabilitiesRouter);
 router.use(organizationsRouter);
 router.use(dashboardRouter);
@@ -163,7 +166,6 @@ router.use(workbenchRouter);
 // routes use their own per-route requireAdmin middleware rather than the catch-all.
 router.use(disruptionPatternsRouter);
 router.use(analoguesRouter);
-router.use(disruptionWatchRouter);
 router.use(marketplaceWorkspaceRouter);
 router.use(onboardingRouter);
 // digestsRouter mounts BEFORE adminRouter so its /admin/digest/run route uses
