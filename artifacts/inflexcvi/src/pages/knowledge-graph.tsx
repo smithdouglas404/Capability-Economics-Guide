@@ -963,14 +963,36 @@ export default function KnowledgeGraph() {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           ) : graphData ? (
-            <Suspense fallback={<div className="flex justify-center items-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
-              <QuadrantScatter
-                industries={graphData.industries}
-                capabilities={graphData.capabilities}
-                dependencies={graphData.dependencies}
-                onSelectCapability={setSelectedCapabilityId}
-              />
-            </Suspense>
+            graphData.capabilities.some((c) => c.quadrant) ? (
+              <Suspense fallback={<div className="flex justify-center items-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+                <QuadrantScatter
+                  industries={graphData.industries}
+                  capabilities={graphData.capabilities}
+                  dependencies={graphData.dependencies}
+                  onSelectCapability={setSelectedCapabilityId}
+                />
+              </Suspense>
+            ) : (
+              <div className="border border-dashed border-border/60 max-w-xl mx-auto my-12 p-8 text-center">
+                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-2">
+                  Quadrant scoring still computing
+                </p>
+                <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                  The enrichment pipeline classifies each capability into a
+                  Hot / Emerging / Stable / Decaying quadrant based on
+                  economic impact, adoption momentum, and disruption intensity.
+                  None of the {graphData.capabilities.length} capabilities
+                  have quadrant scores yet.
+                </p>
+                <p className="text-xs text-muted-foreground/80">
+                  Try the{" "}
+                  <button onClick={() => setTab("industries")} className="text-accent underline underline-offset-2 hover:no-underline">Industries</button>{" "}
+                  or{" "}
+                  <button onClick={() => setTab("compare")} className="text-accent underline underline-offset-2 hover:no-underline">Cross-Industry Comparison</button>{" "}
+                  tabs — those are populated.
+                </p>
+              </div>
+            )
           ) : graphError ? (
             <div className="flex flex-col justify-center items-center py-32 text-muted-foreground gap-2">
               <p>Failed to load capabilities: {graphError}</p>
