@@ -37,8 +37,23 @@ export async function runAutoArchive(): Promise<{ archived: number }> {
   return { archived: result.length };
 }
 
+/**
+ * Inngest-friendly alias for the one-shot sweep. The cron wrapper in
+ * inngest/functions/cron-cleanups.ts calls this directly so the legacy
+ * setInterval-style name doesn't leak into the Inngest layer.
+ */
+export const runMarketplaceAutoArchive = runAutoArchive;
+
 export function startMarketplaceAutoArchive(): void {
   if (timer) return;
+  // Inngest cutover gate. When INNGEST_OWNS_MARKETPLACE_AUTO_ARCHIVE=1 the
+  // hourly cron in inngest/functions/cron-cleanups.ts owns this sweep and we
+  // must NOT start the in-process setInterval — otherwise the job would
+  // double-run, racing two `UPDATE … RETURNING id` statements.
+  if (process.env.INNGEST_OWNS_MARKETPLACE_AUTO_ARCHIVE === "1") {
+    logger.info("[marketplace-auto-archive] handed to Inngest (INNGEST_OWNS_MARKETPLACE_AUTO_ARCHIVE=1)");
+    return;
+  }
   timer = setInterval(() => {
     void runAutoArchive().catch(err => logger.error({ err }, "[marketplace] auto-archive sweep failed"));
   }, ARCHIVE_INTERVAL_MS);

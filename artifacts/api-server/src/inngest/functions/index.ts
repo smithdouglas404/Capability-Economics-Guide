@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { agentFunctions } from "./agents";
 import { workflowFunctions } from "./workflows";
 import { maintenanceFunctions } from "./maintenance";
+import { cronCleanupFunctions } from "./cron-cleanups";
 
 const pingFn = inngest.createFunction(
   {
@@ -18,4 +19,4 @@ const pingFn = inngest.createFunction(
   },
 );
 
-export const functions = [pingFn, ...agentFunctions, ...workflowFunctions, ...maintenanceFunctions];
+export const functions = [pingFn, ...agentFunctions, ...workflowFunctions, ...maintenanceFunctions, ...cronCleanupFunctions];
