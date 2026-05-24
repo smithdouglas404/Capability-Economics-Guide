@@ -91,8 +91,8 @@ export default function CaseStudies() {
                     {new Date(row.generatedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}
                   </div>
                 </div>
-                <div className="self-center font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground group-hover:text-accent inline-flex items-center gap-1.5 transition-colors">
-                  Read <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                <div className="self-center font-mono text-xs uppercase tracking-[0.18em] font-medium text-accent inline-flex items-center gap-2 transition-colors">
+                  Read <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </Link>
             ))}
