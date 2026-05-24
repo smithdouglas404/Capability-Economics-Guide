@@ -1,5 +1,6 @@
 import { inngest } from "../client";
 import { runMarketplaceAutoArchive } from "../../services/marketplace-auto-archive";
+import { runEdgarRssWatcherOnce } from "../../services/edgar/rss-watcher";
 import { withStep } from "../step-context";
 
 // Phase 1.x — Inngest wrappers around long-running cleanup pollers.
@@ -28,4 +29,21 @@ export const marketplaceAutoArchiveCron = inngest.createFunction(
   },
 );
 
-export const cronCleanupFunctions = [marketplaceAutoArchiveCron];
+// Original cadence: every 15 minutes (EDGAR_RSS_INTERVAL_MS = 15 * 60 * 1000
+// in services/agent/scheduler.ts). Cron expression `*/15 * * * *` fires at
+// :00 / :15 / :30 / :45 to match — staying well under SEC's per-IP rate
+// limits and matching the comment on the original setInterval.
+export const edgarRssWatcherCron = inngest.createFunction(
+  {
+    id: "edgar-rss-watcher",
+    triggers: [{ cron: "*/15 * * * *" }],
+    concurrency: { limit: 1 },
+    retries: 2,
+  },
+  async ({ step }) => {
+    if (!ownedBy("INNGEST_OWNS_EDGAR_RSS")) return { skipped: "flag-off" };
+    return await withStep(step, () => runEdgarRssWatcherOnce());
+  },
+);
+
+export const cronCleanupFunctions = [marketplaceAutoArchiveCron, edgarRssWatcherCron];

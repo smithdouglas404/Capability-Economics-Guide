@@ -51,6 +51,16 @@ export interface RssTickResult {
 
 export async function runEdgarRssTick(): Promise<RssTickResult> {
   const start = Date.now();
+  // Inngest cutover gate. When INNGEST_OWNS_EDGAR_RSS=1 the cron in
+  // inngest/functions/cron-cleanups.ts owns the poll. The scheduler in
+  // services/agent/scheduler.ts still calls runEdgarRssTick() on its 15-min
+  // setInterval, so we early-return here to prevent double-fetching the SEC
+  // atom feed (rate-limit risk) and double-inserting matched filings (the
+  // accession unique constraint would catch dupes but the LLM-tag follow-up
+  // would still pay the cost).
+  if (process.env.INNGEST_OWNS_EDGAR_RSS === "1") {
+    return { fetched: 0, matched: 0, inserted: 0, errors: ["handed-to-inngest"], durationMs: Date.now() - start };
+  }
   const errors: string[] = [];
 
   // Pull list of watched capability names + ids from the status table —
@@ -207,4 +217,97 @@ function decodeHtml(s: string): string {
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Inngest-friendly alias for the one-shot poll. Bypasses the
+ * INNGEST_OWNS_EDGAR_RSS gate that `runEdgarRssTick` enforces — the cron
+ * wrapper in inngest/functions/cron-cleanups.ts MUST call this to actually
+ * do the work; the gate only protects against the legacy scheduler's
+ * setInterval double-firing once Inngest owns the schedule.
+ */
+export async function runEdgarRssWatcherOnce(): Promise<RssTickResult> {
+  const start = Date.now();
+  const errors: string[] = [];
+
+  const watched = await db.select({
+    capabilityId: capabilityFilingStatusTable.capabilityId,
+  }).from(capabilityFilingStatusTable);
+  if (watched.length === 0) {
+    return { fetched: 0, matched: 0, inserted: 0, errors: [], durationMs: Date.now() - start };
+  }
+
+  const watchedCapIds = watched.map(w => w.capabilityId);
+  const caps = await db.select().from(capabilitiesTable).where(sql`id IN (${sql.join(watchedCapIds.map(id => sql`${id}`), sql`, `)})`);
+  const capByLowerName = new Map<string, typeof caps[number]>();
+  for (const c of caps) capByLowerName.set(c.name.toLowerCase(), c);
+
+  let entries: AtomEntry[];
+  try {
+    entries = await fetchAtomFeed();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn({ err: msg }, "[edgar-rss] atom fetch failed");
+    return { fetched: 0, matched: 0, inserted: 0, errors: [msg], durationMs: Date.now() - start };
+  }
+
+  const recentRssInserts = await db
+    .select({ createdAt: capabilityFilingsTable.createdAt })
+    .from(capabilityFilingsTable)
+    .where(gt(capabilityFilingsTable.createdAt, new Date(Date.now() - 4 * 60 * 60 * 1000)))
+    .limit(1);
+  void recentRssInserts; // soft barrier — accession uniqueness still protects us from dupes
+
+  let matched = 0;
+  let inserted = 0;
+  for (const entry of entries) {
+    const titleLower = entry.title.toLowerCase();
+    for (const [name, cap] of capByLowerName.entries()) {
+      const rx = new RegExp(`\\b${escapeRegex(name)}\\b`, "i");
+      if (!rx.test(entry.title) && !titleLower.includes(name)) continue;
+      matched++;
+      try {
+        await db.insert(capabilityFilingsTable).values({
+          capabilityId: cap.id,
+          accessionNumber: entry.accessionNumber,
+          cik: entry.cik,
+          companyName: entry.companyName,
+          ticker: null,
+          formType: entry.formType,
+          filingDate: entry.filedAt,
+          filingUrl: entry.link,
+          excerpt: `Filing title: ${entry.title}`,
+          sectionRef: null,
+          extractionSource: "edgar-rss",
+          rawPayload: entry as unknown as Record<string, unknown>,
+          lastConfirmedAt: new Date(),
+        }).onConflictDoNothing();
+        inserted++;
+      } catch (err) {
+        errors.push(`cap=${cap.id} accession=${entry.accessionNumber}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }
+
+  if (inserted > 0) {
+    logger.info({ fetched: entries.length, matched, inserted, errors: errors.length, durationMs: Date.now() - start }, "[edgar-rss] tick complete");
+  }
+
+  return { fetched: entries.length, matched, inserted, errors, durationMs: Date.now() - start };
+}
+
+/**
+ * Optional startup hook — flag-gated like the marketplace auto-archive.
+ * This watcher is currently driven by the in-process scheduler in
+ * services/agent/scheduler.ts (which calls runEdgarRssTick on a 15-min
+ * setInterval). When INNGEST_OWNS_EDGAR_RSS=1 the Inngest cron in
+ * cron-cleanups.ts owns the cadence and `runEdgarRssTick` self-gates to a
+ * no-op — this helper just logs the handoff so the boot trail is honest.
+ */
+export function startEdgarRssWatcher(): void {
+  if (process.env.INNGEST_OWNS_EDGAR_RSS === "1") {
+    logger.info("[edgar-rss] handed to Inngest (INNGEST_OWNS_EDGAR_RSS=1)");
+    return;
+  }
+  logger.info("[edgar-rss] watcher driven by in-process scheduler (15min cadence)");
 }
