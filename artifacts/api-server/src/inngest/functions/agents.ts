@@ -102,6 +102,14 @@ export const cviAgentCron = inngest.createFunction(
     id: "cvi-agent",
     triggers: [{ cron: "*/5 * * * *" }],
     concurrency: { limit: 1 },
+    // CVI agent is the heaviest Perplexity consumer (up to 6 calls/run, cap
+    // documented in services/agent/tools.ts). A 5-min cron means 12 runs/h
+    // best-case → 72 Perplexity calls/h — close to sonar-pro's published
+    // 60/min single-account headroom when combined with the workflow
+    // throttles below. Cap at 6 starts/h so a backlog of cron triggers
+    // (e.g. after a Railway restart) can't replay the full backlog into
+    // Perplexity in a burst.
+    throttle: { limit: 6, period: "1h", key: "global" },
     retries: 2,
   },
   async ({ step }) => {

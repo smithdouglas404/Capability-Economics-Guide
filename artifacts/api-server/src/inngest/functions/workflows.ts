@@ -51,26 +51,51 @@ const logger = pino({ name: "inngest-workflows" });
 
 const cfg = (id: string) => ({ id, retries: 2 } as const);
 
+// Flow-control rationale (see CLAUDE.md + commit message):
+// - Per-key concurrency replaces the old `concurrency: { limit: 1 }` global
+//   cap that was letting one user/listing/capability starve every other
+//   tenant's workflow queue. Each workflow picks a key that scopes the cap
+//   to a tenant boundary (userId, sessionId, listingId, etc.).
+// - Where no caller-side identity exists yet (marketplace-search-v2 +
+//   synthesis-brief-composer are no-op stubs; admin-config-proposer is
+//   admin-only) we keep the global limit=1 — fine because volume is zero.
+
 export const onboardingConciergeFn = inngest.createFunction(
-  { ...cfg("workflow-onboarding-concierge"), triggers: [{ event: "workflow/onboarding-concierge" }] },
+  {
+    ...cfg("workflow-onboarding-concierge"),
+    triggers: [{ event: "workflow/onboarding-concierge" }],
+    concurrency: { limit: 1, key: "event.data.clerkUserId" },
+  },
   async ({ event, step }) =>
     step.run("run", () => runOnboardingConcierge(event.data as Parameters<typeof runOnboardingConcierge>[0])),
 );
 
 export const tierSelectorFn = inngest.createFunction(
-  { ...cfg("workflow-tier-selector"), triggers: [{ event: "workflow/tier-selector" }] },
+  {
+    ...cfg("workflow-tier-selector"),
+    triggers: [{ event: "workflow/tier-selector" }],
+    concurrency: { limit: 1, key: "event.data.userId" },
+  },
   async ({ event, step }) =>
     step.run("run", () => runTierSelector(event.data as Parameters<typeof runTierSelector>[0])),
 );
 
 export const marketplaceSearchV2Fn = inngest.createFunction(
-  { ...cfg("workflow-marketplace-search-v2"), triggers: [{ event: "workflow/marketplace-search-v2" }] },
+  {
+    ...cfg("workflow-marketplace-search-v2"),
+    triggers: [{ event: "workflow/marketplace-search-v2" }],
+    concurrency: { limit: 1 },
+  },
   async ({ event, step }) =>
     step.run("run", () => runMarketplaceSearchV2(event.data as Parameters<typeof runMarketplaceSearchV2>[0])),
 );
 
 export const listingModerationFn = inngest.createFunction(
-  { ...cfg("workflow-listing-moderation"), triggers: [{ event: "workflow/listing-moderation" }] },
+  {
+    ...cfg("workflow-listing-moderation"),
+    triggers: [{ event: "workflow/listing-moderation" }],
+    concurrency: { limit: 1, key: "event.data.listingId" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runListingModeration>[0];
     const result = await step.run("run", () => runListingModeration(input));
@@ -94,19 +119,31 @@ export const listingModerationFn = inngest.createFunction(
 );
 
 export const kycFailureCounselorFn = inngest.createFunction(
-  { ...cfg("workflow-kyc-failure-counselor"), triggers: [{ event: "workflow/kyc-failure-counselor" }] },
+  {
+    ...cfg("workflow-kyc-failure-counselor"),
+    triggers: [{ event: "workflow/kyc-failure-counselor" }],
+    concurrency: { limit: 1, key: "event.data.verificationId" },
+  },
   async ({ event, step }) =>
     step.run("run", () => runKycFailureCounselor(event.data as Parameters<typeof runKycFailureCounselor>[0])),
 );
 
 export const paymentRecoveryFn = inngest.createFunction(
-  { ...cfg("workflow-payment-recovery"), triggers: [{ event: "workflow/payment-recovery" }] },
+  {
+    ...cfg("workflow-payment-recovery"),
+    triggers: [{ event: "workflow/payment-recovery" }],
+    concurrency: { limit: 1, key: "event.data.userId" },
+  },
   async ({ event, step }) =>
     step.run("run", () => runPaymentRecovery(event.data as Parameters<typeof runPaymentRecovery>[0])),
 );
 
 export const capabilityReviewAssistFn = inngest.createFunction(
-  { ...cfg("workflow-capability-review-assist"), triggers: [{ event: "workflow/capability-review-assist" }] },
+  {
+    ...cfg("workflow-capability-review-assist"),
+    triggers: [{ event: "workflow/capability-review-assist" }],
+    concurrency: { limit: 1, key: "event.data.capabilityId" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCapabilityReviewAssist>[0];
     const result = await step.run("run", () => runCapabilityReviewAssist(input));
@@ -125,7 +162,14 @@ export const capabilityReviewAssistFn = inngest.createFunction(
 );
 
 export const researchPipelineFn = inngest.createFunction(
-  { ...cfg("workflow-research-pipeline"), triggers: [{ event: "workflow/research-pipeline" }] },
+  {
+    ...cfg("workflow-research-pipeline"),
+    triggers: [{ event: "workflow/research-pipeline" }],
+    // capabilityId is optional on the event; fall back to a "global" bucket
+    // so generic prompts (kind: "generic") still share a single slot rather
+    // than running fully unbounded.
+    concurrency: { limit: 1, key: "event.data.capabilityId ?? 'global'" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runResearchPipeline>[0];
     const result = await step.run("run", () => runResearchPipeline(input));
@@ -143,12 +187,20 @@ export const researchPipelineFn = inngest.createFunction(
 );
 
 export const synthesisBriefComposerFn = inngest.createFunction(
-  { ...cfg("workflow-synthesis-brief-composer"), triggers: [{ event: "workflow/synthesis-brief-composer" }] },
+  {
+    ...cfg("workflow-synthesis-brief-composer"),
+    triggers: [{ event: "workflow/synthesis-brief-composer" }],
+    concurrency: { limit: 1 },
+  },
   async ({ step }) => step.run("run", () => runSynthesisBriefComposer()),
 );
 
 export const assessmentAnalyzerFn = inngest.createFunction(
-  { ...cfg("workflow-assessment-analyzer"), triggers: [{ event: "workflow/assessment-analyzer" }] },
+  {
+    ...cfg("workflow-assessment-analyzer"),
+    triggers: [{ event: "workflow/assessment-analyzer" }],
+    concurrency: { limit: 1, key: "event.data.sessionId" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runAssessmentAnalyzer>[0];
     const result = await step.run("run", () => runAssessmentAnalyzer(input));
@@ -221,7 +273,14 @@ const IndustryBridgeSchema = z.object({
 });
 
 export const industryBootstrapFn = inngest.createFunction(
-  { ...cfg("workflow-industry-bootstrap"), triggers: [{ event: "workflow/industry-bootstrap" }] },
+  {
+    ...cfg("workflow-industry-bootstrap"),
+    triggers: [{ event: "workflow/industry-bootstrap" }],
+    // Industry slug not present on the input today — industryName is the
+    // canonical handle. Same effect (one in-flight per industry) so admin
+    // double-clicks don't kick off parallel Perplexity bursts on one slug.
+    concurrency: { limit: 1, key: "event.data.industryName" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runIndustryBootstrap>[0];
     const bootstrap = await step.run("bootstrap", () => runIndustryBootstrap(input));
@@ -269,7 +328,14 @@ export const industryBootstrapFn = inngest.createFunction(
 );
 
 export const caseStudyGeneratorFn = inngest.createFunction(
-  { ...cfg("workflow-case-study-generator"), triggers: [{ event: "workflow/case-study-generator" }] },
+  {
+    ...cfg("workflow-case-study-generator"),
+    triggers: [{ event: "workflow/case-study-generator" }],
+    // Brief specced industrySlug as the key but the input only carries
+    // industryName + caseStudyId. caseStudyId is the more useful tenant
+    // boundary anyway (each case study is a distinct admin action).
+    concurrency: { limit: 1, key: "event.data.caseStudyId" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCaseStudyGenerator>[0];
     const result = await step.run("run", () => runCaseStudyGenerator(input));
@@ -285,7 +351,11 @@ export const caseStudyGeneratorFn = inngest.createFunction(
 );
 
 export const capabilityEnrichmentRetryFn = inngest.createFunction(
-  { ...cfg("workflow-capability-enrichment-retry"), triggers: [{ event: "workflow/capability-enrichment-retry" }] },
+  {
+    ...cfg("workflow-capability-enrichment-retry"),
+    triggers: [{ event: "workflow/capability-enrichment-retry" }],
+    concurrency: { limit: 1, key: "event.data.capabilityId" },
+  },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCapabilityEnrichmentRetry>[0];
     const result = await step.run("run", () => runCapabilityEnrichmentRetry(input));
@@ -345,7 +415,11 @@ export const capabilityEnrichmentRetryFn = inngest.createFunction(
 );
 
 export const adminConfigProposerFn = inngest.createFunction(
-  { ...cfg("workflow-admin-config-proposer"), triggers: [{ event: "workflow/admin-config-proposer" }] },
+  {
+    ...cfg("workflow-admin-config-proposer"),
+    triggers: [{ event: "workflow/admin-config-proposer" }],
+    concurrency: { limit: 1 },
+  },
   async ({ event, step }) =>
     step.run("run", () => runAdminConfigProposer(event.data as Parameters<typeof runAdminConfigProposer>[0])),
 );
