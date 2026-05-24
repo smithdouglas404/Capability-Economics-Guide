@@ -585,7 +585,7 @@ async function cviSignalsTick(): Promise<void> {
  * inside one tick. The function is guarded by isAutoEnriching against
  * tick overlap if a backlog takes longer than the 1h interval.
  */
-async function autoEnrichTick(): Promise<void> {
+export async function autoEnrichTick(): Promise<void> {
   if (isAutoEnriching) {
     console.log("[AutoEnrich] tick skipped — previous tick still in progress");
     return;
@@ -854,7 +854,11 @@ export function startScheduler(): void {
   sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });
   sched("edgarRss",         () => { edgarRssTimer       = setInterval(() => edgarRssTick(),                  EDGAR_RSS_INTERVAL_MS); });
   sched("cviSignals",       () => { cviSignalsTimer     = setInterval(() => cviSignalsTick(),                CVI_SIGNALS_INTERVAL_MS); });
-  sched("autoEnrich",       () => { autoEnrichTimer     = setInterval(() => autoEnrichTick(),                AUTO_ENRICH_INTERVAL_MS); });
+  if (process.env["INNGEST_OWNS_AUTO_ENRICH"] !== "1") {
+    sched("autoEnrich",       () => { autoEnrichTimer     = setInterval(() => autoEnrichTick(),                AUTO_ENRICH_INTERVAL_MS); });
+  } else {
+    console.log("[Agent] Auto-enrich handed to Inngest (INNGEST_OWNS_AUTO_ENRICH=1)");
+  }
   // Kick once on boot so a recently-deployed instance picks up any backlog
   // without waiting an hour. Runs in the background — does NOT block startup.
   sched("autoEnrich",       () => { setTimeout(() => autoEnrichTick(), 60_000); });

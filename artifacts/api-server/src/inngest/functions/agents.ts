@@ -8,6 +8,7 @@ import { runStackOptimizerAgent } from "../../services/stack-optimizer-agent";
 import { runOntologyAgent } from "../../services/ontology-agent";
 import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit";
 import { runSynthesisAgent } from "../../services/synthesis-agent";
+import { autoEnrichTick } from "../../services/agent/scheduler";
 import { db, agentShadowRunsTable } from "@workspace/db";
 
 // Phase 2 — Inngest cron wrappers around the 7 LangGraph agents, now using
@@ -286,6 +287,34 @@ export const synthesisAgentDailyFloor = inngest.createFunction(
   },
 );
 
+/**
+ * Auto-enrich tick — durable replacement for the hourly setInterval that
+ * keeps capability_alpha + dependency_scores fresh. The setInterval path
+ * was vulnerable to Railway container restarts: a kill mid-enrichment left
+ * the run row in "interrupted" state and the next manual sweep often
+ * inherited a backlog that itself got killed. Inngest's step-level retry
+ * + cross-restart resumption fixes that — each LLM call inside the
+ * enrichment LangGraph is its own retriable step (see maybeStepRun wraps
+ * in services/enrichment/graph.ts).
+ *
+ * Cadence matches AUTO_ENRICH_INTERVAL_MS (1 hour). Activate by setting
+ * INNGEST_OWNS_AUTO_ENRICH=1 on capabilityeconomics; the matching
+ * setInterval in scheduler.ts no-ops when that flag is set.
+ */
+export const autoEnrichCron = inngest.createFunction(
+  {
+    id: "agent.auto-enrich",
+    triggers: [{ cron: "0 * * * *" }],
+    concurrency: { limit: 1 },
+    retries: 2,
+  },
+  async ({ step }) => {
+    if (!ownedBy("INNGEST_OWNS_AUTO_ENRICH")) return { skipped: "flag-off" };
+    await withStep(step, () => autoEnrichTick());
+    return { ok: true };
+  },
+);
+
 export const agentFunctions = [
   cviAgentCron,
   macroEventAgentCron,
@@ -296,4 +325,5 @@ export const agentFunctions = [
   ontologyAgentShadow,
   synthesisAgentOnDigest,
   synthesisAgentDailyFloor,
+  autoEnrichCron,
 ];

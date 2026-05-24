@@ -31,6 +31,7 @@ import { emitAgentEvent } from "../agent/events";
 // runs under a separate agent name so its priors and archives don't
 // commingle with the CVI autonomous agent's.
 import { appendAgentArchive, putAgentPriorBlock } from "../agent/store";
+import { maybeStepRun } from "../../inngest/step-context";
 
 const ENRICHMENT_AGENT_NAME = "enrichment-agent";
 import { toolSchemas, toolExecutors } from "./tools";
@@ -215,7 +216,16 @@ async function agentNode(state: State): Promise<Partial<State>> {
     : [];
 
   const allMessages = [...state.messages, ...messages];
-  const reply = await chatWithTools(allMessages);
+  // Phase 2 extension: when this graph is invoked from inside an Inngest
+  // function (autoEnrich cron, manual trigger fan-out), wrap each LLM call
+  // in its own step so a container restart resumes from the last successful
+  // step rather than re-running the whole cycle. No-op via HTTP path.
+  // Only the assistant message shape crosses the step boundary — that's
+  // already a plain object with role/content/tool_calls, JSON-safe.
+  const reply = await maybeStepRun(
+    `enrichment.chatWithTools.iter-${state.iterations}`,
+    () => chatWithTools(allMessages),
+  );
 
   // Append the assistant message (with any tool_calls) to history
   const assistantMsg: ChatMessage = {
@@ -290,7 +300,13 @@ async function toolsNode(state: State): Promise<Partial<State>> {
     }
 
     try {
-      const result = await exec(parsedArgs, ctx);
+      // Per-tool-call step: each tool (classify_quadrants, run_economic_alpha,
+      // etc.) wraps its Perplexity + DB work as its own retriable Inngest
+      // step. Result is a string by contract (JSON-stringified upstream).
+      const result = await maybeStepRun(
+        `enrichment.tool.${name}.${call.id.slice(0, 8)}`,
+        () => exec(parsedArgs, ctx),
+      );
       toolMessages.push({ role: "tool", tool_call_id: call.id, name, content: result });
       executed++;
       // Surface in-tool errors into the run-level errors list when ok:false
