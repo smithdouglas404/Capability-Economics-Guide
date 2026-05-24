@@ -140,53 +140,13 @@ export function PageHeader({ eyebrow, title, descriptions, actions, className }:
  * but you still want the persona reframing layer.
  */
 export function PersonaDescription({ descriptions, className }: { descriptions: PageHeaderDescriptions; className?: string }) {
-  const { persona, setPersona } = usePersona();
+  const { persona } = usePersona();
   const description = descriptionFor(descriptions, persona);
-  const hasPersonaVariant = persona !== null && descriptions[persona] !== undefined;
+  // Switcher lives in the global top nav now (<PersonaTopSwitcher>). This
+  // component just renders the persona-tailored description.
   return (
     <div className={cn("border-l-2 border-accent/40 pl-3 py-1 my-3 max-w-3xl", className)}>
-      <p className="text-sm text-foreground/80 leading-relaxed">{description}</p>
-      <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted-foreground/80">
-        {persona ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
-                <span>{PERSONA_META[persona].emoji}</span>
-                <span>Reading as {PERSONA_META[persona].label}</span>
-                {hasPersonaVariant ? null : <span className="text-muted-foreground/60">(generic)</span>}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-72">
-              <DropdownMenuLabel>Switch role</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {PERSONAS.map(p => (
-                <DropdownMenuItem
-                  key={p}
-                  onClick={() => setPersona(p)}
-                  className="flex items-start gap-2 cursor-pointer"
-                >
-                  <span className="text-base leading-none mt-0.5">{PERSONA_META[p].emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-medium">{PERSONA_META[p].label}</span>
-                      {p === persona ? <Check className="w-3 h-3 text-accent" /> : null}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground leading-snug">{PERSONA_META[p].blurb}</div>
-                  </div>
-                </DropdownMenuItem>
-              ))}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setPersona(null)} className="text-muted-foreground">
-                Clear (generic copy everywhere)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ) : (
-          <Link to="/" className="hover:text-foreground underline-offset-2 hover:underline">
-            Tell us your role → tailor every page
-          </Link>
-        )}
-      </div>
+      <p className="text-sm text-foreground leading-relaxed">{description}</p>
     </div>
   );
 }

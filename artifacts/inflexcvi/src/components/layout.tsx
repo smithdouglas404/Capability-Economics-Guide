@@ -29,6 +29,7 @@ import { MobileNotice } from "@/components/mobile";
 import { AITourGuide } from "@/components/ai-tour-guide";
 import { NotificationBell } from "@/components/notification-bell";
 import { GlobalQABar } from "@/components/global-qa-bar";
+import { PersonaTopSwitcher } from "@/components/persona-top-switcher";
 import { CommandPalette } from "@/components/command-palette";
 
 // Pages explicitly tuned for mobile. Everything else gets the
@@ -516,6 +517,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <>
                 {/* Global Q&A bar — slash-key activated, available on every page */}
                 <GlobalQABar />
+
+                {/* Reading-lens (persona) switcher — moved up here from
+                    PersonaDescription so it lives with other account controls. */}
+                <PersonaTopSwitcher />
 
                 {/* Credit balance chip */}
                 {creditBalance !== null && (
