@@ -1,6 +1,148 @@
 import { logLlmCall } from "./llm-usage";
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
+const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const DEFAULT_FALLBACK_MODEL = "google/gemini-2.5-flash:online";
+
+/**
+ * Fallback to Gemini 2.5 Flash via OpenRouter `:online` (Google Search
+ * grounding built in). Triggered when Perplexity returns:
+ *   - 401 (auth / quota exhausted — the most common failure mode in prod)
+ *   - 429 after all retries exhausted
+ *   - persistent network failure
+ *
+ * Returns the same PerplexityChatResponse shape so callers don't change.
+ * OpenRouter's response is OpenAI-compatible; we lift `annotations` into
+ * `citations` to match Perplexity's shape downstream.
+ *
+ * Gated: set PERPLEXITY_FALLBACK_DISABLED=1 to skip the fallback and
+ * surface the original Perplexity error directly.
+ */
+async function geminiOnlineFallback(
+  opts: PerplexityChatOptions,
+  originalError: Error,
+): Promise<PerplexityChatResponse> {
+  if (process.env["PERPLEXITY_FALLBACK_DISABLED"] === "1") throw originalError;
+  const apiKey = process.env["OPENROUTER_API_KEY"];
+  if (!apiKey) {
+    console.warn(
+      `[Perplexity→Gemini fallback] OPENROUTER_API_KEY not set, surfacing original error`,
+    );
+    throw originalError;
+  }
+
+  const model = process.env["PERPLEXITY_FALLBACK_MODEL"] ?? DEFAULT_FALLBACK_MODEL;
+  const startedAt = Date.now();
+  const ctx = opts.context ? ` ctx=${JSON.stringify(opts.context)}` : "";
+
+  console.warn(
+    `[Perplexity→Gemini fallback] ${opts.endpoint} — Perplexity failed (${originalError.message.slice(0, 120)}),` +
+      ` retrying via OpenRouter ${model}${ctx}`,
+  );
+
+  try {
+    const ac = new AbortController();
+    const timeout = setTimeout(() => ac.abort(), opts.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    const onCancel = () => ac.abort();
+    opts.signal?.addEventListener("abort", onCancel, { once: true });
+
+    let resp: Response;
+    try {
+      resp = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          // OpenRouter recommends these for proper attribution + rate-limit tracking
+          "HTTP-Referer": process.env["INFLEXCVI_API_BASE"] ?? "https://capabilityeconomics.com",
+          "X-Title": "Capability Economics (Perplexity fallback)",
+        },
+        body: JSON.stringify({ model, messages: opts.messages }),
+        signal: ac.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+      opts.signal?.removeEventListener("abort", onCancel);
+    }
+
+    if (!resp.ok) {
+      const bodyText = await resp.text().catch(() => "");
+      logLlmCall({
+        provider: "openrouter",
+        model,
+        endpoint: `${opts.endpoint} (perplexity-fallback)`,
+        startedAt,
+        httpStatus: resp.status,
+        errorMessage: `HTTP ${resp.status}`,
+      });
+      throw new Error(
+        `Perplexity fallback also failed: OpenRouter HTTP ${resp.status}: ${bodyText.slice(0, 200)}`,
+      );
+    }
+
+    type OpenRouterAnnotation = { type?: string; url_citation?: { url?: string }; url?: string };
+    type OpenRouterChoice = {
+      message?: { content?: string; annotations?: OpenRouterAnnotation[] };
+    };
+    type OpenRouterResponse = { choices?: OpenRouterChoice[]; citations?: string[] };
+
+    const data = (await resp.json()) as OpenRouterResponse;
+    const content = data.choices?.[0]?.message?.content ?? "";
+    const annotations = data.choices?.[0]?.message?.annotations ?? [];
+    // OpenRouter returns citations in two places depending on the model:
+    //   - top-level data.citations (Perplexity-style)
+    //   - choices[0].message.annotations[].url_citation.url (OpenAI-style)
+    // Coalesce into the Perplexity-shaped citations array.
+    const annotationUrls = annotations
+      .map((a) => a.url_citation?.url ?? a.url)
+      .filter((u): u is string => typeof u === "string" && u.length > 0);
+    const citations = data.citations && data.citations.length > 0 ? data.citations : annotationUrls;
+
+    logLlmCall({
+      provider: "openrouter",
+      model,
+      endpoint: `${opts.endpoint} (perplexity-fallback)`,
+      startedAt,
+      httpStatus: resp.status,
+      responseJson: data,
+    });
+    console.warn(
+      `[Perplexity→Gemini fallback] ${opts.endpoint} succeeded (${citations.length} citations, ${content.length} chars)${ctx}`,
+    );
+
+    return {
+      choices: [{ message: { content } }],
+      citations,
+    };
+  } catch (err) {
+    logLlmCall({
+      provider: "openrouter",
+      model,
+      endpoint: `${opts.endpoint} (perplexity-fallback)`,
+      startedAt,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
+}
+
+/**
+ * Decides whether a Perplexity failure should trigger the Gemini fallback.
+ * Triggers on auth/quota (401, "insufficient_quota") and on 429 after retries.
+ * Does NOT trigger on caller-aborts (don't fall back when caller wanted out)
+ * or on 4xx other than 401/429 (genuine request issues — fallback won't help).
+ */
+function shouldFallback(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg === "aborted") return false;
+  if (/HTTP 401/i.test(msg)) return true;
+  if (/insufficient_quota/i.test(msg)) return true;
+  if (/HTTP 429/i.test(msg)) return true;
+  if (/HTTP 5\d\d/i.test(msg)) return true;
+  // Network failures (timeout, DNS, ECONNRESET) — Perplexity unreachable, try Gemini
+  if (!msg.startsWith("Perplexity HTTP")) return true;
+  return false;
+}
 function envInt(name: string, fallback: number, min: number): number {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return fallback;
@@ -147,7 +289,15 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
             continue;
           }
           logLlmCall({ provider: "perplexity", model, endpoint: opts.endpoint, startedAt, httpStatus: status, errorMessage: `HTTP ${status}` });
-          throw new Error(`Perplexity HTTP ${status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`);
+          const finalErr = new Error(`Perplexity HTTP ${status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`);
+          if (shouldFallback(finalErr)) {
+            try {
+              return await geminiOnlineFallback(opts, finalErr);
+            } catch {
+              throw finalErr;
+            }
+          }
+          throw finalErr;
         }
 
         const data = (await resp.json()) as PerplexityChatResponse;
@@ -172,10 +322,26 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
         if (!msg.startsWith("Perplexity HTTP")) {
           logLlmCall({ provider: "perplexity", model, endpoint: opts.endpoint, startedAt, errorMessage: msg });
         }
-        throw err;
+        const finalErr = err instanceof Error ? err : new Error(msg);
+        if (shouldFallback(finalErr)) {
+          try {
+            return await geminiOnlineFallback(opts, finalErr);
+          } catch {
+            throw finalErr;
+          }
+        }
+        throw finalErr;
       }
     }
-    throw lastErr ?? new Error(`Perplexity ${opts.endpoint} failed after ${maxRetries + 1} attempts`);
+    const exhausted = lastErr ?? new Error(`Perplexity ${opts.endpoint} failed after ${maxRetries + 1} attempts`);
+    if (shouldFallback(exhausted)) {
+      try {
+        return await geminiOnlineFallback(opts, exhausted);
+      } catch {
+        throw exhausted;
+      }
+    }
+    throw exhausted;
   } finally {
     release();
   }
