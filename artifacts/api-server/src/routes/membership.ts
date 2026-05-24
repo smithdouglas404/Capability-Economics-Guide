@@ -16,7 +16,13 @@ import { createInvoice as createNowPaymentsInvoice, isNowPaymentsConfigured } fr
 import { checkKycForTier } from "../middlewares/requireTier";
 import { logAdminAction } from "../services/audit-log";
 import { getClerkUserSummaries, getClerkUserSummary } from "../services/clerk-user";
-import { runTierSelector, runPaymentRecovery } from "../services/workflows";
+import {
+  runTierSelector,
+  runPaymentRecovery,
+  type TierSelectorOutput,
+  type PaymentRecoveryOutput,
+} from "../services/workflows";
+import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
 import {
   sendWelcomeEmail,
   sendApprovalEmail,
@@ -326,12 +332,26 @@ router.post("/me/membership/concierge", async (req, res) => {
     .where(and(eq(userMembershipsTable.userId, auth.userId), eq(userMembershipsTable.status, "active")))
     .limit(1);
 
-  const result = await runTierSelector({
+  const tierInput = {
     userId: auth.userId,
     currentTier: current?.slug ?? null,
     query: parsed.data.query,
     conversationId: parsed.data.conversationId,
-  });
+  };
+  let result: TierSelectorOutput | null;
+  try {
+    result = await invokeWorkflowAndWait<TierSelectorOutput>(
+      "workflow/tier-selector",
+      tierInput,
+      { timeoutMs: 30_000 },
+    );
+  } catch (e) {
+    if (e instanceof InngestInvokeBypassError) {
+      result = await runTierSelector(tierInput);
+    } else {
+      throw e;
+    }
+  }
   if (!result) { res.status(503).json({ error: "Tier selector workflow unavailable" }); return; }
   res.json(result);
 });
@@ -364,12 +384,26 @@ router.post("/me/payment-recovery", async (req, res) => {
     return;
   }
 
-  const result = await runPaymentRecovery({
+  const recoveryInput = {
     userId: auth.userId,
     subscriptionId: past.subId,
     query: parsed.data.query,
     conversationId: parsed.data.conversationId,
-  });
+  };
+  let result: PaymentRecoveryOutput | null;
+  try {
+    result = await invokeWorkflowAndWait<PaymentRecoveryOutput>(
+      "workflow/payment-recovery",
+      recoveryInput,
+      { timeoutMs: 30_000 },
+    );
+  } catch (e) {
+    if (e instanceof InngestInvokeBypassError) {
+      result = await runPaymentRecovery(recoveryInput);
+    } else {
+      throw e;
+    }
+  }
   if (!result) { res.status(503).json({ error: "Payment recovery workflow unavailable" }); return; }
   res.json(result);
 });
