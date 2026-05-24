@@ -176,7 +176,11 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
         isNotNull(capabilityAlphaTable.marginStructurePct),
       ));
 
-    const valueUnlockedMm = Number(valueRow?.total ?? 0);
+    // revenue_exposure_mm is currently stored as raw dollars (a data-writer
+    // bug elsewhere) instead of millions, so divide by 1000 to bring the
+    // result back into the millions unit that formatUsdMm + the field name
+    // expect. Remove this divide if/when the writer is fixed.
+    const valueUnlockedMm = Number(valueRow?.total ?? 0) / 1000;
 
     // Top capability by annual margin captured.
     const topRows = await db
@@ -196,7 +200,8 @@ router.get("/metrics/home-tiles", async (_req: Request, res: Response) => {
       .limit(1);
 
     const topROIRow = topRows[0];
-    const topROIAmount = Number(topROIRow?.annualMargin ?? 0);
+    // Same divide-by-1000 unit correction as valueUnlockedMm above.
+    const topROIAmount = Number(topROIRow?.annualMargin ?? 0) / 1000;
 
     // Quarterly CVI delta: current vs 90 days ago.
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
