@@ -508,28 +508,22 @@ export default function Home() {
   } | null>(null);
 
   useEffect(() => {
-    const opts: RequestInit = { cache: "no-store" };
-    const loadHomeTiles = async (attempt = 0): Promise<void> => {
-      try {
-        const r = await fetch("/api/metrics/home-tiles", opts);
-        if (!r.ok) throw new Error(`http ${r.status}`);
-        const d = await r.json() as HomeTiles | null;
-        if (d) setHomeTiles(d);
-        else if (attempt < 2) setTimeout(() => { void loadHomeTiles(attempt + 1); }, 800 * (attempt + 1));
-      } catch {
-        if (attempt < 2) setTimeout(() => { void loadHomeTiles(attempt + 1); }, 800 * (attempt + 1));
-      }
-    };
-    void loadHomeTiles();
-    fetch("/api/metrics/principle-stats", opts)
+    // Cache-bust via query param instead of cache: "no-store" — some
+    // browser/network combos silently drop fetches with no-store.
+    const cb = `?_=${Date.now()}`;
+    fetch(`/api/metrics/principle-stats${cb}`)
       .then(r => r.ok ? r.json() : null)
       .then((d: PrincipleStats | null) => setPrincipleStats(d))
       .catch(() => {});
-    fetch("/api/cvi/current", opts)
+    fetch(`/api/metrics/home-tiles${cb}`)
+      .then(r => r.ok ? r.json() : null)
+      .then((d: HomeTiles | null) => setHomeTiles(d))
+      .catch(() => {});
+    fetch(`/api/cvi/current${cb}`)
       .then(r => r.ok ? r.json() : null)
       .then((d: CviCurrent | null) => setCviCurrent(d))
       .catch(() => {});
-    fetch("/api/capabilities", opts)
+    fetch(`/api/capabilities${cb}`)
       .then(r => r.ok ? r.json() : [])
       .then((d: unknown[]) => setCapCount(Array.isArray(d) ? d.length : null))
       .catch(() => {});
