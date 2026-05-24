@@ -27,7 +27,12 @@ import { extractFilingsViaHaiku } from "../services/edgar/extractor";
 import { detectCviSignalEvents, listRecentSignalEvents } from "../services/cvi-signals/detector";
 import { attributeSignalOutcomes, getSignalBacktestSummary } from "../services/cvi-signals/attribution";
 import { logger as log } from "../lib/logger";
-import { runCapabilityEnrichmentRetry, runAdminConfigProposer } from "../services/workflows";
+import {
+  runCapabilityEnrichmentRetry,
+  runAdminConfigProposer,
+  type GenericWorkflowOutput,
+} from "../services/workflows";
+import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
 import { capabilitiesTable } from "@workspace/db";
 
 const router: IRouter = Router();
@@ -349,13 +354,31 @@ router.post("/admin/config-propose", async (req, res) => {
   if (!body.currentValues) { res.status(400).json({ error: "currentValues required" }); return; }
   if (!body.recentOutcomes) { res.status(400).json({ error: "recentOutcomes required" }); return; }
 
-  const result = await runAdminConfigProposer({
+  const proposerInput = {
     configArea: body.configArea,
     currentValues: body.currentValues,
     recentOutcomes: body.recentOutcomes,
     targetKey: body.targetKey,
     triggeredBy: body.triggeredBy ?? (req.headers["x-user-email"] as string | undefined) ?? "admin-ui",
-  }).catch(() => null);
+  };
+  let result: GenericWorkflowOutput | null = null;
+  try {
+    try {
+      result = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+        "workflow/admin-config-proposer",
+        proposerInput,
+        { timeoutMs: 60_000 },
+      );
+    } catch (e) {
+      if (e instanceof InngestInvokeBypassError) {
+        result = await runAdminConfigProposer(proposerInput);
+      } else {
+        throw e;
+      }
+    }
+  } catch {
+    result = null;
+  }
 
   if (!result) { res.status(503).json({ error: "Admin-config-proposer workflow unavailable" }); return; }
   res.json({ status: result.status, payload: result.payload });

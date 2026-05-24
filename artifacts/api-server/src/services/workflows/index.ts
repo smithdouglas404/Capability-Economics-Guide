@@ -114,7 +114,7 @@ function newConversationId(): string {
   return randomUUID();
 }
 
-interface GenericWorkflowOutput<T = Record<string, unknown>> {
+export interface GenericWorkflowOutput<T = Record<string, unknown>> {
   status: "ok" | "degraded";
   payload: T;
 }
