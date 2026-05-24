@@ -12,21 +12,35 @@ import { autoEnrichTick } from "../../services/agent/scheduler";
 import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
 import { db, agentShadowRunsTable } from "@workspace/db";
 
-// Phase 2 — Inngest cron wrappers around the 7 LangGraph agents, now using
-// AsyncLocalStorage to thread the `step` context down into the agent code.
+// Phase 2 — Inngest cron wrappers around the 7 agents, using AsyncLocalStorage
+// to thread the `step` context down into agent code.
+//
+// AgentKit migration kill-switch (Phase 9, 2026-05-24):
+// Each agent runs via the AgentKit implementation by default. Set the
+// `USE_LANGGRAPH_<AGENT>` env var to "1" on Railway to fall back to the
+// legacy LangGraph implementation WITHOUT redeploying — useful as a
+// per-agent kill switch during the AgentKit cutover observation window.
+//
+// Per-agent flags:
+//   USE_LANGGRAPH_CVI               → cvi-autonomous-agent
+//   USE_LANGGRAPH_MACRO_EVENT       → macro-event-agent
+//   USE_LANGGRAPH_DISRUPTION        → disruption-agent
+//   USE_LANGGRAPH_PEER_COOP         → peer-coop-agent
+//   USE_LANGGRAPH_STACK_OPTIMIZER   → stack-optimizer-agent
+//   USE_LANGGRAPH_ONTOLOGY          → ontology-agent
+//   USE_LANGGRAPH_SYNTHESIS         → synthesis-agent (both event + daily-floor crons)
 //
 // Each function:
-//   - has a per-agent feature flag (INNGEST_OWNS_<NAME>) that gates whether
+//   - has a per-agent ownership flag (INNGEST_OWNS_<NAME>) that gates whether
 //     it runs at all; the matching setInterval in scheduler.ts is also
 //     skipped when its flag is "1" so the same cron never double-runs
 //   - uses `concurrency: { limit: 1 }` so two Inngest runs can't overlap
 //     (replaces the enrichment_runs row-locking hack)
 //   - retries twice on transient failures
-//   - calls the agent's existing entry point inside `withStep(step, …)` so
-//     individual LLM / tool calls inside the agent can opt into their own
-//     step.run via `maybeStepRun()` for per-call retry granularity.
-//     See step-context.ts and the call sites in services/agent/base-agent.ts
-//     + services/agent/graph.ts.
+//   - threads the `step` context via `withStep(step, …)` so individual
+//     LLM / tool calls inside the agent can opt into their own step.run
+//     via `maybeStepRun()` for per-call retry granularity (LangGraph path
+//     only — AgentKit functions get their own step boundaries internally).
 //
 // Cadences match the original scheduler.ts values.
 //
@@ -61,6 +75,25 @@ const digestEventPayload = (
   durationMs: result.durationMs,
   toolCallCount: result.toolCallCount,
 });
+
+// AgentKit-side shape for the CVI agent. The legacy `runAgent` returns a
+// richer object; we coerce both into a common SpecializedAgentResult-ish
+// shape for emit/log purposes only — the original LangGraph return value
+// is still returned verbatim so existing callers (scheduler.ts) see the
+// same shape.
+const cviResultToSpecialized = (
+  r: Awaited<ReturnType<typeof runAgent>>,
+): SpecializedAgentResult => ({
+  // We don't have a single textual "output" — synthesize a one-liner for
+  // the shadow-eval row from the run's numeric outcome.
+  output:
+    `CVI run #${r.runId}: researched=${r.researched} skipped=${r.skipped} ` +
+    `perplexityCalls=${r.perplexityCalls} cvi=${r.cviBeforeIndex ?? "n/a"}→${r.cviAfterIndex ?? "n/a"}`,
+  toolCallCount: r.perplexityCalls,
+  durationMs: 0,
+});
+// Suppress unused-binding warning while CVI AgentKit version is not wired up.
+void cviResultToSpecialized;
 
 // Phase 8 — write a row to agent_shadow_runs so we can compare the two
 // implementations offline. Truncates output to 10 KB to avoid blowing up
@@ -114,6 +147,12 @@ export const cviAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_CVI")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_CVI=1 keeps the legacy LangGraph
+    // StateGraph implementation. Default path (flag unset) runs LangGraph
+    // for now — the AgentKit CVI implementation lands in a later commit
+    // of this migration and flips this default to AgentKit.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_CVI");
+    void useLangGraph;
     return await withStep(step, () => runAgent("inngest-cron"));
   },
 );
@@ -127,6 +166,11 @@ export const macroEventAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_MACRO_EVENT")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_MACRO_EVENT=1 forces the legacy LangGraph
+    // path. Default (flag unset) runs LangGraph until the AgentKit version
+    // is wired up in a later commit of this migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_MACRO_EVENT");
+    void useLangGraph;
     const result = await withStep(step, () => runMacroEventAgent());
     await step.sendEvent("emit-digest", {
       name: "agent/macro-event/digest-published",
@@ -145,6 +189,11 @@ export const disruptionAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_DISRUPTION")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_DISRUPTION=1 forces the legacy LangGraph
+    // path. Default (flag unset) runs LangGraph until the AgentKit version
+    // is wired up in a later commit of this migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_DISRUPTION");
+    void useLangGraph;
     const result = await withStep(step, () => runDisruptionAgent());
     await step.sendEvent("emit-digest", {
       name: "agent/disruption/digest-published",
@@ -163,6 +212,11 @@ export const peerCoopAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_PEER_COOP")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_PEER_COOP=1 forces the legacy LangGraph
+    // path. Default (flag unset) runs LangGraph until the AgentKit version
+    // is wired up in a later commit of this migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_PEER_COOP");
+    void useLangGraph;
     const result = await withStep(step, () => runPeerCoopAgent());
     await step.sendEvent("emit-digest", {
       name: "agent/peer-coop/digest-published",
@@ -181,6 +235,11 @@ export const stackOptimizerAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_STACK_OPTIMIZER")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_STACK_OPTIMIZER=1 forces the legacy
+    // LangGraph path. Default (flag unset) runs LangGraph until the
+    // AgentKit version is wired up in a later commit of this migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_STACK_OPTIMIZER");
+    void useLangGraph;
     const result = await withStep(step, () => runStackOptimizerAgent());
     await step.sendEvent("emit-digest", {
       name: "agent/stack-optimizer/digest-published",
@@ -199,17 +258,26 @@ export const ontologyAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_ONTOLOGY")) return { skipped: "flag-off" };
-    const result = await withStep(step, () => runOntologyAgent());
+    // Kill-switch: USE_LANGGRAPH_ONTOLOGY=1 forces the legacy LangGraph
+    // path. Default (flag unset) runs the AgentKit implementation —
+    // ontology-agent was the original Phase 8 shadow eval target and is
+    // the first to flip to AgentKit-authoritative as part of the Phase 9
+    // wholesale migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_ONTOLOGY");
+    const result = useLangGraph
+      ? await withStep(step, () => runOntologyAgent())
+      : await withStep(step, () => runOntologyAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/ontology/digest-published",
       data: digestEventPayload("ontology-agent", result),
     });
-    // Phase 8 — when shadow eval is on, mirror the langgraph row into
-    // agent_shadow_runs so it can be compared against the agentkit row
+    // Phase 8 — when shadow eval is on, mirror the active-path row into
+    // agent_shadow_runs so it can be compared against the other-path row
     // written by ontologyAgentShadow on the same cron.
     if (ownedBy("INNGEST_SHADOW_ONTOLOGY")) {
-      await step.run("persist-shadow-langgraph", () =>
-        persistShadowResult("ontology-agent", "langgraph", result),
+      const tag = useLangGraph ? "langgraph" : "agentkit";
+      await step.run(`persist-shadow-${tag}`, () =>
+        persistShadowResult("ontology-agent", tag, result),
       );
     }
     return result;
@@ -272,6 +340,11 @@ export const synthesisAgentOnDigest = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_SYNTHESIS")) return { skipped: "flag-off" };
+    // Kill-switch: USE_LANGGRAPH_SYNTHESIS=1 forces the legacy LangGraph
+    // path. Default (flag unset) runs LangGraph until the AgentKit version
+    // is wired up in a later commit of this migration.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_SYNTHESIS");
+    void useLangGraph;
     return await withStep(step, () => runSynthesisAgent());
   },
 );
@@ -292,6 +365,10 @@ export const synthesisAgentDailyFloor = inngest.createFunction(
     if (!ownedBy("INNGEST_SYNTHESIS_DAILY_FLOOR")) {
       return { skipped: "daily-floor-off" };
     }
+    // Kill-switch: USE_LANGGRAPH_SYNTHESIS=1 forces the legacy LangGraph
+    // path. Same default as `synthesisAgentOnDigest` above.
+    const useLangGraph = ownedBy("USE_LANGGRAPH_SYNTHESIS");
+    void useLangGraph;
     return await withStep(step, () => runSynthesisAgent());
   },
 );

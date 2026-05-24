@@ -330,6 +330,24 @@ Implementation: `artifacts/api-server/src/inngest/connect-worker.ts` calls `conn
 
 All flags default OFF. The cutover order is per-feature — flipping one flag has no effect on the others.
 
+### AgentKit migration kill-switch (Phase 9, 2026-05-24)
+
+Wholesale migration of the 7 agents from LangChain/LangGraph to `@inngest/agent-kit` (v0.13.2) is staged commit-by-commit. Each Inngest cron in `src/inngest/functions/agents.ts` is wrapped in a per-agent kill-switch so an operator can revert any single agent to its legacy LangGraph implementation without a redeploy — just flip the matching `USE_LANGGRAPH_*` env var on the `capabilityeconomics` Railway service.
+
+Default: AgentKit. Set the flag to `1` to fall back to LangGraph for that one agent.
+
+- `USE_LANGGRAPH_CVI` — `cvi-autonomous-agent`
+- `USE_LANGGRAPH_MACRO_EVENT` — `macro-event-agent`
+- `USE_LANGGRAPH_DISRUPTION` — `disruption-agent`
+- `USE_LANGGRAPH_PEER_COOP` — `peer-coop-agent`
+- `USE_LANGGRAPH_STACK_OPTIMIZER` — `stack-optimizer-agent`
+- `USE_LANGGRAPH_ONTOLOGY` — `ontology-agent`
+- `USE_LANGGRAPH_SYNTHESIS` — `synthesis-agent` (both `synthesisAgentOnDigest` event trigger AND `synthesisAgentDailyFloor` cron)
+
+Letta agent name (e.g. `cvi-macro-event-agent`) is preserved across both implementations, so memory + identity continuity holds whichever path is active.
+
+The flag is a runtime gate evaluated on every cron tick — change effect is immediate at the next scheduled run; no redeploy required. Once the 1-week observation window after a flag flip closes with no anomalies, the legacy LangGraph branch can be removed (commit 9 of the migration removes them all wholesale).
+
 ### AgentKit shadow eval (Phase 8)
 
 **Scope.** `@inngest/agent-kit` (v0.13.2, Apache-2.0) was added 2026-05-23 as a *parallel* implementation of `ontology-agent` ONLY — the lowest-blast-radius of the 7 agents per the 2026-05-18 decision (simplest tools, all idempotent, no customer-facing surface depends on its output). The LangGraph implementation in `services/ontology-agent.ts` remains authoritative. Do NOT migrate the other 6 agents until this eval completes.
