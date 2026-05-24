@@ -357,6 +357,54 @@ GROUP BY implementation;
 
 **Plan**: run 2 weeks with `INNGEST_SHADOW_ONTOLOGY=1`. Then decide: migrate (if AgentKit is faster + similarly accurate), abandon (LangGraph stays), or extend the eval to another agent before deciding. Don't widen the migration prematurely — CLAUDE.md's 2026-05-18 anti-migration rule still applies to all 6 other agents.
 
+### Capability Disruption Index (DI) — forward-looking risk + opportunity layer
+
+Forward-looking sibling of CVI (current value) and DVX (current disruption signal). Predicts how disruptable a capability is + which of 8 reference disruption-pattern archetypes (Uber / Airbnb / Google / Amazon / Stripe / OpenAI / Tesla / Netflix) would attack it.
+
+**Surfaces:**
+- `/disruption-index` — sortable/filterable listing with **two views: "Top 5 per industry" (default) + "Full table"**. Each cap shows top-5 pattern badges, color-graded composite DI.
+- `/disruption-lab` — interactive: pick capability + apply enabling techs → live DI recompute. Manual / Pitch / Compare modes. Saved scenarios per user.
+- `/capability/:id` — `<DisruptionFishbone>` component mounts below the ConsensusNarrative + CapabilityCascadePanel, surfacing 6-bone visualization with click-drawer evidence per sub-score.
+
+**Scoring (`services/disruption-index.ts`):**
+- 6 sub-scores: assetFriction + jtbdAbstractability + enablingTechStrength + trustReplaceability + latentSupplyMultiplier + marginAsymmetry
+- Deterministic: assetFriction (from regulation_capability_requirements + capability_alpha proxies + description keyword scan) + marginAsymmetry (from capability_alpha.margin_structure_pct vs 60% software baseline)
+- LLM-batched: the other 4 sub-scores + top-3 enabling-tech picks in ONE Sonnet call per cap
+- Composite = weighted sum (enabling_tech 25% > asset 20% > jtbd/trust/supply 15% each > margin 10%)
+- Playbook matching uses **Pearson correlation on sub-score deviations** (NOT raw cosine) — matches shape, not magnitude. Sharp #1 vs #2 spread.
+
+**Disruption Vector Agent (`services/disruption-vector-agent.ts`):**
+- 8th specialized agent in the autonomous network (sibling to macro-event, disruption, peer-coop, stack-optimizer, ontology, synthesis + CVI autonomous)
+- Inngest cron `0 */6 * * *` (every 6 hours), 8 caps per cycle, Sonnet-class scoring (~$0.56/cycle budget)
+- Activated via `INNGEST_OWNS_DISRUPTION_INDEX=1` on capabilityeconomics
+
+### Capability Disruption Simulator — time-axis forward projection
+
+Sibling to the DI Index/Lab. Where the Lab answers "what's the DI of this capability right now under that stack," the Simulator answers "how does that DI play out over the next 12-60 months."
+
+**Surface:** `/disruption-simulator` — three-mode page (Manual / Pitch / Saved). Output card-grid shows trajectory chart (incumbent CVI vs entrant strength line over time + crossover marker + cumulative $-at-risk), second-order cascade (per-dependent-cap CVI shift), defender counterfactuals (acquire / build / lobby with $ cost + new crossover).
+
+**Engine (`services/disruption-simulator.ts`):** Pure-math, no LLM calls per simulation. For each month t = 0..horizon:
+1. Bass diffusion `F(t)` with curve preset {p, q} × capital tier multiplier × regulatory friction delay
+2. Entrant strength = F × 100; incumbent CVI = baseline × (1 - F × substitutionFactor)
+3. Margin compression kicks in once entrant share > 20% (reflexive death-spiral)
+4. Cumulative $ disrupted = Σ(delta-share × incumbent revenue)
+5. Dependency cascade at horizon end: walk capability_dependencies, decay dependents by (decay × edge_weight × 0.5)
+6. Crossover = first month entrant_strength > incumbent_cvi
+7. Defender counterfactuals: acquire (M9, 10× ARR), build (+18mo friction, ~$200MM 3-yr), lobby (+12mo friction, ~$10MM)
+
+**Curve presets:**
+- `slow_burn` {p:0.001, q:0.18} — PE rollup
+- `standard_b2b_saas` {p:0.003, q:0.30} — enterprise SaaS reference accounts
+- `viral_b2c` {p:0.015, q:0.40} — Airbnb / Uber S-curve
+- `stripe_dev` {p:0.020, q:0.35} — bottom-up developer adoption
+
+**Capital multipliers on p:** bootstrap 0.6 / seed 1.0 / series_b 1.6 / mega_fund 2.4
+
+**Pitch mode** uses Sonnet to extract all 9 simulator inputs from a startup pitch text in one round-trip, then runs the simulation.
+
+Schema: `disruption_simulations` carries the full snapshot — inputs + trajectory[] + cascade[] + defenderOptions[] — so saved scenarios are self-contained and forkable (parentSimulationId).
+
 ### LangSmith — observability across both stacks
 
 When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
