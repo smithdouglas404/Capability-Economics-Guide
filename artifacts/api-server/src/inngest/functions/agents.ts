@@ -12,6 +12,7 @@ import { runStackOptimizerAgentAgentKit } from "../../services/stack-optimizer-a
 import { runOntologyAgent } from "../../services/ontology-agent";
 import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit";
 import { runSynthesisAgent } from "../../services/synthesis-agent";
+import { runSynthesisAgentAgentKit } from "../../services/synthesis-agent-agentkit";
 import { autoEnrichTick } from "../../services/agent/scheduler";
 import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
 import { db, agentShadowRunsTable } from "@workspace/db";
@@ -345,11 +346,11 @@ export const synthesisAgentOnDigest = inngest.createFunction(
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_SYNTHESIS")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_SYNTHESIS=1 forces the legacy LangGraph
-    // path. Default (flag unset) runs LangGraph until the AgentKit version
-    // is wired up in a later commit of this migration.
+    // path. Default (flag unset) runs the AgentKit implementation.
     const useLangGraph = ownedBy("USE_LANGGRAPH_SYNTHESIS");
-    void useLangGraph;
-    return await withStep(step, () => runSynthesisAgent());
+    return useLangGraph
+      ? await withStep(step, () => runSynthesisAgent())
+      : await withStep(step, () => runSynthesisAgentAgentKit());
   },
 );
 
@@ -372,8 +373,9 @@ export const synthesisAgentDailyFloor = inngest.createFunction(
     // Kill-switch: USE_LANGGRAPH_SYNTHESIS=1 forces the legacy LangGraph
     // path. Same default as `synthesisAgentOnDigest` above.
     const useLangGraph = ownedBy("USE_LANGGRAPH_SYNTHESIS");
-    void useLangGraph;
-    return await withStep(step, () => runSynthesisAgent());
+    return useLangGraph
+      ? await withStep(step, () => runSynthesisAgent())
+      : await withStep(step, () => runSynthesisAgentAgentKit());
   },
 );
 
