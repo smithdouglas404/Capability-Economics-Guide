@@ -306,7 +306,11 @@ async function researchNode(state: AgentStateType): Promise<Partial<AgentStateTy
       emitAgentEvent({ type: "tool_call", tool: "perplexity_research", capability: decision.capabilityName, industry: decision.industryName });
 
       const resultStr = await maybeStepRun(
-        "research-perplexity",
+        // Unique per-capability step ID — the surrounding loop iterates
+        // over multiple capabilities, so reusing a bare "research-perplexity"
+        // name triggers Inngest's AUTOMATIC_PARALLEL_INDEXING warning. The
+        // capabilityId is stable across replay so memoization still works.
+        `research-perplexity-cap-${decision.capabilityId}`,
         () => perplexityResearchTool.invoke({
           industryName: decision.industryName,
           capabilityName: decision.capabilityName,
