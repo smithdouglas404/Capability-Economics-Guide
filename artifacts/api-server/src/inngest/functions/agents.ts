@@ -1,6 +1,7 @@
 import { inngest } from "../client";
 import { withStep } from "../step-context";
 import { runAgent } from "../../services/agent/graph";
+import { runCviAgentAgentKit } from "../../services/cvi-agent-agentkit";
 import { runMacroEventAgent } from "../../services/macro-event-agent";
 import { runMacroEventAgentAgentKit } from "../../services/macro-event-agent-agentkit";
 import { runDisruptionAgent } from "../../services/disruption-agent";
@@ -81,25 +82,6 @@ const digestEventPayload = (
   toolCallCount: result.toolCallCount,
 });
 
-// AgentKit-side shape for the CVI agent. The legacy `runAgent` returns a
-// richer object; we coerce both into a common SpecializedAgentResult-ish
-// shape for emit/log purposes only — the original LangGraph return value
-// is still returned verbatim so existing callers (scheduler.ts) see the
-// same shape.
-const cviResultToSpecialized = (
-  r: Awaited<ReturnType<typeof runAgent>>,
-): SpecializedAgentResult => ({
-  // We don't have a single textual "output" — synthesize a one-liner for
-  // the shadow-eval row from the run's numeric outcome.
-  output:
-    `CVI run #${r.runId}: researched=${r.researched} skipped=${r.skipped} ` +
-    `perplexityCalls=${r.perplexityCalls} cvi=${r.cviBeforeIndex ?? "n/a"}→${r.cviAfterIndex ?? "n/a"}`,
-  toolCallCount: r.perplexityCalls,
-  durationMs: 0,
-});
-// Suppress unused-binding warning while CVI AgentKit version is not wired up.
-void cviResultToSpecialized;
-
 // Phase 8 — write a row to agent_shadow_runs so we can compare the two
 // implementations offline. Truncates output to 10 KB to avoid blowing up
 // the row size (the comparison cares about tool count + duration + answer
@@ -153,12 +135,12 @@ export const cviAgentCron = inngest.createFunction(
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_CVI")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_CVI=1 keeps the legacy LangGraph
-    // StateGraph implementation. Default path (flag unset) runs LangGraph
-    // for now — the AgentKit CVI implementation lands in a later commit
-    // of this migration and flips this default to AgentKit.
+    // StateGraph implementation. Default path (flag unset) runs the
+    // AgentKit implementation.
     const useLangGraph = ownedBy("USE_LANGGRAPH_CVI");
-    void useLangGraph;
-    return await withStep(step, () => runAgent("inngest-cron"));
+    return useLangGraph
+      ? await withStep(step, () => runAgent("inngest-cron"))
+      : await withStep(step, () => runCviAgentAgentKit("inngest-cron"));
   },
 );
 
