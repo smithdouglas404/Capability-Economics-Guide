@@ -115,7 +115,7 @@ function LiveSignalCard() {
 
   const current = findings[idx];
   return (
-    <div className="border border-accent/30 bg-accent/[0.04] p-4 rounded-sm relative overflow-hidden">
+    <div className="border border-accent/30 bg-accent/[0.04] p-4 rounded-none relative overflow-hidden">
       <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent" />
       <div className="flex items-center gap-2 mb-2">
         <Radio className="w-3 h-3 text-accent animate-pulse" />
@@ -344,7 +344,7 @@ function LearningProgress() {
                 <Link
                   key={ixn.id}
                   href={typeof ixn.metadata?.path === "string" ? ixn.metadata.path : "/"}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] border border-border/50 hover:border-accent hover:bg-muted/20 rounded-sm transition-colors"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] border border-border/50 hover:border-accent hover:bg-muted/20 rounded-none transition-colors"
                 >
                   <span className="text-muted-foreground">{ixn.label}</span>
                   <ArrowRight className="w-2.5 h-2.5 text-accent" />
@@ -366,7 +366,7 @@ function LearningProgress() {
               <Link
                 key={ind.name}
                 href={`/case-study/${ind.slug ?? ind.name.toLowerCase()}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent hover:bg-muted/30 rounded-sm transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent hover:bg-muted/30 rounded-none transition-colors"
               >
                 <Activity className="w-2.5 h-2.5 text-accent" />
                 {ind.name}
@@ -399,14 +399,14 @@ function AgentPatternsFor({ homeIndustries }: { homeIndustries: Array<{ name: st
       <div className="flex flex-wrap gap-2">
         <Link
           href="/insights"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider bg-accent/10 text-accent hover:bg-accent/20 rounded-sm transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider bg-accent/10 text-accent hover:bg-accent/20 rounded-none transition-colors"
         >
           <Lightbulb className="w-2.5 h-2.5" />
           View agent insights
         </Link>
         <Link
           href="/cvi"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent rounded-sm transition-colors"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border border-border/50 hover:border-accent rounded-none transition-colors"
         >
           <Target className="w-2.5 h-2.5" />
           CVI dashboard
@@ -763,27 +763,27 @@ export default function Home() {
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            <Link href="/upload" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+            <Link href="/upload" className="block p-4 border border-border/60 rounded-none hover:border-accent hover:bg-muted/30 transition-colors">
               <Sparkles className="w-5 h-5 text-accent mb-2" />
               <h3 className="font-serif text-base mb-1">Upload your plan</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">Drop a PDF; we extract capability claims and match them to the live graph.</p>
             </Link>
-            <Link href="/marketplace" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+            <Link href="/marketplace" className="block p-4 border border-border/60 rounded-none hover:border-accent hover:bg-muted/30 transition-colors">
               <span className="text-xl">🏪</span>
               <h3 className="font-serif text-base mb-1 mt-2">Browse the marketplace</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">Cited research, datasets, and templates authored by platform members.</p>
             </Link>
-            <Link href="/disruption" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+            <Link href="/disruption" className="block p-4 border border-border/60 rounded-none hover:border-accent hover:bg-muted/30 transition-colors">
               <span className="text-xl">⚡</span>
               <h3 className="font-serif text-base mb-1 mt-2">Disruption Index</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">DVX score per industry — what's at active risk and what's net-new.</p>
             </Link>
-            <Link href="/forum/banking" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+            <Link href="/forum/banking" className="block p-4 border border-border/60 rounded-none hover:border-accent hover:bg-muted/30 transition-colors">
               <span className="text-xl">💬</span>
               <h3 className="font-serif text-base mb-1 mt-2">Join the discussion</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">Per-industry forums and DMs with other capability strategists.</p>
             </Link>
-            <Link href="/provenance" className="block p-4 border border-border/60 rounded-lg hover:border-accent hover:bg-muted/30 transition-colors">
+            <Link href="/provenance" className="block p-4 border border-border/60 rounded-none hover:border-accent hover:bg-muted/30 transition-colors">
               <span className="text-xl">📚</span>
               <h3 className="font-serif text-base mb-1 mt-2">See our sources</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">World Bank, Foundry, WEF, EDGAR. Not just an LLM wrapper.</p>
@@ -891,8 +891,8 @@ export default function Home() {
                       </div>
                       <div className="font-mono text-2xl lg:text-3xl font-light tabular-nums text-foreground/40">${traditionalCost.amountUsdMm.toFixed(1)}M</div>
                     </div>
-                    <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
-                      <div className="h-full w-full bg-muted-foreground/20 rounded-sm" />
+                    <div className="h-2 bg-border/40 rounded-none overflow-hidden">
+                      <div className="h-full w-full bg-muted-foreground/20 rounded-none" />
                     </div>
                     <div className="font-mono text-[11px] text-muted-foreground mt-2">Opaque cost center — no sub-allocation visibility</div>
                   </div>
@@ -910,13 +910,13 @@ export default function Home() {
                         <span>Retained value generated</span>
                         <span className="text-accent">${valueGenerated.toFixed(1)}M</span>
                       </div>
-                      <div className="h-2 bg-border/40 rounded-sm overflow-hidden">
+                      <div className="h-2 bg-border/40 rounded-none overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           whileInView={{ width: "80%" }}
                           viewport={{ once: true }}
                           transition={{ duration: 1.2, delay: 0.3, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] }}
-                          className="h-full bg-accent rounded-sm"
+                          className="h-full bg-accent rounded-none"
                         />
                       </div>
                     </div>
