@@ -4,6 +4,7 @@ import { runAgent } from "../../services/agent/graph";
 import { runMacroEventAgent } from "../../services/macro-event-agent";
 import { runMacroEventAgentAgentKit } from "../../services/macro-event-agent-agentkit";
 import { runDisruptionAgent } from "../../services/disruption-agent";
+import { runDisruptionAgentAgentKit } from "../../services/disruption-agent-agentkit";
 import { runPeerCoopAgent } from "../../services/peer-coop-agent";
 import { runStackOptimizerAgent } from "../../services/stack-optimizer-agent";
 import { runOntologyAgent } from "../../services/ontology-agent";
@@ -191,11 +192,11 @@ export const disruptionAgentCron = inngest.createFunction(
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_DISRUPTION")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_DISRUPTION=1 forces the legacy LangGraph
-    // path. Default (flag unset) runs LangGraph until the AgentKit version
-    // is wired up in a later commit of this migration.
+    // path. Default (flag unset) runs the AgentKit implementation.
     const useLangGraph = ownedBy("USE_LANGGRAPH_DISRUPTION");
-    void useLangGraph;
-    const result = await withStep(step, () => runDisruptionAgent());
+    const result = useLangGraph
+      ? await withStep(step, () => runDisruptionAgent())
+      : await withStep(step, () => runDisruptionAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/disruption/digest-published",
       data: digestEventPayload("disruption-agent", result),
