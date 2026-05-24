@@ -16,7 +16,6 @@ import { runSynthesisAgent } from "../../services/synthesis-agent";
 import { runSynthesisAgentAgentKit } from "../../services/synthesis-agent-agentkit";
 import { autoEnrichTick } from "../../services/agent/scheduler";
 import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
-import { db, agentShadowRunsTable } from "@workspace/db";
 
 // Phase 2 — Inngest cron wrappers around the 7 agents, using AsyncLocalStorage
 // to thread the `step` context down into agent code.
@@ -81,41 +80,6 @@ const digestEventPayload = (
   durationMs: result.durationMs,
   toolCallCount: result.toolCallCount,
 });
-
-// Phase 8 — write a row to agent_shadow_runs so we can compare the two
-// implementations offline. Truncates output to 10 KB to avoid blowing up
-// the row size (the comparison cares about tool count + duration + answer
-// shape, not the full transcript). Best-effort: any DB failure is logged
-// and swallowed so the agent cron is never broken by a shadow write.
-async function persistShadowResult(
-  agentName: string,
-  implementation: "langgraph" | "agentkit",
-  result: SpecializedAgentResult,
-  errorMessage?: string,
-): Promise<void> {
-  try {
-    const truncated = result.output.length > 10_000
-      ? `${result.output.slice(0, 10_000)}…[truncated]`
-      : result.output;
-    await db.insert(agentShadowRunsTable).values({
-      agentName,
-      implementation,
-      output: truncated,
-      toolCallCount: result.toolCallCount,
-      durationMs: result.durationMs,
-      errorMessage: errorMessage ?? null,
-      // finishedAt defaults to now() via the schema; startedAt also defaults
-      // to now(). We backfill startedAt locally for a more accurate window.
-      startedAt: new Date(Date.now() - result.durationMs),
-      finishedAt: new Date(),
-    });
-  } catch (err) {
-    console.warn(
-      `[shadow-eval] failed to persist ${agentName}/${implementation} row:`,
-      err instanceof Error ? err.message : err,
-    );
-  }
-}
 
 export const cviAgentCron = inngest.createFunction(
   {
@@ -247,9 +211,9 @@ export const ontologyAgentCron = inngest.createFunction(
     if (!ownedBy("INNGEST_OWNS_ONTOLOGY")) return { skipped: "flag-off" };
     // Kill-switch: USE_LANGGRAPH_ONTOLOGY=1 forces the legacy LangGraph
     // path. Default (flag unset) runs the AgentKit implementation —
-    // ontology-agent was the original Phase 8 shadow eval target and is
-    // the first to flip to AgentKit-authoritative as part of the Phase 9
-    // wholesale migration.
+    // ontology-agent is now AgentKit-authoritative as of the Phase 9
+    // wholesale migration (2026-05-24). The Phase 8 shadow eval function
+    // has been retired; agent_shadow_runs historical rows are preserved.
     const useLangGraph = ownedBy("USE_LANGGRAPH_ONTOLOGY");
     const result = useLangGraph
       ? await withStep(step, () => runOntologyAgent())
@@ -258,47 +222,6 @@ export const ontologyAgentCron = inngest.createFunction(
       name: "agent/ontology/digest-published",
       data: digestEventPayload("ontology-agent", result),
     });
-    // Phase 8 — when shadow eval is on, mirror the active-path row into
-    // agent_shadow_runs so it can be compared against the other-path row
-    // written by ontologyAgentShadow on the same cron.
-    if (ownedBy("INNGEST_SHADOW_ONTOLOGY")) {
-      const tag = useLangGraph ? "langgraph" : "agentkit";
-      await step.run(`persist-shadow-${tag}`, () =>
-        persistShadowResult("ontology-agent", tag, result),
-      );
-    }
-    return result;
-  },
-);
-
-// Phase 8 — AgentKit parallel run on the same cron as `ontologyAgentCron`.
-// Both cron functions fire at `0 */4 * * *`; only this one runs the
-// `@inngest/agent-kit` Network. Output is NOT published to
-// `NS.sharedKnowledge` — the legacy langgraph path remains authoritative.
-// We persist the run to `agent_shadow_runs` with implementation="agentkit"
-// so we can compare against the langgraph row from `ontologyAgentCron`.
-//
-// Gated by `INNGEST_SHADOW_ONTOLOGY=1` (default off). `retries: 0` because
-// a shadow failure must NEVER cascade — if AgentKit throws we want one row
-// in `agent_shadow_runs` reflecting the failure, not three retry attempts.
-export const ontologyAgentShadow = inngest.createFunction(
-  {
-    id: "ontology-agent-shadow",
-    triggers: [{ cron: "0 */4 * * *" }],
-    concurrency: { limit: 1 },
-    retries: 0,
-  },
-  async ({ step }) => {
-    if (!ownedBy("INNGEST_SHADOW_ONTOLOGY")) return { skipped: "flag-off" };
-    const result = await withStep(step, () => runOntologyAgentAgentKit());
-    await step.run("persist-shadow-agentkit", () =>
-      persistShadowResult(
-        "ontology-agent",
-        "agentkit",
-        result,
-        result.output.startsWith("ERROR: ") ? result.output : undefined,
-      ),
-    );
     return result;
   },
 );
@@ -420,7 +343,6 @@ export const agentFunctions = [
   peerCoopAgentCron,
   stackOptimizerAgentCron,
   ontologyAgentCron,
-  ontologyAgentShadow,
   synthesisAgentOnDigest,
   synthesisAgentDailyFloor,
   autoEnrichCron,

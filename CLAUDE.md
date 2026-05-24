@@ -348,32 +348,20 @@ Letta agent name (e.g. `cvi-macro-event-agent`) is preserved across both impleme
 
 The flag is a runtime gate evaluated on every cron tick — change effect is immediate at the next scheduled run; no redeploy required. Once the 1-week observation window after a flag flip closes with no anomalies, the legacy LangGraph branch can be removed (commit 9 of the migration removes them all wholesale).
 
-### AgentKit shadow eval (Phase 8)
+### AgentKit migration complete (Phase 9, 2026-05-24)
 
-**Scope.** `@inngest/agent-kit` (v0.13.2, Apache-2.0) was added 2026-05-23 as a *parallel* implementation of `ontology-agent` ONLY — the lowest-blast-radius of the 7 agents per the 2026-05-18 decision (simplest tools, all idempotent, no customer-facing surface depends on its output). The LangGraph implementation in `services/ontology-agent.ts` remains authoritative. Do NOT migrate the other 6 agents until this eval completes.
+All 7 agents now run on `@inngest/agent-kit` (v0.13.2, Apache-2.0):
+- `cvi-autonomous-agent` → `services/cvi-agent-agentkit.ts` (procedural 9-phase orchestration with a single-agent AgentKit Network for the memorize-phase prior refinement)
+- `macro-event-agent` → `services/macro-event-agent-agentkit.ts`
+- `disruption-agent` → `services/disruption-agent-agentkit.ts`
+- `peer-coop-agent` → `services/peer-coop-agent-agentkit.ts`
+- `stack-optimizer-agent` → `services/stack-optimizer-agent-agentkit.ts`
+- `ontology-agent` → `services/ontology-agent-agentkit.ts` (was the Phase 8 shadow target; now authoritative)
+- `synthesis-agent` → `services/synthesis-agent-agentkit.ts` (Sonnet model)
 
-**How it runs.** Two Inngest functions fire on the same `0 */4 * * *` cron:
-- `ontologyAgentCron` (legacy) — runs `runOntologyAgent()` from `services/ontology-agent.ts`, publishes its digest to `NS.sharedKnowledge`, sends `agent/ontology/digest-published`. This is the production path.
-- `ontologyAgentShadow` (new) — runs `runOntologyAgentAgentKit()` from `services/ontology-agent-agentkit.ts`. Same Haiku model, same system prompt, same 4 tools (`read_all_agent_outputs`, `extract_and_register_entities`, `get_graph_stats`, `trigger_foundry_sync_if_alerted`) re-declared via AgentKit's `createTool` (LangChain's `DynamicStructuredTool` shape isn't compatible with AgentKit's `Tool.Any`, so the wrappers are thin re-declarations that call the same underlying business-logic functions). Output is NOT published to `NS.sharedKnowledge`. `retries: 0` so a shadow failure never cascades.
+LangGraph + LangChain dependencies removed; the legacy `services/agent/graph.ts`, `services/agent/base-agent.ts`, `services/agent/optimizer.ts`, and per-agent legacy entry points (`runMacroEventAgent` etc.) are deleted in commit 9 of the migration. The Phase 8 shadow Inngest function (`ontologyAgentShadow`) and `INNGEST_SHADOW_ONTOLOGY` flag references are retired; the `agent_shadow_runs` table is preserved for historical data.
 
-When `INNGEST_SHADOW_ONTOLOGY=1` is set, BOTH crons additionally insert a row into the new `agent_shadow_runs` table tagged `implementation = 'langgraph' | 'agentkit'`. The legacy cron's `persist-shadow-langgraph` step is gated on the same flag — without the flag, the schema row is unused.
-
-**Comparison query**:
-```sql
-SELECT implementation,
-       COUNT(*) AS runs,
-       AVG(duration_ms)::int AS avg_duration_ms,
-       AVG(tool_call_count)::numeric(10,2) AS avg_tool_calls,
-       COUNT(*) FILTER (WHERE error_message IS NOT NULL) AS errors
-FROM agent_shadow_runs
-WHERE agent_name = 'ontology-agent'
-  AND started_at > now() - interval '14 days'
-GROUP BY implementation;
-```
-
-**Schema migration**: `agent_shadow_runs` is declared in `lib/db/src/schema/agent.ts` but `drizzle-kit push` is deferred — the operator runs it (`cd lib/db && npx drizzle-kit push --force`) before enabling `INNGEST_SHADOW_ONTOLOGY=1` in production. Both shadow writes catch + log DB errors so a missing table is non-fatal to the agent run.
-
-**Plan**: run 2 weeks with `INNGEST_SHADOW_ONTOLOGY=1`. Then decide: migrate (if AgentKit is faster + similarly accurate), abandon (LangGraph stays), or extend the eval to another agent before deciding. Don't widen the migration prematurely — CLAUDE.md's 2026-05-18 anti-migration rule still applies to all 6 other agents.
+Kill-switch flags `USE_LANGGRAPH_<AGENT>` are available for a 1-week observation window — flipping any one of them to `1` on the `capabilityeconomics` Railway service immediately routes that agent's next cron tick to the legacy LangGraph path (preserved as `services/<agent>.ts` while the safety net is active). Once the observation window closes with no anomalies, the legacy implementations and the kill-switch branches are removed.
 
 ### Capability Disruption Index (DI) — forward-looking risk + opportunity layer
 
