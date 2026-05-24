@@ -1,0 +1,25 @@
+# Graphiti core + FalkorDB driver.
+# Pin minor versions to keep Phase A cutover predictable. Bump deliberately.
+graphiti-core>=0.7.0,<0.9.0
+falkordb>=1.0.10,<2.0.0
+
+# MCP server. FastMCP (in the official mcp SDK) gives us a tool-decorator API
+# + streamable_http transport that the TypeScript MCP client in api-server
+# can call over the network.
+mcp[cli]>=1.2.0,<2.0.0
+
+# HTTP shell.
+fastapi>=0.115.0,<0.117.0
+uvicorn[standard]>=0.32.0,<0.36.0
+httpx>=0.27.0
+
+# Config + logging.
+pydantic>=2.9.0,<3.0.0
+pydantic-settings>=2.6.0,<3.0.0
+structlog>=24.4.0,<25.0.0
+
+# Graphiti's LLM client uses OpenAI-compatible APIs. We point it at OpenRouter
+# (matches the rest of the stack — see CLAUDE.md) for entity/edge extraction.
+# Embeddings go direct to OpenAI (cheaper + Graphiti's embedder defaults
+# expect text-embedding-3-small).
+openai>=1.50.0

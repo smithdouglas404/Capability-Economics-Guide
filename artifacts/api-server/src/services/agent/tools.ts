@@ -23,6 +23,12 @@ import { triangulateCapability } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { recallMemories, storeMemory } from "./memory";
 import { findCorrelations, findRelated } from "./graphMemory";
+import { cypherCascadeImpacted } from "./capabilityGraphSync";
+import {
+  isGraphitiAvailable,
+  searchNodes as graphitiSearchNodes,
+  queryCypher as graphitiQueryCypher,
+} from "../../lib/graphiti-client";
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 import { logLlmCall } from "../llm-usage";
 import { inngest } from "../../inngest/client";
@@ -193,6 +199,141 @@ export const queryDatabaseTool = tool(
     schema: z.object({
       queryType: z.enum(["industries", "capabilities", "cvi_components", "latest_snapshot", "recent_triangulations"]),
       industryId: z.number().optional().describe("Industry ID for filtered queries"),
+    }),
+  },
+);
+
+/**
+ * Graph queries against the world model. Sibling to query_database.
+ * Routes through the Graphiti+FalkorDB MCP server when configured; returns
+ * a hint when it isn't, so agents can fall back to query_database for
+ * relational lookups.
+ *
+ * Three operations:
+ *   - cascade_dependents: walk upstream the dependency chain from a
+ *     capability, returning everything that transitively depends on it
+ *     within N hops. Equivalent to disruption.ts:computeDisruptionRisk's
+ *     multi-hop traversal but exposed as a first-class agent tool.
+ *   - find_related_entities: traverse memory-entity relationships
+ *     outbound from a memory entity. Wraps graphMemory.findRelated which
+ *     itself routes through Graphiti when USE_GRAPHITI_WORLD_MODEL=1.
+ *   - search_world_model: semantic + structural search over the global
+ *     world model (capabilities, CVI history, macro-events) via
+ *     Graphiti's bitemporal search. Agents use this for "find anything
+ *     about X" queries that don't map to a known table.
+ */
+export const queryGraphTool = tool(
+  async ({ operation, capabilityId, entityId, hops, query, groupIds, limit }) => {
+    try {
+      if (operation === "cascade_dependents") {
+        if (!capabilityId) {
+          return JSON.stringify({ error: "capabilityId required for cascade_dependents" });
+        }
+        // Routes through capabilityGraphSync.cypherCascadeImpacted which
+        // itself picks Graphiti (USE_GRAPHITI_WORLD_MODEL=1) or Neo4j
+        // (USE_NEO4J_CAPABILITY_GRAPH=1) and returns null if neither is on.
+        const cascade = await cypherCascadeImpacted(capabilityId, hops ?? 3);
+        if (cascade === null) {
+          return JSON.stringify({
+            source: "none",
+            note: "Neither USE_GRAPHITI_WORLD_MODEL=1 nor USE_NEO4J_CAPABILITY_GRAPH=1 — cascade unavailable. Use query_database with capabilities/cvi_components for 1-hop relational lookups.",
+            results: [],
+          });
+        }
+        return JSON.stringify({ source: "graph", count: cascade.length, results: cascade });
+      }
+
+      if (operation === "find_related_entities") {
+        if (!entityId) {
+          return JSON.stringify({ error: "entityId required for find_related_entities" });
+        }
+        const related = await findRelated(entityId, hops ?? 1);
+        return JSON.stringify({
+          count: related.length,
+          results: related.map((r) => ({
+            entityId: r.entity.id,
+            entityName: r.entity.name,
+            relation: r.relation,
+            weight: r.weight,
+            observedCount: r.observedCount,
+            hop: r.hop,
+          })),
+        });
+      }
+
+      if (operation === "search_world_model") {
+        if (!query) {
+          return JSON.stringify({ error: "query required for search_world_model" });
+        }
+        if (!isGraphitiAvailable()) {
+          return JSON.stringify({
+            source: "none",
+            note: "Graphiti MCP not configured — search_world_model unavailable. Use query_database or perplexity_research as fallbacks.",
+            results: [],
+          });
+        }
+        const result = await graphitiSearchNodes({
+          query,
+          groupIds: groupIds ?? ["global"],
+          limit: limit ?? 10,
+        });
+        if (!result.ok) {
+          return JSON.stringify({ error: result.error ?? "search_nodes failed" });
+        }
+        return JSON.stringify({
+          source: "graphiti",
+          count: result.results?.length ?? 0,
+          results: result.results ?? [],
+        });
+      }
+
+      return JSON.stringify({ error: "Unknown operation" });
+    } catch (err) {
+      return JSON.stringify({ error: err instanceof Error ? err.message : "Graph query failed" });
+    }
+  },
+  {
+    name: "query_graph",
+    description:
+      "Query the world model graph (Graphiti+FalkorDB). Use cascade_dependents to walk dependency chains, find_related_entities to traverse memory-entity relationships, search_world_model for semantic search across capabilities/CVI/macro-events. Sibling to query_database (relational); prefer this for multi-hop or semantic queries.",
+    schema: z.object({
+      operation: z.enum(["cascade_dependents", "find_related_entities", "search_world_model"]),
+      capabilityId: z.number().optional().describe("For cascade_dependents — the root capability whose dependents to walk."),
+      entityId: z.number().optional().describe("For find_related_entities — the memory_entities.id to traverse from."),
+      hops: z.number().int().min(1).max(5).optional().describe("Hop depth for cascade/relation walks. Default 3 for cascade, 1 for relations."),
+      query: z.string().optional().describe("For search_world_model — natural-language query."),
+      groupIds: z.array(z.string()).optional().describe("For search_world_model — Graphiti group_ids to search. Default ['global']. Pass ['global', 'user-<id>'] to include a user subgraph."),
+      limit: z.number().int().min(1).max(50).optional().describe("For search_world_model — max results. Default 10."),
+    }),
+  },
+);
+
+// Escape-hatch tool for raw Cypher when the typed operations above can't
+// express what the agent needs. Use sparingly — raw Cypher bypasses
+// Graphiti's bitemporal helpers AND lets the agent write whatever it wants
+// (no SQL-injection-style protection beyond FalkorDB's own query parser).
+export const cypherGraphTool = tool(
+  async ({ cypher, params }) => {
+    if (!isGraphitiAvailable()) {
+      return JSON.stringify({ error: "Graphiti MCP not configured" });
+    }
+    try {
+      const result = await graphitiQueryCypher({ cypher, params: params ?? {} });
+      if (!result.ok) {
+        return JSON.stringify({ error: result.error ?? "Cypher query failed" });
+      }
+      return JSON.stringify({ count: result.rows?.length ?? 0, rows: result.rows ?? [] });
+    } catch (err) {
+      return JSON.stringify({ error: err instanceof Error ? err.message : "Cypher exec failed" });
+    }
+  },
+  {
+    name: "cypher_graph",
+    description:
+      "Escape hatch — execute raw Cypher against the Graphiti+FalkorDB world model. Bypasses bitemporal helpers. Use only when query_graph's typed operations can't express what you need (custom traversals, aggregations, etc.).",
+    schema: z.object({
+      cypher: z.string().describe("Cypher query. Parameterize via $name placeholders."),
+      params: z.record(z.string(), z.unknown()).optional().describe("Parameter map for $name placeholders."),
     }),
   },
 );
@@ -1209,6 +1350,8 @@ export const generateDisruptorsTool = tool(
 export const allTools = [
   perplexityResearchTool,
   queryDatabaseTool,
+  queryGraphTool,
+  cypherGraphTool,
   computeCVITool,
   recallMemoriesTool,
   storeMemoryTool,

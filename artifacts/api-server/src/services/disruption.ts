@@ -182,28 +182,28 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
     : null;
 
   // Macro events affecting this cap or any dependency, started in last 90 days.
-  // Read path: Postgres direct, OR Cypher (multi-hop) when USE_NEO4J_CAPABILITY_GRAPH=1.
-  // The Cypher path can traverse arbitrary depth which is more accurate for cascading
-  // macro impact. Default behavior unchanged (1-hop Postgres).
+  // Read path: Postgres direct (default), OR Cypher (multi-hop) when EITHER
+  //   USE_GRAPHITI_WORLD_MODEL=1   (Phase A target — preferred)
+  //   USE_NEO4J_CAPABILITY_GRAPH=1 (legacy Neo4j path — preserved during cutover)
+  // cypherCascadeImpacted() picks Graphiti over Neo4j when both are on. The
+  // Cypher path traverses arbitrary depth which is more accurate for cascading
+  // macro impact. Default behavior unchanged (1-hop Postgres) when no flag set.
   let dependsOnIds: number[];
-  const { useNeo4jCapabilityGraph, cypherCascadeImpacted } = await import("./agent/capabilityGraphSync");
-  if (useNeo4jCapabilityGraph()) {
-    // Note: graph direction in Neo4j is dependent -[DEPENDS_ON]-> prerequisite.
-    // For "what does this cap depend on" we need 1-hop out from this node.
-    // Re-using cypherCascadeImpacted is wrong (that's the upstream direction);
-    // do a quick 1-hop fetch here directly via the driver-less helper pattern.
-    // For now we still query Postgres for the 1-hop list and only OPT IN to
-    // Cypher for full upstream cascade (cypherCascadeImpacted). Once validated
-    // we can replace this branch with a dedicated cypherDirectDependencies()
-    // helper.
+  const { useNeo4jCapabilityGraph, useGraphitiWorldModel, cypherCascadeImpacted } = await import("./agent/capabilityGraphSync");
+  const cypherCascadeEnabled = useGraphitiWorldModel() || useNeo4jCapabilityGraph();
+  if (cypherCascadeEnabled) {
+    // The graph stores 1-hop edges as (dependent)-[:DEPENDS_ON]->(prerequisite).
+    // We still hit Postgres for the direct 1-hop list (faster than going through
+    // the MCP hop for a single-edge query) and only opt in to the Cypher path
+    // for the multi-hop cascade enrichment below.
     const pgDeps = await db
       .select({ id: capabilityDependenciesTable.dependsOnId })
       .from(capabilityDependenciesTable)
       .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
     dependsOnIds = pgDeps.map(d => d.id);
-    // Optionally enrich with Cypher multi-hop cascade for the macro-event
-    // interestingIds set so downstream impact is captured. Stays no-op when
-    // Neo4j returns null (driver missing or unreachable).
+    // Multi-hop upstream cascade — captures downstream macro impact for caps
+    // 2-3 hops up the dependency chain. Stays no-op when the selected graph
+    // store returns null (driver missing or unreachable).
     const cascade = await cypherCascadeImpacted(capabilityId, 3);
     if (cascade) {
       for (const c of cascade) if (!dependsOnIds.includes(c.pgId)) dependsOnIds.push(c.pgId);

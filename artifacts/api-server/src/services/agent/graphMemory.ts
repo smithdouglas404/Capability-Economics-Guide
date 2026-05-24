@@ -39,8 +39,27 @@ import {
 } from "@workspace/db";
 import { eq, and, sql, desc } from "drizzle-orm";
 import pino from "pino";
+import {
+  isGraphitiAvailable,
+  queryCypher as graphitiQueryCypher,
+} from "../../lib/graphiti-client";
 
 const logger = pino({ name: "graph-memory" });
+
+/**
+ * Phase A migration flag — when set, findRelated/findCorrelations try
+ * Graphiti+FalkorDB first (via the MCP server) before falling back to
+ * the legacy Neo4j → Postgres chain. Defaults off; safe to deploy.
+ *
+ * IMPORTANT: this flag assumes memory entities are present in FalkorDB.
+ * Memory entity dual-writes from upsertEntity/recordRelation will be
+ * added in Phase A.2. Until then, flip the flag only after running a
+ * memory-entity backfill (script TBD); otherwise reads return empty
+ * even though Postgres has the data.
+ */
+function useGraphitiWorldModel(): boolean {
+  return process.env.USE_GRAPHITI_WORLD_MODEL === "1";
+}
 
 // ── Neo4j Integer → JS number helper ─────────────────────────────────────────
 // neo4j-driver returns its own Integer type for integer fields. Floats (weight)
@@ -329,6 +348,42 @@ export async function findRelated(entityId: number, hops: number = 1): Promise<A
   observedCount: number;
   hop: number;
 }>> {
+  // ── Graphiti+FalkorDB path (Phase A target, opt-in) ────────────────────────
+  if (useGraphitiWorldModel() && isGraphitiAvailable()) {
+    try {
+      const result = await graphitiQueryCypher({
+        cypher: `MATCH path = (start:Entity { pgId: $entityId })-[r*1..${hops}]->(related:Entity)
+                 WITH related, r[0] AS rel, path,
+                      r[0].weight AS weight, r[0].observedCount AS observedCount,
+                      related.pgId AS pgId, type(r[0]) AS relation
+                 RETURN pgId, relation, weight, observedCount,
+                        length(path) AS hop
+                 ORDER BY weight DESC
+                 LIMIT 50`,
+        params: { entityId },
+      });
+      if (result.ok && result.rows) {
+        const pgIds = result.rows.map((r) => Number(r.pgId));
+        if (pgIds.length === 0) return [];
+        const entities = await db.select().from(memoryEntitiesTable)
+          .where(sql`${memoryEntitiesTable.id} = ANY(${pgIds})`);
+        const entityMap = new Map(entities.map((e) => [e.id, e]));
+        return result.rows
+          .map((r) => ({
+            entity: entityMap.get(Number(r.pgId))!,
+            relation: String(r.relation ?? "").toLowerCase(),
+            weight: Number(r.weight),
+            observedCount: Number(r.observedCount),
+            hop: Number(r.hop),
+          }))
+          .filter((r) => r.entity);
+      }
+      logger.warn({ err: result.error }, "[graph-memory] Graphiti findRelated returned error — falling back to Neo4j");
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Graphiti findRelated failed — falling back to Neo4j");
+    }
+  }
+
   // ── Neo4j primary path ─────────────────────────────────────────────────────
   const driver = await getNeo4jDriver();
   if (driver) {
@@ -400,6 +455,35 @@ export async function findCorrelations(industryId: number, capabilityId: number,
   weight: number;
   observedCount: number;
 }>> {
+  // ── Graphiti+FalkorDB path (Phase A target, opt-in) ────────────────────────
+  if (useGraphitiWorldModel() && isGraphitiAvailable()) {
+    try {
+      const result = await graphitiQueryCypher({
+        cypher: `MATCH (from:Entity)-[r]->(to:Entity)
+                 WHERE (from.industryId = $industryId OR to.industryId = $industryId
+                        OR from.capabilityId = $capabilityId OR to.capabilityId = $capabilityId)
+                   AND r.observedCount >= $minObserved
+                 RETURN from.name AS fromName, to.name AS toName,
+                        type(r) AS kind, r.weight AS weight, r.observedCount AS observedCount
+                 ORDER BY r.weight DESC, r.observedCount DESC
+                 LIMIT 25`,
+        params: { industryId, capabilityId, minObserved },
+      });
+      if (result.ok && result.rows) {
+        return result.rows.map((r) => ({
+          fromName: String(r.fromName ?? ""),
+          toName: String(r.toName ?? ""),
+          kind: String(r.kind ?? "").toLowerCase(),
+          weight: Number(r.weight),
+          observedCount: Number(r.observedCount),
+        }));
+      }
+      logger.warn({ err: result.error }, "[graph-memory] Graphiti findCorrelations returned error — falling back to Neo4j");
+    } catch (err) {
+      logger.warn({ err }, "[graph-memory] Graphiti findCorrelations failed — falling back to Neo4j");
+    }
+  }
+
   // ── Neo4j primary path ─────────────────────────────────────────────────────
   const driver = await getNeo4jDriver();
   if (driver) {

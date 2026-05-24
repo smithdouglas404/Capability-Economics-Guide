@@ -23,6 +23,7 @@
     "seed:reference-orgs": "tsx ./src/seed-reference-orgs.ts",
     "backfill:memory-to-neo4j": "tsx ./src/backfill-memory-to-neo4j.ts",
     "backfill:capability-graph-to-neo4j": "tsx ./src/backfill-capability-graph-to-neo4j.ts",
+    "backfill:graphiti-world-model": "tsx ./src/backfill-graphiti-world-model.ts",
     "seed:patterns": "tsx ./src/seed-patterns.ts",
     "seed:reports": "tsx ./src/seed-marketplace-reports.ts",
     "seed:alpha-config": "tsx ./src/seed-alpha-config.ts",

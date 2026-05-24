@@ -17,6 +17,7 @@
 import { isMem0Available, mem0Ping } from "../agent/memory";
 import { lettaPing, getRegisteredAgents } from "../agent/letta";
 import { storePing } from "../agent/store";
+import { isGraphitiAvailable, graphitiPing } from "../../lib/graphiti-client";
 import { AGENT_REGISTRY, type AgentRegistryEntry } from "../agent/agent-registry";
 import { FOUNDRY } from "../foundry/config";
 import { db } from "@workspace/db";
@@ -42,7 +43,7 @@ const BOOT_GRACE_WINDOW_MS = 90_000;
  * the window closes, real failures surface normally.
  */
 const BOOT_SENSITIVE_SERVICES = new Set<string>([
-  "mem0", "letta", "agent_store", "agent_registry",
+  "mem0", "letta", "graphiti_mcp", "agent_store", "agent_registry",
   "agent_cvi_autonomous", "agent_macro_event", "agent_disruption",
   "agent_peer_coop", "agent_stack_optimizer", "agent_ontology",
   "agent_synthesis", "agent_enrichment",
@@ -125,6 +126,11 @@ type Probe = () => Promise<Omit<ServiceHealth, "service" | "checkedAt">>;
 // healthy. 3500ms still catches genuine slowness without paging on jitter.
 const MEM0_LATENCY_WARN_MS = 3500;
 const LETTA_LATENCY_WARN_MS = 5000;
+// Graphiti MCP lives on the same Railway private network as the api-server
+// (the recommended deploy per graphiti-mcp/README.md). Round-trips should
+// be well under 200ms; 2s is generous and catches genuine slowness without
+// false-alarming on a slow Graphiti add_episode that's waiting on OpenRouter.
+const GRAPHITI_LATENCY_WARN_MS = 2000;
 
 // ── Per-service probes ────────────────────────────────────────────────────
 
@@ -173,6 +179,57 @@ const probeLetta: Probe = async () => {
     return { status: "down", latencyMs, lastError: err.slice(0, 240) };
   }
   return { status: "degraded", latencyMs, lastError: err.slice(0, 240) };
+};
+
+/**
+ * Graphiti MCP probe. Hits /health on the Python service, which itself
+ * reports whether FalkorDB is reachable + whether the LLM/embedder clients
+ * are wired (graphiti.configured / graphiti.connected). One probe covers
+ * the whole world-model stack — no separate falkordb probe needed because
+ * the api-server only ever talks to FalkorDB via this MCP layer.
+ */
+const probeGraphiti: Probe = async () => {
+  if (!isGraphitiAvailable()) {
+    return {
+      status: "not_configured",
+      latencyMs: null,
+      lastError: "GRAPHITI_MCP_URL or GRAPHITI_MCP_API_KEY not set",
+    };
+  }
+  try {
+    const { value, latencyMs } = await timed(() =>
+      withTimeout(graphitiPing(), PROBE_TIMEOUT_MS, "graphiti"),
+    );
+    // Service is up but its underlying Graphiti client failed to init
+    // (missing OPENROUTER_API_KEY/OPENAI_API_KEY on the Python service, or
+    // FalkorDB unreachable from there). Surface as degraded — the MCP
+    // endpoint exists but tool calls will fail.
+    const g = value.graphiti;
+    if (g && g.configured === false) {
+      return {
+        status: "degraded",
+        latencyMs,
+        lastError: g.init_error || "Graphiti not configured on the MCP server (OPENROUTER_API_KEY + OPENAI_API_KEY required)",
+      };
+    }
+    if (g && g.connected === false) {
+      return {
+        status: "degraded",
+        latencyMs,
+        lastError: g.init_error || "Graphiti client failed to connect (FalkorDB unreachable from MCP server)",
+      };
+    }
+    if (latencyMs > GRAPHITI_LATENCY_WARN_MS) {
+      return {
+        status: "degraded",
+        latencyMs,
+        lastError: `High latency: ${latencyMs}ms (threshold ${GRAPHITI_LATENCY_WARN_MS}ms)`,
+      };
+    }
+    return { status: "ok", latencyMs, lastError: null };
+  } catch (err) {
+    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
+  }
 };
 
 const probeOpenRouter: Probe = async () => {
@@ -691,6 +748,7 @@ const perAgentProbes: Record<string, Probe> = Object.fromEntries(
 const PROBES: Record<string, Probe> = {
   mem0: probeMem0,
   letta: probeLetta,
+  graphiti_mcp: probeGraphiti,
   agent_store: probeAgentStore,
   agent_registry: probeAgentRegistry,
   ...perAgentProbes,
