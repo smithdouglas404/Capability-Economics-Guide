@@ -58,7 +58,12 @@ export const recommendationFeedbackOnInsight = inngest.createFunction(
   {
     id: "recommendation-feedback",
     triggers: [{ event: "agent.insight.created" }],
-    concurrency: { limit: 4 },
+    // Per-insight key (one in-flight per insight) instead of the prior
+    // global cap of 4 — duplicate `agent.insight.created` events for the
+    // same insightId (already deduped at the emit site, but defense in
+    // depth) won't bypass the upstream idempotency and double-schedule
+    // the 60-day sleeper.
+    concurrency: { limit: 5, key: "event.data.insightId" },
     retries: 2,
   },
   async ({ event, step }) => {
