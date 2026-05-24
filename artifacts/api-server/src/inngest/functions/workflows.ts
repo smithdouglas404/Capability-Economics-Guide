@@ -65,6 +65,23 @@ export const onboardingConciergeFn = inngest.createFunction(
     ...cfg("workflow-onboarding-concierge"),
     triggers: [{ event: "workflow/onboarding-concierge" }],
     concurrency: { limit: 1, key: "event.data.clerkUserId" },
+    // Abuse cap — 60 concierge calls per user per hour is plenty for the
+    // 2-3 turn flow even with retries; anything beyond that is a runaway
+    // client or scripted abuse.
+    rateLimit: { limit: 60, period: "1h", key: "event.data.clerkUserId" },
+    // Chat-shaped: collapse keystroke bursts to a single run per session.
+    // The route fans the freeFormDescription field through signals — debouncing
+    // on sessionToken would be ideal but the event today carries clerkUserId
+    // + the concierge state in signals; clerkUserId is the most stable key
+    // available so each user gets at most one in-flight concierge per 3s
+    // window. Forward-looking: if a route adds sessionToken to the event
+    // payload, switch the key here without changing call sites.
+    debounce: { period: "3s", key: "event.data.clerkUserId" },
+    // Tier-aware priority. event.data.tier is forward-looking — callers
+    // don't pass it today, so the expression resolves to 0 for everyone
+    // until tier starts flowing through. Once it does, enterprise jumps
+    // the line during a backlog without code changes.
+    priority: { run: "event.data.tier == 'enterprise' ? 100 : event.data.tier == 'pro' ? 50 : 0" },
   },
   async ({ event, step }) =>
     step.run("run", () => runOnboardingConcierge(event.data as Parameters<typeof runOnboardingConcierge>[0])),
@@ -75,6 +92,7 @@ export const tierSelectorFn = inngest.createFunction(
     ...cfg("workflow-tier-selector"),
     triggers: [{ event: "workflow/tier-selector" }],
     concurrency: { limit: 1, key: "event.data.userId" },
+    rateLimit: { limit: 60, period: "1h", key: "event.data.userId" },
   },
   async ({ event, step }) =>
     step.run("run", () => runTierSelector(event.data as Parameters<typeof runTierSelector>[0])),
@@ -123,6 +141,11 @@ export const kycFailureCounselorFn = inngest.createFunction(
     ...cfg("workflow-kyc-failure-counselor"),
     triggers: [{ event: "workflow/kyc-failure-counselor" }],
     concurrency: { limit: 1, key: "event.data.verificationId" },
+    // Brief specced userId for these; event only carries verificationId so
+    // we key the rate limit + debounce on it. One verification = one user
+    // by construction (FK relationship), so the effect matches the intent.
+    rateLimit: { limit: 60, period: "1h", key: "event.data.verificationId" },
+    debounce: { period: "3s", key: "event.data.verificationId" },
   },
   async ({ event, step }) =>
     step.run("run", () => runKycFailureCounselor(event.data as Parameters<typeof runKycFailureCounselor>[0])),
@@ -133,6 +156,8 @@ export const paymentRecoveryFn = inngest.createFunction(
     ...cfg("workflow-payment-recovery"),
     triggers: [{ event: "workflow/payment-recovery" }],
     concurrency: { limit: 1, key: "event.data.userId" },
+    rateLimit: { limit: 60, period: "1h", key: "event.data.userId" },
+    priority: { run: "event.data.tier == 'enterprise' ? 100 : event.data.tier == 'pro' ? 50 : 0" },
   },
   async ({ event, step }) =>
     step.run("run", () => runPaymentRecovery(event.data as Parameters<typeof runPaymentRecovery>[0])),
@@ -143,6 +168,7 @@ export const capabilityReviewAssistFn = inngest.createFunction(
     ...cfg("workflow-capability-review-assist"),
     triggers: [{ event: "workflow/capability-review-assist" }],
     concurrency: { limit: 1, key: "event.data.capabilityId" },
+    priority: { run: "event.data.tier == 'enterprise' ? 100 : event.data.tier == 'pro' ? 50 : 0" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCapabilityReviewAssist>[0];
@@ -169,6 +195,10 @@ export const researchPipelineFn = inngest.createFunction(
     // so generic prompts (kind: "generic") still share a single slot rather
     // than running fully unbounded.
     concurrency: { limit: 1, key: "event.data.capabilityId ?? 'global'" },
+    // Perplexity sonar-pro is ~60/min; we cap at 30/min globally to leave
+    // headroom for the CVI agent (also throttled separately) + the other
+    // perplexity-bound workflows below that share this budget.
+    throttle: { limit: 30, period: "1m", key: "global" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runResearchPipeline>[0];
@@ -200,6 +230,7 @@ export const assessmentAnalyzerFn = inngest.createFunction(
     ...cfg("workflow-assessment-analyzer"),
     triggers: [{ event: "workflow/assessment-analyzer" }],
     concurrency: { limit: 1, key: "event.data.sessionId" },
+    priority: { run: "event.data.tier == 'enterprise' ? 100 : event.data.tier == 'pro' ? 50 : 0" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runAssessmentAnalyzer>[0];
@@ -280,6 +311,7 @@ export const industryBootstrapFn = inngest.createFunction(
     // canonical handle. Same effect (one in-flight per industry) so admin
     // double-clicks don't kick off parallel Perplexity bursts on one slug.
     concurrency: { limit: 1, key: "event.data.industryName" },
+    throttle: { limit: 30, period: "1m", key: "global" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runIndustryBootstrap>[0];
@@ -335,6 +367,7 @@ export const caseStudyGeneratorFn = inngest.createFunction(
     // industryName + caseStudyId. caseStudyId is the more useful tenant
     // boundary anyway (each case study is a distinct admin action).
     concurrency: { limit: 1, key: "event.data.caseStudyId" },
+    throttle: { limit: 30, period: "1m", key: "global" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCaseStudyGenerator>[0];
@@ -355,6 +388,7 @@ export const capabilityEnrichmentRetryFn = inngest.createFunction(
     ...cfg("workflow-capability-enrichment-retry"),
     triggers: [{ event: "workflow/capability-enrichment-retry" }],
     concurrency: { limit: 1, key: "event.data.capabilityId" },
+    throttle: { limit: 30, period: "1m", key: "global" },
   },
   async ({ event, step }) => {
     const input = event.data as Parameters<typeof runCapabilityEnrichmentRetry>[0];
