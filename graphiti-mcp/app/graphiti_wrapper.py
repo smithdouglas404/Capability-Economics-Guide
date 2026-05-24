@@ -1,10 +1,10 @@
 """Singleton Graphiti instance with FalkorDB driver.
 
 API note: graphiti-core's public surface has been moving fast. The imports
-and class names below match graphiti-core 0.7-0.8 series; verify against
-the installed version's docs at deploy time. If imports break, the most
-likely fix is renaming `FalkorDriver` → `FalkorDBDriver` or adjusting the
-LLM/embedder client class names — the rest of the wrapper logic is stable.
+and class names below match graphiti-core 0.29.x (pinned in requirements.txt).
+If imports break after a version bump, the most likely fix is adjusting
+FalkorDriver / OpenAIClient / OpenAIEmbedder paths — the rest of the
+wrapper logic is stable.
 """
 
 from __future__ import annotations
