@@ -77,22 +77,23 @@ The most complex subsystem. LangGraph state machine with nodes `evaluate → dec
 
 **AI-first reasoning loop (2026-05-17, commits `4ae6de9` + `192b7c0`):** `generateInsightsTool` now grounds insights in Mem0 patterns + Neo4j `findCorrelations()` in addition to Perplexity + CVI scores. `services/stack-optimizer.ts` `recommendStack` reads Neo4j upstream blockers + Mem0 validated/contradicted patterns and makes ONE batched Haiku call per request (not N). A daily `Synthesis Agent` produces a cross-agent strategic brief that every other agent prepends to its system prompt. A 6h temporal-shift detector watches relationship-weight momentum (uses real snapshots in `memory_relation_snapshots` after 30 days post-deploy, falls back to linear extrapolation before then). A recommendation-feedback loop scores past recommendations against actual CVI outcomes 60 days later. **Full narrative + verification: see [`docs/ai-first-impact.md`](docs/ai-first-impact.md).**
 
-Key files:
-- `graph.ts` — LangGraph nodes, state transitions
-- `tools.ts` — 5 LangChain tools (perplexity_research, query_database, compute_cvi, recall_memories, store_memory). `generateInsightsTool` injects Mem0 patterns + Neo4j correlations into the Claude prompt.
+Key files (post-AgentKit migration, 2026-05-24):
+- `../cvi-agent-agentkit.ts` — procedural 9-phase orchestration (evaluate → recall → decide → research → compute → reflect → memorize → generateContent → finalize). Single-agent AgentKit Network is used only for the memorize-phase prior refinement; the other 8 phases run direct DB queries + tool invocations. Replaced the deleted `graph.ts` (LangGraph StateGraph).
+- `tools.ts` — 5 tool wrappers (perplexity_research, query_database, compute_cvi, recall_memories, store_memory) plus content-generation tools used by the CVI cycle. Still defined via `tool()` from `@langchain/core/tools` for now — kept because the `.invoke()` shape is reused by `cvi-agent-agentkit.ts`.
 - `memory.ts` — Mem0 client (auto-detects cloud vs self-hosted from hostname; currently pointed at self-hosted `mem0-server-production-8f56.up.railway.app`) with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking Mem0 ↔ local rows; `getAllMemories` dedupes on that.
 - `temporal-shift-detector.ts` — 6h scheduled detector + `writeMemoryRelationSnapshots` daily writer + `getCachedTemporalShiftReport` cached read for the Synthesis Agent tool.
 - `recommendation-feedback.ts` — scores insights > 60 days old against CVI trajectory; writes validated/contradicted patterns to Mem0 (`category: "recommendation_outcome"`). Dormant until day 60+ post-deploy.
-- `base-agent.ts` — all specialized agents prepend Mem0 patterns + their prior block + the latest Synthesis Agent brief to their system prompt before each cycle; write a post-run summary to Mem0 after each cycle (`category: "agent_run_summary"`).
-- `../synthesis-agent.ts` — daily cross-agent intelligence layer; uses Sonnet. Reads all 5 specialized-agent digests + Neo4j correlations + Mem0 patterns + cached temporal-shift report; publishes brief to `NS.sharedKnowledge("synthesis_brief")`.
-- `store.ts` — **Letta-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the 5 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology) work unchanged. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — back to self-hosted` below for the full story.
+- `agentkit-shared.ts` — shared `AgentRunResult` type for the AgentKit migration (replaces what `base-agent.ts` used to export).
+- `base-agent.ts` — **KEPT during the AgentKit migration** because the 8th `services/disruption-vector-agent.ts` (not one of the 7 migrated) still uses `runReactAgent` from here. Provides the legacy Mem0-pattern + prior-block + synthesis-brief context injection used by that one remaining LangChain agent. The 7 migrated agents do this inline in their own `buildMemoryContext()` helpers.
+- `../synthesis-agent-agentkit.ts` — daily cross-agent intelligence layer; uses Sonnet. Reads all 5 specialized-agent digests + Neo4j correlations + Mem0 patterns + cached temporal-shift report; publishes brief to `NS.sharedKnowledge("synthesis_brief")`.
+- `store.ts` — **Letta-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the AgentKit agents read/write the same Letta state the LangGraph versions did. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — back to self-hosted` below for the full story.
 - `events.ts` — in-process pub/sub for SSE.
 
 All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** when env vars/services are missing — absence is logged, features disable, process keeps running. When editing the agent, preserve this: never throw on missing `MEM0_API_KEY` / `LETTA_API_KEY` / `PERPLEXITY_API_KEY`. **Both Mem0 and Letta are now self-hosted again on Railway** (different project from Capability Economics) — see the dedicated sections below.
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
-**DO NOT migrate the 7 agents off LangChain/LangGraph.** The 5 specialized agents (`macro-event-agent`, `disruption-agent`, `peer-coop-agent`, `stack-optimizer-agent`, `ontology-agent`) plus the autonomous CVI agent (`services/agent/graph.ts`) plus the `synthesis-agent` use `ChatAnthropic` + `StateGraph` from `@langchain/langgraph` and `@langchain/anthropic`. They work. They are NOT to be migrated to Vercel AI SDK. The two frameworks coexist in this repo on purpose: Vercel AI SDK is for one-shot structured-output calls (the 14 workflows in `services/workflows/` + the 8 Tier-1 service callers); LangGraph is for stateful multi-step agent loops (these 7 agents). Don't propose this migration in future sessions — it was explicitly declined 2026-05-18.
+**The 7 agents now run on `@inngest/agent-kit`** (Phase 9 migration, 2026-05-24): `services/cvi-agent-agentkit.ts` for the autonomous CVI agent, and `services/<agent>-agentkit.ts` for the 5 specialized agents + synthesis. The legacy LangGraph implementations (`services/agent/graph.ts`, `services/macro-event-agent.ts`, etc.) are deleted. Vercel AI SDK continues to handle one-shot structured-output calls (the 14 workflows in `services/workflows/` + the 8 Tier-1 service callers); AgentKit handles stateful multi-step agent loops. See `### AgentKit migration complete (Phase 9, 2026-05-24)` below for the kill-switch + observation-window details. The 8th `disruption-vector-agent` is NOT migrated and still uses LangChain — see the note in the AgentKit section.
 
 ### LangMem / Shared Agent Store
 
@@ -164,7 +165,7 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (self-hosted at `https://mem0-server-production-8f56.up.railway.app` — `MEM0_API_KEY` must match Mem0 service's `ADMIN_API_KEY`), `LETTA_BASE_URL` + `LETTA_API_KEY` (self-hosted at `https://letta-production-1b3f.up.railway.app`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
-- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. When set, the 7 inflexcvi agents auto-trace to LangSmith.
+- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. NOTE: as of the Phase 9 AgentKit migration (2026-05-24) these vars NO LONGER affect the 7 main agents (they use AgentKit, not LangChain). They still affect the remaining LangChain consumers: `disruption-vector-agent`, `vcr/graph.ts`, `enrichment/graph.ts`, `bots/workflows/*`.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **Neo4j capability-graph reads (opt-in)**: `USE_NEO4J_CAPABILITY_GRAPH=1` — switches `services/disruption.ts:computeDisruptionRisk` from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Neo4j capability graph (run `pnpm --filter @workspace/scripts run backfill:capability-graph-to-neo4j` after first wiring up Neo4j). The Postgres path is preserved as the fallback; if Neo4j is unreachable mid-request, the function silently returns Postgres-only results.
 
@@ -330,23 +331,13 @@ Implementation: `artifacts/api-server/src/inngest/connect-worker.ts` calls `conn
 
 All flags default OFF. The cutover order is per-feature — flipping one flag has no effect on the others.
 
-### AgentKit migration kill-switch (Phase 9, 2026-05-24)
+### AgentKit migration kill-switch (Phase 9, 2026-05-24) — historical
 
-Wholesale migration of the 7 agents from LangChain/LangGraph to `@inngest/agent-kit` (v0.13.2) is staged commit-by-commit. Each Inngest cron in `src/inngest/functions/agents.ts` is wrapped in a per-agent kill-switch so an operator can revert any single agent to its legacy LangGraph implementation without a redeploy — just flip the matching `USE_LANGGRAPH_*` env var on the `capabilityeconomics` Railway service.
+The migration commits 1–8 of Phase 9 introduced a per-agent `USE_LANGGRAPH_*` env-var kill-switch so any single AgentKit agent could be reverted to its LangGraph implementation without a redeploy. Commit 9 of the migration removed those branches along with the underlying LangGraph implementations — the kill-switch flags are NO LONGER read. All 7 agents unconditionally run their AgentKit version.
 
-Default: AgentKit. Set the flag to `1` to fall back to LangGraph for that one agent.
+To roll back if AgentKit proves problematic, recover the legacy implementations from git history (commits prior to the Phase 9 commit 9 — `services/agent/graph.ts`, `services/macro-event-agent.ts`, `services/disruption-agent.ts`, `services/peer-coop-agent.ts`, `services/stack-optimizer-agent.ts`, `services/synthesis-agent.ts`, and the legacy `services/ontology-agent.ts`).
 
-- `USE_LANGGRAPH_CVI` — `cvi-autonomous-agent`
-- `USE_LANGGRAPH_MACRO_EVENT` — `macro-event-agent`
-- `USE_LANGGRAPH_DISRUPTION` — `disruption-agent`
-- `USE_LANGGRAPH_PEER_COOP` — `peer-coop-agent`
-- `USE_LANGGRAPH_STACK_OPTIMIZER` — `stack-optimizer-agent`
-- `USE_LANGGRAPH_ONTOLOGY` — `ontology-agent`
-- `USE_LANGGRAPH_SYNTHESIS` — `synthesis-agent` (both `synthesisAgentOnDigest` event trigger AND `synthesisAgentDailyFloor` cron)
-
-Letta agent name (e.g. `cvi-macro-event-agent`) is preserved across both implementations, so memory + identity continuity holds whichever path is active.
-
-The flag is a runtime gate evaluated on every cron tick — change effect is immediate at the next scheduled run; no redeploy required. Once the 1-week observation window after a flag flip closes with no anomalies, the legacy LangGraph branch can be removed (commit 9 of the migration removes them all wholesale).
+Letta agent names (e.g. `cvi-macro-event-agent`) were preserved across the migration via `AGENT_REGISTRY` so memory + identity continuity holds.
 
 ### AgentKit migration complete (Phase 9, 2026-05-24)
 
@@ -361,7 +352,7 @@ All 7 agents now run on `@inngest/agent-kit` (v0.13.2, Apache-2.0):
 
 LangGraph + LangChain dependencies removed; the legacy `services/agent/graph.ts`, `services/agent/base-agent.ts`, `services/agent/optimizer.ts`, and per-agent legacy entry points (`runMacroEventAgent` etc.) are deleted in commit 9 of the migration. The Phase 8 shadow Inngest function (`ontologyAgentShadow`) and `INNGEST_SHADOW_ONTOLOGY` flag references are retired; the `agent_shadow_runs` table is preserved for historical data.
 
-Kill-switch flags `USE_LANGGRAPH_<AGENT>` are available for a 1-week observation window — flipping any one of them to `1` on the `capabilityeconomics` Railway service immediately routes that agent's next cron tick to the legacy LangGraph path (preserved as `services/<agent>.ts` while the safety net is active). Once the observation window closes with no anomalies, the legacy implementations and the kill-switch branches are removed.
+Kill-switch flags `USE_LANGGRAPH_<AGENT>` from commits 1–8 of this migration are NO LONGER read — the legacy LangGraph code paths were removed in commit 9 along with the legacy `services/<agent>.ts` files. Rollback now requires reverting from git history.
 
 ### Capability Disruption Index (DI) — forward-looking risk + opportunity layer
 
@@ -411,14 +402,8 @@ Sibling to the DI Index/Lab. Where the Lab answers "what's the DI of this capabi
 
 Schema: `disruption_simulations` carries the full snapshot — inputs + trajectory[] + cascade[] + defenderOptions[] — so saved scenarios are self-contained and forkable (parentSimulationId).
 
-### LangSmith — observability across both stacks
+### Observability
 
-When set on the inflexcvi api-server, LangChain auto-instruments every `ChatAnthropic.invoke()` / `createAgent` / LangGraph node and ships traces to LangSmith. No code changes needed — just env vars.
+The 7 agents trace through Inngest's dashboard (run-by-run timing, retries, step traces, debug payloads) at the configured `INNGEST_BASE_URL`. The legacy LangSmith env vars (`LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`) NO LONGER apply to the 7 migrated agents — AgentKit doesn't auto-instrument LangSmith.
 
-```env
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=<from smith.langchain.com>
-LANGCHAIN_PROJECT=inflexcvi    # or per-environment: inflexcvi-prod, inflexcvi-staging
-```
-
-Set the project name on the api-server and traces land in one LangSmith project so you can see end-to-end flows (route handler → workflow wrapper → tool calls). Without LangSmith env vars set, all 7 inflexcvi agents continue to work — tracing is purely additive.
+LangSmith env vars CAN still be set for the remaining LangChain consumers (`services/disruption-vector-agent.ts`, `services/vcr/graph.ts`, `services/enrichment/graph.ts`, `services/bots/workflows/*`) — those will continue to ship traces if the vars are present. Without them they still work, tracing is purely additive.

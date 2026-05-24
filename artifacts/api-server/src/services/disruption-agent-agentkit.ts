@@ -19,8 +19,11 @@ import { getDisruptionRanking, computeDisruptionRisk } from "./disruption";
 import { computeDVX } from "./dvx-engine";
 import { ensureSharedStoreReady, getSharedStore, NS } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
-import type { AgentRunResult } from "./agent/base-agent";
-import { DISRUPTION_AGENT_NAME } from "./disruption-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
+
+// Identity preserved from the now-deleted legacy disruption-agent.ts.
+// Maps to Letta agent cvi-disruption-agent via AGENT_REGISTRY.
+export const DISRUPTION_AGENT_NAME = "disruption-agent";
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 

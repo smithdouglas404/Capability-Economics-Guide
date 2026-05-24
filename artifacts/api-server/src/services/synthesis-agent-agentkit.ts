@@ -21,8 +21,11 @@ import { ensureSharedStoreReady, getSharedStore, NS, putAgentPriorBlock } from "
 import { recallMemories, storeMemory } from "./agent/memory";
 import { findCorrelations } from "./agent/graphMemory";
 import { detectTemporalShifts, getCachedTemporalShiftReport } from "./agent/temporal-shift-detector";
-import type { AgentRunResult } from "./agent/base-agent";
-import { SYNTHESIS_AGENT_NAME } from "./synthesis-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
+
+// Identity preserved from the now-deleted legacy synthesis-agent.ts.
+// Maps to Letta agent cvi-synthesis-agent via AGENT_REGISTRY.
+export const SYNTHESIS_AGENT_NAME = "synthesis-agent";
 
 // Synthesis runs on Sonnet (deeper reasoning) per the LangGraph version's
 // `modelTier: "sonnet"`. base-agent.ts maps that to:

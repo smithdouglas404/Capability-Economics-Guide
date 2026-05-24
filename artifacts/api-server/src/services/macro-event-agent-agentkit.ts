@@ -23,10 +23,11 @@ import { runEdgarRssTick } from "./edgar/rss-watcher";
 import { listActiveEvents } from "./macro-events";
 import { ensureSharedStoreReady, getSharedStore, NS } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
-import type { AgentRunResult } from "./agent/base-agent";
-import {
-  MACRO_EVENT_AGENT_NAME,
-} from "./macro-event-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
+
+// Identity preserved from the now-deleted legacy macro-event-agent.ts.
+// Same string is in AGENT_REGISTRY → maps to Letta agent cvi-macro-event-agent.
+export const MACRO_EVENT_AGENT_NAME = "macro-event-agent";
 
 // Same model tier the LangGraph version uses ("haiku" in base-agent.ts maps
 // to claude-haiku-4-5-20251001).

@@ -14,7 +14,7 @@
  */
 import { Router, type IRouter, type Request, type Response } from "express";
 import { getKvCache } from "../services/agent/store";
-import { runSynthesisAgent } from "../services/synthesis-agent";
+import { runSynthesisAgentAgentKit as runSynthesisAgent } from "../services/synthesis-agent-agentkit";
 import { requireAdmin } from "../middlewares/requireAdmin";
 
 const router: IRouter = Router();

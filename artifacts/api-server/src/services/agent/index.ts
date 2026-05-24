@@ -1,4 +1,8 @@
-export { runAgent } from "./graph";
+// Post-AgentKit migration (2026-05-24): the LangGraph runAgent in graph.ts
+// has been deleted. The AgentKit equivalent lives in services/cvi-agent-agentkit.ts
+// and is re-exported here under the original name so any external importer
+// (scheduler.ts, route handlers) keeps working unchanged.
+export { runCviAgentAgentKit as runAgent } from "../cvi-agent-agentkit";
 export { startScheduler, stopScheduler, getSchedulerStatus, executeScheduledRun } from "./scheduler";
 export { emitAgentEvent } from "./events";
 export { isRealtimeEnabled } from "./events-realtime";

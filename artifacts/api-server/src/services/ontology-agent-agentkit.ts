@@ -29,9 +29,11 @@ import { z } from "zod";
 import { extractEntitiesFromText, upsertEntity, getGraphStats } from "./agent/graphMemory";
 import { runFoundrySyncOnce, getFoundryAlertState } from "./foundry/sync";
 import { ensureSharedStoreReady, getSharedStore, NS } from "./agent/store";
-import type { AgentRunResult } from "./agent/base-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
 
-export const ONTOLOGY_AGENT_AGENTKIT_NAME = "ontology-agent-agentkit";
+// Identity preserved from the now-deleted legacy ontology-agent.ts.
+// Maps to Letta agent cvi-ontology-agent via AGENT_REGISTRY.
+export const ONTOLOGY_AGENT_NAME = "ontology-agent";
 
 // Same model tier the LangGraph version uses ("haiku" in base-agent.ts maps
 // to claude-haiku-4-5-20251001).
@@ -84,7 +86,7 @@ const extractAndRegisterTool = createTool({
       const entities = await extractEntitiesFromText(text);
       for (const e of entities) {
         await upsertEntity(e, {
-          source: ONTOLOGY_AGENT_AGENTKIT_NAME,
+          source: ONTOLOGY_AGENT_NAME,
           registeredAt: new Date().toISOString(),
         });
         totalEntities++;
@@ -115,14 +117,14 @@ const foundrySyncTool = createTool({
       return JSON.stringify({ skipped: true, reason: "foundry alert not active" });
     }
     const r = await runFoundrySyncOnce(
-      `${ONTOLOGY_AGENT_AGENTKIT_NAME} cycle ${new Date().toISOString()}`,
+      `${ONTOLOGY_AGENT_NAME} cycle ${new Date().toISOString()}`,
     );
     return JSON.stringify(r);
   },
 });
 
 const ontologyAgentAgentKit = createAgent({
-  name: ONTOLOGY_AGENT_AGENTKIT_NAME,
+  name: ONTOLOGY_AGENT_NAME,
   description:
     "Cross-agent ontology extraction + Foundry sync (AgentKit Phase 8 shadow eval).",
   system: SYSTEM_PROMPT,

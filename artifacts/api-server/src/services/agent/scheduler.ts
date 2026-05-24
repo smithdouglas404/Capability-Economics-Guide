@@ -1,4 +1,8 @@
-import { runAgent } from "./graph";
+// Post-AgentKit migration (2026-05-24): graph.ts (the LangGraph CVI
+// StateGraph) has been deleted; the AgentKit replacement is in
+// services/cvi-agent-agentkit.ts. Aliased here under the original name
+// so the rest of this file (lastRunResult, executeRun, etc.) works unchanged.
+import { runCviAgentAgentKit as runAgent } from "../cvi-agent-agentkit";
 import { ensureKillSwitchTable, isSchedulerDisabledRuntime } from "../scheduler-kill-switch";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";

@@ -15,8 +15,11 @@ import { db, organizationsTable } from "@workspace/db";
 import { getContributorStatus, getPeerPercentiles } from "./peer-coop";
 import { ensureSharedStoreReady, getSharedStore, NS } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
-import type { AgentRunResult } from "./agent/base-agent";
-import { PEER_COOP_AGENT_NAME } from "./peer-coop-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
+
+// Identity preserved from the now-deleted legacy peer-coop-agent.ts.
+// Maps to Letta agent cvi-peer-coop-agent via AGENT_REGISTRY.
+export const PEER_COOP_AGENT_NAME = "peer-coop-agent";
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 

@@ -14,8 +14,11 @@ import { z } from "zod";
 import { recommendStack } from "./stack-optimizer";
 import { ensureSharedStoreReady, getSharedStore, NS } from "./agent/store";
 import { recallMemories, storeMemory } from "./agent/memory";
-import type { AgentRunResult } from "./agent/base-agent";
-import { STACK_OPTIMIZER_AGENT_NAME } from "./stack-optimizer-agent";
+import type { AgentRunResult } from "./agent/agentkit-shared";
+
+// Identity preserved from the now-deleted legacy stack-optimizer-agent.ts.
+// Maps to Letta agent cvi-stack-optimizer-agent via AGENT_REGISTRY.
+export const STACK_OPTIMIZER_AGENT_NAME = "stack-optimizer-agent";
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
