@@ -177,7 +177,15 @@ function SourceStatsPanel() {
           </p>
         </div>
         {isLoading && <p className="text-xs text-muted-foreground">Loading source stats…</p>}
-        {isError && <p className="text-xs text-rose-500">Couldn&apos;t reach /api/source-quality/stats.</p>}
+        {isError && (
+          <div className="border border-rose-500/30 bg-rose-500/[0.04] p-3 text-xs space-y-1">
+            <p className="text-rose-600 dark:text-rose-400">Live source stats temporarily unavailable.</p>
+            <p className="text-muted-foreground">
+              The aggregate counts feed from the <code>source_triangulations</code> table; refresh in a moment or check{" "}
+              <a href="/system-status" className="underline">system status</a> for the source-quality service.
+            </p>
+          </div>
+        )}
         {data && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {tile("Total sources", data.totalSources.toLocaleString(), <Database className="w-3.5 h-3.5 text-muted-foreground" />, "all-time triangulations")}

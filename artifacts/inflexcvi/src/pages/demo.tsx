@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import {
   ArrowLeft,
@@ -307,15 +307,17 @@ export default function DemoPage() {
       {/* ── Slide content ──────────────────────────────────────────── */}
       <main className="flex-1 flex items-center">
         <div className="max-w-6xl mx-auto w-full px-4 py-10">
-          {slide.key === "intro" && <IntroSlide cap={introCap} macro={introMacro} />}
-          {slide.key === "cei" && <CviSlide data={cei} />}
-          {slide.key === "proof" && <ProofSlide data={backtest} />}
-          {slide.key === "disruption" && <DisruptionSlide rows={disruption} />}
-          {slide.key === "newcaps" && <NewCapsSlide rows={newCaps} />}
-          {slide.key === "workbench" && <WorkbenchSlide />}
-          {slide.key === "patterns" && <PatternsSlide rows={patterns} />}
-          {slide.key === "marketplace" && <MarketplaceSlide rows={listings} />}
-          {slide.key === "close" && <CloseSlide />}
+          <SlideErrorBoundary slideKey={slide.key}>
+            {slide.key === "intro" && <IntroSlide cap={introCap} macro={introMacro} />}
+            {slide.key === "cei" && <CviSlide data={cei} />}
+            {slide.key === "proof" && <ProofSlide data={backtest} />}
+            {slide.key === "disruption" && <DisruptionSlide rows={disruption} />}
+            {slide.key === "newcaps" && <NewCapsSlide rows={newCaps} />}
+            {slide.key === "workbench" && <WorkbenchSlide />}
+            {slide.key === "patterns" && <PatternsSlide rows={patterns} />}
+            {slide.key === "marketplace" && <MarketplaceSlide rows={listings} />}
+            {slide.key === "close" && <CloseSlide />}
+          </SlideErrorBoundary>
         </div>
       </main>
 
@@ -337,6 +339,53 @@ export default function DemoPage() {
       </footer>
     </div>
   );
+}
+
+// ─── Slide error boundary ─────────────────────────────────────────────────
+// A render error inside one slide must NOT blank the whole tour — that's the
+// kind of bug an investor notices immediately. The boundary catches throws
+// inside the active slide and shows a small "this slide had an issue,
+// auto-advancing" card instead. Recovers automatically when slideKey changes.
+class SlideErrorBoundary extends Component<
+  { children: ReactNode; slideKey: string },
+  { error: Error | null; lastKey: string }
+> {
+  constructor(props: { children: ReactNode; slideKey: string }) {
+    super(props);
+    this.state = { error: null, lastKey: props.slideKey };
+  }
+  static getDerivedStateFromProps(
+    props: { slideKey: string },
+    state: { error: Error | null; lastKey: string },
+  ): { error: Error | null; lastKey: string } | null {
+    // Reset on slide change so each slide gets its own try.
+    if (props.slideKey !== state.lastKey) {
+      return { error: null, lastKey: props.slideKey };
+    }
+    return null;
+  }
+  componentDidCatch(error: Error, info: { componentStack?: string }): void {
+    console.warn(`[demo] slide "${this.props.slideKey}" threw:`, error.message, info.componentStack?.split("\n")[1]?.trim());
+  }
+  static getDerivedStateFromError(error: Error): { error: Error; lastKey: string } {
+    return { error, lastKey: "__error__" };
+  }
+  render(): ReactNode {
+    if (this.state.error) {
+      return (
+        <Card className="rounded-none border-amber-500/40 bg-amber-500/[0.04] max-w-2xl mx-auto">
+          <CardContent className="p-6 space-y-2 text-center">
+            <p className="font-serif text-base">This slide hit a temporary issue</p>
+            <p className="text-sm text-muted-foreground">
+              The tour continues — use the arrows above to advance, or wait for auto-advance.
+            </p>
+            <p className="text-xs font-mono text-muted-foreground/70">{this.state.error.message.slice(0, 120)}</p>
+          </CardContent>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 // ─── Slide components ─────────────────────────────────────────────────────────
