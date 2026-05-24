@@ -3,7 +3,6 @@ import { motion, animate } from "framer-motion";
 import { Link } from "wouter";
 import { ArrowRight, ArrowUpRight, Clock, ExternalLink, TrendingUp, Minus, Sparkles, Brain, Activity, Network, Lightbulb, Target, Layers, Radio } from "lucide-react";
 import AgentMemoryShowcase from "@/components/agent-memory-showcase";
-import { AnimatedHeroBackdrop } from "@/components/animated-hero-backdrop";
 import WhatIsCEModal from "@/components/what-is-ce-modal";
 import { PersonaPicker } from "@/components/page-header";
 import { useHasPickedPersona } from "@/lib/persona";
@@ -575,7 +574,7 @@ export default function Home() {
 
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <section className="relative border-b border-border/40 overflow-hidden">
-        <AnimatedHeroBackdrop />
+        <div className="absolute inset-0 hero-grid-bg pointer-events-none" aria-hidden />
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-10 pt-14 pb-0 lg:pt-20">
           {/* Eyebrow */}

@@ -4,7 +4,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ClerkProvider, SignIn, SignUp, useAuth } from "@clerk/react";
 import { useIsAdmin } from "@/hooks/use-is-admin";
 import { Toaster } from "@/components/ui/toaster";
-import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
 import NotFound from "@/pages/not-found";
@@ -383,7 +382,6 @@ function ClerkProviderWithRoutes() {
             <Router />
           </Layout>
           <Toaster />
-          <SonnerToaster position="bottom-right" richColors closeButton />
         </TooltipProvider>
       </QueryClientProvider>
     </ClerkProvider>

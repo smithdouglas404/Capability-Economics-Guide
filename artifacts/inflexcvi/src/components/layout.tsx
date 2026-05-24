@@ -12,8 +12,6 @@ import {
   Lightbulb, MessageSquare, Zap, BookOpen,
   Settings2, ChevronDown, CreditCard, LogOut, Sparkles,
   Store, Menu,
-  TrendingUp, Flame, Globe2, Beaker, GitBranch, ScrollText, Radio, Download,
-  Settings,
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -29,7 +27,6 @@ import { MobileNotice } from "@/components/mobile";
 import { AITourGuide } from "@/components/ai-tour-guide";
 import { NotificationBell } from "@/components/notification-bell";
 import { GlobalQABar } from "@/components/global-qa-bar";
-import { CommandPalette } from "@/components/command-palette";
 import { ReturningUserBar } from "@/components/returning-user-bar";
 import { usePersonalizedPage } from "@/lib/use-personalized-page";
 
@@ -48,88 +45,83 @@ function isMobileTuned(path: string): boolean {
 type NavChild = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; description?: string };
 type NavGroup = { label: string; href?: string; children?: NavChild[]; matchPaths: string[] };
 
-// ─── 6-tier IA (uplift): Index → Tools → Evidence → Operations → Community → Account
-// Each page lives in exactly one tier, named by the user's job-to-be-done
-// rather than the implementation. Maps to the natural reading order an
-// investor / buyer follows when first evaluating the platform.
 const navGroups: NavGroup[] = [
   {
     label: "Index",
-    matchPaths: ["/cvi", "/scorecard", "/alpha", "/disruption", "/disruption-index", "/capability", "/regulations", "/industries", "/knowledge-graph"],
+    matchPaths: ["/cvi", "/knowledge-graph", "/regulations"],
     children: [
-      { href: "/cvi", label: "CVI Dashboard", icon: Activity, description: "Live composite index — current state of every tracked capability" },
-      { href: "/scorecard", label: "Scorecard", icon: Swords, description: "Your org's capability gaps vs. industry benchmarks" },
-      { href: "/alpha", label: "Alpha — EVaR + quadrants", icon: TrendingUp, description: "Per-capability revenue-at-risk, moat, fragility, arbitrage, M&A targets" },
-      { href: "/disruption", label: "Disruption Watch", icon: Zap, description: "Capabilities actively being disrupted right now + net-new capabilities emerging" },
-      { href: "/disruption-index", label: "Disruption Index", icon: Flame, description: "Forward-looking — which capabilities are most likely to be disrupted next + which pattern attacks them" },
-      { href: "/regulations", label: "Regulations", icon: Scale, description: "Compliance gaps + enforcement-intensity forecasts per regulation" },
-      { href: "/industries", label: "Industries", icon: Globe2, description: "Browse the capability catalog by industry" },
-      { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network, description: "Capability relationships, dependencies, and cascades" },
+      { href: "/cvi", label: "CVI Dashboard", icon: Activity, description: "Live composite index & macro events" },
+      { href: "/knowledge-graph", label: "Knowledge Graph", icon: Network, description: "Capability relationships & dependencies" },
+      { href: "/regulations", label: "Regulations", icon: Scale, description: "Compliance & regulatory landscape" },
     ],
   },
   {
-    label: "Tools",
-    matchPaths: ["/upload", "/disruption-lab", "/disruption-simulator", "/whatif", "/simulation", "/vcr", "/workbench", "/nl-query"],
+    label: "Workspace",
+    matchPaths: ["/companies", "/projects", "/watchlist", "/collaborate"],
     children: [
-      { href: "/upload", label: "Upload — analyze your plan", icon: Sparkles, description: "Drop your business plan / pitch deck — we extract capability claims and match them to the live graph" },
-      { href: "/disruption-lab", label: "Disruption Lab", icon: Beaker, description: "Drag-drop a capability + enabling techs, see Disruption Index recompute live" },
-      { href: "/disruption-simulator", label: "Disruption Simulator", icon: Rocket, description: "Forward-project 12-60 months — when does an entrant cross over and replace the incumbent" },
-      { href: "/whatif", label: "What-If — capability cascade", icon: GitBranch, description: "Change one capability's score, walk the dependency graph, see downstream impact" },
-      { href: "/simulation", label: "Simulation — CVI forecast", icon: FlaskConical, description: "Run a 12-month CVI trajectory under a shock event" },
-      { href: "/vcr", label: "VCR — research campaigns", icon: ScanSearch, description: "Multi-day venture-capital research campaigns — Perplexity + LLM, agent-run cycles" },
-      { href: "/workbench", label: "Capability Workbench", icon: Lightbulb, description: "Drag capabilities through Scan → Frame → Ideate → Validate → Launch with LLM critique" },
-      { href: "/nl-query", label: "Ask anything (NL Query)", icon: MessageSquare, description: "Natural-language query over the capability dataset — same backend as the ⌘K bar" },
+      { href: "/companies", label: "Portfolio", icon: Building2, description: "Tracked organizations" },
+      { href: "/projects", label: "Projects", icon: Layers, description: "Your active engagements" },
+      { href: "/watchlist", label: "Watchlist", icon: Bell, description: "Saved capabilities & alerts" },
+      { href: "/collaborate", label: "Strategy Decisions", icon: MessageCircle, description: "Recorded executive decisions & rationale" },
     ],
   },
   {
-    label: "Evidence",
-    matchPaths: ["/methodology", "/provenance", "/backtest", "/proof", "/architecture", "/how-it-works", "/system-status", "/security", "/developers", "/lifecycle-docs"],
+    label: "Ideate",
+    matchPaths: ["/workbench", "/disruption", "/patterns"],
     children: [
-      { href: "/methodology", label: "Methodology", icon: ScrollText, description: "How every score is computed — Bayesian posterior, source weights, confidence formula" },
-      { href: "/provenance", label: "Provenance", icon: Shield, description: "Where our data comes from — World Bank, Foundry, EDGAR, Perplexity, etc., with live source-quality stats" },
-      { href: "/backtest", label: "Backtest harness", icon: BarChart3, description: "Replay historical events — did the engine call COVID / ChatGPT / SVB the right direction" },
-      { href: "/proof", label: "Proof gallery", icon: Target, description: "Curated event-by-event scorecards" },
-      { href: "/how-it-works", label: "How it works (9 stages)", icon: Layers, description: "Pipeline walkthrough from world-scan to recommendation" },
-      { href: "/architecture", label: "Architecture", icon: Network, description: "Module diagram — every service in the stack, live status" },
-      { href: "/system-status", label: "System status", icon: Activity, description: "Per-service health for every integration" },
+      { href: "/workbench", label: "Capability Workbench", icon: Lightbulb, description: "Drag capabilities through Scan → Frame → Ideate → Validate → Launch. Claude critiques per card." },
+      { href: "/disruption", label: "Disruption Watch", icon: Zap, description: "Capabilities actively disrupting industries + the net-new capabilities emerging now." },
+      { href: "/patterns", label: "Design-Thinking Patterns", icon: Sparkles, description: "Uber, Stripe, OpenAI — case studies on inventing new capabilities." },
     ],
   },
   {
-    label: "Operations",
-    matchPaths: ["/insights", "/agent-radar", "/watchlist", "/exports", "/notifications", "/inbox", "/trade-signals", "/innovation", "/benchmarking", "/roi", "/projects", "/companies", "/collaborate", "/collaboration"],
+    label: "Assess",
+    matchPaths: ["/assess", "/review"],
     children: [
-      { href: "/insights", label: "Insights stream", icon: Lightbulb, description: "Curated AI-generated narratives + threshold alerts" },
-      { href: "/agent-radar", label: "Agent Radar", icon: Radio, description: "Live brain panel — see the 8 autonomous agents working in real time" },
-      { href: "/watchlist", label: "Watchlist", icon: Bell, description: "Saved capabilities + regulations with custom alert thresholds" },
-      { href: "/exports", label: "Exports + weekly digest", icon: Download, description: "CSV / Parquet + scheduled weekly digest to your inbox" },
-      { href: "/trade-signals", label: "Trade signals", icon: Target, description: "Forward-looking capability-derived market signals" },
-      { href: "/benchmarking", label: "Peer benchmarks", icon: BarChart3, description: "Cohort-percentile comparison across (industry, capability) cells" },
-      { href: "/projects", label: "Projects", icon: Layers, description: "Active engagements you're tracking" },
-      { href: "/companies", label: "Portfolio", icon: Building2, description: "Companies you're tracking + their fingerprinted capabilities" },
-      { href: "/collaboration", label: "Collaboration", icon: MessageCircle, description: "Per-capability boards with team comments + strategy decisions" },
-      { href: "/notifications", label: "Notifications", icon: Bell, description: "All notifications — connection requests, alerts, mentions" },
-      { href: "/inbox", label: "Inbox", icon: MessageCircle, description: "Direct messages with other members" },
+      { href: "/assess", label: "Run Assessment", icon: ScanSearch, description: "Start a capability assessment" },
+      { href: "/review", label: "Review Queue", icon: Inbox, description: "Pending QA & approvals" },
+    ],
+  },
+  {
+    label: "C-Suite",
+    href: "/c-suite",
+    matchPaths: ["/c-suite"],
+  },
+  {
+    label: "Strategy",
+    matchPaths: ["/scorecard", "/war-room", "/simulation", "/trade-signals", "/innovation", "/benchmarking", "/roi"],
+    children: [
+      { href: "/scorecard", label: "Capability Scorecard", icon: Swords, description: "Your scores vs. industry benchmarks, gap-by-gap" },
+      { href: "/simulation", label: "Simulate", icon: FlaskConical, description: "What-if scenario modeling" },
+      { href: "/trade-signals", label: "Trade Signals", icon: Target, description: "Forward-looking signals" },
+      { href: "/innovation", label: "Innovation Pipeline", icon: Rocket, description: "Emerging capabilities" },
+      { href: "/benchmarking", label: "Peer Benchmarks", icon: BarChart3, description: "Compare against peers" },
+      { href: "/roi", label: "ROI Tracker", icon: PieChart, description: "Investment outcomes" },
+    ],
+  },
+  {
+    label: "Intelligence",
+    matchPaths: ["/insights", "/ask", "/alpha"],
+    children: [
+      { href: "/insights", label: "Insights Feed", icon: Lightbulb, description: "Curated narratives & analysis" },
+      { href: "/ask", label: "CE Search", icon: MessageSquare, description: "Natural-language query over the capability dataset" },
+      { href: "/alpha", label: "CE Alpha", icon: Activity, description: "Advanced analytics: EVaR, moat, dependency impact, M&A targets" },
     ],
   },
   {
     label: "Community",
-    matchPaths: ["/forum", "/feed", "/network", "/search-members", "/marketplace", "/hashtag", "/member"],
+    matchPaths: ["/upload", "/marketplace", "/inbox", "/forum", "/member", "/provenance", "/feed", "/network", "/account/profile", "/search/members", "/notifications"],
     children: [
       { href: "/feed", label: "Feed", icon: Activity, description: "Posts from your connections + members in your industries" },
-      { href: "/network", label: "My network", icon: Users, description: "Manage connections + see the network graph" },
-      { href: "/search-members", label: "Find members", icon: ScanSearch, description: "Search the directory by name, industry, capability, location" },
-      { href: "/forum/banking", label: "Forums", icon: MessageSquare, description: "Per-industry discussion threads" },
+      { href: "/network", label: "My network", icon: Users, description: "Manage your connections — accepted, pending invitations, sent requests" },
+      { href: "/search/members", label: "Find members", icon: ScanSearch, description: "Search the directory by name, industry, capability, location" },
+      { href: "/notifications", label: "Notifications", icon: Bell, description: "Connection requests, post likes, mentions, recommendations" },
+      { href: "/account/profile", label: "Edit my profile", icon: BookOpen, description: "Cover image, headline, experience, education, skills" },
+      { href: "/upload", label: "Upload Document", icon: Sparkles, description: "Drop your business plan / pitch deck — we extract capability claims and match them to the live graph" },
       { href: "/marketplace", label: "Marketplace", icon: Store, description: "Buy and sell capability research, datasets, and templates" },
-    ],
-  },
-  {
-    label: "Account",
-    matchPaths: ["/account", "/membership", "/organization", "/kyc", "/onboarding"],
-    children: [
-      { href: "/account", label: "Account", icon: Settings, description: "Settings + preferences + credit usage" },
-      { href: "/account/profile", label: "Profile", icon: BookOpen, description: "Edit cover image, headline, experience, capabilities you're known for" },
-      { href: "/membership", label: "Membership + billing", icon: Settings, description: "Tier + payment + invoices" },
-      { href: "/organization", label: "Organization", icon: Building2, description: "Your org setup, members, and team capabilities" },
+      { href: "/inbox", label: "Messages", icon: MessageCircle, description: "Direct messages with other members" },
+      { href: "/forum/banking", label: "Forums", icon: MessageSquare, description: "Per-industry community discussion threads" },
+      { href: "/provenance", label: "Data sources", icon: Shield, description: "Where our data comes from — World Bank, Foundry, WEF, EDGAR, and more" },
     ],
   },
 ];
@@ -357,7 +349,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   // /embed/* renders bare for iframe consumers — no chrome, no nav, no
   // banners. The embed pages bring their own minimal "powered by" footer.
   if (location.startsWith("/embed/")) {
-    return <><CommandPalette /><div className="min-h-screen bg-background text-foreground">{children}</div></>;
+    return <div className="min-h-screen bg-background text-foreground">{children}</div>;
   }
   const { isSignedIn, isLoaded, user } = useUser();
   const { isAdmin } = useIsAdmin();
@@ -378,7 +370,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <CommandPalette />
       <DegradedServiceBanner />
       <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/90 backdrop-blur-md" id="main-header">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-2 md:gap-4">
