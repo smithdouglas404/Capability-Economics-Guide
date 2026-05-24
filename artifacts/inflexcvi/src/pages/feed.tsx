@@ -293,7 +293,7 @@ export default function FeedPage() {
           <div className="flex items-center gap-2 text-xs">
             <button
               onClick={() => setFilterMode("default")}
-              className={`px-3 py-1.5 rounded-sm border transition-colors ${
+              className={`px-3 py-1.5 rounded-none border transition-colors ${
                 filterMode === "default"
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background border-border hover:border-primary/50"
@@ -304,7 +304,7 @@ export default function FeedPage() {
             <button
               onClick={() => setFilterMode("followed-capabilities")}
               disabled={followedCapabilities.length === 0 && filterMode !== "followed-capabilities"}
-              className={`px-3 py-1.5 rounded-sm border transition-colors inline-flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-none border transition-colors inline-flex items-center gap-1.5 ${
                 filterMode === "followed-capabilities"
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-background border-border hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed"

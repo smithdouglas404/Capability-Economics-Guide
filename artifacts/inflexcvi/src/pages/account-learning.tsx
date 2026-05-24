@@ -145,7 +145,7 @@ export default function AccountLearningPage() {
                 <Link
                   key={ind.slug}
                   href={`/case-study/${ind.slug}`}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-border/60 hover:border-accent hover:bg-muted/30 rounded-sm text-sm transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-border/60 hover:border-accent hover:bg-muted/30 rounded-none text-sm transition-colors"
                 >
                   {ind.name}
                   <Badge variant="outline" className="text-[10px] font-mono">{ind.count}</Badge>
@@ -171,7 +171,7 @@ export default function AccountLearningPage() {
                 <Link
                   key={cap.id}
                   href={`/capability/${cap.id}`}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-border/60 hover:border-accent hover:bg-muted/30 rounded-sm text-sm transition-colors"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 border border-border/60 hover:border-accent hover:bg-muted/30 rounded-none text-sm transition-colors"
                 >
                   {cap.name}
                   <Badge variant="outline" className="text-[10px] font-mono">{cap.count}</Badge>
@@ -217,7 +217,7 @@ export default function AccountLearningPage() {
                 const Icon = interactionIcon(ixn.type);
                 return (
                   <div key={ixn.id} className="flex items-start gap-3 px-5 py-3 hover:bg-muted/20 transition-colors">
-                    <div className="p-1.5 rounded-sm bg-muted/50 mt-0.5">
+                    <div className="p-1.5 rounded-none bg-muted/50 mt-0.5">
                       <Icon className="w-3.5 h-3.5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
@@ -460,7 +460,7 @@ function AgentDiscoveriesSection({ industries }: { industries: Array<{ name: str
         ) : patterns && patterns.length > 0 ? (
           <div className="space-y-3">
             {patterns.map((p, i) => (
-              <div key={i} className="border border-border/40 p-3 rounded-sm">
+              <div key={i} className="border border-border/40 p-3 rounded-none">
                 <div className="flex items-center gap-1.5 mb-1">
                   <Zap className="w-3 h-3 text-indigo-400" />
                   <span className="text-[10px] uppercase tracking-wider text-indigo-400/70">{p.category}</span>

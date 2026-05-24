@@ -385,7 +385,7 @@ function OverallIndexErrorBar({ value, ciLow, ciHigh, color }: {
           style={{ left: leftPct + "%", width: widthPct + "%", background: color }}
         />
         <div
-          className="absolute top-[-3px] h-[14px] w-[3px] rounded-sm"
+          className="absolute top-[-3px] h-[14px] w-[3px] rounded-none"
           style={{ left: `calc(${markerPct}% - 1.5px)`, background: color }}
         />
       </div>
@@ -966,7 +966,7 @@ export default function CVIDashboard() {
                   }}
                   activeViewId={activeViewId}
                 />
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium border border-border text-amber-500">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-medium border border-border text-amber-500">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Autonomous
                 </div>
@@ -1117,7 +1117,7 @@ export default function CVIDashboard() {
                           placeholder="Admin key (saved locally)"
                           value={adminKey}
                           onChange={(e) => { setAdminKey(e.target.value); localStorage.setItem("ce_admin_key", e.target.value); }}
-                          className="px-2 py-1 text-xs border border-border rounded-sm bg-background w-48"
+                          className="px-2 py-1 text-xs border border-border rounded-none bg-background w-48"
                         />
                         <Button
                           size="sm"
@@ -1163,7 +1163,7 @@ export default function CVIDashboard() {
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden mb-4"
                           >
-                            <div className="p-3 border border-border rounded-sm bg-muted/20">
+                            <div className="p-3 border border-border rounded-none bg-muted/20">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="text-xs font-semibold flex items-center gap-1.5">
                                   <BookOpen className="w-3.5 h-3.5 text-primary" />
@@ -1176,7 +1176,7 @@ export default function CVIDashboard() {
                                   const sevColor = t.severity >= 8 ? "text-red-600" : t.severity >= 5 ? "text-amber-600" : "text-muted-foreground";
                                   const dirColor = t.sentimentDirection === "negative" ? "text-red-600" : t.sentimentDirection === "positive" ? "text-emerald-600" : "text-muted-foreground";
                                   return (
-                                    <div key={t.key} className="p-2 border border-border bg-background rounded-sm flex flex-col gap-1.5 hover:border-primary/60 transition">
+                                    <div key={t.key} className="p-2 border border-border bg-background rounded-none flex flex-col gap-1.5 hover:border-primary/60 transition">
                                       <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0 flex-1">
                                           <div className="text-xs font-semibold leading-tight">{t.title}</div>
@@ -1253,14 +1253,14 @@ export default function CVIDashboard() {
                             exit={{ height: 0, opacity: 0 }}
                             className="overflow-hidden mb-4"
                           >
-                            <div className="p-3 border border-border rounded-sm bg-muted/20 space-y-2">
+                            <div className="p-3 border border-border rounded-none bg-muted/20 space-y-2">
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 <label className="text-xs">
                                   <span className="text-muted-foreground block mb-1">Type</span>
                                   <select
                                     value={eventForm.eventType}
                                     onChange={(e) => setEventForm({ ...eventForm, eventType: e.target.value as typeof eventForm.eventType })}
-                                    className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                    className="w-full px-2 py-1 text-xs border border-border rounded-none bg-background"
                                   >
                                     <option value="war">War / Conflict</option>
                                     <option value="regulation">Regulation</option>
@@ -1287,7 +1287,7 @@ export default function CVIDashboard() {
                                   <select
                                     value={eventForm.sentimentDirection}
                                     onChange={(e) => setEventForm({ ...eventForm, sentimentDirection: e.target.value as typeof eventForm.sentimentDirection })}
-                                    className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                    className="w-full px-2 py-1 text-xs border border-border rounded-none bg-background"
                                   >
                                     <option value="negative">Negative</option>
                                     <option value="positive">Positive</option>
@@ -1314,7 +1314,7 @@ export default function CVIDashboard() {
                                   value={eventForm.title}
                                   onChange={(e) => setEventForm({ ...eventForm, title: e.target.value })}
                                   placeholder="e.g. EU AI Act enforcement begins"
-                                  className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                  className="w-full px-2 py-1 text-xs border border-border rounded-none bg-background"
                                 />
                               </label>
                               <label className="text-xs block">
@@ -1324,7 +1324,7 @@ export default function CVIDashboard() {
                                   onChange={(e) => setEventForm({ ...eventForm, description: e.target.value })}
                                   placeholder="What happened, why it matters for capabilities"
                                   rows={2}
-                                  className="w-full px-2 py-1 text-xs border border-border rounded-sm bg-background"
+                                  className="w-full px-2 py-1 text-xs border border-border rounded-none bg-background"
                                 />
                               </label>
                               <div>
@@ -1341,7 +1341,7 @@ export default function CVIDashboard() {
                                             ? eventForm.affectedIndustryIds.filter(id => id !== ind.id)
                                             : [...eventForm.affectedIndustryIds, ind.id],
                                         })}
-                                        className={`px-2 py-0.5 text-[10px] rounded-sm border transition ${
+                                        className={`px-2 py-0.5 text-[10px] rounded-none border transition ${
                                           selected
                                             ? "bg-primary text-primary-foreground border-primary"
                                             : "bg-background border-border hover:bg-muted"
@@ -1372,7 +1372,7 @@ export default function CVIDashboard() {
                                         >Clear</button>
                                       )}
                                     </div>
-                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1 border border-border/50 rounded-sm bg-background/40">
+                                    <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto p-1 border border-border/50 rounded-none bg-background/40">
                                       {filteredCaps.length === 0 && (
                                         <span className="text-[10px] text-muted-foreground italic px-1">No capabilities available for selected industries.</span>
                                       )}
@@ -1387,7 +1387,7 @@ export default function CVIDashboard() {
                                                 ? eventForm.affectedCapabilityIds.filter(id => id !== c.id)
                                                 : [...eventForm.affectedCapabilityIds, c.id],
                                             })}
-                                            className={`px-1.5 py-0.5 text-[10px] rounded-sm border transition ${
+                                            className={`px-1.5 py-0.5 text-[10px] rounded-none border transition ${
                                               selected
                                                 ? "bg-violet-600 text-white border-violet-600"
                                                 : "bg-background border-border hover:bg-muted"
@@ -1414,7 +1414,7 @@ export default function CVIDashboard() {
                       </AnimatePresence>
 
                       {macroEvents && macroEvents.active.length === 0 ? (
-                        <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-border rounded-sm">
+                        <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-border rounded-none">
                           No active macro disruptions. The CVI reflects only baseline capability dynamics.
                           <br />Add an event manually or run a world scan to detect real-time disruptions.
                         </div>
@@ -1498,7 +1498,7 @@ export default function CVIDashboard() {
                                     <td className="py-1.5 pr-3 text-right">
                                       <button
                                         onClick={() => deleteEvent(ev.id)}
-                                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-sm text-red-600 transition"
+                                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-none text-red-600 transition"
                                         title="Delete event"
                                       >
                                         <Trash2 className="w-3 h-3" />
@@ -1512,7 +1512,7 @@ export default function CVIDashboard() {
                         </div>
                       )}
 
-                      <div className="mt-3 px-3 py-2.5 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
+                      <div className="mt-3 px-3 py-2.5 bg-muted/40 rounded-none border border-border/50 text-[11px] text-muted-foreground">
                         <div className="flex items-start gap-2">
                           <Info className="w-3 h-3 mt-0.5 shrink-0 text-primary" />
                           <div className="flex-1 min-w-0 space-y-1.5">
@@ -1577,29 +1577,29 @@ export default function CVIDashboard() {
                   >
                     <CardContent>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                        <div className="bg-background rounded-sm p-3 border">
+                        <div className="bg-background rounded-none p-3 border">
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Refreshed &lt; 24h</div>
                           <div className="text-2xl font-mono font-bold text-emerald-600">{freshness.summary.refreshedLast24h}</div>
                           <div className="text-[10px] text-muted-foreground">of {freshness.summary.total} caps</div>
                         </div>
-                        <div className="bg-background rounded-sm p-3 border">
+                        <div className="bg-background rounded-none p-3 border">
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Refreshed &lt; 7d</div>
                           <div className="text-2xl font-mono font-bold text-amber-600">{freshness.summary.refreshedLast7d}</div>
                           <div className="text-[10px] text-muted-foreground">of {freshness.summary.total} caps</div>
                         </div>
-                        <div className="bg-background rounded-sm p-3 border">
+                        <div className="bg-background rounded-none p-3 border">
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Stale ≥ 7d</div>
                           <div className="text-2xl font-mono font-bold text-red-600">{freshness.summary.stale7dPlus}</div>
                           <div className="text-[10px] text-muted-foreground">includes never-refreshed</div>
                         </div>
-                        <div className="bg-background rounded-sm p-3 border">
+                        <div className="bg-background rounded-none p-3 border">
                           <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Never Refreshed</div>
                           <div className="text-2xl font-mono font-bold text-muted-foreground">{freshness.summary.neverRefreshed}</div>
                           <div className="text-[10px] text-muted-foreground">no triangulation yet</div>
                         </div>
                       </div>
 
-                      <div className="bg-background rounded-sm p-3 border mb-4">
+                      <div className="bg-background rounded-none p-3 border mb-4">
                         <div className="text-[11px] text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
                           <Info className="w-3 h-3" /> What the numbers mean
                         </div>
@@ -1616,7 +1616,7 @@ export default function CVIDashboard() {
                           <button
                             type="button"
                             onClick={() => setFreshnessStageFilter("all")}
-                            className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === "all" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                            className={`text-[10px] px-2 py-0.5 rounded-none border transition-colors ${freshnessStageFilter === "all" ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
                             data-testid="cvi-freshness-stage-all"
                           >All</button>
                           {LIFECYCLE_STAGES.map(s => (
@@ -1624,7 +1624,7 @@ export default function CVIDashboard() {
                               key={s}
                               type="button"
                               onClick={() => setFreshnessStageFilter(s)}
-                              className={`text-[10px] px-2 py-0.5 rounded-sm border transition-colors ${freshnessStageFilter === s ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
+                              className={`text-[10px] px-2 py-0.5 rounded-none border transition-colors ${freshnessStageFilter === s ? "bg-foreground text-background border-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}
                               data-testid={`cvi-freshness-stage-${s}`}
                             >{lifecycleLabel(s)}</button>
                           ))}
@@ -1637,7 +1637,7 @@ export default function CVIDashboard() {
                           <div className="text-[11px] text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-2 font-semibold">
                             ✓ 10 Most Recently Refreshed
                           </div>
-                          <div className="overflow-x-auto rounded-sm border border-emerald-200 dark:border-emerald-900/40">
+                          <div className="overflow-x-auto rounded-none border border-emerald-200 dark:border-emerald-900/40">
                             <table className="w-full text-xs responsive-table">
                               <thead className="border-b bg-emerald-50/50 dark:bg-emerald-950/20 text-muted-foreground">
                                 <tr className="text-left">
@@ -1687,7 +1687,7 @@ export default function CVIDashboard() {
                           <div className="text-[11px] text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2 font-semibold">
                             ⏳ 10 Stalest — Next in Rotation Queue
                           </div>
-                          <div className="overflow-x-auto rounded-sm border border-amber-200 dark:border-amber-900/40">
+                          <div className="overflow-x-auto rounded-none border border-amber-200 dark:border-amber-900/40">
                             <table className="w-full text-xs responsive-table">
                               <thead className="border-b bg-amber-50/50 dark:bg-amber-950/20 text-muted-foreground">
                                 <tr className="text-left">
@@ -1734,7 +1734,7 @@ export default function CVIDashboard() {
                         </div>
                       </div>
 
-                      <div className="mt-3 px-3 py-2 bg-muted/40 rounded-sm border border-border/50 text-[11px] text-muted-foreground">
+                      <div className="mt-3 px-3 py-2 bg-muted/40 rounded-none border border-border/50 text-[11px] text-muted-foreground">
                         <div className="flex items-start gap-2">
                           <Info className="w-3 h-3 mt-0.5 shrink-0 text-amber-600" />
                           <div>
@@ -1749,7 +1749,7 @@ export default function CVIDashboard() {
                       <div className="mt-2 flex items-center justify-end text-[11px] text-muted-foreground">
                         <button
                           onClick={() => refetchFreshness()}
-                          className="flex items-center gap-1 px-2 py-1 hover:text-foreground hover:bg-muted/50 rounded-sm transition"
+                          className="flex items-center gap-1 px-2 py-1 hover:text-foreground hover:bg-muted/50 rounded-none transition"
                         >
                           <RefreshCw className="w-3 h-3" /> Refresh
                         </button>
@@ -1915,11 +1915,11 @@ export default function CVIDashboard() {
                       >
                         <div className="pt-3 mt-3 border-t space-y-2" onClick={(e) => e.stopPropagation()}>
                           <div className="grid grid-cols-2 gap-2">
-                            <div className="bg-muted/50 rounded-sm p-2">
+                            <div className="bg-muted/50 rounded-none p-2">
                               <div className="text-[10px] text-muted-foreground uppercase">CVI Contribution</div>
                               <div className="text-sm font-mono font-bold">{(ind.indexValue * ind.weight).toFixed(1)}</div>
                             </div>
-                            <div className="bg-muted/50 rounded-sm p-2">
+                            <div className="bg-muted/50 rounded-none p-2">
                               <div className="text-[10px] text-muted-foreground uppercase">Top Mover Δ</div>
                               <div className="text-sm font-mono font-bold">
                                 {Math.abs(ind.topMoverDelta) < 0.05
@@ -1929,7 +1929,7 @@ export default function CVIDashboard() {
                             </div>
                           </div>
                           {capabilityTree && capabilityTree.roots.length > 0 ? (
-                            <div className="border border-border/60 rounded-sm overflow-hidden">
+                            <div className="border border-border/60 rounded-none overflow-hidden">
                               <div className="bg-muted/40 px-2 py-1 grid grid-cols-[1fr_auto_auto_auto] gap-2 text-[10px] font-semibold text-muted-foreground uppercase items-center">
                                 <div className="flex items-center gap-1">
                                   Capability
@@ -2129,7 +2129,7 @@ export default function CVIDashboard() {
                 >
                   <CardContent>
                     <div className="grid md:grid-cols-4 gap-3 mb-4">
-                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
+                      <div className="bg-muted/30 rounded-none p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Clock className="w-3.5 h-3.5 text-primary" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Mode</span>
@@ -2138,7 +2138,7 @@ export default function CVIDashboard() {
                           {agentStatus?.scheduler.active ? "Autonomous" : "Off"}
                         </div>
                       </div>
-                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
+                      <div className="bg-muted/30 rounded-none p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Search className="w-3.5 h-3.5 text-primary" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Last Researched</span>
@@ -2147,7 +2147,7 @@ export default function CVIDashboard() {
                           {agentStatus?.latestRun?.capabilitiesResearched ?? 0} caps
                         </div>
                       </div>
-                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
+                      <div className="bg-muted/30 rounded-none p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
                           <SkipForward className="w-3.5 h-3.5 text-muted-foreground" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Skipped</span>
@@ -2156,7 +2156,7 @@ export default function CVIDashboard() {
                           {agentStatus?.latestRun?.capabilitiesSkipped ?? 0} caps
                         </div>
                       </div>
-                      <div className="bg-muted/30 rounded-sm p-3 border border-border">
+                      <div className="bg-muted/30 rounded-none p-3 border border-border">
                         <div className="flex items-center gap-1.5 mb-1">
                           <Brain className="w-3.5 h-3.5 text-primary" />
                           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Memories</span>
@@ -2168,7 +2168,7 @@ export default function CVIDashboard() {
                     </div>
 
                     {agentStatus?.latestRun && (
-                      <div className="bg-muted/30 rounded-sm p-3 border mb-4">
+                      <div className="bg-muted/30 rounded-none p-3 border mb-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <Database className="w-4 h-4 text-muted-foreground" />
@@ -2236,7 +2236,7 @@ export default function CVIDashboard() {
                               key={`${event.timestamp}-${i}`}
                               initial={{ opacity: 0, x: -10 }}
                               animate={{ opacity: 1, x: 0 }}
-                              className="flex items-start gap-2 text-xs py-1.5 px-2 rounded-sm bg-muted/20 hover:bg-muted/40 transition-colors"
+                              className="flex items-start gap-2 text-xs py-1.5 px-2 rounded-none bg-muted/20 hover:bg-muted/40 transition-colors"
                             >
                               <AgentEventIcon type={event.type} />
                               <span className="text-foreground flex-1">{formatEventMessage(event)}</span>
@@ -2353,7 +2353,7 @@ export default function CVIDashboard() {
                 >
                   <CardContent>
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-sm p-4 border border-indigo-100 dark:border-indigo-900">
+                      <div className="bg-indigo-50 dark:bg-indigo-950/30 rounded-none p-4 border border-indigo-100 dark:border-indigo-900">
                         <div className="flex items-center gap-2 mb-2">
                           <Shield className="w-4 h-4 text-indigo-600" />
                           <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">Consensus Score</span>
@@ -2362,7 +2362,7 @@ export default function CVIDashboard() {
                           Each capability is scored by 4 independent perspectives (consulting, market data, academic, practitioner) using Bayesian inference to produce a posterior distribution with 95% credible intervals.
                         </p>
                       </div>
-                      <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-sm p-4 border border-emerald-100 dark:border-emerald-900">
+                      <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-none p-4 border border-emerald-100 dark:border-emerald-900">
                         <div className="flex items-center gap-2 mb-2">
                           <TrendingUp className="w-4 h-4 text-emerald-600" />
                           <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Velocity</span>
@@ -2371,7 +2371,7 @@ export default function CVIDashboard() {
                           Exponential Moving Average (α=0.7) of score changes captures whether capabilities are improving or declining. Range: -50% to +50%.
                         </p>
                       </div>
-                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-sm p-4 border border-amber-100 dark:border-amber-900">
+                      <div className="bg-amber-50 dark:bg-amber-950/30 rounded-none p-4 border border-amber-100 dark:border-amber-900">
                         <div className="flex items-center gap-2 mb-2">
                           <Zap className="w-4 h-4 text-amber-600" />
                           <span className="text-xs font-bold uppercase tracking-wider text-amber-600">Economic Multiplier</span>
@@ -2380,7 +2380,7 @@ export default function CVIDashboard() {
                           Derived from the capability dependency network. Highly-connected capabilities (many upstream/downstream dependencies) receive multipliers up to 2.0×, reflecting outsized economic impact.
                         </p>
                       </div>
-                      <div className="bg-purple-50 dark:bg-purple-950/30 rounded-sm p-4 border border-purple-100 dark:border-purple-900">
+                      <div className="bg-purple-50 dark:bg-purple-950/30 rounded-none p-4 border border-purple-100 dark:border-purple-900">
                         <div className="flex items-center gap-2 mb-2">
                           <Globe className="w-4 h-4 text-purple-600" />
                           <span className="text-xs font-bold uppercase tracking-wider text-purple-600">GDP Weighting</span>
@@ -2391,7 +2391,7 @@ export default function CVIDashboard() {
                       </div>
                     </div>
 
-                    <div className="bg-muted/30 rounded-sm p-4 border font-mono text-sm">
+                    <div className="bg-muted/30 rounded-none p-4 border font-mono text-sm">
                       <div className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-sans font-bold">Formula</div>
                       <div className="text-foreground">
                         CVI = Σ(W<sub>i</sub> × C<sub>i</sub> × (1 + V<sub>i</sub>) × E<sub>i</sub> × α<sub>i</sub>) / ΣW<sub>i</sub> × 10
@@ -2405,7 +2405,7 @@ export default function CVIDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-950/20 rounded-sm border border-indigo-100 dark:border-indigo-900">
+                    <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-950/20 rounded-none border border-indigo-100 dark:border-indigo-900">
                       <div className="flex items-center gap-2">
                         <Info className="w-4 h-4 text-indigo-600 shrink-0" />
                         <p className="text-xs text-muted-foreground">

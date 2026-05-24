@@ -572,7 +572,7 @@ function SectorQuadrantShare({ data }: { data: GraphData }) {
       <div className="flex items-center gap-4 text-xs text-muted-foreground mb-3 flex-wrap">
         {QUADS.map(q => (
           <span key={q} className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded-sm" style={{ background: QUADRANT_COLORS[q] }} />
+            <span className="inline-block w-3 h-3 rounded-none" style={{ background: QUADRANT_COLORS[q] }} />
             {QUADRANT_LABELS[q]}
           </span>
         ))}

@@ -49,7 +49,7 @@ function StrengthBadge({ strength }: { strength: string }) {
     weak: "bg-muted/40 text-muted-foreground border-border/40",
   };
   return (
-    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${colors[strength] || colors.moderate}`}>
+    <span className={`inline-flex items-center rounded-none border px-2 py-0.5 text-xs font-semibold ${colors[strength] || colors.moderate}`}>
       {strength}
     </span>
   );
@@ -62,7 +62,7 @@ function RelevanceBadge({ relevance }: { relevance: string }) {
     low: "bg-muted/40 text-muted-foreground border-border/40",
   };
   return (
-    <span className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-xs font-semibold ${colors[relevance] || colors.medium}`}>
+    <span className={`inline-flex items-center rounded-none border px-2 py-0.5 text-xs font-semibold ${colors[relevance] || colors.medium}`}>
       {relevance}
     </span>
   );
@@ -240,7 +240,7 @@ export default function KnowledgeGraph() {
                     Economics refreshed {new Date(alphaDetail.generatedAt).toLocaleDateString()}
                   </span>
                 )}
-                <Button size="sm" variant="outline" onClick={rerunDetail} disabled={rerunning} className="rounded-sm">
+                <Button size="sm" variant="outline" onClick={rerunDetail} disabled={rerunning} className="rounded-none">
                   {rerunning ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
                   {rerunning ? "Rerunning…" : "Rerun economics"}
                 </Button>
@@ -316,9 +316,9 @@ export default function KnowledgeGraph() {
                 {econ?.consensusQuadrant && ceQ ? (
                   <>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs px-2 py-0.5 rounded-sm bg-primary/10 text-primary font-medium">CE: {ceQ}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-none bg-primary/10 text-primary font-medium">CE: {ceQ}</span>
                       <span className="text-muted-foreground text-xs">vs</span>
-                      <span className="text-xs px-2 py-0.5 rounded-sm bg-muted text-foreground font-medium">Street: {streetQ}</span>
+                      <span className="text-xs px-2 py-0.5 rounded-none bg-muted text-foreground font-medium">Street: {streetQ}</span>
                     </div>
                     {quadrantsDisagree && (
                       <div className="text-xs text-amber-700 font-medium mb-2">Disagreement · conf {econ.consensusConfidence != null ? Math.round(econ.consensusConfidence * 100) + "%" : "—"}</div>
@@ -351,7 +351,7 @@ export default function KnowledgeGraph() {
                     {econ.aiSubstitutes && econ.aiSubstitutes.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
                         {econ.aiSubstitutes.slice(0, 4).map((s, i) => (
-                          <span key={i} className="text-[10px] px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded-sm border border-violet-100">{s}</span>
+                          <span key={i} className="text-[10px] px-1.5 py-0.5 bg-violet-50 text-violet-700 rounded-none border border-violet-100">{s}</span>
                         ))}
                       </div>
                     )}
@@ -444,7 +444,7 @@ export default function KnowledgeGraph() {
                         <button
                           key={n.id}
                           onClick={() => setSelectedCapabilityId(n.id)}
-                          className="text-xs px-2 py-0.5 bg-accent/10 text-accent rounded-sm hover:bg-accent/20 transition-colors"
+                          className="text-xs px-2 py-0.5 bg-accent/10 text-accent rounded-none hover:bg-accent/20 transition-colors"
                         >
                           {n.name}
                           {n.depth > 1 && <span className="text-muted-foreground ml-1">·{n.depth}</span>}
@@ -477,7 +477,7 @@ export default function KnowledgeGraph() {
                         <div className="flex justify-between items-start mb-1">
                           <span className="font-semibold text-sm text-foreground">{metric.name}</span>
                           {metric.benchmarkValue != null && (
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-sm font-mono">
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-none font-mono">
                               Benchmark: {metric.benchmarkValue} {metric.unit}
                             </span>
                           )}
@@ -650,7 +650,7 @@ export default function KnowledgeGraph() {
                   {alphaDetail?.sources && alphaDetail.sources.length > 0 ? (
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className="rounded-sm h-8">
+                        <Button variant="outline" size="sm" className="rounded-none h-8">
                           <Info className="w-3.5 h-3.5 mr-1.5" />
                           View {alphaDetail.sources.length} citations
                         </Button>
@@ -740,7 +740,7 @@ export default function KnowledgeGraph() {
                     <motion.div key={cap.id} variants={item}>
                       <button
                         onClick={() => setSelectedCapabilityId(cap.id)}
-                        className="w-full text-left bg-card border shadow-sm p-4 rounded-sm hover:border-primary/40 hover:shadow-md transition-all group cursor-pointer"
+                        className="w-full text-left bg-card border shadow-sm p-4 rounded-none hover:border-primary/40 hover:shadow-md transition-all group cursor-pointer"
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex-1">
@@ -811,7 +811,7 @@ export default function KnowledgeGraph() {
                 <div className="mb-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => setRadarParentId(null)}
-                    className={`text-xs rounded-sm border px-2 py-1 transition-colors ${
+                    className={`text-xs rounded-none border px-2 py-1 transition-colors ${
                       radarParent === null
                         ? "bg-primary text-primary-foreground border-primary"
                         : "bg-card text-muted-foreground border-border hover:border-primary/40"
@@ -823,7 +823,7 @@ export default function KnowledgeGraph() {
                     <button
                       key={p.id}
                       onClick={() => setRadarParentId(p.id)}
-                      className={`text-xs rounded-sm border px-2 py-1 transition-colors ${
+                      className={`text-xs rounded-none border px-2 py-1 transition-colors ${
                         radarParent?.id === p.id
                           ? "bg-primary text-primary-foreground border-primary"
                           : "bg-card text-muted-foreground border-border hover:border-primary/40"
@@ -905,7 +905,7 @@ export default function KnowledgeGraph() {
               variant={tab === "quadrant" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("quadrant")}
-              className="rounded-sm"
+              className="rounded-none"
             >
               <Crosshair className="w-4 h-4 mr-2" />
               Quadrant
@@ -914,7 +914,7 @@ export default function KnowledgeGraph() {
               variant={tab === "network" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("network")}
-              className="rounded-sm hidden md:inline-flex"
+              className="rounded-none hidden md:inline-flex"
             >
               <Network className="w-4 h-4 mr-2" />
               Network
@@ -923,7 +923,7 @@ export default function KnowledgeGraph() {
               variant={tab === "industries" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("industries")}
-              className="rounded-sm"
+              className="rounded-none"
             >
               <Layers className="w-4 h-4 mr-2" />
               Industries
@@ -932,7 +932,7 @@ export default function KnowledgeGraph() {
               variant={tab === "compare" ? "default" : "outline"}
               size="sm"
               onClick={() => setTab("compare")}
-              className="rounded-sm"
+              className="rounded-none"
             >
               <BarChart3 className="w-4 h-4 mr-2" />
               Cross-Industry Comparison
@@ -1103,7 +1103,7 @@ export default function KnowledgeGraph() {
                               {shared.industries.map((ind) => (
                                 <div
                                   key={`${ind.industryId}-${ind.capabilityId}`}
-                                  className="flex items-center justify-between p-2 bg-muted/40 rounded-sm"
+                                  className="flex items-center justify-between p-2 bg-muted/40 rounded-none"
                                 >
                                   <span className="text-sm text-foreground">{ind.industryName}</span>
                                   <span className="font-mono text-sm font-semibold text-primary">{ind.benchmarkScore}</span>
@@ -1134,7 +1134,7 @@ export default function KnowledgeGraph() {
                   <motion.div key={industry.id} variants={item}>
                     <button
                       onClick={() => { setSelectedIndustryId(industry.id); setRadarParentId(null); }}
-                      className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
+                      className="w-full text-left bg-card border shadow-sm p-6 rounded-none hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
                     >
                       <div className="flex items-start gap-4">
                         <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">

@@ -118,14 +118,14 @@ export default function Projects() {
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
                   <h1 className="text-3xl md:text-4xl font-serif tracking-tight text-foreground">{project.name}</h1>
-                  <span className={`inline-flex items-center rounded-sm border px-2.5 py-0.5 text-xs font-semibold ${categoryColors[project.category] || "bg-muted text-muted-foreground"}`}>
+                  <span className={`inline-flex items-center rounded-none border px-2.5 py-0.5 text-xs font-semibold ${categoryColors[project.category] || "bg-muted text-muted-foreground"}`}>
                     {project.category}
                   </span>
                 </div>
                 <p className="text-lg text-muted-foreground max-w-3xl">{project.description}</p>
                 {project.source && project.source !== "manual" && (
                   <div className="mt-3 flex items-center gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1 rounded-sm bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 font-semibold">
+                    <span className="inline-flex items-center gap-1 rounded-none bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 font-semibold">
                       <BookOpen className="w-3 h-3" />
                       Sourced via {project.source === "perplexity" ? "CE research pipeline" : project.source}
                     </span>
@@ -150,22 +150,22 @@ export default function Projects() {
                   <div className="flex items-center gap-1.5 text-sm">
                     <AlertTriangle className="w-4 h-4 text-muted-foreground" />
                     <span className="text-muted-foreground">Complexity:</span>
-                    <span className={`px-2 py-0.5 rounded-sm text-xs font-semibold ${complexityColors[project.complexityLevel] || ""}`}>{project.complexityLevel}</span>
+                    <span className={`px-2 py-0.5 rounded-none text-xs font-semibold ${complexityColors[project.complexityLevel] || ""}`}>{project.complexityLevel}</span>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="flex gap-2 mt-6">
-              <Button variant={activeTab === "impact" ? "default" : "outline"} size="sm" className="rounded-sm" onClick={() => setActiveTab("impact")}>
+              <Button variant={activeTab === "impact" ? "default" : "outline"} size="sm" className="rounded-none" onClick={() => setActiveTab("impact")}>
                 <TrendingUp className="w-4 h-4 mr-2" />
                 Capability Impact
               </Button>
-              <Button variant={activeTab === "executive" ? "default" : "outline"} size="sm" className="rounded-sm" onClick={() => setActiveTab("executive")}>
+              <Button variant={activeTab === "executive" ? "default" : "outline"} size="sm" className="rounded-none" onClick={() => setActiveTab("executive")}>
                 <Users className="w-4 h-4 mr-2" />
                 Executive Agenda
               </Button>
-              <Button variant={activeTab === "risks" ? "default" : "outline"} size="sm" className="rounded-sm" onClick={() => setActiveTab("risks")}>
+              <Button variant={activeTab === "risks" ? "default" : "outline"} size="sm" className="rounded-none" onClick={() => setActiveTab("risks")}>
                 <AlertTriangle className="w-4 h-4 mr-2" />
                 Risk of Inaction
               </Button>
@@ -303,7 +303,7 @@ export default function Projects() {
                           <div className="flex-1">
                             <div className="flex items-center gap-3 mb-1">
                               <h3 className="font-semibold text-foreground">{imp.capabilityName}</h3>
-                              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-sm">{imp.industryName}</span>
+                              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-none">{imp.industryName}</span>
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed">{imp.impactDescription}</p>
                           </div>
@@ -332,7 +332,7 @@ export default function Projects() {
 
           {activeTab === "executive" && (
             <div className="space-y-8">
-              <div className="bg-muted/40 border rounded-sm p-6 mb-6">
+              <div className="bg-muted/40 border rounded-none p-6 mb-6">
                 <h2 className="text-lg font-serif mb-2 text-foreground">Why This Matters for the C-Suite</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   Each technology project impacts the executive agenda differently. The CFO needs financial justification, the CEO needs strategic alignment, and the CIO needs architectural clarity. Without addressing all three perspectives, projects stall in committee, get underfunded, or lack executive sponsorship.
@@ -361,7 +361,7 @@ export default function Projects() {
                         <p className="text-foreground leading-relaxed">{insight.agendaDescription}</p>
                       </div>
 
-                      <div className="bg-muted/40 rounded-sm p-4">
+                      <div className="bg-muted/40 rounded-none p-4">
                         <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Key Metrics to Track</h4>
                         <div className="grid md:grid-cols-2 gap-2">
                           {insight.keyMetrics.split("|").map((metric: string, idx: number) => (
@@ -375,7 +375,7 @@ export default function Projects() {
 
                       <div>
                         <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Decision Framework</h4>
-                        <p className="text-sm text-foreground leading-relaxed bg-card border rounded-sm p-4">{insight.decisionFramework}</p>
+                        <p className="text-sm text-foreground leading-relaxed bg-card border rounded-none p-4">{insight.decisionFramework}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -415,7 +415,7 @@ export default function Projects() {
 
           {activeTab === "risks" && (
             <div className="space-y-8">
-              <div className="bg-red-50 border border-red-200 rounded-sm p-6 mb-6">
+              <div className="bg-red-50 border border-red-200 rounded-none p-6 mb-6">
                 <h2 className="text-lg font-serif mb-2 text-foreground flex items-center gap-2">
                   <AlertTriangle className="w-5 h-5 text-red-600" />
                   Risk of Not Identifying These Gaps
@@ -446,7 +446,7 @@ export default function Projects() {
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-semibold text-foreground">{risk.riskCategory}</span>
-                          <span className={`px-2 py-0.5 rounded-sm text-xs font-semibold ${severityBadge[risk.severity] || ""}`}>
+                          <span className={`px-2 py-0.5 rounded-none text-xs font-semibold ${severityBadge[risk.severity] || ""}`}>
                             {risk.severity}
                           </span>
                         </div>
@@ -455,14 +455,14 @@ export default function Projects() {
                       <p className="text-sm text-foreground leading-relaxed mb-4">{risk.description}</p>
 
                       <div className="grid md:grid-cols-2 gap-4">
-                        <div className="bg-red-50/80 border border-red-100 rounded-sm p-3">
+                        <div className="bg-red-50/80 border border-red-100 rounded-none p-3">
                           <div className="flex items-center gap-2 mb-1.5">
                             <XCircle className="w-4 h-4 text-red-500" />
                             <span className="text-xs font-semibold text-red-700 uppercase tracking-wider">Consequence of Inaction</span>
                           </div>
                           <p className="text-xs text-foreground leading-relaxed">{risk.consequence}</p>
                         </div>
-                        <div className="bg-emerald-50/80 border border-emerald-100 rounded-sm p-3">
+                        <div className="bg-emerald-50/80 border border-emerald-100 rounded-none p-3">
                           <div className="flex items-center gap-2 mb-1.5">
                             <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                             <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">Mitigation Path</span>
@@ -510,7 +510,7 @@ export default function Projects() {
             {categories.map((category) => (
               <div key={category}>
                 <h2 className="text-xl font-serif mb-4 text-foreground flex items-center gap-2">
-                  <span className={`inline-flex items-center rounded-sm border px-2.5 py-0.5 text-xs font-semibold ${categoryColors[category] || "bg-muted"}`}>
+                  <span className={`inline-flex items-center rounded-none border px-2.5 py-0.5 text-xs font-semibold ${categoryColors[category] || "bg-muted"}`}>
                     {category}
                   </span>
                 </h2>
@@ -521,7 +521,7 @@ export default function Projects() {
                       <motion.div key={project.id} variants={item}>
                         <button
                           onClick={() => setSelectedProjectId(project.id)}
-                          className="w-full text-left bg-card border shadow-sm p-6 rounded-sm hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
+                          className="w-full text-left bg-card border shadow-sm p-6 rounded-none hover:border-primary/40 hover:shadow-lg transition-all group cursor-pointer"
                         >
                           <div className="flex items-start gap-4">
                             <div className="p-3 rounded-none bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
@@ -539,7 +539,7 @@ export default function Projects() {
                                   const hasDelta = typeof delta === "number" && delta > 0;
                                   return (
                                     <span
-                                      className={`shrink-0 rounded-sm px-2 py-0.5 text-xs font-mono whitespace-nowrap ${
+                                      className={`shrink-0 rounded-none px-2 py-0.5 text-xs font-mono whitespace-nowrap ${
                                         hasDelta
                                           ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                                           : "bg-muted text-muted-foreground border border-transparent"
