@@ -2,18 +2,10 @@ import { runAgent } from "./graph";
 import { ensureKillSwitchTable, isSchedulerDisabledRuntime } from "../scheduler-kill-switch";
 import { emitAgentEvent } from "./events";
 import { startConsolidator, stopConsolidator } from "./consolidator";
-import { detectTemporalShifts, writeMemoryRelationSnapshots } from "./temporal-shift-detector";
 import { syncEconomicRulesToLetta } from "./economic-rules-sync";
 import { syncMarketContextToLetta } from "./market-context-sync";
 import { mem0Prune, configureMem0CustomCategories } from "./memory";
 import { ensureSharedStoreReady } from "./store";
-import { runMacroEventAgent } from "../macro-event-agent";
-import { runDisruptionAgent } from "../disruption-agent";
-import { runPeerCoopAgent } from "../peer-coop-agent";
-import { runStackOptimizerAgent } from "../stack-optimizer-agent";
-import { runOntologyAgent } from "../ontology-agent";
-import { runSynthesisAgent } from "../synthesis-agent";
-import { runSynthesisBriefComposer } from "../workflows";
 import { rotateTriangulations } from "../triangulation";
 import { computeCVI } from "../cvi-engine";
 import { computeDVX } from "../dvx-engine";
@@ -70,7 +62,7 @@ const CVI_SIGNALS_INTERVAL_MS = 24 * 60 * 60 * 1000;
 // through the LangGraph enrichment pipeline one at a time. Replaces the dead
 // BullMQ-based auto-enrich tick that was removed in Task #22 but whose UI
 // surface (enrichment_config.lastRunAt/lastRunEnqueued) was left in place.
-const AUTO_ENRICH_INTERVAL_MS = 60 * 60 * 1000;
+// Cadence + scheduling now live in inngest/functions/agents.ts:autoEnrichCron.
 // External signals (patent_count_5y, vc_capital_usd_5y, startup_count_5y) are
 // scraped per capability from Perplexity and rolled up by the value-chain
 // stage profile view. The underlying writer (`ingestExternalSignalsForIndustry`)
@@ -83,28 +75,10 @@ const EXTERNAL_SIGNALS_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 // passed. Without this, pgvector grows unbounded and stale observations
 // pollute semantic search. Runs daily.
 const MEM0_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000;
-// Macro Event Agent: polls EDGAR, summarizes active macro events,
-// publishes a digest to NS.macroEvents() for downstream agents.
-// 30-minute cadence aligns with the EDGAR RSS polling interval the
-// scheduler already runs (15min) so the agent always sees fresh data.
-const MACRO_EVENT_AGENT_INTERVAL_MS = 30 * 60 * 1000;
-// Disruption Agent: depends on macro-event digest; runs slightly less
-// often so it gets a fresh upstream digest each cycle. 60min cadence.
-const DISRUPTION_AGENT_INTERVAL_MS = 60 * 60 * 1000;
-// Peer Co-op Agent: cohort benchmarks change slowly; 6h is plenty.
-const PEER_COOP_AGENT_INTERVAL_MS = 6 * 60 * 60 * 1000;
-// Stack Optimizer Agent: depends on disruption + peer-coop digests;
-// daily cadence keeps cost down while still reacting to new context.
-const STACK_OPTIMIZER_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000;
-// Ontology Agent: reads all other agents' digests for entity
-// extraction; runs last in the chain after others have published.
-// 4h matches the natural rollup horizon.
-const ONTOLOGY_AGENT_INTERVAL_MS = 4 * 60 * 60 * 1000;
-// Synthesis Agent: cross-agent intelligence layer. Runs once daily after
-// all specialized agents have completed their cycles. Uses Claude Sonnet
-// to synthesize a unified strategic brief from all five agent digests,
-// graph correlations, Mem0 patterns, and temporal shifts.
-const SYNTHESIS_AGENT_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Macro-event / Disruption / Peer-Coop / Stack-Optimizer / Ontology /
+// Synthesis Agent cadences live in inngest/functions/agents.ts. The
+// matching in-process setIntervals were deleted after the INNGEST_OWNS_*
+// cutover landed in prod.
 const ROTATION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const ROTATION_BATCH_SIZE = 10;
 const URGENCY_BURST_SIZE = 3;
@@ -144,7 +118,9 @@ const AUTO_VCR_TRIGGER_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const URGENCY_CONFIDENCE_THRESHOLD = 0.35;
 const URGENCY_STALE_DAYS = 10;
 
-let routineTimer: ReturnType<typeof setInterval> | null = null;
+// Scheduler activation flag. Replaces the legacy `routineTimer !== null`
+// idempotence check after the routine setInterval moved to Inngest.
+let schedulerStarted = false;
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
@@ -159,19 +135,10 @@ let autoVcrTriggerTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
-let autoEnrichTimer: ReturnType<typeof setInterval> | null = null;
 let isAutoEnriching = false;
 let externalSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let isIngestingExternalSignals = false;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
-let macroEventAgentTimer: ReturnType<typeof setInterval> | null = null;
-let disruptionAgentTimer: ReturnType<typeof setInterval> | null = null;
-let peerCoopAgentTimer: ReturnType<typeof setInterval> | null = null;
-let stackOptimizerAgentTimer: ReturnType<typeof setInterval> | null = null;
-let ontologyAgentTimer: ReturnType<typeof setInterval> | null = null;
-let synthesisAgentTimer: ReturnType<typeof setInterval> | null = null;
-let temporalShiftTimer: ReturnType<typeof setInterval> | null = null;
-let memoryRelationSnapshotTimer: ReturnType<typeof setInterval> | null = null;
 let featuredCaseStudyTimer: ReturnType<typeof setInterval> | null = null;
 let isRunning = false;
 let isRotating = false;
@@ -727,27 +694,6 @@ async function botLoopTick(): Promise<void> {
 }
 
 /**
- * Routine cycle check: read the admin-tunable routine interval and run
- * executeRun("routine") if enough time has elapsed since lastRunAt. Called
- * every ROUTINE_CHECK_INTERVAL_MS — moving away from a fixed setInterval
- * means admins can change the cadence without a deploy and the new value
- * takes effect on the next check tick.
- */
-async function routineCheck(): Promise<void> {
-  if (isRunning) return;
-  try {
-    const tuning = await getTuning();
-    const intervalMs = tuning.routineIntervalHours * 60 * 60 * 1000;
-    const elapsed = lastRunAt ? Date.now() - lastRunAt.getTime() : Infinity;
-    if (elapsed >= intervalMs) {
-      await executeRun("routine");
-    }
-  } catch (err) {
-    console.warn("[Agent] routineCheck failed (will retry next tick):", err);
-  }
-}
-
-/**
  * Kill switch — read SCHEDULERS_DISABLED env var at startup.
  *
  * Format:
@@ -792,10 +738,11 @@ function withRuntimeGate(name: string, fn: () => Promise<void> | void): () => Pr
 }
 
 export function startScheduler(): void {
-  if (routineTimer) {
+  if (schedulerStarted) {
     console.log("[Agent] Autonomous monitoring already active");
     return;
   }
+  schedulerStarted = true;
 
   const disabled = getDisabledSchedulers();
   if (disabled.size > 0) {
@@ -814,17 +761,12 @@ export function startScheduler(): void {
   const watchdogMinutes = WATCHDOG_INTERVAL_MS / (60 * 1000);
   console.log(`[Agent] Autonomous monitoring started — routine cadence read from agent_tuning every ${checkMinutes}min, urgency watchdog every ${watchdogMinutes}min`);
 
-  // Phase 1 (feat/inngest-migration): each of the 7 agent crons gates on
-  // INNGEST_OWNS_<NAME>=1. When set, Inngest's cron-triggered function
-  // (artifacts/api-server/src/inngest/functions/agents.ts) owns the schedule
-  // and the in-process setInterval is a no-op. When unset, this setInterval
-  // remains the source of truth. Set both to "1" briefly during cutover →
-  // confirm Inngest dashboard shows runs → leave the in-process version off.
-  if (process.env["INNGEST_OWNS_CVI"] !== "1") {
-    sched("routine",          () => { routineTimer        = setInterval(() => routineCheck(),                  ROUTINE_CHECK_INTERVAL_MS); });
-  } else {
-    console.log("[Agent] CVI routineCheck handed to Inngest (INNGEST_OWNS_CVI=1)");
-  }
+  // CVI agent routine cycle is owned by Inngest (cviAgentCron in
+  // artifacts/api-server/src/inngest/functions/agents.ts). The in-process
+  // setInterval + routineCheck() was deleted after the INNGEST_OWNS_CVI
+  // cutover landed in prod. executeRun() / executeScheduledRun /
+  // watchdogCheck stay for admin-triggered + watchdog-triggered runs.
+  console.log("[Agent] CVI routine cycle handed to Inngest (cviAgentCron)");
   sched("watchdog",         () => { watchdogTimer       = setInterval(() => watchdogCheck(),                 WATCHDOG_INTERVAL_MS); });
   sched("rotation",         () => { rotationTimer       = setInterval(() => executeRotation("daily"),        ROTATION_INTERVAL_MS); });
   sched("worldScan",        () => { worldScanTimer      = setInterval(() => executeWorldScan("daily"),       WORLD_SCAN_INTERVAL_MS); });
@@ -854,14 +796,11 @@ export function startScheduler(): void {
   sched("peerBenchmarks",   () => { peerBenchmarksTimer = setInterval(() => peerBenchmarksTick(),            PEER_BENCHMARKS_INTERVAL_MS); });
   sched("edgarRss",         () => { edgarRssTimer       = setInterval(() => edgarRssTick(),                  EDGAR_RSS_INTERVAL_MS); });
   sched("cviSignals",       () => { cviSignalsTimer     = setInterval(() => cviSignalsTick(),                CVI_SIGNALS_INTERVAL_MS); });
-  if (process.env["INNGEST_OWNS_AUTO_ENRICH"] !== "1") {
-    sched("autoEnrich",       () => { autoEnrichTimer     = setInterval(() => autoEnrichTick(),                AUTO_ENRICH_INTERVAL_MS); });
-  } else {
-    console.log("[Agent] Auto-enrich handed to Inngest (INNGEST_OWNS_AUTO_ENRICH=1)");
-  }
-  // Kick once on boot so a recently-deployed instance picks up any backlog
-  // without waiting an hour. Runs in the background — does NOT block startup.
-  sched("autoEnrich",       () => { setTimeout(() => autoEnrichTick(), 60_000); });
+  // Auto-enrich tick owned by Inngest (autoEnrichCron). The in-process
+  // hourly setInterval + boot kickoff were deleted after
+  // INNGEST_OWNS_AUTO_ENRICH cutover. autoEnrichTick() is still exported
+  // from this module because the Inngest function calls it.
+  console.log("[Agent] Auto-enrich handed to Inngest (autoEnrichCron)");
   sched("externalSignals",  () => { externalSignalsTimer = setInterval(() => externalSignalsTick(),          EXTERNAL_SIGNALS_INTERVAL_MS); });
   // Boot kickoff: 8 min after start (after autoEnrich at 60s and others have
   // settled). Big upfront workload (one Perplexity call per stale cap × N
@@ -883,94 +822,15 @@ export function startScheduler(): void {
   // (Weekly prompt optimizer removed — was the LangMem-equivalent learning
   // code the user explicitly rejected when Letta was restored. Letta's own
   // sleeptime + core_memory_replace pattern handles learning autonomously.)
-  if (process.env["INNGEST_OWNS_MACRO_EVENT"] !== "1") {
-    sched("macroEvent", () => {
-      macroEventAgentTimer = setInterval(withRuntimeGate("macroEvent", () => {
-        return runMacroEventAgent()
-          .then(r => console.log(`[Agent] Macro-event agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-          .catch(err => console.warn("[Agent] Macro-event agent failed:", err instanceof Error ? err.message : err));
-      }), MACRO_EVENT_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Macro-event handed to Inngest (INNGEST_OWNS_MACRO_EVENT=1)");
-  }
-  if (process.env["INNGEST_OWNS_DISRUPTION"] !== "1") {
-    sched("disruption", () => {
-      disruptionAgentTimer = setInterval(withRuntimeGate("disruption", () => {
-        return runDisruptionAgent()
-          .then(r => console.log(`[Agent] Disruption agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-          .catch(err => console.warn("[Agent] Disruption agent failed:", err instanceof Error ? err.message : err));
-      }), DISRUPTION_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Disruption handed to Inngest (INNGEST_OWNS_DISRUPTION=1)");
-  }
-  if (process.env["INNGEST_OWNS_PEER_COOP"] !== "1") {
-    sched("peerCoop", () => {
-      peerCoopAgentTimer = setInterval(withRuntimeGate("peerCoop", () => {
-        return runPeerCoopAgent()
-          .then(r => console.log(`[Agent] Peer-coop agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-          .catch(err => console.warn("[Agent] Peer-coop agent failed:", err instanceof Error ? err.message : err));
-      }), PEER_COOP_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Peer-coop handed to Inngest (INNGEST_OWNS_PEER_COOP=1)");
-  }
-  if (process.env["INNGEST_OWNS_STACK_OPTIMIZER"] !== "1") {
-    sched("stackOptimizer", () => {
-      stackOptimizerAgentTimer = setInterval(withRuntimeGate("stackOptimizer", () => {
-        return runStackOptimizerAgent()
-          .then(r => console.log(`[Agent] Stack-optimizer agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-          .catch(err => console.warn("[Agent] Stack-optimizer agent failed:", err instanceof Error ? err.message : err));
-      }), STACK_OPTIMIZER_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Stack-optimizer handed to Inngest (INNGEST_OWNS_STACK_OPTIMIZER=1)");
-  }
-  if (process.env["INNGEST_OWNS_ONTOLOGY"] !== "1") {
-    sched("ontology", () => {
-      ontologyAgentTimer = setInterval(withRuntimeGate("ontology", () => {
-        return runOntologyAgent()
-          .then(r => console.log(`[Agent] Ontology agent: tools=${r.toolCallCount} duration=${r.durationMs}ms`))
-          .catch(err => console.warn("[Agent] Ontology agent failed:", err instanceof Error ? err.message : err));
-      }), ONTOLOGY_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Ontology handed to Inngest (INNGEST_OWNS_ONTOLOGY=1)");
-  }
-  // Synthesis Agent — daily, staggered 5 minutes after startup so all
-  // other agents have had a chance to publish their first digests.
-  //
-  // If , the daily run delegates to
-  // the in-process synthesis-brief-composer wrapper whose payload publishes
-  // the brief through the same NS.sharedKnowledge("synthesis_brief") path
-  // that runSynthesisAgent uses. On null/error, falls back to the in-process
-  // agent so the daily brief never goes missing.
-  const runSynthesis = async (): Promise<{ source: "workflow" | "in-process"; duration: number; toolCallCount: number }> => {
-    const start = Date.now();
-    const workflowResult = await runSynthesisBriefComposer().catch(() => null);
-    if (workflowResult && workflowResult.status !== "degraded") {
-      return { source: "workflow", duration: Date.now() - start, toolCallCount: 0 };
-    }
-    const r = await runSynthesisAgent();
-    return { source: "in-process", duration: r.durationMs, toolCallCount: r.toolCallCount };
-  };
-  if (process.env["INNGEST_OWNS_SYNTHESIS"] !== "1") {
-    sched("synthesis", () => {
-      setTimeout(() => {
-        runSynthesis()
-          .then(r => console.log(`[Agent] Synthesis agent (startup, source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-          .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-      }, 300_000);
-      synthesisAgentTimer = setInterval(() => {
-        runSynthesis()
-          .then(r => console.log(`[Agent] Synthesis agent (source=${r.source}): tools=${r.toolCallCount} duration=${r.duration}ms`))
-          .catch(err => console.warn("[Agent] Synthesis agent failed:", err instanceof Error ? err.message : err));
-      }, SYNTHESIS_AGENT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Synthesis handed to Inngest (INNGEST_OWNS_SYNTHESIS=1)");
-  }
+  // 5 specialized agents + synthesis agent are all owned by Inngest:
+  //   macro-event, disruption, peer-coop, stack-optimizer, ontology →
+  //   cron-triggered functions in inngest/functions/agents.ts
+  //   synthesis → event-triggered (debounced fan-in of the 5 digest events)
+  //   + optional daily-floor cron in the same file
+  // The in-process setIntervals + the runSynthesisBriefComposer fallback
+  // ladder were deleted after the INNGEST_OWNS_* cutover. The agent run
+  // functions themselves stay exported (the Inngest functions call them).
+  console.log("[Agent] Macro-event / disruption / peer-coop / stack-optimizer / ontology / synthesis handed to Inngest");
   emitAgentEvent({ type: "scheduler_started", intervalMinutes: ROUTINE_CHECK_INTERVAL_MS / 60000 });
 
   startConsolidator();
@@ -1029,47 +889,12 @@ export function startScheduler(): void {
   // against `system_secrets` + `ADMIN_NOTIFY_EMAIL` per CLAUDE.md's Foundry
   // token rotation contract. Removed so the api-server typechecks; re-add the
   // setInterval when the helper exists.
-  // Temporal shift detection — every 6 hours.
-  // Detects accelerating/reversing capability relationships by comparing
-  // current graph weights against 30-day baselines. High-signal shifts are
-  // written to Mem0 so all agents recall them in future cycles.
-  const TEMPORAL_SHIFT_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  if (process.env["INNGEST_OWNS_TEMPORAL_SHIFT"] !== "1") {
-    sched("temporalShift", () => {
-      setTimeout(() => {
-        detectTemporalShifts()
-          .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-          .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-      }, 120_000);
-      temporalShiftTimer = setInterval(() => {
-        detectTemporalShifts()
-          .then(r => console.log(`[Agent] Temporal shifts: ${r.totalRelationsAnalyzed} analyzed, ${r.accelerating.length} accelerating, ${r.reversing.length} reversing`))
-          .catch(err => console.warn("[Agent] Temporal shift detector failed:", err instanceof Error ? err.message : err));
-      }, TEMPORAL_SHIFT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Temporal shift detector handed to Inngest (INNGEST_OWNS_TEMPORAL_SHIFT=1)");
-  }
-  // Memory-relation snapshot — daily. Idempotent per (relation_id, day).
-  // Once 30+ days of history accumulate, the temporal-shift detector uses
-  // these snapshots instead of the legacy fictional 0.1 baseline.
-  const MEMORY_REL_SNAPSHOT_INTERVAL_MS = 24 * 60 * 60 * 1000;
-  if (process.env["INNGEST_OWNS_MEMORY_SNAPSHOT"] !== "1") {
-    sched("memoryRelationSnapshot", () => {
-      setTimeout(() => {
-        writeMemoryRelationSnapshots()
-          .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-          .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-      }, 180_000);
-      memoryRelationSnapshotTimer = setInterval(() => {
-        writeMemoryRelationSnapshots()
-          .then(r => console.log(`[Agent] Memory-relation snapshots: ${r.written} written, ${r.skipped} skipped`))
-          .catch(err => console.warn("[Agent] Memory-relation snapshot writer failed:", err instanceof Error ? err.message : err));
-      }, MEMORY_REL_SNAPSHOT_INTERVAL_MS);
-    });
-  } else {
-    console.log("[Agent] Memory-relation snapshot writer handed to Inngest (INNGEST_OWNS_MEMORY_SNAPSHOT=1)");
-  }
+  // Temporal-shift detector + memory-relation snapshot writer are owned
+  // by Inngest (temporalShiftDetectorCron + memoryRelationSnapshotCron in
+  // inngest/functions/maintenance.ts). detectTemporalShifts and
+  // writeMemoryRelationSnapshots stay exported because those Inngest
+  // functions call them.
+  console.log("[Agent] Temporal-shift + memory-relation snapshot handed to Inngest");
 }
 
 /**
@@ -1084,7 +909,7 @@ export async function triggerBotTickNow(): Promise<{ ok: boolean; reason?: strin
 }
 
 export function stopScheduler(): void {
-  if (routineTimer) { clearInterval(routineTimer); routineTimer = null; }
+  schedulerStarted = false;
   if (watchdogTimer) { clearInterval(watchdogTimer); watchdogTimer = null; }
   if (rotationTimer) { clearInterval(rotationTimer); rotationTimer = null; }
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
@@ -1095,18 +920,11 @@ export function stopScheduler(): void {
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (cviSignalsTimer) { clearInterval(cviSignalsTimer); cviSignalsTimer = null; }
-  if (autoEnrichTimer) { clearInterval(autoEnrichTimer); autoEnrichTimer = null; }
   if (externalSignalsTimer) { clearInterval(externalSignalsTimer); externalSignalsTimer = null; }
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
-  // optimizerTimer removed with the optimizer module
-  if (macroEventAgentTimer) { clearInterval(macroEventAgentTimer); macroEventAgentTimer = null; }
-  if (disruptionAgentTimer) { clearInterval(disruptionAgentTimer); disruptionAgentTimer = null; }
-  if (peerCoopAgentTimer) { clearInterval(peerCoopAgentTimer); peerCoopAgentTimer = null; }
-  if (stackOptimizerAgentTimer) { clearInterval(stackOptimizerAgentTimer); stackOptimizerAgentTimer = null; }
-  if (ontologyAgentTimer) { clearInterval(ontologyAgentTimer); ontologyAgentTimer = null; }
-  if (synthesisAgentTimer) { clearInterval(synthesisAgentTimer); synthesisAgentTimer = null; }
-  if (temporalShiftTimer) { clearInterval(temporalShiftTimer); temporalShiftTimer = null; }
-  if (memoryRelationSnapshotTimer) { clearInterval(memoryRelationSnapshotTimer); memoryRelationSnapshotTimer = null; }
+  if (regulationsWatchTimer) { clearInterval(regulationsWatchTimer); regulationsWatchTimer = null; }
+  if (regulationEnforcementForecastTimer) { clearInterval(regulationEnforcementForecastTimer); regulationEnforcementForecastTimer = null; }
+  if (watchlistEvalTimer) { clearInterval(watchlistEvalTimer); watchlistEvalTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
   if (featuredCaseStudyTimer) { clearInterval(featuredCaseStudyTimer); featuredCaseStudyTimer = null; }
@@ -1206,7 +1024,7 @@ export function getSchedulerStatus(): {
   };
 } {
   return {
-    active: routineTimer !== null,
+    active: schedulerStarted,
     isRunning,
     // intervalMinutes here reports the check-tick frequency. The actual
     // routine cadence (what admins set in agent_tuning) is exposed via the
