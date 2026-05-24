@@ -508,19 +508,20 @@ export default function Home() {
   } | null>(null);
 
   useEffect(() => {
-    fetch("/api/metrics/principle-stats")
+    const opts: RequestInit = { cache: "no-store" };
+    fetch("/api/metrics/principle-stats", opts)
       .then(r => r.ok ? r.json() : null)
       .then((d: PrincipleStats | null) => setPrincipleStats(d))
       .catch(() => {});
-    fetch("/api/metrics/home-tiles")
+    fetch("/api/metrics/home-tiles", opts)
       .then(r => r.ok ? r.json() : null)
       .then((d: HomeTiles | null) => setHomeTiles(d))
       .catch(() => {});
-    fetch("/api/cvi/current")
+    fetch("/api/cvi/current", opts)
       .then(r => r.ok ? r.json() : null)
       .then((d: CviCurrent | null) => setCviCurrent(d))
       .catch(() => {});
-    fetch("/api/capabilities")
+    fetch("/api/capabilities", opts)
       .then(r => r.ok ? r.json() : [])
       .then((d: unknown[]) => setCapCount(Array.isArray(d) ? d.length : null))
       .catch(() => {});
