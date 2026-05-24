@@ -15,7 +15,8 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
 import { logLlmCall } from "../services/llm-usage";
 import { logger } from "../lib/logger";
-import { runCaseStudyGenerator } from "../services/workflows";
+import { runCaseStudyGenerator, type GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 
 const router: IRouter = Router();
@@ -117,10 +118,11 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
   }
 
   try {
-    // Delegate to the case-study-generator workflow. Falls
-    // through to the inline researchEconomicsBreakdown if the workflow
-    // is off / fails. The workflow's callback also writes to
-    // research_artifacts so admins can review history.
+    // Delegate to the case-study-generator workflow. Falls through to the
+    // inline researchEconomicsBreakdown if the workflow is off / fails.
+    // Persistence (db.update caseStudies.economicsBreakdown) lives inside
+    // the Inngest function via step.run("persist-economics-breakdown") so
+    // retries replay cleanly.
     const cs = study.case_studies;
     const currentText = [
       cs.title,
@@ -129,17 +131,41 @@ router.post("/admin/case-studies/:id/regenerate-economics-breakdown", requireAdm
       Array.isArray(cs.challenges) ? cs.challenges.join("\n") : "",
       body.transformationHint ?? "",
     ].filter(Boolean).join("\n\n").slice(0, 12000);
-    const workflowResult = await runCaseStudyGenerator({
+    const caseStudyInput = {
       caseStudyId: id,
       industryName: study.industries.name,
       currentText,
-    }).catch(() => null);
-    if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
-      // The workflow emits a generic shape; coerce to the
-      // economicsBreakdown JSONB shape Drizzle expects.
-      await db.update(caseStudiesTable)
-        .set({ economicsBreakdown: workflowResult.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
-        .where(eq(caseStudiesTable.id, id));
+    };
+    let workflowResult: GenericWorkflowOutput | null = null;
+    let workflowPersisted = false;
+    try {
+      try {
+        workflowResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+          "workflow/case-study-generator",
+          caseStudyInput,
+          { timeoutMs: 90_000 },
+        );
+        if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
+          workflowPersisted = true;
+        }
+      } catch (e) {
+        if (e instanceof InngestInvokeBypassError) {
+          workflowResult = await runCaseStudyGenerator(caseStudyInput);
+          if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0) {
+            // Bypass path: replicate the Inngest function's persistence step.
+            await db.update(caseStudiesTable)
+              .set({ economicsBreakdown: workflowResult.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
+              .where(eq(caseStudiesTable.id, id));
+            workflowPersisted = true;
+          }
+        } else {
+          throw e;
+        }
+      }
+    } catch {
+      workflowResult = null;
+    }
+    if (workflowResult?.payload && Object.keys(workflowResult.payload).length > 0 && workflowPersisted) {
       res.json({ ok: true, breakdown: workflowResult.payload, source: "workflow" });
       return;
     }

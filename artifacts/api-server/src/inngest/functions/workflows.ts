@@ -3,9 +3,12 @@ import {
   marketplaceListingsTable,
   researchArtifactsTable,
   capabilityAssessmentsTable,
+  caseStudiesTable,
 } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { appendAgentArchive } from "../../services/agent/store";
+import { sonnet, generateObject } from "../../services/workflows/models";
 import pino from "pino";
 import { inngest } from "../client";
 import {
@@ -184,16 +187,87 @@ export const assessmentAnalyzerFn = inngest.createFunction(
   },
 );
 
+// Sonnet bridge schema: converts the bootstrap workflow's generic capability
+// payload into the strict shape the /admin/industries route inserts into the
+// capabilities table. Lives here (next to the function) so retries replay
+// the bridge step alongside the perplexity/sonnet call atomically.
+const IndustryBridgeCapabilitySchema = z.object({
+  name: z.string().min(2).max(40),
+  slug: z.string().min(2).max(60),
+  description: z.string(),
+  traditionalView: z.string(),
+  economicView: z.string(),
+  benchmarkScore: z.number().int().min(30).max(85),
+  greenMin: z.number().int().min(0).max(100),
+  yellowMin: z.number().int().min(0).max(100),
+  redMax: z.number().int().min(0).max(100),
+});
+const IndustryBridgeSchema = z.object({
+  capabilities: z.array(IndustryBridgeCapabilitySchema).min(6).max(8),
+});
+
 export const industryBootstrapFn = inngest.createFunction(
   { ...cfg("workflow-industry-bootstrap"), triggers: [{ event: "workflow/industry-bootstrap" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runIndustryBootstrap(event.data as Parameters<typeof runIndustryBootstrap>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runIndustryBootstrap>[0];
+    const bootstrap = await step.run("bootstrap", () => runIndustryBootstrap(input));
+    if (!bootstrap?.payload) return bootstrap;
+
+    const payload = bootstrap.payload as {
+      capabilities?: Array<Record<string, unknown>>;
+      citations?: Array<{ url: string; title?: string }>;
+    };
+    if (!Array.isArray(payload.capabilities)) return bootstrap;
+
+    // Sonnet bridge — convert the workflow's capabilities into the
+    // CapabilitiesSchema shape the admin route uses to populate the DB.
+    const research = {
+      content: JSON.stringify(payload.capabilities),
+      citations: (payload.citations ?? []).map((c) => c.url).filter(Boolean),
+    };
+    const bridged = await step.run("sonnet-bridge", async () => {
+      try {
+        const { object } = await generateObject({
+          model: sonnet,
+          schema: IndustryBridgeSchema,
+          system: `You design industry-specific capability sets. Each capability has a benchmarkScore (30-85). greenMin typically benchmarkScore + 10; yellowMin benchmarkScore - 5; redMax yellowMin - 1. Slugs are kebab-case.`,
+          prompt: `Industry: ${input.industryName}\n\nResearch:\n${research.content}\n\nProduce 6-8 capabilities for this industry.`,
+          temperature: 0.2,
+          maxTokens: 6000,
+        });
+        return object;
+      } catch (err) {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[inngest] industry-bootstrap sonnet bridge failed");
+        return null;
+      }
+    });
+
+    return {
+      status: bootstrap.status,
+      payload: {
+        ...payload,
+        bridged: bridged
+          ? { capabilities: bridged.capabilities, citations: research.citations }
+          : null,
+      },
+    };
+  },
 );
 
 export const caseStudyGeneratorFn = inngest.createFunction(
   { ...cfg("workflow-case-study-generator"), triggers: [{ event: "workflow/case-study-generator" }] },
-  async ({ event, step }) =>
-    step.run("run", () => runCaseStudyGenerator(event.data as Parameters<typeof runCaseStudyGenerator>[0])),
+  async ({ event, step }) => {
+    const input = event.data as Parameters<typeof runCaseStudyGenerator>[0];
+    const result = await step.run("run", () => runCaseStudyGenerator(input));
+    if (result?.payload && Object.keys(result.payload).length > 0) {
+      await step.run("persist-economics-breakdown", async () => {
+        await db.update(caseStudiesTable)
+          .set({ economicsBreakdown: result.payload as unknown as typeof caseStudiesTable.$inferInsert["economicsBreakdown"] })
+          .where(eq(caseStudiesTable.id, input.caseStudyId));
+      });
+    }
+    return result;
+  },
 );
 
 export const capabilityEnrichmentRetryFn = inngest.createFunction(

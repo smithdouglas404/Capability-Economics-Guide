@@ -12,7 +12,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { runEnrichmentGraph } from "../services/enrichment/graph";
 import { requireAdmin } from "../middlewares/requireAdmin";
-import { runIndustryBootstrap } from "../services/workflows";
+import { runIndustryBootstrap, type GenericWorkflowOutput } from "../services/workflows";
+import { invokeWorkflowAndWait, InngestInvokeBypassError } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
 import { logLlmCall } from "../services/llm-usage";
 
@@ -113,17 +114,57 @@ router.post("/industries", requireAdmin, async (req, res) => {
   }
 
   // Delegate Perplexity+Sonnet to the industry-bootstrap workflow.
-  // Returns a structured payload directly (the workflow's callback writes to
-  // research_artifacts AND emits the payload as a workflow output, so we get
-  // a synchronous shape we can shove into the existing insert path).
+  // When the Inngest function succeeds, it already ran the Sonnet bridge
+  // (see inngest/functions/workflows.ts industryBootstrapFn) so the result
+  // includes a `.bridged.capabilities` array that matches CapabilitiesSchema.
+  // Otherwise we fall through to the inline perplexity + generateObject path.
   let research: { content: string; citations: string[] };
-  const bootstrapResult = await runIndustryBootstrap({ industryName: name }).catch(() => null);
-  if (bootstrapResult?.payload && (bootstrapResult.payload as { capabilities?: unknown }).capabilities) {
-    const p = bootstrapResult.payload as { capabilities: Array<Record<string, unknown>>; citations?: Array<{ url: string; title?: string }> };
-    research = {
-      content: JSON.stringify(p.capabilities),
-      citations: (p.citations ?? []).map(c => c.url).filter(Boolean),
+  let bridgedCaps: z.infer<typeof CapabilitySchema>[] | null = null;
+
+  const bootstrapInput = { industryName: name };
+  let bootstrapResult: GenericWorkflowOutput | null = null;
+  try {
+    try {
+      bootstrapResult = await invokeWorkflowAndWait<GenericWorkflowOutput>(
+        "workflow/industry-bootstrap",
+        bootstrapInput,
+        { timeoutMs: 120_000 },
+      );
+    } catch (e) {
+      if (e instanceof InngestInvokeBypassError) {
+        bootstrapResult = await runIndustryBootstrap(bootstrapInput);
+      } else {
+        throw e;
+      }
+    }
+  } catch {
+    bootstrapResult = null;
+  }
+
+  if (bootstrapResult?.payload) {
+    const p = bootstrapResult.payload as {
+      capabilities?: Array<Record<string, unknown>>;
+      citations?: Array<{ url: string; title?: string }>;
+      bridged?: { capabilities: z.infer<typeof CapabilitySchema>[]; citations: string[] } | null;
     };
+    if (p.bridged?.capabilities) {
+      bridgedCaps = p.bridged.capabilities;
+      research = { content: "", citations: p.bridged.citations };
+    } else if (Array.isArray(p.capabilities)) {
+      research = {
+        content: JSON.stringify(p.capabilities),
+        citations: (p.citations ?? []).map(c => c.url).filter(Boolean),
+      };
+    } else {
+      try {
+        research = await callPerplexity(
+          `What are the 6-8 most economically critical capabilities for the ${name} industry in 2025-2026? For each capability, give: a short name (2-4 words), a one-sentence description, the typical maturity benchmark on a 0-100 scale (cite analyst sources), and the traditional vs economic view. Reply with sources.`,
+        );
+      } catch (err) {
+        res.status(502).json({ error: "Research call failed", details: String(err) });
+        return;
+      }
+    }
   } else {
     try {
       research = await callPerplexity(
@@ -156,19 +197,24 @@ Each capability MUST have these fields:
 Output ONLY the JSON array. No markdown, no commentary.`;
 
   let caps: z.infer<typeof CapabilitySchema>[];
-  try {
-    const { object } = await generateObject({
-      model: sonnet,
-      schema: CapabilitiesSchema,
-      system: `You design industry-specific capability sets. Each capability has a benchmarkScore (30-85). greenMin typically benchmarkScore + 10; yellowMin benchmarkScore - 5; redMax yellowMin - 1. Slugs are kebab-case.`,
-      prompt: `Industry: ${name}\n\nResearch:\n${research.content}\n\nProduce 6-8 capabilities for this industry.`,
-      temperature: 0.2,
-      maxTokens: 6000,
-    });
-    caps = object.capabilities;
-  } catch (err) {
-    res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
-    return;
+  if (bridgedCaps) {
+    // Inngest function already ran the Sonnet bridge — reuse its output.
+    caps = bridgedCaps;
+  } else {
+    try {
+      const { object } = await generateObject({
+        model: sonnet,
+        schema: CapabilitiesSchema,
+        system: `You design industry-specific capability sets. Each capability has a benchmarkScore (30-85). greenMin typically benchmarkScore + 10; yellowMin benchmarkScore - 5; redMax yellowMin - 1. Slugs are kebab-case.`,
+        prompt: `Industry: ${name}\n\nResearch:\n${research.content}\n\nProduce 6-8 capabilities for this industry.`,
+        temperature: 0.2,
+        maxTokens: 6000,
+      });
+      caps = object.capabilities;
+    } catch (err) {
+      res.status(502).json({ error: "LLM synthesis failed", details: String(err) });
+      return;
+    }
   }
 
   const [industry] = await db
