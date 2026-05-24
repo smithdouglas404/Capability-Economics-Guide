@@ -29,6 +29,50 @@ const router = Router();
  * defensive reason as scheduled_exports — drizzle-kit push has been
  * observed silently no-op'ing during long deploys.
  */
+/**
+ * Idempotent CREATE TABLE for disruption_simulations (Disruption
+ * Simulator scenarios — saved time-axis runs).
+ */
+router.post("/admin/migrate/disruption-simulations", requireAdmin, async (_req: Request, res: Response) => {
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS disruption_simulations (
+        id SERIAL PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        entrant_name TEXT NOT NULL,
+        entrant_jtbd TEXT NOT NULL,
+        entrant_tech_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+        target_capability_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+        adoption_curve TEXT NOT NULL DEFAULT 'standard_b2b_saas',
+        capital_tier TEXT NOT NULL DEFAULT 'seed',
+        regulatory_friction_months INTEGER NOT NULL DEFAULT 0,
+        horizon_months INTEGER NOT NULL DEFAULT 36,
+        substitution_factor REAL NOT NULL DEFAULT 0.7,
+        defender_response TEXT NOT NULL DEFAULT 'none',
+        crossover_month INTEGER,
+        final_entrant_share REAL NOT NULL DEFAULT 0,
+        total_dollars_disrupted_mm REAL NOT NULL DEFAULT 0,
+        trajectory JSONB NOT NULL DEFAULT '[]'::jsonb,
+        cascade JSONB NOT NULL DEFAULT '[]'::jsonb,
+        defender_options JSONB NOT NULL DEFAULT '[]'::jsonb,
+        top_playbook_id INTEGER,
+        pitch_source TEXT,
+        origin TEXT NOT NULL DEFAULT 'manual',
+        parent_simulation_id INTEGER,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS disruption_simulations_user_idx ON disruption_simulations (user_id)`);
+    await db.execute(sql`CREATE INDEX IF NOT EXISTS disruption_simulations_created_idx ON disruption_simulations (created_at)`);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 router.post("/admin/migrate/disruption-index", requireAdmin, async (_req: Request, res: Response) => {
   try {
     await db.execute(sql`
