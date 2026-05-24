@@ -79,7 +79,11 @@ export function ConsensusView({
             {children ?? display}
           </button>
         </TooltipTrigger>
-        <TooltipContent side="top" align="end" className="max-w-md p-3">
+        <TooltipContent
+          side="top"
+          align="end"
+          className="max-w-md p-4 bg-popover text-popover-foreground border border-border shadow-xl rounded-none"
+        >
           {loading && <p className="text-xs italic text-muted-foreground">Loading sources…</p>}
           {!loading && !data && <p className="text-xs italic text-muted-foreground">No consensus data available.</p>}
           {!loading && data && (
