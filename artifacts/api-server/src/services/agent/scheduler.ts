@@ -130,17 +130,24 @@ let rotationTimer: ReturnType<typeof setInterval> | null = null;
 let worldScanTimer: ReturnType<typeof setInterval> | null = null;
 let digestTimer: ReturnType<typeof setInterval> | null = null;
 let scheduledExportTimer: ReturnType<typeof setInterval> | null = null;
-let botLoopTimer: ReturnType<typeof setInterval> | null = null;
+// botLoopTimer deleted 2026-05-25 — was the dominant Perplexity → Gemini-fallback
+// cost source. Manual admin trigger via triggerBotTickNow() still works; the
+// autonomous tick is gone. If we ever want it back, wire as an Inngest cron
+// with a shouldRunAgent() / isLlmEnabled() gate.
 let creditExpiryTimer: ReturnType<typeof setInterval> | null = null;
 let regulationsWatchTimer: ReturnType<typeof setInterval> | null = null;
-let regulationEnforcementForecastTimer: ReturnType<typeof setInterval> | null = null;
+// regulationEnforcementForecastTimer deleted 2026-05-25 — Perplexity caller,
+// no Inngest equivalent, was burning Gemini via fallback. If a UI surface
+// needs this, expose it as an admin-triggered route + Inngest event.
 let watchlistEvalTimer: ReturnType<typeof setInterval> | null = null;
 let autoVcrTriggerTimer: ReturnType<typeof setInterval> | null = null;
 let peerBenchmarksTimer: ReturnType<typeof setInterval> | null = null;
 let edgarRssTimer: ReturnType<typeof setInterval> | null = null;
 let cviSignalsTimer: ReturnType<typeof setInterval> | null = null;
 let isAutoEnriching = false;
-let externalSignalsTimer: ReturnType<typeof setInterval> | null = null;
+// externalSignalsTimer deleted 2026-05-25 — Perplexity caller per industry,
+// no Inngest equivalent, was burning Gemini via fallback. ingestExternalSignalsForIndustry()
+// remains exported for ad-hoc admin runs but no longer fires on its own.
 let isIngestingExternalSignals = false;
 let mem0PruneTimer: ReturnType<typeof setInterval> | null = null;
 let featuredCaseStudyTimer: ReturnType<typeof setInterval> | null = null;
@@ -792,18 +799,13 @@ export function startScheduler(): void {
   sched("worldScan",        () => { worldScanTimer      = setInterval(() => executeWorldScan("daily"),       WORLD_SCAN_INTERVAL_MS); });
   sched("digest",           () => { digestTimer         = setInterval(() => executeDigestSweep("routine"),   DIGEST_TICK_INTERVAL_MS); });
   sched("scheduledExports", () => { scheduledExportTimer = setInterval(() => executeScheduledExportSweep("routine"), SCHEDULED_EXPORT_TICK_INTERVAL_MS); });
-  sched("botLoop",          () => { botLoopTimer        = setInterval(() => botLoopTick(),                   BOT_LOOP_INTERVAL_MS); });
+  // botLoop / regulationEnforcementForecast schedules deleted 2026-05-25 —
+  // see banner comment near the timer-variable declarations.
   sched("creditExpiry",     () => { creditExpiryTimer   = setInterval(() => creditExpiryTick(),              CREDIT_EXPIRY_INTERVAL_MS); });
   sched("regulationsWatch", () => { regulationsWatchTimer = setInterval(() => regulationsWatchTick(),        REGULATIONS_WATCH_INTERVAL_MS); });
   // Kick once 90s after boot so any freshly-deployed instance catches up
   // without waiting an hour. Background — does NOT block startup.
   sched("regulationsWatch", () => { setTimeout(() => regulationsWatchTick(), 90_000); });
-  sched("regulationEnforcementForecast", () => {
-    regulationEnforcementForecastTimer = setInterval(() => regulationEnforcementForecastTick(), REGULATION_ENFORCEMENT_FORECAST_INTERVAL_MS);
-  });
-  sched("regulationEnforcementForecast", () => {
-    setTimeout(() => regulationEnforcementForecastTick(), 10 * 60 * 1000);
-  });
   sched("watchlistEval",    () => { watchlistEvalTimer    = setInterval(() => watchlistEvalTick(),           WATCHLIST_EVAL_INTERVAL_MS); });
   sched("watchlistEval",    () => { setTimeout(() => watchlistEvalTick(), 120_000); });
   sched("autoVcrTrigger",   () => { autoVcrTriggerTimer   = setInterval(() => autoVcrTriggerTick(),          AUTO_VCR_TRIGGER_INTERVAL_MS); });
@@ -821,13 +823,8 @@ export function startScheduler(): void {
   // INNGEST_OWNS_AUTO_ENRICH cutover. autoEnrichTick() is still exported
   // from this module because the Inngest function calls it.
   console.log("[Agent] Auto-enrich handed to Inngest (autoEnrichCron)");
-  sched("externalSignals",  () => { externalSignalsTimer = setInterval(() => externalSignalsTick(),          EXTERNAL_SIGNALS_INTERVAL_MS); });
-  // Boot kickoff: 8 min after start (after autoEnrich at 60s and others have
-  // settled). Big upfront workload (one Perplexity call per stale cap × N
-  // industries) but the ingester runs ≤3 concurrent and skips fresh caps,
-  // so even a cold start finishes in minutes. Subsequent weekly fires are
-  // mostly no-ops thanks to the 30-day staleness filter.
-  sched("externalSignals",  () => { setTimeout(() => externalSignalsTick(), 8 * 60 * 1000); });
+  // externalSignals schedule + boot kickoff deleted 2026-05-25 — see
+  // banner comment near the timer-variable declarations.
   sched("mem0Prune", () => {
     mem0PruneTimer = setInterval(() => {
       mem0Prune().catch(err => console.warn("[Agent] mem0Prune failed:", err instanceof Error ? err.message : err));
@@ -898,7 +895,7 @@ export function startScheduler(): void {
   sched("rotation",       () => { setTimeout(() => executeRotation("startup"), 30_000); });
   sched("digest",         () => { setTimeout(() => executeDigestSweep("startup"), 90_000); });
   sched("scheduledExports", () => { setTimeout(() => executeScheduledExportSweep("startup"), 120_000); });
-  sched("botLoop",        () => { setTimeout(() => botLoopTick(), 45_000); });
+  // botLoop startup kick deleted 2026-05-25.
   sched("creditExpiry",   () => { setTimeout(() => creditExpiryTick(), 120_000); });
   sched("peerBenchmarks", () => { setTimeout(() => peerBenchmarksTick(), 180_000); });
   sched("edgarRss",       () => { setTimeout(() => edgarRssTick(), 240_000); });
@@ -935,15 +932,15 @@ export function stopScheduler(): void {
   if (worldScanTimer) { clearInterval(worldScanTimer); worldScanTimer = null; }
   if (digestTimer) { clearInterval(digestTimer); digestTimer = null; }
   if (scheduledExportTimer) { clearInterval(scheduledExportTimer); scheduledExportTimer = null; }
-  if (botLoopTimer) { clearInterval(botLoopTimer); botLoopTimer = null; }
+  // botLoopTimer deleted — nothing to clear.
   if (creditExpiryTimer) { clearInterval(creditExpiryTimer); creditExpiryTimer = null; }
   if (peerBenchmarksTimer) { clearInterval(peerBenchmarksTimer); peerBenchmarksTimer = null; }
   if (edgarRssTimer) { clearInterval(edgarRssTimer); edgarRssTimer = null; }
   if (cviSignalsTimer) { clearInterval(cviSignalsTimer); cviSignalsTimer = null; }
-  if (externalSignalsTimer) { clearInterval(externalSignalsTimer); externalSignalsTimer = null; }
+  // externalSignalsTimer deleted — nothing to clear.
   if (mem0PruneTimer) { clearInterval(mem0PruneTimer); mem0PruneTimer = null; }
   if (regulationsWatchTimer) { clearInterval(regulationsWatchTimer); regulationsWatchTimer = null; }
-  if (regulationEnforcementForecastTimer) { clearInterval(regulationEnforcementForecastTimer); regulationEnforcementForecastTimer = null; }
+  // regulationEnforcementForecastTimer deleted — nothing to clear.
   if (watchlistEvalTimer) { clearInterval(watchlistEvalTimer); watchlistEvalTimer = null; }
   stopConsolidator();
   stopMarketplaceAutoArchive();
