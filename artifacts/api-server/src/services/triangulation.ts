@@ -63,74 +63,114 @@ interface TriangulationResult {
   };
 }
 
+/**
+ * One Perplexity call asks for all 4 perspectives' ratings in a single
+ * JSON response. Replaces the prior fan-out of 4 parallel calls — cuts
+ * Perplexity volume 4× per triangulated capability (and 4× the
+ * Gemini-:online fallback cost when Perplexity is down).
+ *
+ * The single call yields one `citations[]` array; we attach it to all 4
+ * source rows so the downstream `sourceTriangulationsTable` write +
+ * Bayesian math behave the same way they did with the fan-out.
+ */
+const UNIFIED_SYSTEM_PROMPT = `You are a multi-disciplinary research analyst producing a triangulated maturity assessment. For each capability, you will produce FOUR independent ratings, one per analytical lens:
+
+1. "Consulting Analyst" — Senior management consulting analyst at a top-tier firm (McKinsey, BCG, Bain). Uses consulting frameworks (McKinsey's Digital Quotient, BCG's Digital Acceleration Index, Deloitte's Digital Maturity Model). Focus: organizational readiness, process maturity, talent gaps, strategic alignment.
+
+2. "Market Data Analyst" — Quantitative market research analyst (technology adoption, digital transformation metrics). Uses hard market data: adoption rates, investment levels, vendor penetration, patent filings, Gartner / IDC / Statista / CB Insights. Focus: measurable adoption %, spending trends, market growth rates, penetration curves.
+
+3. "Academic Researcher" — Academic researcher in information systems and digital transformation at a leading university. Uses peer-reviewed research, academic maturity models (CMMI, TDWI), longitudinal studies. Focus: theoretical frameworks, empirical evidence, statistical validation, measurement rigor.
+
+4. "Industry Practitioner" — Seasoned Chief Digital Officer at a Fortune 500. Uses hands-on experience: what works in practice, common failure modes, realistic timelines, practitioner benchmarks (CIO surveys, Harvey Nash, Foundry, Flexera). Focus: practical implementation reality, blockers, real adoption curves, operational benchmarks.
+
+Each lens must produce its OWN independent score — do NOT average across lenses. Differences between lenses are signal, not noise. Return ONLY valid JSON, no markdown fences.`;
+
 export async function triangulateCapability(
   industryName: string,
   capabilityName: string,
   industryId: number,
   capabilityId: number,
 ): Promise<TriangulationResult> {
-  const sourceResults = await Promise.all(
-    PERSPECTIVES.map(async (perspective) => {
-      try {
-        const data = await perplexityChat({
-          model: "sonar",
-          endpoint: "triangulation",
-          context: { capabilityId, capabilityName, perspective: perspective.label },
-          messages: [
-            { role: "system", content: perspective.systemPrompt },
-            {
-              role: "user",
-              content: `Rate the current maturity of "${capabilityName}" in the ${industryName} industry on a 0-100 scale.
+  const userPrompt = `Rate the current maturity of "${capabilityName}" in the ${industryName} industry on a 0-100 scale, producing one rating per analytical lens.
 
-Return this exact JSON structure:
+Return this EXACT JSON structure (4 entries, in this order):
 {
-  "score": <number 0-100>,
-  "methodology": "<name of framework or data source used>",
-  "rationale": "<2-3 sentences explaining the score with specific data points, percentages, or benchmarks>"
+  "perspectives": [
+    { "label": "Consulting Analyst",   "score": <0-100>, "methodology": "<framework/source>", "rationale": "<2-3 sentences with specific numbers, benchmarks, or examples>" },
+    { "label": "Market Data Analyst",  "score": <0-100>, "methodology": "<framework/source>", "rationale": "<2-3 sentences with specific numbers, benchmarks, or examples>" },
+    { "label": "Academic Researcher",  "score": <0-100>, "methodology": "<framework/source>", "rationale": "<2-3 sentences with specific numbers, benchmarks, or examples>" },
+    { "label": "Industry Practitioner","score": <0-100>, "methodology": "<framework/source>", "rationale": "<2-3 sentences with specific numbers, benchmarks, or examples>" }
+  ]
 }
 
-Base your score on the most recent data available (2024-2026). Be specific about what data informs your score.`,
-            },
-          ],
-        });
-        const content = data.choices[0]?.message?.content ?? "";
-        const citations = data.citations ?? [];
+Base each score on the most recent data available (2024-2026). Each lens applies its own methodology independently.`;
 
-        const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
-        const jsonStart = cleaned.indexOf("{");
-        const jsonEnd = cleaned.lastIndexOf("}");
-        const parsed = JSON.parse(cleaned.substring(jsonStart, jsonEnd + 1));
+  let data;
+  try {
+    data = await perplexityChat({
+      model: "sonar",
+      endpoint: "triangulation",
+      context: { capabilityId, capabilityName, perspective: "unified-4-lens" },
+      messages: [
+        { role: "system", content: UNIFIED_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const has401 = msg.includes("401");
+    const hint = has401 ? " (PERPLEXITY_API_KEY missing or invalid in this environment)" : "";
+    throw new Error(`Triangulation call failed — ${msg}${hint}`);
+  }
 
-        return {
-          sourceLabel: perspective.label,
-          rawScore: Math.max(0, Math.min(100, Number(parsed.score) || 50)),
-          weight: perspective.weight,
-          methodology: parsed.methodology || perspective.label,
-          rationale: parsed.rationale || "",
-          citations,
-        };
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[Triangulation] perspective="${perspective.label}" capabilityId=${capabilityId} ` +
-            `capability="${capabilityName}" industry="${industryName}" failed after retries: ${msg}`,
-        );
-        return { __error: true as const, sourceLabel: perspective.label, message: msg };
+  const content = data.choices[0]?.message?.content ?? "";
+  const citations = data.citations ?? [];
+
+  const validSources: TriangulationResult["sources"] = [];
+  const errored: Array<{ sourceLabel: string; message: string }> = [];
+
+  try {
+    const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    const parsed = JSON.parse(cleaned.substring(jsonStart, jsonEnd + 1)) as {
+      perspectives?: Array<{ label?: string; score?: number; methodology?: string; rationale?: string }>;
+    };
+    const returnedByLabel = new Map<string, { score?: number; methodology?: string; rationale?: string }>();
+    for (const p of parsed.perspectives ?? []) {
+      if (typeof p.label === "string") returnedByLabel.set(p.label.trim(), p);
+    }
+    for (const perspective of PERSPECTIVES) {
+      const got = returnedByLabel.get(perspective.label);
+      if (!got || got.score === undefined) {
+        errored.push({ sourceLabel: perspective.label, message: "missing from unified response" });
+        continue;
       }
-    }),
-  );
-
-  const errored = sourceResults.filter((s): s is { __error: true; sourceLabel: string; message: string } => !!s && (s as { __error?: boolean }).__error === true);
-  const validSources = sourceResults.filter((s): s is Exclude<NonNullable<typeof s>, { __error: true }> => !!s && (s as { __error?: boolean }).__error !== true);
+      validSources.push({
+        sourceLabel: perspective.label,
+        rawScore: Math.max(0, Math.min(100, Number(got.score) || 50)),
+        weight: perspective.weight,
+        methodology: got.methodology || perspective.label,
+        rationale: got.rationale || "",
+        citations,
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(
+      `[Triangulation] capabilityId=${capabilityId} capability="${capabilityName}" ` +
+        `industry="${industryName}" — unified-response parse failed: ${msg}`,
+    );
+  }
 
   if (validSources.length === 0) {
-    const messages = errored.map(e => `${e.sourceLabel}: ${e.message}`).join("; ");
-    const has401 = errored.some(e => e.message.includes("401"));
-    const hint = has401 ? " (PERPLEXITY_API_KEY missing or invalid in this environment)" : "";
-    throw new Error(`All triangulation sources failed — ${messages}${hint}`);
+    const messages = errored.length > 0
+      ? errored.map(e => `${e.sourceLabel}: ${e.message}`).join("; ")
+      : `parse-failed (raw ${content.length} chars)`;
+    throw new Error(`All triangulation sources failed — ${messages}`);
   }
   if (errored.length > 0) {
-    console.warn(`[Triangulation] ${capabilityName}: ${errored.length}/${PERSPECTIVES.length} sources failed (${errored.map(e => e.sourceLabel).join(", ")}) — proceeding with ${validSources.length}`);
+    console.warn(`[Triangulation] ${capabilityName}: ${errored.length}/${PERSPECTIVES.length} perspectives missing (${errored.map(e => e.sourceLabel).join(", ")}) — proceeding with ${validSources.length}`);
   }
 
   const totalWeight = validSources.reduce((sum, s) => sum + s.weight, 0);
