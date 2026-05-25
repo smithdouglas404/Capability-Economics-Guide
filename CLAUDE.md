@@ -188,6 +188,27 @@ Both honor `DRY_RUN=1`, skip if `NEO4J_URI` is unset.
 - **Admin auth**: `ADMIN_API_KEY` (required for admin routes), `ADMIN_AUTH_BYPASS=1` (disables admin auth check, local dev only)
 - **Optional**: `LOG_LEVEL` (pino, default `info`), `NODE_ENV`, `BASE_PATH` (Vite `base:`, defaults to `/`), `FRONTEND_DIST_PATH` (override SPA static dir)
 
+### Local dev server — silent OpenRouter cost trap (2026-05-25 incident)
+
+**The Replit workspace auto-starts a local api-server in dev mode whenever the project opens.** It reads `OPENROUTER_API_KEY` from `/run/replit/env/latest` (which is usually valid) and runs **14 internal `setInterval` timers** out of `services/agent/scheduler.ts` — `rotationTimer`, `worldScanTimer`, `digestTimer`, `regulationsWatchTimer`, `cviSignalsTimer`, `edgarRssTimer`, etc. Several of those fire LLM calls on their own cadence. **In a 3-hour Claude Code session with the dev server quietly running, this can quietly burn through real OpenRouter spend with no visible signal to the operator.**
+
+**If you're working on this project but NOT actively driving the local app:**
+- `pgrep -af "@workspace/api-server run dev"` — if it returns a PID, the dev server is alive.
+- Kill it: `pkill -f "@workspace/api-server"` (also kill the wrapper `sh -c export NODE_ENV=development...` shell if present).
+- The 3 Vite frontend dev servers (inflexcvi / ce-pitch-deck / mockup-sandbox) are SAFE to leave running — they're pure bundlers, zero LLM calls.
+
+Prod Railway agents (the 7 AgentKit agents on Inngest crons) are a SEPARATE expected-cost line item — they always run and you've already budgeted for them. The trap is specifically the LOCAL dev server that nobody asked for.
+
+### CVI backfill safety (`scripts/src/backfill-graphiti-world-model.ts`)
+
+Pass 2 of the backfill calls the LLM per CVI snapshot via OpenRouter → Anthropic Haiku 4.5. At ~$0.001-$0.005 per snapshot × ~800 historical snapshots that's $0.80-$4 in real spend per full run. Two defenses are wired into the script:
+
+1. **`BACKFILL_CONFIRMED=1` required** — the CVI pass refuses to start without this env var set. Structural pass + DRY_RUN are exempt. Add `SKIP_CVI=1` to run only structural (zero LLM cost).
+2. **Auto-skip via FalkorDB query** — the script queries `MATCH (e:Episodic) WHERE e.name STARTS WITH 'cvi-snapshot-' RETURN e.name` on start, builds a Set of already-processed snapshot IDs, and skips them. So `BACKFILL_CONFIRMED=1 pnpm --filter @workspace/scripts run backfill:graphiti-world-model` is naturally idempotent — no `CVI_OFFSET` math required. (`CVI_OFFSET` is still respected as a debug override.)
+3. **Graceful shutdown** — the script handles SIGTERM/SIGINT cleanly, exiting at the next snapshot boundary (worst case ~1 in-flight LLM call wasted). Operators can also `STOP_FILE=/tmp/stop-backfill` and `touch` that path to halt — useful because pnpm doesn't forward signals to its tsx child, so `kill <pnpm-pid>` leaves an orphan worker. Use `kill -SIGTERM <tsx-pid>` (printed at script startup) OR the STOP_FILE path.
+
+If you see a runaway backfill, the fastest reliable kill is `pkill -9 -f backfill-graphiti-world-model`.
+
 ### Session auth state — DO NOT trust Replit-injected values
 
 **The app runs on Railway, not Replit.** Replit is only used for editing the codebase. Values that appear in this shell's `env` (sourced from `/run/replit/env/latest`) were pasted into Replit Secrets manually by the user at some point and are **stale / often expired** — they must not be treated as the live truth for anything. Railway service Variables are the source of truth.
