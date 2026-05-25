@@ -69,3 +69,4 @@ export * from "./auto-vcr-triggers";
 export * from "./scheduled-exports";
 export * from "./disruption-index";
 export * from "./disruption-simulations";
+export * from "./perplexity-cache";

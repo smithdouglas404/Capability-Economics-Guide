@@ -1,5 +1,6 @@
 import { logLlmCall } from "./llm-usage";
 import { maybeStepAiWrap } from "../inngest/step-context";
+import { hashRequest, lookupCache, writeCache } from "./perplexity-cache";
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -177,6 +178,11 @@ export interface PerplexityChatOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   maxRetries?: number;
+  /**
+   * When false, skip the content-hash response cache entirely (both read
+   * and write). Default true. Admin "force fresh" paths set this to false.
+   */
+  cache?: boolean;
 }
 
 export interface PerplexityChatResponse {
@@ -257,6 +263,26 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
   const model = opts.model ?? "sonar";
   const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const cacheEnabled = opts.cache !== false;
+
+  // Content-hash cache lookup BEFORE the semaphore — a cache hit must not
+  // wait for an in-flight Perplexity call to complete, otherwise the cache
+  // provides no concurrency relief.
+  const cacheKey = cacheEnabled ? hashRequest(model, opts.messages) : null;
+  if (cacheKey) {
+    const cached = await lookupCache(cacheKey);
+    if (cached) {
+      logLlmCall({
+        provider: "perplexity",
+        model,
+        endpoint: `${opts.endpoint} (cache-hit)`,
+        startedAt: Date.now(),
+        httpStatus: 200,
+      });
+      return cached;
+    }
+  }
+
   const release = await limiter.acquire();
 
   try {
@@ -307,7 +333,9 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
           const finalErr = new Error(`Perplexity HTTP ${status}${bodyText ? `: ${bodyText.slice(0, 200)}` : ""}`);
           if (shouldFallback(finalErr)) {
             try {
-              return await geminiOnlineFallback(opts, finalErr);
+              const fb = await geminiOnlineFallback(opts, finalErr);
+              if (cacheKey) void writeCache(cacheKey, model, fb);
+              return fb;
             } catch {
               throw finalErr;
             }
@@ -317,6 +345,7 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
 
         const data = (await resp.json()) as PerplexityChatResponse;
         logLlmCall({ provider: "perplexity", model, endpoint: opts.endpoint, startedAt, httpStatus: resp.status, responseJson: data });
+        if (cacheKey) void writeCache(cacheKey, model, data);
         return data;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -340,7 +369,9 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
         const finalErr = err instanceof Error ? err : new Error(msg);
         if (shouldFallback(finalErr)) {
           try {
-            return await geminiOnlineFallback(opts, finalErr);
+            const fb = await geminiOnlineFallback(opts, finalErr);
+            if (cacheKey) void writeCache(cacheKey, model, fb);
+            return fb;
           } catch {
             throw finalErr;
           }
@@ -351,7 +382,9 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
     const exhausted = lastErr ?? new Error(`Perplexity ${opts.endpoint} failed after ${maxRetries + 1} attempts`);
     if (shouldFallback(exhausted)) {
       try {
-        return await geminiOnlineFallback(opts, exhausted);
+        const fb = await geminiOnlineFallback(opts, exhausted);
+        if (cacheKey) void writeCache(cacheKey, model, fb);
+        return fb;
       } catch {
         throw exhausted;
       }
