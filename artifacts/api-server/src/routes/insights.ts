@@ -30,7 +30,7 @@ import {
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { z } from "zod";
 import { haiku, generateObject, NoObjectGeneratedError } from "../services/workflows/models";
-import { logLlmCall } from "../services/llm-usage";
+import { perplexityChat } from "../services/perplexity";
 
 const InsightsSchema = z.object({
   insights: z.array(z.object({
@@ -476,49 +476,36 @@ router.post("/research", requireAdmin, async (req, res) => {
     if (cap) contextParts.push(`Capability: ${cap.name} (benchmark: ${cap.benchmarkScore})`);
   }
 
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) {
+  if (!process.env.PERPLEXITY_API_KEY) {
     res.status(503).json({ error: "Research service not configured" });
     return;
   }
 
   try {
     const contextLine = contextParts.length > 0 ? `\nContext: ${contextParts.join(", ")}` : "";
-    const startedAt = Date.now();
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar-pro",
-        messages: [
-          {
-            role: "system",
-            content: `You are a capability economics research analyst. Answer the user's question with real data from industry reports. Return ONLY valid JSON with no markdown, no code fences:
+    // Routed through perplexityChat() to use the shared content-hash cache
+    // (PERPLEXITY_CACHE_TTL_HOURS, default 168h). Repeated insight queries
+    // on the same capability/industry within a week reuse the call.
+    const data = await perplexityChat({
+      model: "sonar-pro",
+      endpoint: "insights.research",
+      messages: [
+        {
+          role: "system",
+          content: `You are a capability economics research analyst. Answer the user's question with real data from industry reports. Return ONLY valid JSON with no markdown, no code fences:
 {
   "findings": [
     { "title": "<finding title>", "summary": "<2-3 sentence summary with specific data points>", "relevance": "high"|"medium"|"low", "sourceUrl": "<url or null>" }
   ]
 }
 Base answers on real reports from Gartner, McKinsey, Forrester, Deloitte, Accenture, BCG, or other major analysts. Include specific numbers, percentages, and benchmarks where available.`,
-          },
-          {
-            role: "user",
-            content: `${query}${contextLine}`,
-          },
-        ],
-      }),
+        },
+        {
+          role: "user",
+          content: `${query}${contextLine}`,
+        },
+      ],
     });
-
-    if (!resp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "insights.research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-      throw new Error(`Perplexity API error: ${resp.status}`);
-    }
-
-    const data = (await resp.json()) as { choices: Array<{ message: { content: string } }>; citations: string[] };
-    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "insights.research", startedAt, httpStatus: resp.status, responseJson: data });
     const rawAnalysis = data.choices[0]?.message?.content ?? "";
     const citations = data.citations ?? [];
 

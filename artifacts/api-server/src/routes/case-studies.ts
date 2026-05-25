@@ -13,7 +13,7 @@ import { and, asc, eq, desc, ne, or, isNull, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { generateCaseStudyContentTool } from "../services/agent/tools";
-import { logLlmCall } from "../services/llm-usage";
+import { perplexityChat } from "../services/perplexity";
 import { logger } from "../lib/logger";
 import type { GenericWorkflowOutput } from "../services/workflows";
 import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
@@ -391,31 +391,19 @@ router.post("/case-studies/generate", requireAdmin, async (req, res) => {
 
   let researchContent = "";
   let citations: string[] = [];
-  const _pStartedAt = Date.now();
   try {
-    const pResp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${perplexityKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar-pro",
-        messages: [
-          { role: "system", content: "You are an industry research analyst. Provide specific, sourced facts with numbers." },
-          { role: "user", content: researchQuery },
-        ],
-      }),
+    // Routed through perplexityChat() — picks up the shared content-hash
+    // response cache (PERPLEXITY_CACHE_TTL_HOURS, default 168h), so case
+    // studies for the same industry generated within a week reuse the
+    // research call instead of re-billing Sonar Pro.
+    const pData = await perplexityChat({
+      model: "sonar-pro",
+      endpoint: "case-studies.generate",
+      messages: [
+        { role: "system", content: "You are an industry research analyst. Provide specific, sourced facts with numbers." },
+        { role: "user", content: researchQuery },
+      ],
     });
-    if (!pResp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "case-studies.generate", startedAt: _pStartedAt, httpStatus: pResp.status, errorMessage: `HTTP ${pResp.status}` });
-      throw new Error(`Perplexity ${pResp.status}`);
-    }
-    const pData = (await pResp.json()) as {
-      choices: Array<{ message: { content: string } }>;
-      citations?: string[];
-    };
-    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "case-studies.generate", startedAt: _pStartedAt, httpStatus: pResp.status, responseJson: pData });
     researchContent = pData.choices[0]?.message?.content ?? "";
     citations = pData.citations ?? [];
   } catch (err) {

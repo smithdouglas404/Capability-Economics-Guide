@@ -7,8 +7,7 @@ import {
   capabilitiesTable,
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
-import { logLlmCall } from "./llm-usage";
-import { maybeStepAiWrap } from "../inngest/step-context";
+import { perplexityChat } from "./perplexity";
 
 export interface ResearchProjectsResult {
   ok: boolean;
@@ -113,33 +112,30 @@ Rules:
 - maturity_uplift is your conservative analyst estimate of benchmark-score points gained (0-30); explain in impact_description.
 Return a JSON array of 4-6 such objects. No prose.`;
 
-  const startedAt = Date.now();
-  let resp: Response;
+  // Routed through perplexityChat() to use the shared content-hash cache
+  // (PERPLEXITY_CACHE_TTL_HOURS, default 168h). Same-category project
+  // research within a week reuses the response instead of re-billing Sonar.
+  let data: PerplexityResponse;
   try {
-    resp = await maybeStepAiWrap(`perplexity:projects-research:${category}`, () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [
-            { role: "system", content: sysPrompt },
-            { role: "user", content: userPrompt },
-          ],
-        }),
-        signal: AbortSignal.timeout(90_000),
-      }),
-    );
+    data = (await perplexityChat({
+      model: "sonar",
+      endpoint: "projects-research",
+      timeoutMs: 90_000,
+      // maxRetries: 0 preserves the prior ~90s hard wall-clock cap. The
+      // original code used AbortSignal.timeout(90_000) on a single fetch
+      // with no retry loop; without this, perplexityChat's default
+      // maxRetries=3 + per-attempt timeout could push total time well past
+      // 90s, breaking the upstream caller's deadline expectations.
+      maxRetries: 0,
+      context: { category },
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    })) as PerplexityResponse;
   } catch (err) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "projects-research", startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
     return { ok: false, category, projectsIngested: 0, errors: [err instanceof Error ? err.message : String(err)] };
   }
-  if (!resp.ok) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "projects-research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-    return { ok: false, category, projectsIngested: 0, errors: [`perplexity ${resp.status}`] };
-  }
-  const data = await resp.json() as PerplexityResponse;
-  logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "projects-research", startedAt, httpStatus: resp.status, responseJson: data });
 
   const content = data.choices[0]?.message?.content ?? "";
   const citations = Array.isArray(data.citations) ? data.citations.filter(c => typeof c === "string") : [];

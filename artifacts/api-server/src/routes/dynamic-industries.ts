@@ -15,7 +15,7 @@ import { requireAdmin } from "../middlewares/requireAdmin";
 import type { GenericWorkflowOutput } from "../services/workflows";
 import { invokeWorkflowAndWait, buildIdempotencyKey } from "../inngest/invoke";
 import { sonnet, generateObject } from "../services/workflows/models";
-import { logLlmCall } from "../services/llm-usage";
+import { perplexityChat } from "../services/perplexity";
 
 const CapabilitySchema = z.object({
   name: z.string().min(2).max(40),
@@ -59,26 +59,19 @@ function slugify(s: string): string {
 // the AI SDK at both call sites in this file.
 
 async function callPerplexity(query: string): Promise<{ content: string; citations: string[] }> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) throw new Error("PERPLEXITY_API_KEY missing");
-  const startedAt = Date.now();
-  const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "sonar-pro",
-      messages: [
-        { role: "system", content: "You are an industry capability research analyst. Provide specific, sourced facts." },
-        { role: "user", content: query },
-      ],
-    }),
+  if (!process.env.PERPLEXITY_API_KEY) throw new Error("PERPLEXITY_API_KEY missing");
+  // Routed through perplexityChat() to pick up the shared response cache
+  // (PERPLEXITY_CACHE_TTL_HOURS, default 168h), global concurrency limit,
+  // retries, and Gemini `:online` fallback. Industry discovery is one-time
+  // per industry, so cache hits are common when retrying.
+  const data = await perplexityChat({
+    model: "sonar-pro",
+    endpoint: "dynamic-industries",
+    messages: [
+      { role: "system", content: "You are an industry capability research analyst. Provide specific, sourced facts." },
+      { role: "user", content: query },
+    ],
   });
-  if (!resp.ok) {
-    logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "dynamic-industries", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-    throw new Error(`Perplexity ${resp.status}`);
-  }
-  const data = (await resp.json()) as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-  logLlmCall({ provider: "perplexity", model: "sonar-pro", endpoint: "dynamic-industries", startedAt, httpStatus: resp.status, responseJson: data });
   return {
     content: data.choices[0]?.message?.content ?? "",
     citations: data.citations ?? [],

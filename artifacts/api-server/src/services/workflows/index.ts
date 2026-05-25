@@ -23,9 +23,7 @@ import pino from "pino";
 // `generateObject` is the LangSmith-wrapped version re-exported from `./models`
 // — importing from "ai" directly bypasses tracing.
 import { sonnet, haiku, generateObject, NoObjectGeneratedError } from "./models";
-import { retry } from "../../lib/llm-retry";
-import { logLlmCall } from "../llm-usage";
-import { maybeStepAiWrap } from "../../inngest/step-context";
+import { perplexityChat, type PerplexityChatResponse } from "../perplexity";
 
 const logger = pino({ name: "workflows" });
 
@@ -37,43 +35,35 @@ interface PerplexityResult {
 }
 
 /**
- * Direct Perplexity API call with retry+backoff. Returns null on missing
- * key or non-transient failure so callers can degrade gracefully.
+ * Perplexity call routed through the shared `perplexityChat()` wrapper so
+ * it benefits from the content-hash response cache (TTL controlled by
+ * PERPLEXITY_CACHE_TTL_HOURS, default 168h / 7 days), the global
+ * concurrency limiter, exponential-backoff retries, and the Gemini
+ * `:online` fallback when Perplexity 401/429/5xx's.
+ *
+ * Returns null on missing key or non-transient failure so callers can
+ * degrade gracefully — same contract as before.
  */
 async function perplexity(query: string, model = "sonar-pro"): Promise<PerplexityResult | null> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return null;
+  if (!process.env.PERPLEXITY_API_KEY) return null;
   try {
-    return await retry(async () => {
-      const startedAt = Date.now();
-      const resp = await maybeStepAiWrap(`perplexity:workflows:${model}`, () =>
-        fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model,
-            max_tokens: 4096,
-            messages: [
-              { role: "system", content: "You are a research analyst. Cite sources inline." },
-              { role: "user", content: query },
-            ],
-          }),
-        }),
-      );
-      if (!resp.ok) {
-        logLlmCall({ provider: "perplexity", model, endpoint: "workflows", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-        throw new Error(`Perplexity ${resp.status}`);
-      }
-      const data = (await resp.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-        citations?: string[];
-        search_results?: Array<{ url?: string }>;
-      };
-      logLlmCall({ provider: "perplexity", model, endpoint: "workflows", startedAt, httpStatus: resp.status, responseJson: data });
-      const content = data.choices?.[0]?.message?.content ?? "";
-      const citations = data.citations ?? (data.search_results ?? []).map((s) => s.url ?? "").filter(Boolean);
-      return { content, citations };
-    }, { label: "workflows.perplexity" });
+    const data = await perplexityChat({
+      model,
+      endpoint: "workflows",
+      messages: [
+        { role: "system", content: "You are a research analyst. Cite sources inline." },
+        { role: "user", content: query },
+      ],
+    });
+    const content = data.choices[0]?.message?.content ?? "";
+    // Some Sonar variants return search_results[] without populating the
+    // top-level citations array — preserve the original fallback so
+    // downstream citation rendering doesn't silently lose URLs.
+    const dataAny = data as PerplexityChatResponse & { search_results?: Array<{ url?: string }> };
+    const citations =
+      data.citations ??
+      (dataAny.search_results ?? []).map((s) => s.url ?? "").filter((u): u is string => Boolean(u));
+    return { content, citations };
   } catch (err) {
     logger.warn({ err: err instanceof Error ? err.message : String(err) }, "[workflows] perplexity call failed");
     return null;
