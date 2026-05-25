@@ -8,6 +8,7 @@ import { serve as inngestServe } from "inngest/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
 import { apiKeyAuth } from "./middlewares/apiKeyAuth";
 import { rateLimitMiddleware } from "./middlewares/rateLimit";
+import { maintenanceGate } from "./middlewares/maintenanceGate";
 import router from "./routes";
 import v1Router from "./routes/v1";
 import stripeWebhookRouter from "./routes/stripe-webhook";
@@ -100,6 +101,12 @@ app.use(apiKeyAuth());
 // by Clerk userId / API key when present, then session token, then IP. Skips
 // health + webhooks internally. Fails open if Redis is down.
 app.use("/api", rateLimitMiddleware());
+
+// Global maintenance gate. When system_flags.llm_enabled = "false", every
+// /api/* request returns 503 with the configured maintenance message —
+// except /api/health and /api/admin/system-flags so admins can re-enable.
+// See middlewares/maintenanceGate.ts and services/system-flags.ts.
+app.use("/api", maintenanceGate());
 
 app.use("/api", router);
 

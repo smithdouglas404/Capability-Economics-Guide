@@ -108,6 +108,7 @@ import scheduledExportsRouter from "./scheduled-exports";
 import apiVolumeRouter from "./api-volume";
 import metricsRouter from "./metrics";
 import adminSecurityRouter from "./admin-security";
+import adminSystemFlagsRouter from "./admin-system-flags";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -255,5 +256,9 @@ router.use(knowledgeGraphRouter);
 router.use(collaborationRouter);
 router.use(metricsRouter);
 router.use(adminSecurityRouter);
+// Master LLM kill switch + maintenance message. Routes are exempt from the
+// maintenance gate (see middlewares/maintenanceGate.ts allowlist) so admins
+// can always re-enable from the UI.
+router.use(adminSystemFlagsRouter);
 
 export default router;

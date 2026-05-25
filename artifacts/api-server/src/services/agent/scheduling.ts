@@ -20,6 +20,7 @@
 import { db, agentSchedulesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { logger } from "../../lib/logger";
+import { isLlmEnabled } from "../system-flags";
 
 export type ShouldRunResult =
   | { run: true; reason?: string }
@@ -31,6 +32,14 @@ export type ShouldRunResult =
  * doesn't need to write lastRunAt itself.
  */
 export async function shouldRunAgent(agentName: string): Promise<ShouldRunResult> {
+  // Master LLM kill switch — see services/system-flags.ts. When this is
+  // off, no agent runs (they all consume LLM tokens). This is the same
+  // toggle the HTTP maintenance middleware checks, so the product behaves
+  // consistently across user-triggered and cron-triggered work.
+  if (!(await isLlmEnabled())) {
+    return { run: false, reason: "llm-disabled-globally" };
+  }
+
   try {
     const [row] = await db
       .select()
