@@ -19,6 +19,7 @@ export * from "./vcr";
 export * from "./alpha";
 export * from "./alpha-config";
 export * from "./agent-tuning";
+export * from "./agent-schedules";
 export * from "./bots";
 export * from "./bot-workflows";
 export * from "./credit-packs";

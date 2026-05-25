@@ -9,6 +9,7 @@ import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit
 import { runSynthesisAgentAgentKit } from "../../services/synthesis-agent-agentkit";
 import { autoEnrichTick } from "../../services/agent/scheduler";
 import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
+import { shouldRunAgent } from "../../services/agent/scheduling";
 
 // Phase 2 — Inngest cron wrappers around the 7 agents, using AsyncLocalStorage
 // to thread the `step` context down into agent code.
@@ -87,6 +88,8 @@ export const cviAgentCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_CVI")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("cvi-agent");
+    if (!sched.run) return { skipped: sched.reason };
     return await withStep(step, () => runCviAgentAgentKit("inngest-cron"));
   },
 );
@@ -94,12 +97,14 @@ export const cviAgentCron = inngest.createFunction(
 export const macroEventAgentCron = inngest.createFunction(
   {
     id: "macro-event-agent",
-    triggers: [{ cron: "*/30 * * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_MACRO_EVENT")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("macro-event-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runMacroEventAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/macro-event/digest-published",
@@ -112,12 +117,14 @@ export const macroEventAgentCron = inngest.createFunction(
 export const disruptionAgentCron = inngest.createFunction(
   {
     id: "disruption-agent",
-    triggers: [{ cron: "0 * * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_DISRUPTION")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("disruption-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runDisruptionAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/disruption/digest-published",
@@ -130,12 +137,14 @@ export const disruptionAgentCron = inngest.createFunction(
 export const peerCoopAgentCron = inngest.createFunction(
   {
     id: "peer-coop-agent",
-    triggers: [{ cron: "0 */6 * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_PEER_COOP")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("peer-coop-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runPeerCoopAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/peer-coop/digest-published",
@@ -148,12 +157,14 @@ export const peerCoopAgentCron = inngest.createFunction(
 export const stackOptimizerAgentCron = inngest.createFunction(
   {
     id: "stack-optimizer-agent",
-    triggers: [{ cron: "0 0 * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_STACK_OPTIMIZER")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("stack-optimizer-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runStackOptimizerAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/stack-optimizer/digest-published",
@@ -166,12 +177,14 @@ export const stackOptimizerAgentCron = inngest.createFunction(
 export const ontologyAgentCron = inngest.createFunction(
   {
     id: "ontology-agent",
-    triggers: [{ cron: "0 */4 * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_ONTOLOGY")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("ontology-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runOntologyAgentAgentKit());
     await step.sendEvent("emit-digest", {
       name: "agent/ontology/digest-published",
@@ -205,6 +218,8 @@ export const synthesisAgentOnDigest = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_SYNTHESIS")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("synthesis-agent");
+    if (!sched.run) return { skipped: sched.reason };
     return await withStep(step, () => runSynthesisAgentAgentKit());
   },
 );
@@ -215,7 +230,7 @@ export const synthesisAgentOnDigest = inngest.createFunction(
 export const synthesisAgentDailyFloor = inngest.createFunction(
   {
     id: "synthesis-agent-daily-floor",
-    triggers: [{ cron: "0 6 * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
@@ -245,7 +260,7 @@ export const synthesisAgentDailyFloor = inngest.createFunction(
 export const autoEnrichCron = inngest.createFunction(
   {
     id: "agent.auto-enrich",
-    triggers: [{ cron: "0 * * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
@@ -274,12 +289,14 @@ export const autoEnrichCron = inngest.createFunction(
 export const disruptionVectorAgentCron = inngest.createFunction(
   {
     id: "agent.disruption-vector",
-    triggers: [{ cron: "0 */6 * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
     retries: 2,
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_DISRUPTION_INDEX")) return { skipped: "flag-off" };
+    const sched = await shouldRunAgent("disruption-vector-agent");
+    if (!sched.run) return { skipped: sched.reason };
     const result = await withStep(step, () => runDisruptionVectorAgent());
     return { ok: true, toolCallCount: result.toolCallCount, durationMs: result.durationMs };
   },
