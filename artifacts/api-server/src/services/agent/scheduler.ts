@@ -891,7 +891,15 @@ export function startScheduler(): void {
       .catch(err => console.warn("[Agent] Shared store setup failed (optimizer will be disabled):", err instanceof Error ? err.message : err));
   }, 15_000);
 
-  sched("routine",        () => { executeRun("startup"); });
+  sched("routine",        () => {
+    const isProd = process.env.NODE_ENV === "production";
+    const force = process.env.AGENT_FIRE_ON_BOOT === "1";
+    if (!isProd && !force) {
+      console.log("[Agent] routine startup fire skipped (NODE_ENV != production). Set AGENT_FIRE_ON_BOOT=1 to override. Inngest cviAgentCron still runs on schedule.");
+      return;
+    }
+    executeRun("startup");
+  });
   sched("rotation",       () => { setTimeout(() => executeRotation("startup"), 30_000); });
   sched("digest",         () => { setTimeout(() => executeDigestSweep("startup"), 90_000); });
   sched("scheduledExports", () => { setTimeout(() => executeScheduledExportSweep("startup"), 120_000); });
