@@ -679,23 +679,11 @@ const probeAgentEnrichment: Probe = async () => {
  * installs / missing exports that would otherwise crash agents at first
  * tool call.
  *
- * The `@langchain/anthropic` probe was retired alongside the Phase 10
- * removal of `services/agent/base-agent.ts` — `@langchain/anthropic` is
- * no longer a dependency. `@langchain/langgraph` remains until the
- * Category A workflows (enrichment, vcr, bots) finish migrating.
+ * The `@langchain/anthropic` and `@langchain/langgraph` probes were
+ * retired alongside the Phase 10 LangChain/LangGraph removal — neither
+ * package is a dependency anymore. The `langsmith` package remains for
+ * Vercel-AI-SDK tracing in `services/workflows/models.ts`.
  */
-const probeLangGraph: Probe = async () => {
-  try {
-    const mod = await import("@langchain/langgraph");
-    if (!mod.StateGraph) {
-      return { status: "down", latencyMs: null, lastError: "@langchain/langgraph loaded but StateGraph export missing" };
-    }
-    return { status: "ok", latencyMs: null, lastError: null };
-  } catch (err) {
-    return { status: "down", latencyMs: null, lastError: `@langchain/langgraph import failed: ${describeError(err).slice(0, 160)}` };
-  }
-};
-
 const probeLangSmith: Probe = async () => {
   const tracing = process.env.LANGCHAIN_TRACING_V2;
   const key = process.env.LANGCHAIN_API_KEY;
@@ -748,7 +736,6 @@ const PROBES: Record<string, Probe> = {
   agent_enrichment: probeAgentEnrichment,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
-  langgraph: probeLangGraph,
   langsmith: probeLangSmith,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,

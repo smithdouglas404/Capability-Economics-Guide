@@ -1,7 +1,9 @@
 /**
- * Shared types for bot workflows. Every workflow is a LangGraph StateGraph
- * that operates on its own state annotation but conforms to a common
- * envelope so the runner + scheduler + admin UI can treat them uniformly.
+ * Shared types for bot workflows. Each workflow is a self-contained
+ * `WorkflowDefinition` exposing a `run(ctx)` function. Implementations
+ * may be procedural sequences (preferred for LLM-free workflows) or
+ * AgentKit Networks (for workflows whose steps include LLM reasoning).
+ * The runner + scheduler + admin UI only see the common envelope below.
  */
 import type { Bot } from "@workspace/db";
 
@@ -56,9 +58,9 @@ export interface WorkflowDefinition<TState = Record<string, unknown>> {
    */
   estimatedCostCents: number;
   /**
-   * Run the workflow. Implementations build a StateGraph internally and
-   * invoke it. The runner wraps the invocation in DB tracking + budget
-   * accounting; this function only needs to return the result envelope.
+   * Run the workflow. The runner wraps the invocation in DB tracking +
+   * budget accounting; this function only needs to return the result
+   * envelope.
    */
   run(ctx: WorkflowRunContext): Promise<WorkflowResult<TState>>;
 }
@@ -76,7 +78,7 @@ export interface WorkflowRunContext {
   /** Trigger source recorded on the workflow run. */
   trigger: string;
   /**
-   * Append a step trace row. Workflows call this once per LangGraph node
+   * Append a step trace row. Workflows call this once per logical step
    * so the admin UI can render a step timeline.
    */
   recordStep(step: WorkflowStepTrace): Promise<void>;

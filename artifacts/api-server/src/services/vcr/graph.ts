@@ -1,4 +1,18 @@
-import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
+/**
+ * VCR (Virtual Capability Engineer) — cycle pipeline.
+ *
+ * Linear 7-step research cycle for a client assessment:
+ *   plan → decompose → research → critique → persist → askFollowups → summarize
+ *
+ * Each step invokes specific LLM tools (`glmReasonTool`,
+ * `perplexityDeepResearchTool`, `synthesizeFindingTool`, etc.) directly —
+ * there is no autonomous tool selection by an LLM, so this pipeline
+ * runs cleanly as procedural code.
+ *
+ * Migrated off LangGraph 2026-05-25 (Phase 10 Category A). The previous
+ * StateGraph was used purely as a procedural sequencer; the tool calls
+ * still happen inside each step exactly as before.
+ */
 import { db } from "@workspace/db";
 import {
   vcrAssessmentsTable,
@@ -57,54 +71,45 @@ interface NewQuestion {
   priority: number;
 }
 
-const VCRState = Annotation.Root({
-  assessmentId: Annotation<number>,
-  cycleId: Annotation<number>,
-  cycleNumber: Annotation<number>,
-  totalCycles: Annotation<number>,
-  clientName: Annotation<string>,
-  industryName: Annotation<string>,
-  valueCase: Annotation<string>,
-  campaignObjective: Annotation<string>,
-  priorCycleSummaries: Annotation<string[]>,
-  answeredQuestions: Annotation<string>,
-  allPriorQuestions: Annotation<string>,
-  cycleObjective: Annotation<string>,
-  researchPlan: Annotation<PlannedQuery[]>,
-  rawFindings: Annotation<RawFinding[]>,
-  validated: Annotation<ValidatedFinding[]>,
-  newQuestions: Annotation<NewQuestion[]>,
-  cycleSummary: Annotation<string>,
-  toolCalls: Annotation<number>,
-  errors: Annotation<string[]>,
-});
-type S = typeof VCRState.State;
+interface CycleContext {
+  assessmentId: number;
+  cycleId: number;
+  cycleNumber: number;
+  totalCycles: number;
+  clientName: string;
+  industryName: string;
+  valueCase: string;
+  campaignObjective: string;
+  priorCycleSummaries: string[];
+  answeredQuestions: string;
+  allPriorQuestions: string;
+}
 
 const MAX_QUERIES_PER_CYCLE = 4;
 
-async function planCycleObjective(state: S): Promise<Partial<S>> {
-  await db.update(vcrCyclesTable).set({ status: "planning", startedAt: new Date() }).where(eq(vcrCyclesTable.id, state.cycleId));
-  const prompt = `You are the Virtual Capability Engineer running cycle ${state.cycleNumber} of ${state.totalCycles} for client ${state.clientName} (${state.industryName}).
+async function planCycleObjectiveStep(ctx: CycleContext): Promise<{ cycleObjective: string; toolCalls: number }> {
+  await db.update(vcrCyclesTable).set({ status: "planning", startedAt: new Date() }).where(eq(vcrCyclesTable.id, ctx.cycleId));
+  const prompt = `You are the Virtual Capability Engineer running cycle ${ctx.cycleNumber} of ${ctx.totalCycles} for client ${ctx.clientName} (${ctx.industryName}).
 
-Campaign objective: ${state.campaignObjective || "(none set)"}
-Client value case: ${state.valueCase}
+Campaign objective: ${ctx.campaignObjective || "(none set)"}
+Client value case: ${ctx.valueCase}
 
 Prior cycle summaries (do NOT repeat work):
-${state.priorCycleSummaries.length ? state.priorCycleSummaries.map((s, i) => `Cycle ${i + 1}: ${s}`).join("\n\n") : "(none — this is cycle 1)"}
+${ctx.priorCycleSummaries.length ? ctx.priorCycleSummaries.map((s, i) => `Cycle ${i + 1}: ${s}`).join("\n\n") : "(none — this is cycle 1)"}
 
 Recent client answers:
-${state.answeredQuestions || "(none yet)"}
+${ctx.answeredQuestions || "(none yet)"}
 
 Define a SHARP objective for this cycle. It should advance the campaign by tackling something not yet covered, ideally building on prior findings or open client answers. One paragraph, max 100 words.`;
   const out = await glmReasonTool.invoke({ prompt, maxTokens: 600 });
-  return { cycleObjective: out.trim(), toolCalls: state.toolCalls + 1 };
+  return { cycleObjective: out.trim(), toolCalls: 1 };
 }
 
-async function decomposeNode(state: S): Promise<Partial<S>> {
-  const prompt = `You are the VCR planning research for cycle ${state.cycleNumber}.
-Cycle objective: ${state.cycleObjective}
-Client: ${state.clientName} (${state.industryName})
-Value case: ${state.valueCase}
+async function decomposeStep(ctx: CycleContext, cycleObjective: string): Promise<{ researchPlan: PlannedQuery[]; toolCalls: number; errors: string[] }> {
+  const prompt = `You are the VCR planning research for cycle ${ctx.cycleNumber}.
+Cycle objective: ${cycleObjective}
+Client: ${ctx.clientName} (${ctx.industryName})
+Value case: ${ctx.valueCase}
 
 Decompose the objective into ${MAX_QUERIES_PER_CYCLE} precise web research queries. Each query must demand specific numbers, named examples, and 2024-2026 data. Mix of kinds across: capability_gap, opportunity, recommendation, risk, insight, benchmark.
 
@@ -115,20 +120,22 @@ Return ONLY JSON: { "queries": [ { "kind": "...", "title": "...", "query": "spec
     schemaHint: `{ "queries": [ { "kind": string, "title": string, "query": string, "recencyHint": string? } ] }`,
   });
   const plan = (parsed?.queries ?? []).slice(0, MAX_QUERIES_PER_CYCLE);
-  if (plan.length === 0) return { researchPlan: [], errors: [...state.errors, "decompose: no queries produced (LLM output unparseable even after repair retry)"], toolCalls: state.toolCalls + 1 };
-  await db.update(vcrCyclesTable).set({ status: "researching" }).where(eq(vcrCyclesTable.id, state.cycleId));
-  return { researchPlan: plan, toolCalls: state.toolCalls + 1 };
+  if (plan.length === 0) {
+    return { researchPlan: [], toolCalls: 1, errors: ["decompose: no queries produced (LLM output unparseable even after repair retry)"] };
+  }
+  await db.update(vcrCyclesTable).set({ status: "researching" }).where(eq(vcrCyclesTable.id, ctx.cycleId));
+  return { researchPlan: plan, toolCalls: 1, errors: [] };
 }
 
-async function researchNode(state: S): Promise<Partial<S>> {
+async function researchStep(researchPlan: PlannedQuery[], cycleNumber: number): Promise<{ rawFindings: RawFinding[]; toolCalls: number; errors: string[] }> {
   const findings: RawFinding[] = [];
   const errors: string[] = [];
   let calls = 0;
-  for (const p of state.researchPlan) {
+  for (const p of researchPlan) {
     try {
       // Cost control: only the FIRST cycle gets sonar-deep-research for breadth.
       // Subsequent cycles use sonar-pro (5-10x cheaper) since they're refining known gaps.
-      const tier = state.cycleNumber === 1 ? "deep" : "pro";
+      const tier = cycleNumber === 1 ? "deep" : "pro";
       const raw = await perplexityDeepResearchTool.invoke({ query: p.query, recencyHint: p.recencyHint, tier });
       calls++;
       // perplexityDeepResearchTool always returns JSON.stringify of a known
@@ -148,21 +155,24 @@ async function researchNode(state: S): Promise<Partial<S>> {
       errors.push(`research [${p.title}]: ${e instanceof Error ? e.message : "fail"}`);
     }
   }
-  return { rawFindings: findings, toolCalls: state.toolCalls + calls, errors: [...state.errors, ...errors] };
+  return { rawFindings: findings, toolCalls: calls, errors };
 }
 
-async function critiqueAndSynthesizeNode(state: S): Promise<Partial<S>> {
-  await db.update(vcrCyclesTable).set({ status: "critiquing" }).where(eq(vcrCyclesTable.id, state.cycleId));
+async function critiqueAndSynthesizeStep(
+  ctx: CycleContext,
+  rawFindings: RawFinding[],
+): Promise<{ validated: ValidatedFinding[]; toolCalls: number; errors: string[] }> {
+  await db.update(vcrCyclesTable).set({ status: "critiquing" }).where(eq(vcrCyclesTable.id, ctx.cycleId));
   const validated: ValidatedFinding[] = [];
   const errors: string[] = [];
   let calls = 0;
-  const priorContext = state.priorCycleSummaries.slice(-2).join("\n\n");
-  for (const f of state.rawFindings) {
+  const priorContext = ctx.priorCycleSummaries.slice(-2).join("\n\n");
+  for (const f of rawFindings) {
     try {
       const synthRaw = await synthesizeFindingTool.invoke({
         kind: f.kind,
         title: f.title,
-        clientContext: `${state.clientName} (${state.industryName}). Value case: ${state.valueCase.slice(0, 600)}`,
+        clientContext: `${ctx.clientName} (${ctx.industryName}). Value case: ${ctx.valueCase.slice(0, 600)}`,
         research: f.research,
         prior: priorContext,
       });
@@ -184,16 +194,18 @@ async function critiqueAndSynthesizeNode(state: S): Promise<Partial<S>> {
       errors.push(`critique [${f.title}]: ${e instanceof Error ? e.message : "fail"}`);
     }
   }
-  await db.update(vcrCyclesTable).set({ status: "synthesizing" }).where(eq(vcrCyclesTable.id, state.cycleId));
-  return { validated, toolCalls: state.toolCalls + calls, errors: [...state.errors, ...errors] };
+  await db.update(vcrCyclesTable).set({ status: "synthesizing" }).where(eq(vcrCyclesTable.id, ctx.cycleId));
+  return { validated, toolCalls: calls, errors };
 }
 
-async function persistFindingsNode(state: S): Promise<Partial<S>> {
-  let count = 0;
-  for (const v of state.validated) {
+async function persistFindingsStep(
+  ctx: CycleContext,
+  validated: ValidatedFinding[],
+): Promise<void> {
+  for (const v of validated) {
     await db.insert(vcrResearchItemsTable).values({
-      assessmentId: state.assessmentId,
-      cycleId: state.cycleId,
+      assessmentId: ctx.assessmentId,
+      cycleId: ctx.cycleId,
       kind: v.kind,
       title: v.synthesis.title || v.title,
       summary: v.synthesis.summary,
@@ -206,18 +218,19 @@ async function persistFindingsNode(state: S): Promise<Partial<S>> {
       status: "pending",
       includeInReport: true,
     });
-    count++;
   }
-  return { /* itemsCreated tracked at finalize */ } as Partial<S> & { _items?: number };
 }
 
-async function askFollowupsNode(state: S): Promise<Partial<S>> {
-  if (state.validated.length === 0) return { newQuestions: [] };
-  const basedOn = state.validated.map(v => `[${v.kind}] ${v.synthesis.title}: ${v.synthesis.summary}\nGaps: ${(v.validation.unsupportedLeaps ?? []).join(" | ") || "none"}`).join("\n\n");
+async function askFollowupsStep(
+  ctx: CycleContext,
+  validated: ValidatedFinding[],
+): Promise<{ newQuestions: NewQuestion[]; toolCalls: number }> {
+  if (validated.length === 0) return { newQuestions: [], toolCalls: 0 };
+  const basedOn = validated.map(v => `[${v.kind}] ${v.synthesis.title}: ${v.synthesis.summary}\nGaps: ${(v.validation.unsupportedLeaps ?? []).join(" | ") || "none"}`).join("\n\n");
   const raw = await proposeFollowupQuestionTool.invoke({
     basedOn,
-    clientContext: `${state.clientName} (${state.industryName}). ${state.valueCase.slice(0, 400)}`,
-    alreadyAsked: state.allPriorQuestions || "(none)",
+    clientContext: `${ctx.clientName} (${ctx.industryName}). ${ctx.valueCase.slice(0, 400)}`,
+    alreadyAsked: ctx.allPriorQuestions || "(none)",
   });
   const parsedQs = (extractJSON<unknown>(raw)
     ?? await parseJsonWithRepair<unknown>(raw, { label: "followups-wire", schemaHint: `[ { "question": string, "rationale": string, "priority": number } ]` }));
@@ -231,65 +244,54 @@ async function askFollowupsNode(state: S): Promise<Partial<S>> {
   const filtered = qs.filter(q => q && typeof q.question === "string" && q.question.length > 8).slice(0, 5);
   if (filtered.length > 0) {
     await db.insert(vcrQuestionsTable).values(filtered.map((q, i) => ({
-      assessmentId: state.assessmentId,
-      cycleId: state.cycleId,
+      assessmentId: ctx.assessmentId,
+      cycleId: ctx.cycleId,
       question: q.question,
       rationale: q.rationale,
       priority: Math.max(1, Math.min(5, q.priority ?? 3)),
       status: "pending",
-      displayOrder: 1000 + state.cycleNumber * 10 + i,
+      displayOrder: 1000 + ctx.cycleNumber * 10 + i,
     })));
   }
-  return { newQuestions: filtered, toolCalls: state.toolCalls + 1 };
+  return { newQuestions: filtered, toolCalls: 1 };
 }
 
-async function summarizeCycleNode(state: S): Promise<Partial<S>> {
-  const summaryPrompt = `Write a 3-5 sentence executive summary of cycle ${state.cycleNumber}: what was investigated, what we learned, what is still uncertain, and what we will ask the client next. Be concrete.
+async function summarizeCycleStep(args: {
+  ctx: CycleContext;
+  cycleObjective: string;
+  validated: ValidatedFinding[];
+  newQuestions: NewQuestion[];
+  errors: string[];
+  toolCallsSoFar: number;
+}): Promise<{ cycleSummary: string; toolCalls: number }> {
+  const { ctx, cycleObjective, validated, newQuestions, errors, toolCallsSoFar } = args;
+  const summaryPrompt = `Write a 3-5 sentence executive summary of cycle ${ctx.cycleNumber}: what was investigated, what we learned, what is still uncertain, and what we will ask the client next. Be concrete.
 
-Objective: ${state.cycleObjective}
-Findings: ${state.validated.map(v => `- [${v.kind}] ${v.synthesis.title}: ${v.synthesis.summary}`).join("\n")}
-New client questions: ${state.newQuestions.map(q => `- ${q.question}`).join("\n") || "(none)"}
-Errors: ${state.errors.length ? state.errors.join("; ") : "none"}`;
+Objective: ${cycleObjective}
+Findings: ${validated.map(v => `- [${v.kind}] ${v.synthesis.title}: ${v.synthesis.summary}`).join("\n")}
+New client questions: ${newQuestions.map(q => `- ${q.question}`).join("\n") || "(none)"}
+Errors: ${errors.length ? errors.join("; ") : "none"}`;
   const summary = (await glmReasonTool.invoke({ prompt: summaryPrompt, maxTokens: 700 })).trim();
 
   await db.update(vcrCyclesTable).set({
     status: "completed",
     completedAt: new Date(),
     summary,
-    itemsCreated: state.validated.length,
-    questionsCreated: state.newQuestions.length,
-    toolCalls: state.toolCalls + 1,
-    errors: state.errors,
-    objective: state.cycleObjective,
-  }).where(eq(vcrCyclesTable.id, state.cycleId));
+    itemsCreated: validated.length,
+    questionsCreated: newQuestions.length,
+    toolCalls: toolCallsSoFar + 1,
+    errors,
+    objective: cycleObjective,
+  }).where(eq(vcrCyclesTable.id, ctx.cycleId));
 
   await db.update(vcrAssessmentsTable).set({
-    currentCycle: state.cycleNumber,
-    status: state.cycleNumber >= state.totalCycles ? "review" : "active",
+    currentCycle: ctx.cycleNumber,
+    status: ctx.cycleNumber >= ctx.totalCycles ? "review" : "active",
     updatedAt: new Date(),
-  }).where(eq(vcrAssessmentsTable.id, state.assessmentId));
+  }).where(eq(vcrAssessmentsTable.id, ctx.assessmentId));
 
-  return { cycleSummary: summary, toolCalls: state.toolCalls + 1 };
+  return { cycleSummary: summary, toolCalls: 1 };
 }
-
-const workflow = new StateGraph(VCRState)
-  .addNode("plan", planCycleObjective)
-  .addNode("decompose", decomposeNode)
-  .addNode("research", researchNode)
-  .addNode("critique", critiqueAndSynthesizeNode)
-  .addNode("persist", persistFindingsNode)
-  .addNode("askFollowups", askFollowupsNode)
-  .addNode("summarize", summarizeCycleNode)
-  .addEdge(START, "plan")
-  .addEdge("plan", "decompose")
-  .addEdge("decompose", "research")
-  .addEdge("research", "critique")
-  .addEdge("critique", "persist")
-  .addEdge("persist", "askFollowups")
-  .addEdge("askFollowups", "summarize")
-  .addEdge("summarize", END);
-
-export const vceCycleGraph = workflow.compile();
 
 export async function runCycle(assessmentId: number, cycleId: number): Promise<{ itemsCreated: number; questionsCreated: number; summary: string; errors: string[]; toolCalls: number }> {
   const [a] = await db.select().from(vcrAssessmentsTable).where(eq(vcrAssessmentsTable.id, assessmentId));
@@ -312,7 +314,7 @@ export async function runCycle(assessmentId: number, cycleId: number): Promise<{
   const answered = allQs.filter(q => q.answer && q.answer.trim().length > 0).map(q => `Q: ${q.question}\nA: ${q.answer}`).join("\n\n");
   const allText = allQs.map(q => `- ${q.question}`).join("\n");
 
-  const result = await vceCycleGraph.invoke({
+  const ctx: CycleContext = {
     assessmentId,
     cycleId,
     cycleNumber: cyc.cycleNumber,
@@ -324,21 +326,46 @@ export async function runCycle(assessmentId: number, cycleId: number): Promise<{
     priorCycleSummaries: priorSummaries,
     answeredQuestions: answered,
     allPriorQuestions: allText,
-    cycleObjective: "",
-    researchPlan: [],
-    rawFindings: [],
-    validated: [],
-    newQuestions: [],
-    cycleSummary: "",
-    toolCalls: 0,
-    errors: [],
+  };
+
+  let toolCalls = 0;
+  const errors: string[] = [];
+
+  const { cycleObjective, toolCalls: planCalls } = await planCycleObjectiveStep(ctx);
+  toolCalls += planCalls;
+
+  const { researchPlan, toolCalls: decomposeCalls, errors: decomposeErrors } = await decomposeStep(ctx, cycleObjective);
+  toolCalls += decomposeCalls;
+  errors.push(...decomposeErrors);
+
+  const { rawFindings, toolCalls: researchCalls, errors: researchErrors } = await researchStep(researchPlan, cyc.cycleNumber);
+  toolCalls += researchCalls;
+  errors.push(...researchErrors);
+
+  const { validated, toolCalls: critiqueCalls, errors: critiqueErrors } = await critiqueAndSynthesizeStep(ctx, rawFindings);
+  toolCalls += critiqueCalls;
+  errors.push(...critiqueErrors);
+
+  await persistFindingsStep(ctx, validated);
+
+  const { newQuestions, toolCalls: followupCalls } = await askFollowupsStep(ctx, validated);
+  toolCalls += followupCalls;
+
+  const { cycleSummary, toolCalls: summarizeCalls } = await summarizeCycleStep({
+    ctx,
+    cycleObjective,
+    validated,
+    newQuestions,
+    errors,
+    toolCallsSoFar: toolCalls,
   });
+  toolCalls += summarizeCalls;
 
   return {
-    itemsCreated: result.validated.length,
-    questionsCreated: result.newQuestions.length,
-    summary: result.cycleSummary,
-    errors: result.errors,
-    toolCalls: result.toolCalls,
+    itemsCreated: validated.length,
+    questionsCreated: newQuestions.length,
+    summary: cycleSummary,
+    errors,
+    toolCalls,
   };
 }

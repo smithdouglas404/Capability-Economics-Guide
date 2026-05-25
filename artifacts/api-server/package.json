@@ -8,8 +8,6 @@
     "@grpc/grpc-js": "1.12.6",
     "@hashgraph/sdk": "^2.50.0",
     "@inngest/agent-kit": "^0.13.2",
-    "@langchain/core": "^1.1.39",
-    "@langchain/langgraph": "^1.2.8",
     "@letta-ai/letta-client": "^1.10.2",
     "@opentelemetry/api": "^1.9.0",
     "@workspace/api-zod": "workspace:*",

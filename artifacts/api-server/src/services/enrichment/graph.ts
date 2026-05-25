@@ -1,5 +1,5 @@
 /**
- * Enrichment ReAct agent — a real LangGraph agent loop, not a fixed pipeline.
+ * Enrichment ReAct agent — a hand-rolled tool-calling loop over OpenRouter.
  *
  * The agent is given a goal (full industry refresh, single-cap rerun, etc.)
  * and a toolbelt that wraps every existing enrichment function (`classify_quadrants`,
@@ -7,17 +7,21 @@
  * plus query/memory tools). The LLM decides what to call, in what order, and
  * when it's done — `tools.ts` holds the schemas and executors.
  *
- *   agent ──tool_calls?──▶ tools ──▶ agent ──finish?──▶ finalize ──▶ END
+ *   chatWithTools ──tool_calls?──▶ executeToolCalls ──▶ chatWithTools …
+ *   chatWithTools ──finish?──▶ finalize ──▶ return
  *
  * Public API (`runEnrichmentGraph(opts)`) is unchanged so the per-cap rerun
  * route, admin button, and any cron caller keep working without edits.
+ *
+ * Migrated off LangGraph 2026-05-25 (Phase 10 Category A). The previous
+ * StateGraph wrapped a plain `agent ↔ tools` alternation; collapsing it
+ * to a procedural while-loop removes the recursion-limit dance with no
+ * change in observable behavior. Per-LLM-call retries continue to flow
+ * through `maybeStepRun`.
  */
 
-import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
 import { db } from "@workspace/db";
 import {
-  industriesTable,
-  capabilitiesTable,
   capabilityAlphaTable,
   capabilityQuadrantsTable,
   valueChainStagesTable,
@@ -106,32 +110,19 @@ async function chatWithTools(messages: ChatMessage[], opts: { model?: string; ma
   }
 }
 
-// ─── Graph state ────────────────────────────────────────────────────────────
-const EnrichmentState = Annotation.Root({
-  runId: Annotation<number>({ default: () => 0, reducer: (_, n) => n }),
-  trigger: Annotation<"scheduled" | "manual" | "rerun">({
-    default: () => "scheduled",
-    reducer: (_, n) => n,
-  }),
-  targetCapabilityIds: Annotation<number[] | null>({ default: () => null, reducer: (_, n) => n }),
-  targetIndustryIds: Annotation<number[] | null>({ default: () => null, reducer: (_, n) => n }),
-
-  messages: Annotation<ChatMessage[]>({
-    default: () => [],
-    reducer: (prev, next) => [...prev, ...next],
-  }),
-
-  iterations: Annotation<number>({ default: () => 0, reducer: (a, b) => a + b }),
-  finished: Annotation<boolean>({ default: () => false, reducer: (_, n) => n }),
-  finishSummary: Annotation<string | null>({ default: () => null, reducer: (_, n) => n }),
-
-  // Aggregate counters fed by the tools — used by finalize to write enrichment_runs
-  toolCalls: Annotation<number>({ default: () => 0, reducer: (a, b) => a + b }),
-  toolErrors: Annotation<string[]>({ default: () => [], reducer: (a, b) => [...a, ...b] }),
-  startedAt: Annotation<string>({ default: () => new Date().toISOString(), reducer: (_, n) => n }),
-});
-
-type State = typeof EnrichmentState.State;
+// ─── Run state ──────────────────────────────────────────────────────────────
+interface RunState {
+  runId: number;
+  trigger: "scheduled" | "manual" | "rerun";
+  targetCapabilityIds: number[] | null;
+  targetIndustryIds: number[] | null;
+  messages: ChatMessage[];
+  iterations: number;
+  toolCalls: number;
+  toolErrors: string[];
+  startedAt: string;
+  finishSummary: string | null;
+}
 
 const MAX_ITERATIONS = 25; // hard ceiling — agent must finish within this
 
@@ -145,7 +136,7 @@ function emit(node: string, runId: number, payload: Record<string, unknown> = {}
 }
 
 // ─── System prompt — the agent's brief ──────────────────────────────────────
-function buildSystemPrompt(state: State): string {
+function buildSystemPrompt(state: RunState): string {
   const scope: string[] = [];
   if (state.targetCapabilityIds?.length) {
     scope.push(`Specific capability ids: ${state.targetCapabilityIds.join(", ")}.`);
@@ -197,39 +188,15 @@ GUIDELINES:
 You are NOT a chatbot. Always respond with a tool_call until you call \`finish\`.${scopeBlock}`;
 }
 
-// ─── agent node ─────────────────────────────────────────────────────────────
-async function agentNode(state: State): Promise<Partial<State>> {
+// ─── One agent turn (1 LLM call + extract tool_calls) ───────────────────────
+async function agentTurn(state: RunState): Promise<{ assistantMsg: ChatMessage; finished: boolean; finishSummary: string | null }> {
   emit("agent.think", state.runId, { iteration: state.iterations });
 
-  // First turn: install the system prompt + an opening user message
-  const messages: ChatMessage[] = state.messages.length === 0
-    ? [
-        { role: "system", content: buildSystemPrompt(state) },
-        {
-          role: "user",
-          content:
-            state.trigger === "rerun"
-              ? "Rerun enrichment for the scoped capability/industry."
-              : state.trigger === "manual"
-                ? "Manual enrichment trigger — refresh anything stale."
-                : "Scheduled enrichment cycle — keep the catalog current.",
-        },
-      ]
-    : [];
-
-  const allMessages = [...state.messages, ...messages];
-  // Phase 2 extension: when this graph is invoked from inside an Inngest
-  // function (autoEnrich cron, manual trigger fan-out), wrap each LLM call
-  // in its own step so a container restart resumes from the last successful
-  // step rather than re-running the whole cycle. No-op via HTTP path.
-  // Only the assistant message shape crosses the step boundary — that's
-  // already a plain object with role/content/tool_calls, JSON-safe.
   const reply = await maybeStepRun(
     `enrichment.chatWithTools.iter-${state.iterations}`,
-    () => chatWithTools(allMessages),
+    () => chatWithTools(state.messages),
   );
 
-  // Append the assistant message (with any tool_calls) to history
   const assistantMsg: ChatMessage = {
     role: "assistant",
     content: reply.content ?? null,
@@ -237,8 +204,6 @@ async function agentNode(state: State): Promise<Partial<State>> {
   };
 
   const calls = reply.tool_calls ?? [];
-
-  // Detect explicit finish — the model called the `finish` tool
   let finished = false;
   let finishSummary: string | null = null;
   for (const call of calls) {
@@ -258,19 +223,16 @@ async function agentNode(state: State): Promise<Partial<State>> {
     finished,
   });
 
-  return {
-    messages: [...messages, assistantMsg],
-    iterations: 1,
-    finished,
-    finishSummary,
-  };
+  return { assistantMsg, finished, finishSummary };
 }
 
-// ─── tools node ─────────────────────────────────────────────────────────────
-async function toolsNode(state: State): Promise<Partial<State>> {
-  const lastMsg = state.messages[state.messages.length - 1];
-  const calls = lastMsg?.tool_calls ?? [];
-  if (calls.length === 0) return {};
+// ─── Execute the tool_calls from an assistant message ───────────────────────
+async function executeToolCalls(
+  state: RunState,
+  assistantMsg: ChatMessage,
+): Promise<{ toolMessages: ChatMessage[]; executed: number; errors: string[] }> {
+  const calls = assistantMsg.tool_calls ?? [];
+  if (calls.length === 0) return { toolMessages: [], executed: 0, errors: [] };
 
   const ctx = {
     runId: state.runId,
@@ -324,15 +286,11 @@ async function toolsNode(state: State): Promise<Partial<State>> {
     }
   }
 
-  return {
-    messages: toolMessages,
-    toolCalls: executed,
-    toolErrors: errors,
-  };
+  return { toolMessages, executed, errors };
 }
 
-// ─── finalize node — close out enrichment_runs ──────────────────────────────
-async function finalizeNode(state: State): Promise<Partial<State>> {
+// ─── finalize — close out enrichment_runs ──────────────────────────────────
+async function finalize(state: RunState): Promise<void> {
   emit("finalize.start", state.runId, { iterations: state.iterations, toolCalls: state.toolCalls });
 
   // Aggregate the same totals the legacy linear pipeline reported, by reading
@@ -403,30 +361,7 @@ async function finalizeNode(state: State): Promise<Partial<State>> {
   // returning, no-ops if Foundry isn't configured. Concurrency-guarded
   // inside fireFoundrySync.
   fireFoundrySync(`enrichment run ${state.runId} (${state.trigger})`);
-
-  return {};
 }
-
-// ─── routing ────────────────────────────────────────────────────────────────
-function routeAfterAgent(state: State): "tools" | "finalize" {
-  if (state.finished) return "finalize";
-  if (state.iterations >= MAX_ITERATIONS) return "finalize";
-  const last = state.messages[state.messages.length - 1];
-  if (!last?.tool_calls || last.tool_calls.length === 0) return "finalize";
-  return "tools";
-}
-
-// ─── compile ────────────────────────────────────────────────────────────────
-const workflow = new StateGraph(EnrichmentState)
-  .addNode("agent", agentNode)
-  .addNode("tools", toolsNode)
-  .addNode("finalize", finalizeNode)
-  .addEdge(START, "agent")
-  .addConditionalEdges("agent", routeAfterAgent, { tools: "tools", finalize: "finalize" })
-  .addEdge("tools", "agent")
-  .addEdge("finalize", END);
-
-export const enrichmentGraph = workflow.compile();
 
 // ─── public entry ──────────────────────────────────────────────────────────
 export async function runEnrichmentGraph(opts: {
@@ -436,40 +371,77 @@ export async function runEnrichmentGraph(opts: {
 } = {}): Promise<{ runId: number; iterations: number; toolCalls: number; errors: string[]; summary: string | null }> {
   const [runRecord] = await db.insert(enrichmentRunsTable).values({ status: "running" }).returning({ id: enrichmentRunsTable.id });
 
+  const trigger = opts.trigger ?? "scheduled";
   emit("run.start", runRecord.id, {
-    trigger: opts.trigger ?? "scheduled",
+    trigger,
     targetCapabilityIds: opts.targetCapabilityIds ?? null,
     targetIndustryIds: opts.targetIndustryIds ?? null,
   });
 
+  const state: RunState = {
+    runId: runRecord.id,
+    trigger,
+    targetCapabilityIds: opts.targetCapabilityIds ?? null,
+    targetIndustryIds: opts.targetIndustryIds ?? null,
+    messages: [],
+    iterations: 0,
+    toolCalls: 0,
+    toolErrors: [],
+    startedAt: new Date().toISOString(),
+    finishSummary: null,
+  };
+
+  // Seed the conversation with the system prompt + opening user message.
+  state.messages.push(
+    { role: "system", content: buildSystemPrompt(state) },
+    {
+      role: "user",
+      content:
+        trigger === "rerun"
+          ? "Rerun enrichment for the scoped capability/industry."
+          : trigger === "manual"
+            ? "Manual enrichment trigger — refresh anything stale."
+            : "Scheduled enrichment cycle — keep the catalog current.",
+    },
+  );
+
   try {
-    const result = await enrichmentGraph.invoke(
-      {
-        runId: runRecord.id,
-        trigger: opts.trigger ?? "scheduled",
-        targetCapabilityIds: opts.targetCapabilityIds ?? null,
-        targetIndustryIds: opts.targetIndustryIds ?? null,
-      },
-      // Recursion limit higher than MAX_ITERATIONS*2 so the framework doesn't
-      // abort before our own iteration cap kicks in. Each iteration = one
-      // agent + one tools node = 2 LangGraph steps.
-      { recursionLimit: MAX_ITERATIONS * 2 + 10 },
-    );
+    while (state.iterations < MAX_ITERATIONS) {
+      const { assistantMsg, finished, finishSummary } = await agentTurn(state);
+      state.messages.push(assistantMsg);
+      state.iterations++;
+
+      if (finished) {
+        state.finishSummary = finishSummary;
+        break;
+      }
+      if (!assistantMsg.tool_calls || assistantMsg.tool_calls.length === 0) {
+        // Agent ran out of tool calls without finishing — treat as natural stop.
+        break;
+      }
+
+      const { toolMessages, executed, errors } = await executeToolCalls(state, assistantMsg);
+      state.messages.push(...toolMessages);
+      state.toolCalls += executed;
+      state.toolErrors.push(...errors);
+    }
+
+    await finalize(state);
     return {
-      runId: runRecord.id,
-      iterations: result.iterations,
-      toolCalls: result.toolCalls,
-      errors: result.toolErrors,
-      summary: result.finishSummary,
+      runId: state.runId,
+      iterations: state.iterations,
+      toolCalls: state.toolCalls,
+      errors: state.toolErrors,
+      summary: state.finishSummary,
     };
   } catch (err) {
-    logger.error({ err, runId: runRecord.id }, "[enrichment-agent] fatal");
+    logger.error({ err, runId: state.runId }, "[enrichment-agent] fatal");
     try {
       await db.update(enrichmentRunsTable).set({
         status: "failed",
         completedAt: new Date(),
         errors: [err instanceof Error ? err.message : String(err)],
-      }).where(eq(enrichmentRunsTable.id, runRecord.id));
+      }).where(eq(enrichmentRunsTable.id, state.runId));
     } catch { /* best effort */ }
     throw err;
   }

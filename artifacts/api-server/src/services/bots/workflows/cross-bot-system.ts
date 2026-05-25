@@ -7,8 +7,12 @@
  * tag, agent_tuning for bias adjustments). The runner passes `bot=null`
  * and skips per-bot budget guards — instead each workflow self-budgets
  * (via the `estimatedCostCents` field, enforced by the scheduler).
+ *
+ * Migrated off LangGraph 2026-05-25 (Phase 10 Category A). Both
+ * workflows here are pure SQL + arithmetic — no LLM gate to wrap, so a
+ * plain procedural sequence is the right shape. `ctx.recordStep` calls
+ * preserved verbatim so the admin step-timeline view is unchanged.
  */
-import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
 import {
   db,
   botActionsTable,
@@ -18,7 +22,7 @@ import {
   organizationCapabilitiesTable,
   cviComponentsTable,
 } from "@workspace/db";
-import { eq, gte, sql, desc, inArray } from "drizzle-orm";
+import { eq, sql, inArray } from "drizzle-orm";
 import { logger } from "../../../lib/logger";
 import type { WorkflowDefinition, WorkflowResult, WorkflowRunContext } from "./types";
 
@@ -29,103 +33,87 @@ import type { WorkflowDefinition, WorkflowResult, WorkflowRunContext } from "./t
 // produced an artifact is flagged with a "multi-bot signal" annotation
 // surfaced in the HITL queue.
 
-const ConsensusMapState = Annotation.Root({
-  capCountsByCap: Annotation<Array<{ capabilityId: number; capabilityName: string; botCount: number; artifactCount: number }>>({
-    reducer: (_, y) => y,
-    default: () => [],
-  }),
-  multiBotCaps: Annotation<Array<{ capabilityId: number; capabilityName: string; botCount: number }>>({
-    reducer: (_, y) => y,
-    default: () => [],
-  }),
-  annotationsCreated: Annotation<number[]>({
-    reducer: (x, y) => [...x, ...y],
-    default: () => [],
-  }),
-  totalCostCents: Annotation<number>({ reducer: (x, y) => x + y, default: () => 0 }),
-});
-type ConsensusState = typeof ConsensusMapState.State;
+interface ConsensusCap {
+  capabilityId: number;
+  capabilityName: string;
+  botCount: number;
+  artifactCount: number;
+}
 
 const MIN_BOT_THRESHOLD = 3;
 
-function consensusBuildGraph(ctx: WorkflowRunContext) {
-  return new StateGraph(ConsensusMapState)
-    .addNode("aggregate", async () => {
-      const t0 = Date.now();
-      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      // Count distinct bots per capability across recent bot_actions.
-      // payload->>'capabilityId' is the convention used by the
-      // assessment/deep-dive/comment actions when writing rows.
-      const rows = await db.execute<{ capability_id: number; bot_count: number; artifact_count: number }>(sql`
-        SELECT
-          (payload->>'capabilityId')::int AS capability_id,
-          COUNT(DISTINCT bot_id) AS bot_count,
-          COUNT(*) AS artifact_count
-        FROM ${botActionsTable}
-        WHERE started_at >= ${since}
-          AND payload ? 'capabilityId'
-          AND ok = true
-        GROUP BY (payload->>'capabilityId')::int
-        HAVING COUNT(DISTINCT bot_id) >= ${MIN_BOT_THRESHOLD}
-        ORDER BY bot_count DESC, artifact_count DESC
-        LIMIT 25
-      `);
-      const aggregated: ConsensusState["capCountsByCap"] = [];
-      if (rows.rows.length > 0) {
-        const capIds = rows.rows.map((r) => Number(r.capability_id)).filter((n) => !Number.isNaN(n));
-        const nameRows = capIds.length > 0
-          ? await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name })
-              .from(capabilitiesTable)
-              .where(inArray(capabilitiesTable.id, capIds))
-          : [];
-        const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
-        for (const r of rows.rows) {
-          const id = Number(r.capability_id);
-          aggregated.push({
-            capabilityId: id,
-            capabilityName: nameById.get(id) ?? `cap-${id}`,
-            botCount: Number(r.bot_count),
-            artifactCount: Number(r.artifact_count),
-          });
-        }
-      }
-      await ctx.recordStep({
-        stepName: "aggregate",
-        stepIndex: 0,
-        status: "ok",
-        costCents: 0,
-        durationMs: Date.now() - t0,
-        payload: { capsFound: aggregated.length, threshold: MIN_BOT_THRESHOLD },
+async function consensusAggregateStep(ctx: WorkflowRunContext): Promise<ConsensusCap[]> {
+  const t0 = Date.now();
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  // Count distinct bots per capability across recent bot_actions.
+  // payload->>'capabilityId' is the convention used by the
+  // assessment/deep-dive/comment actions when writing rows.
+  const rows = await db.execute<{ capability_id: number; bot_count: number; artifact_count: number }>(sql`
+    SELECT
+      (payload->>'capabilityId')::int AS capability_id,
+      COUNT(DISTINCT bot_id) AS bot_count,
+      COUNT(*) AS artifact_count
+    FROM ${botActionsTable}
+    WHERE started_at >= ${since}
+      AND payload ? 'capabilityId'
+      AND ok = true
+    GROUP BY (payload->>'capabilityId')::int
+    HAVING COUNT(DISTINCT bot_id) >= ${MIN_BOT_THRESHOLD}
+    ORDER BY bot_count DESC, artifact_count DESC
+    LIMIT 25
+  `);
+  const aggregated: ConsensusCap[] = [];
+  if (rows.rows.length > 0) {
+    const capIds = rows.rows.map((r) => Number(r.capability_id)).filter((n) => !Number.isNaN(n));
+    const nameRows = capIds.length > 0
+      ? await db.select({ id: capabilitiesTable.id, name: capabilitiesTable.name })
+          .from(capabilitiesTable)
+          .where(inArray(capabilitiesTable.id, capIds))
+      : [];
+    const nameById = new Map(nameRows.map((r) => [r.id, r.name]));
+    for (const r of rows.rows) {
+      const id = Number(r.capability_id);
+      aggregated.push({
+        capabilityId: id,
+        capabilityName: nameById.get(id) ?? `cap-${id}`,
+        botCount: Number(r.bot_count),
+        artifactCount: Number(r.artifact_count),
       });
-      return { capCountsByCap: aggregated, multiBotCaps: aggregated };
-    })
-    .addNode("annotate", async (state: ConsensusState) => {
-      const t0 = Date.now();
-      const created: number[] = [];
-      for (const cap of state.multiBotCaps) {
-        const [row] = await db.insert(capabilityAnnotationsTable).values({
-          capabilityId: cap.capabilityId,
-          userId: "system:cross-bot-consensus-map",
-          userDisplayName: "Multi-bot signal",
-          kind: "note",
-          body: `Cross-bot consensus: ${cap.botCount} distinct bots produced artifacts on "${cap.capabilityName}" in the past 7 days. This is a multi-bot signal — multiple personas independently surfaced this capability as material. Recommended for human review.`,
-        }).returning({ id: capabilityAnnotationsTable.id });
-        if (row) created.push(row.id);
-      }
-      await ctx.recordStep({
-        stepName: "annotate",
-        stepIndex: 1,
-        status: "ok",
-        costCents: 0,
-        durationMs: Date.now() - t0,
-        payload: { created: created.length },
-      });
-      return { annotationsCreated: created };
-    })
-    .addEdge(START, "aggregate")
-    .addEdge("aggregate", "annotate")
-    .addEdge("annotate", END)
-    .compile();
+    }
+  }
+  await ctx.recordStep({
+    stepName: "aggregate",
+    stepIndex: 0,
+    status: "ok",
+    costCents: 0,
+    durationMs: Date.now() - t0,
+    payload: { capsFound: aggregated.length, threshold: MIN_BOT_THRESHOLD },
+  });
+  return aggregated;
+}
+
+async function consensusAnnotateStep(ctx: WorkflowRunContext, multiBotCaps: ConsensusCap[]): Promise<number[]> {
+  const t0 = Date.now();
+  const created: number[] = [];
+  for (const cap of multiBotCaps) {
+    const [row] = await db.insert(capabilityAnnotationsTable).values({
+      capabilityId: cap.capabilityId,
+      userId: "system:cross-bot-consensus-map",
+      userDisplayName: "Multi-bot signal",
+      kind: "note",
+      body: `Cross-bot consensus: ${cap.botCount} distinct bots produced artifacts on "${cap.capabilityName}" in the past 7 days. This is a multi-bot signal — multiple personas independently surfaced this capability as material. Recommended for human review.`,
+    }).returning({ id: capabilityAnnotationsTable.id });
+    if (row) created.push(row.id);
+  }
+  await ctx.recordStep({
+    stepName: "annotate",
+    stepIndex: 1,
+    status: "ok",
+    costCents: 0,
+    durationMs: Date.now() - t0,
+    payload: { created: created.length },
+  });
+  return created;
 }
 
 export const crossBotConsensusMapWorkflow: WorkflowDefinition = {
@@ -139,12 +127,17 @@ export const crossBotConsensusMapWorkflow: WorkflowDefinition = {
   estimatedCostCents: 0,
   async run(ctx: WorkflowRunContext): Promise<WorkflowResult> {
     try {
-      const graph = consensusBuildGraph(ctx);
-      const finalState = await graph.invoke({});
+      const multiBotCaps = await consensusAggregateStep(ctx);
+      const annotationsCreated = await consensusAnnotateStep(ctx, multiBotCaps);
       return {
         status: "completed",
-        state: finalState as unknown as Record<string, unknown>,
-        artifactIds: { annotations: finalState.annotationsCreated },
+        state: {
+          capCountsByCap: multiBotCaps,
+          multiBotCaps,
+          annotationsCreated,
+          totalCostCents: 0,
+        },
+        artifactIds: { annotations: annotationsCreated },
         totalCostCents: 0,
       };
     } catch (err) {
@@ -163,14 +156,12 @@ export const crossBotConsensusMapWorkflow: WorkflowDefinition = {
 // behavioral biases auto-nudged (a flag on the bot row that the weekly
 // prompt optimizer reads on its next pass).
 
-const CalibrationState = Annotation.Root({
-  perBotCorrelations: Annotation<Array<{ botId: number; personaKey: string; correlation: number; n: number }>>({
-    reducer: (_, y) => y,
-    default: () => [],
-  }),
-  flaggedBotIds: Annotation<number[]>({ reducer: (_, y) => y, default: () => [] }),
-});
-type CalState = typeof CalibrationState.State;
+interface BotCorrelation {
+  botId: number;
+  personaKey: string;
+  correlation: number;
+  n: number;
+}
 
 function pearson(xs: number[], ys: number[]): number {
   const n = Math.min(xs.length, ys.length);
@@ -191,75 +182,69 @@ function pearson(xs: number[], ys: number[]): number {
 
 const CORRELATION_FLOOR = 0.6;
 
-function calibrationBuildGraph(ctx: WorkflowRunContext) {
-  return new StateGraph(CalibrationState)
-    .addNode("computeCorrelations", async () => {
-      const t0 = Date.now();
-      const bots = await db.select().from(botsTable).where(eq(botsTable.status, "active"));
-      const perBot: CalState["perBotCorrelations"] = [];
-      for (const bot of bots) {
-        // Each bot's organizations table row was tagged with sessionToken
-        // 'bot_sess_*' at provisioning. Find its org id, then pull its
-        // capability mappings.
-        const rows = await db.select({
-          capabilityId: organizationCapabilitiesTable.capabilityId,
-          maturityScore: organizationCapabilitiesTable.maturityScore,
-        })
-          .from(organizationCapabilitiesTable)
-          .innerJoin(botsTable, eq(botsTable.id, bot.id))
-          // Bot-to-org linkage isn't on a direct FK; we infer via clerk_user_id
-          // matching the bot's synthetic id. For correlation purposes, we
-          // accept "any maturity score this bot wrote".
-          .innerJoin(sql`(SELECT id FROM organizations WHERE session_token LIKE ${'%' + bot.personaKey + '%'} LIMIT 1) as bot_org`, sql`bot_org.id = ${organizationCapabilitiesTable.organizationId}`)
-          .limit(200);
-        if (rows.length < 3) continue;
-        const capIds = rows.map((r) => r.capabilityId);
-        const cviRows = await db.select({
-          capabilityId: cviComponentsTable.capabilityId,
-          score: cviComponentsTable.consensusScore,
-        })
-          .from(cviComponentsTable)
-          .where(inArray(cviComponentsTable.capabilityId, capIds));
-        const cviByCap = new Map(cviRows.map((r) => [r.capabilityId, r.score]));
-        const paired = rows
-          .map((r) => ({ bot: r.maturityScore, cvi: cviByCap.get(r.capabilityId) }))
-          .filter((p): p is { bot: number; cvi: number } => typeof p.cvi === "number");
-        if (paired.length < 3) continue;
-        const corr = pearson(paired.map((p) => p.bot), paired.map((p) => p.cvi));
-        perBot.push({ botId: bot.id, personaKey: bot.personaKey, correlation: corr, n: paired.length });
-      }
-      await ctx.recordStep({
-        stepName: "computeCorrelations",
-        stepIndex: 0,
-        status: "ok",
-        costCents: 0,
-        durationMs: Date.now() - t0,
-        payload: { botsEvaluated: perBot.length },
-      });
-      return { perBotCorrelations: perBot };
+async function calibrationComputeCorrelations(ctx: WorkflowRunContext): Promise<BotCorrelation[]> {
+  const t0 = Date.now();
+  const bots = await db.select().from(botsTable).where(eq(botsTable.status, "active"));
+  const perBot: BotCorrelation[] = [];
+  for (const bot of bots) {
+    // Each bot's organizations table row was tagged with sessionToken
+    // 'bot_sess_*' at provisioning. Find its org id, then pull its
+    // capability mappings.
+    const rows = await db.select({
+      capabilityId: organizationCapabilitiesTable.capabilityId,
+      maturityScore: organizationCapabilitiesTable.maturityScore,
     })
-    .addNode("flagDivergent", async (state: CalState) => {
-      const t0 = Date.now();
-      const flagged = state.perBotCorrelations
-        .filter((p) => p.correlation < CORRELATION_FLOOR)
-        .map((p) => p.botId);
-      // No DB write here yet — the weekly prompt optimizer reads the
-      // bot_workflow_runs table on its next pass and applies the flags.
-      // This keeps the calibration workflow side-effect-light.
-      await ctx.recordStep({
-        stepName: "flagDivergent",
-        stepIndex: 1,
-        status: "ok",
-        costCents: 0,
-        durationMs: Date.now() - t0,
-        payload: { flaggedBotIds: flagged, floor: CORRELATION_FLOOR },
-      });
-      return { flaggedBotIds: flagged };
+      .from(organizationCapabilitiesTable)
+      .innerJoin(botsTable, eq(botsTable.id, bot.id))
+      // Bot-to-org linkage isn't on a direct FK; we infer via clerk_user_id
+      // matching the bot's synthetic id. For correlation purposes, we
+      // accept "any maturity score this bot wrote".
+      .innerJoin(sql`(SELECT id FROM organizations WHERE session_token LIKE ${'%' + bot.personaKey + '%'} LIMIT 1) as bot_org`, sql`bot_org.id = ${organizationCapabilitiesTable.organizationId}`)
+      .limit(200);
+    if (rows.length < 3) continue;
+    const capIds = rows.map((r) => r.capabilityId);
+    const cviRows = await db.select({
+      capabilityId: cviComponentsTable.capabilityId,
+      score: cviComponentsTable.consensusScore,
     })
-    .addEdge(START, "computeCorrelations")
-    .addEdge("computeCorrelations", "flagDivergent")
-    .addEdge("flagDivergent", END)
-    .compile();
+      .from(cviComponentsTable)
+      .where(inArray(cviComponentsTable.capabilityId, capIds));
+    const cviByCap = new Map(cviRows.map((r) => [r.capabilityId, r.score]));
+    const paired = rows
+      .map((r) => ({ bot: r.maturityScore, cvi: cviByCap.get(r.capabilityId) }))
+      .filter((p): p is { bot: number; cvi: number } => typeof p.cvi === "number");
+    if (paired.length < 3) continue;
+    const corr = pearson(paired.map((p) => p.bot), paired.map((p) => p.cvi));
+    perBot.push({ botId: bot.id, personaKey: bot.personaKey, correlation: corr, n: paired.length });
+  }
+  await ctx.recordStep({
+    stepName: "computeCorrelations",
+    stepIndex: 0,
+    status: "ok",
+    costCents: 0,
+    durationMs: Date.now() - t0,
+    payload: { botsEvaluated: perBot.length },
+  });
+  return perBot;
+}
+
+async function calibrationFlagDivergent(ctx: WorkflowRunContext, perBot: BotCorrelation[]): Promise<number[]> {
+  const t0 = Date.now();
+  const flagged = perBot
+    .filter((p) => p.correlation < CORRELATION_FLOOR)
+    .map((p) => p.botId);
+  // No DB write here yet — the weekly prompt optimizer reads the
+  // bot_workflow_runs table on its next pass and applies the flags.
+  // This keeps the calibration workflow side-effect-light.
+  await ctx.recordStep({
+    stepName: "flagDivergent",
+    stepIndex: 1,
+    status: "ok",
+    costCents: 0,
+    durationMs: Date.now() - t0,
+    payload: { flaggedBotIds: flagged, floor: CORRELATION_FLOOR },
+  });
+  return flagged;
 }
 
 export const botToCviCalibrationWorkflow: WorkflowDefinition = {
@@ -273,11 +258,11 @@ export const botToCviCalibrationWorkflow: WorkflowDefinition = {
   estimatedCostCents: 0,
   async run(ctx: WorkflowRunContext): Promise<WorkflowResult> {
     try {
-      const graph = calibrationBuildGraph(ctx);
-      const finalState = await graph.invoke({});
+      const perBotCorrelations = await calibrationComputeCorrelations(ctx);
+      const flaggedBotIds = await calibrationFlagDivergent(ctx, perBotCorrelations);
       return {
         status: "completed",
-        state: finalState as unknown as Record<string, unknown>,
+        state: { perBotCorrelations, flaggedBotIds },
         artifactIds: {},
         totalCostCents: 0,
       };
