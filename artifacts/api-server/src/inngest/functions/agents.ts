@@ -266,6 +266,13 @@ export const autoEnrichCron = inngest.createFunction(
   },
   async ({ step }) => {
     if (!ownedBy("INNGEST_OWNS_AUTO_ENRICH")) return { skipped: "flag-off" };
+    // Auto-enrich does Perplexity + Sonnet calls per stale capability — gate
+    // it the same way as the 8 named agents. Uses a synthetic agent name so
+    // it doesn't read its interval from agent_schedules (the cron expression
+    // is the only schedule); shouldRunAgent's fallback for "no schedule row"
+    // is run-unguarded, which is fine here because the cron is already 48h.
+    const { isLlmEnabled } = await import("../../services/system-flags");
+    if (!(await isLlmEnabled())) return { skipped: "llm-disabled-globally" };
     await withStep(step, () => autoEnrichTick());
     return { ok: true };
   },
