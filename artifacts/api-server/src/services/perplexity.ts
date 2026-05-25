@@ -1,4 +1,5 @@
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -48,18 +49,26 @@ async function geminiOnlineFallback(
 
     let resp: Response;
     try {
-      resp = await fetch(OPENROUTER_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          // OpenRouter recommends these for proper attribution + rate-limit tracking
-          "HTTP-Referer": process.env["INFLEXCVI_API_BASE"] ?? "https://capabilityeconomics.com",
-          "X-Title": "Capability Economics (Perplexity fallback)",
-        },
-        body: JSON.stringify({ model, messages: opts.messages }),
-        signal: ac.signal,
-      });
+      // step.ai.wrap (via maybeStepAiWrap) makes this call a durable,
+      // retriable, observable Inngest step when running inside an Inngest
+      // function. Outside Inngest it's a no-op pass-through. Per-call
+      // visibility was the missing-piece in the 2026-05-25 Gemini-fallback
+      // cost incident: this exact branch silently fired against gemini-2.5-flash
+      // every time Perplexity 401'd, with no traceable record.
+      resp = await maybeStepAiWrap(`openrouter:perplexity-fallback:${model}`, () =>
+        fetch(OPENROUTER_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            // OpenRouter recommends these for proper attribution + rate-limit tracking
+            "HTTP-Referer": process.env["INFLEXCVI_API_BASE"] ?? "https://capabilityeconomics.com",
+            "X-Title": "Capability Economics (Perplexity fallback)",
+          },
+          body: JSON.stringify({ model, messages: opts.messages }),
+          signal: ac.signal,
+        }),
+      );
     } finally {
       clearTimeout(timeout);
       opts.signal?.removeEventListener("abort", onCancel);
@@ -262,12 +271,18 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
 
         let resp: Response;
         try {
-          resp = await fetch(PERPLEXITY_URL, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: opts.messages }),
-            signal: ac.signal,
-          });
+          // step.ai.wrap each Perplexity attempt so retries within this
+          // for-loop and the surrounding Gemini fallback all appear as
+          // distinct steps in the Inngest run record. Outside Inngest
+          // this is a no-op pass-through (the retry loop still works).
+          resp = await maybeStepAiWrap(`perplexity:chat:${model}:attempt-${attempt}`, () =>
+            fetch(PERPLEXITY_URL, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model, messages: opts.messages }),
+              signal: ac.signal,
+            }),
+          );
         } finally {
           clearTimeout(timeout);
           opts.signal?.removeEventListener("abort", onCancel);
