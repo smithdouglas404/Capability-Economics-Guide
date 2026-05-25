@@ -66,15 +66,22 @@ const digestEventPayload = (
 export const cviAgentCron = inngest.createFunction(
   {
     id: "cvi-agent",
-    triggers: [{ cron: "*/5 * * * *" }],
+    triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
-    // CVI agent is the heaviest Perplexity consumer (up to 6 calls/run, cap
-    // documented in services/agent/tools.ts). A 5-min cron means 12 runs/h
-    // best-case → 72 Perplexity calls/h — close to sonar-pro's published
-    // 60/min single-account headroom when combined with the workflow
-    // throttles below. Cap at 6 starts/h so a backlog of cron triggers
-    // (e.g. after a Railway restart) can't replay the full backlog into
-    // Perplexity in a burst.
+    // Cadence dropped from `*/5 * * * *` (every 5 min) to `0 0 */2 * *`
+    // (00:00 UTC every 2nd day) on 2026-05-25 after a cost audit:
+    // - Phase 8 (generateContent) fires up to ~34 LLM calls per cycle
+    //   (8 industries × 4 content tools + c-suite + case study), each
+    //   ~$0.005-$0.02. Even with each tool's "skip if recently
+    //   generated" gate, the 5-min cron was costing $400-$2,500/month.
+    // - The CVI snapshot itself (the cvi_snapshots row) is pure math
+    //   so freshness is cheap, but the Perplexity research +
+    //   content-gen halo around it is not.
+    // - User-visible CVI scores rarely shift on a sub-hour timescale.
+    //   48h is the chosen floor; finer cadence will land via the
+    //   admin-configurable agent_schedules table (next commit).
+    // The throttle below is a defense-in-depth backstop against a
+    // cron-trigger backlog after a Railway restart.
     throttle: { limit: 6, period: "1h", key: "global" },
     retries: 2,
   },
