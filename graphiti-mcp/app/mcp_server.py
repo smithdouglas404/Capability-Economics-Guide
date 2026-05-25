@@ -11,12 +11,26 @@ from typing import Any
 
 import structlog
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .graphiti_wrapper import graphiti
 
 log = structlog.get_logger(__name__)
 
-mcp = FastMCP("graphiti-world-model")
+# stateless_http=True so each tools/call request is self-contained instead of
+# requiring an MCP `initialize` handshake to seed a session — our minimal
+# JSON-RPC client in lib/graphiti-client.ts (and scripts/) doesn't speak the
+# stateful protocol. Auth is already handled by main.py's X-API-Key middleware.
+#
+# DNS-rebinding protection is disabled because Railway proxies the public
+# domain through edge servers whose Host header rotates; our X-API-Key is the
+# actual authn boundary, and the FastAPI middleware in main.py won't dispatch
+# to /mcp without it.
+mcp = FastMCP(
+    "graphiti-world-model",
+    stateless_http=True,
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 
 @mcp.tool()
