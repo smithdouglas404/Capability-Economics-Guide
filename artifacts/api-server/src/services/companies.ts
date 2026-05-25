@@ -10,6 +10,7 @@ import {
 } from "@workspace/db/schema";
 import { and, eq, gt, sql, desc } from "drizzle-orm";
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 
 async function getIndustryCapMetrics(industryId: number) {
   return db.select({
@@ -176,15 +177,17 @@ Return a JSON array of ${limit} entries.`;
   let resp: Response;
   const _coStart = Date.now();
   try {
-    resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
+    resp = await maybeStepAiWrap("perplexity:companies-ingest:sonar", () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
+        }),
+        signal: AbortSignal.timeout(120_000),
       }),
-      signal: AbortSignal.timeout(120_000),
-    });
+    );
   } catch (err) {
     logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { inserted: 0, updated: 0, companies: [], errors: [err instanceof Error ? err.message : String(err)] };

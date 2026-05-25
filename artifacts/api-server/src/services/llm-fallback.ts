@@ -1,4 +1,5 @@
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 
 export interface FallbackChatArgs {
   /** Ordered list of OpenRouter model slugs. First is primary; later entries are fallbacks. */
@@ -73,27 +74,29 @@ export async function chatWithFallback(args: FallbackChatArgs): Promise<Fallback
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       let resp: Response;
       try {
-        resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://inflexcvi.ai",
-            "X-Title": "Inflexcvi",
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: args.maxTokens,
-            messages: args.messages,
-            // Opt into OpenRouter's exact-cost reporting — adds `cost` to
-            // the response `usage` object (USD billed for this call,
-            // including provider markup + cache discounts). logLlmCall
-            // prefers this over the local PRICING-table estimate.
-            usage: { include: true },
-            ...(args.responseFormat ? { response_format: args.responseFormat } : {}),
+        resp = await maybeStepAiWrap(`openrouter:llm-fallback:${model}`, () =>
+          fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://inflexcvi.ai",
+              "X-Title": "Inflexcvi",
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: args.maxTokens,
+              messages: args.messages,
+              // Opt into OpenRouter's exact-cost reporting — adds `cost` to
+              // the response `usage` object (USD billed for this call,
+              // including provider markup + cache discounts). logLlmCall
+              // prefers this over the local PRICING-table estimate.
+              usage: { include: true },
+              ...(args.responseFormat ? { response_format: args.responseFormat } : {}),
+            }),
+            signal: controller.signal,
           }),
-          signal: controller.signal,
-        });
+        );
       } finally {
         clearTimeout(timer);
       }

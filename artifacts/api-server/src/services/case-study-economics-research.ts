@@ -12,6 +12,7 @@
  */
 import { logger } from "../lib/logger";
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 
 export interface EconomicsBreakdown {
   companyName: string;
@@ -118,21 +119,23 @@ export async function researchEconomicsBreakdown(req: ResearchRequest): Promise<
   }
   const startedAt = Date.now();
   try {
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar-deep-research",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildPrompt(req) },
-        ],
-        temperature: 0.1,
+    const resp = await maybeStepAiWrap("perplexity:case-study-economics:sonar-deep-research", () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "sonar-deep-research",
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: buildPrompt(req) },
+          ],
+          temperature: 0.1,
+        }),
       }),
-    });
+    );
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       logLlmCall({ provider: "perplexity", model: "sonar-deep-research", endpoint: "case-study-economics-research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${text.slice(0, 200)}` });

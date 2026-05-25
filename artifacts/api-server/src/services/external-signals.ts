@@ -1,5 +1,6 @@
 import { db } from "@workspace/db";
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 import { capabilitiesTable, industriesTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -74,15 +75,17 @@ If unknown for any field, use null. Return one JSON object only.`;
 
   const _esStart = Date.now();
   try {
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
+    const resp = await maybeStepAiWrap("perplexity:external-signals:sonar", () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
+        }),
+        signal: AbortSignal.timeout(45_000),
       }),
-      signal: AbortSignal.timeout(45_000),
-    });
+    );
     if (!resp.ok) {
       logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "external-signals", startedAt: _esStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
       return { ok: false, error: `perplexity ${resp.status}` };

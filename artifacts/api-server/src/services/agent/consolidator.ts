@@ -6,6 +6,7 @@ import { storeMemory, deleteMemory } from "./memory";
 import { appendAgentArchive, putAgentPriorBlock, getAgentPriorBlock } from "./store";
 import { getGraphStats } from "./graphMemory";
 import { emitAgentEvent } from "./events";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 const CONSOLIDATE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const MIN_REPEAT_FOR_VALIDATION = 3; // entity seen 3+ times = validated pattern
@@ -82,22 +83,24 @@ Write ONE concise paragraph (3-5 sentences, max 600 chars) that captures the val
 Be factual and specific — do not invent details, only synthesize what the observations actually say. Do NOT use markdown. Do NOT prefix with "VALIDATED PATTERN" or any heading. Output the paragraph only.`;
 
   try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi Memory Consolidator",
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 400,
-        messages: [{ role: "user", content: prompt }],
-        usage: { include: true },
+    const resp = await maybeStepAiWrap(`openrouter:consolidator:${CLAUDE_MODEL}`, () =>
+      fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi Memory Consolidator",
+        },
+        body: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 400,
+          messages: [{ role: "user", content: prompt }],
+          usage: { include: true },
+        }),
+        signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
       }),
-      signal: AbortSignal.timeout(CLAUDE_TIMEOUT_MS),
-    });
+    );
     if (!resp.ok) {
       console.warn(`[Consolidator] Claude HTTP ${resp.status} — falling back to statistical summary`);
       return null;

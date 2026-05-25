@@ -1,5 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
@@ -22,12 +23,14 @@ async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs:
       // and truncate the JSON output. GLM 5.1 otherwise emits large reasoning blocks.
       body.reasoning = { enabled: false, exclude: true };
     }
-    const resp = await fetch(OPENROUTER_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: ctrl.signal,
-    });
+    const resp = await maybeStepAiWrap(`openrouter:vcr-glm:${opts.model}`, () =>
+      fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      }),
+    );
     if (!resp.ok) throw new Error(`OpenRouter ${resp.status} (model=${opts.model}): ${(await resp.text()).slice(0, 400)}`);
     const data = await resp.json() as { choices: Array<{ message: { content: string; reasoning?: string } }> };
     const msg = data.choices[0]?.message;
@@ -122,12 +125,14 @@ async function runPerplexity(model: string, sysPrompt: string, query: string, ap
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const resp = await fetch(PERPLEXITY_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      signal: ctrl.signal,
-      body: JSON.stringify({ model, messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
-    });
+    const resp = await maybeStepAiWrap(`perplexity:vcr-deep-research:${model}`, () =>
+      fetch(PERPLEXITY_URL, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        signal: ctrl.signal,
+        body: JSON.stringify({ model, messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
+      }),
+    );
     return resp;
   } finally { clearTimeout(timer); }
 }

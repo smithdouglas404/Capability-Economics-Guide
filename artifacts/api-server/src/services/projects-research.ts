@@ -8,6 +8,7 @@ import {
 } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { logLlmCall } from "./llm-usage";
+import { maybeStepAiWrap } from "../inngest/step-context";
 
 export interface ResearchProjectsResult {
   ok: boolean;
@@ -115,18 +116,20 @@ Return a JSON array of 4-6 such objects. No prose.`;
   const startedAt = Date.now();
   let resp: Response;
   try {
-    resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          { role: "system", content: sysPrompt },
-          { role: "user", content: userPrompt },
-        ],
+    resp = await maybeStepAiWrap(`perplexity:projects-research:${category}`, () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [
+            { role: "system", content: sysPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        }),
+        signal: AbortSignal.timeout(90_000),
       }),
-      signal: AbortSignal.timeout(90_000),
-    });
+    );
   } catch (err) {
     logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "projects-research", startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
     return { ok: false, category, projectsIngested: 0, errors: [err instanceof Error ? err.message : String(err)] };
