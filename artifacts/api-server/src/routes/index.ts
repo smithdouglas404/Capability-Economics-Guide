@@ -54,6 +54,7 @@ import contentRouter from "./content";
 import assessRouter from "./assess";
 import secRouter from "./sec";
 import adminRouter from "./admin";
+import adminCostRouter from "./admin-cost";
 import enrichmentRouter from "./enrichment";
 import { enrichmentAliasRouter } from "./enrichment";
 import enrichmentConfigRouter from "./enrichment-config";
@@ -262,5 +263,6 @@ router.use(adminSecurityRouter);
 // can always re-enable from the UI.
 router.use(adminSystemFlagsRouter);
 router.use(adminAgentSchedulesRouter);
+router.use(adminCostRouter);
 
 export default router;

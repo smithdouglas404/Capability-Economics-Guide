@@ -334,7 +334,7 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
           if (shouldFallback(finalErr)) {
             try {
               const fb = await geminiOnlineFallback(opts, finalErr);
-              if (cacheKey) void writeCache(cacheKey, model, fb);
+              if (cacheKey) void writeCache(cacheKey, model, fb, undefined, opts.endpoint);
               return fb;
             } catch {
               throw finalErr;
@@ -345,7 +345,7 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
 
         const data = (await resp.json()) as PerplexityChatResponse;
         logLlmCall({ provider: "perplexity", model, endpoint: opts.endpoint, startedAt, httpStatus: resp.status, responseJson: data });
-        if (cacheKey) void writeCache(cacheKey, model, data);
+        if (cacheKey) void writeCache(cacheKey, model, data, undefined, opts.endpoint);
         return data;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -370,7 +370,7 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
         if (shouldFallback(finalErr)) {
           try {
             const fb = await geminiOnlineFallback(opts, finalErr);
-            if (cacheKey) void writeCache(cacheKey, model, fb);
+            if (cacheKey) void writeCache(cacheKey, model, fb, undefined, opts.endpoint);
             return fb;
           } catch {
             throw finalErr;
@@ -383,7 +383,7 @@ export async function perplexityChat(opts: PerplexityChatOptions): Promise<Perpl
     if (shouldFallback(exhausted)) {
       try {
         const fb = await geminiOnlineFallback(opts, exhausted);
-        if (cacheKey) void writeCache(cacheKey, model, fb);
+        if (cacheKey) void writeCache(cacheKey, model, fb, undefined, opts.endpoint);
         return fb;
       } catch {
         throw exhausted;

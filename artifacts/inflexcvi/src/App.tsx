@@ -24,6 +24,7 @@ import AdminCaseStudiesPage from "@/pages/admin-case-studies";
 import AdminAuditChainPage from "@/pages/admin-audit-chain";
 import AdminAgentProposalsPage from "@/pages/admin-agent-proposals";
 import AdminEconomicRulesPage from "@/pages/admin-economic-rules";
+import AdminCostPage from "@/pages/admin-cost";
 import AdminReviewQueuePage from "@/pages/admin-review-queue";
 import AdminPlatformSignupsPage from "@/pages/admin-platform-signups";
 import AdminRegulationsPage from "@/pages/admin-regulations";
@@ -290,6 +291,7 @@ function Router() {
       <Route path="/admin/audit-chain">{() => <AdminOnly component={AdminAuditChainPage} />}</Route>
       <Route path="/admin/agent/proposals">{() => <AdminOnly component={AdminAgentProposalsPage} />}</Route>
       <Route path="/admin/economic-rules">{() => <AdminOnly component={AdminEconomicRulesPage} />}</Route>
+      <Route path="/admin/cost">{() => <AdminOnly component={AdminCostPage} />}</Route>
       <Route path="/admin/review-queue">{() => <AdminOnly component={AdminReviewQueuePage} />}</Route>
       <Route path="/admin/platform-signups">{() => <AdminOnly component={AdminPlatformSignupsPage} />}</Route>
       <Route path="/admin/regulations">{() => <AdminOnly component={AdminRegulationsPage} />}</Route>

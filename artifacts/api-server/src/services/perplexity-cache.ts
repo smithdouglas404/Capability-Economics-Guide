@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@workspace/db";
-import { perplexityCacheTable } from "@workspace/db";
-import { eq, gt, sql } from "drizzle-orm";
+import { perplexityCacheTable, systemFlagsTable } from "@workspace/db";
+import { eq, gt, sql, inArray } from "drizzle-orm";
 
 type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
@@ -18,10 +18,65 @@ function envInt(name: string, fallback: number, min: number): number {
   return Math.max(min, parsed);
 }
 
-const DEFAULT_TTL_HOURS = envInt("PERPLEXITY_CACHE_TTL_HOURS", 24, 1);
+const DEFAULT_TTL_HOURS = envInt("PERPLEXITY_CACHE_TTL_HOURS", 168, 1);
 
 function isDisabled(): boolean {
   return process.env["PERPLEXITY_CACHE_DISABLED"] === "1";
+}
+
+/**
+ * Per-endpoint TTL override system. Reads `system_flags.ppx_cache_ttl_<key>`
+ * where `<key>` is the endpoint tag (e.g. "case-studies.generate", or the
+ * prefix-only "csuite_perspective" for grouped families).
+ *
+ * Resolution order (first hit wins):
+ *   1. system_flags['ppx_cache_ttl_<exact_endpoint>']     — admin per-endpoint
+ *   2. system_flags['ppx_cache_ttl_<prefix-before-colon>'] — admin per-family
+ *   3. system_flags['ppx_cache_ttl_default']               — admin global
+ *   4. per-call `ttlHoursHint` from the callsite
+ *   5. PERPLEXITY_CACHE_TTL_HOURS env var (default 168)
+ *
+ * Cached in-process for 30s to avoid hammering system_flags on every cache write.
+ */
+interface TtlCacheEntry { value: number; loadedAt: number }
+const TTL_LOOKUP_CACHE = new Map<string, TtlCacheEntry>();
+const TTL_LOOKUP_TTL_MS = 30_000;
+
+async function resolveTtlHours(endpointKey: string | undefined, ttlHoursHint: number): Promise<number> {
+  if (!endpointKey) return ttlHoursHint;
+  const cached = TTL_LOOKUP_CACHE.get(endpointKey);
+  if (cached && Date.now() - cached.loadedAt < TTL_LOOKUP_TTL_MS) return cached.value;
+
+  const familyKey = endpointKey.split(":")[0];
+  const lookupKeys = [
+    `ppx_cache_ttl_${endpointKey}`,
+    `ppx_cache_ttl_${familyKey}`,
+    "ppx_cache_ttl_default",
+  ];
+  try {
+    const rows = await db
+      .select({ name: systemFlagsTable.flagName, value: systemFlagsTable.flagValue })
+      .from(systemFlagsTable)
+      .where(inArray(systemFlagsTable.flagName, lookupKeys));
+    const byName = new Map(rows.map((r) => [r.name, r.value]));
+    let resolved = ttlHoursHint;
+    for (const k of lookupKeys) {
+      const raw = byName.get(k);
+      if (raw !== undefined) {
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n) && n > 0) { resolved = n; break; }
+      }
+    }
+    TTL_LOOKUP_CACHE.set(endpointKey, { value: resolved, loadedAt: Date.now() });
+    return resolved;
+  } catch {
+    return ttlHoursHint;
+  }
+}
+
+/** Invalidate the in-process TTL lookup cache (called from admin API after a save). */
+export function invalidateTtlLookupCache(): void {
+  TTL_LOOKUP_CACHE.clear();
 }
 
 export function hashRequest(model: string, messages: ChatMessage[]): string {
@@ -74,11 +129,13 @@ export async function writeCache(
   model: string,
   response: CachedResponse,
   ttlHours: number = DEFAULT_TTL_HOURS,
+  endpointKey?: string,
 ): Promise<void> {
   if (isDisabled()) return;
   try {
+    const effectiveTtl = await resolveTtlHours(endpointKey, ttlHours);
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + ttlHours * 60 * 60 * 1000);
+    const expiresAt = new Date(now.getTime() + effectiveTtl * 60 * 60 * 1000);
     await db
       .insert(perplexityCacheTable)
       .values({
