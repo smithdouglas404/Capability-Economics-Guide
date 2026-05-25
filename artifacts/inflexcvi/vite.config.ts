@@ -15,6 +15,14 @@ if (Number.isNaN(port) || port <= 0) {
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+// Dev API proxy: forward /api/* from the Vite dev server to the Railway prod
+// API. Lets you preview the Replit frontend against live data without running
+// a local copy of api-server. Override with VITE_API_PROXY_TARGET if you want
+// to point at a different backend (e.g. a Railway preview deploy or localhost).
+const apiProxyTarget =
+  process.env.VITE_API_PROXY_TARGET ??
+  "https://capabilityeconomics-staging.up.railway.app";
+
 export default defineConfig({
   base: basePath,
   plugins: [
@@ -63,6 +71,18 @@ export default defineConfig({
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    proxy: {
+      "/api": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        secure: true,
+      },
+      "/v1": {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        secure: true,
+      },
     },
   },
   preview: {
