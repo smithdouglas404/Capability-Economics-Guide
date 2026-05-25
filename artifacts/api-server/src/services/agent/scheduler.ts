@@ -197,6 +197,22 @@ async function detectUrgentConditions(): Promise<{ urgent: boolean; reason: stri
 }
 
 async function executeRun(trigger: string): Promise<Awaited<ReturnType<typeof runAgent>> | null> {
+  // Global LLM kill switch — see services/system-flags.ts. The Inngest
+  // crons gate themselves via shouldRunAgent(); this in-process scheduler
+  // path has its own startup + setInterval fires that don't go through
+  // shouldRunAgent, so we check the flag directly. Without this, the
+  // boot-time CVI/DVX/detail-enrichment run would burn OpenRouter tokens
+  // even with the master switch off.
+  try {
+    const { isLlmEnabled } = await import("../system-flags");
+    if (!(await isLlmEnabled())) {
+      console.log(`[Agent] executeRun(${trigger}) skipped — LLM master switch is OFF`);
+      return null;
+    }
+  } catch (err) {
+    console.warn("[Agent] LLM-flag check failed — proceeding (fail-open):", err);
+  }
+
   if (isRunning) {
     console.log("[Agent] Skipping run — previous cycle still in progress");
     return null;
