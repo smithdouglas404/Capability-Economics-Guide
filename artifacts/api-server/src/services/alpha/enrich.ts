@@ -18,6 +18,7 @@ import { invokeWorkflowAndWait, buildIdempotencyKey } from "../../inngest/invoke
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
 import { logLlmCall } from "../llm-usage";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 // ── Zod schemas for each enrichment LLM call ───────────────────────────────
 // These replace the legacy `openrouterChatJson` + `extractJson` pattern with
@@ -97,18 +98,20 @@ async function perplexity(query: string): Promise<PerplexityResult> {
     const timeout = setTimeout(() => controller.abort(), 60000);
     const startedAt = Date.now();
     try {
-      const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [
-            { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
-            { role: "user", content: query },
-          ],
+      const resp = await maybeStepAiWrap("perplexity:alpha-enrich:sonar", () =>
+        fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "sonar",
+            messages: [
+              { role: "system", content: "You are a capability economics research analyst. Reply with concrete numbers: TAM/SAM in $ millions, margin percentages, time horizons in months, growth rates. Cite specific sources and real figures from 2023-2026." },
+              { role: "user", content: query },
+            ],
+          }),
+          signal: controller.signal,
         }),
-        signal: controller.signal,
-      });
+      );
       if (!resp.ok) {
         const body = (await resp.text()).substring(0, 200);
         logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "alpha.enrich", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${body}` });

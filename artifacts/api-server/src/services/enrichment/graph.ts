@@ -31,7 +31,7 @@ import { emitAgentEvent } from "../agent/events";
 // runs under a separate agent name so its priors and archives don't
 // commingle with the CVI autonomous agent's.
 import { appendAgentArchive, putAgentPriorBlock } from "../agent/store";
-import { maybeStepRun } from "../../inngest/step-context";
+import { maybeStepRun, maybeStepAiWrap } from "../../inngest/step-context";
 
 const ENRICHMENT_AGENT_NAME = "enrichment-agent";
 import { toolSchemas, toolExecutors } from "./tools";
@@ -72,24 +72,26 @@ async function chatWithTools(messages: ChatMessage[], opts: { model?: string; ma
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180_000);
   try {
-    const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://inflexcvi.ai",
-        "X-Title": "Inflexcvi",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: opts.maxTokens ?? 2048,
-        messages,
-        tools: toolSchemas,
-        tool_choice: "auto",
-        usage: { include: true },
+    const resp = await maybeStepAiWrap(`openrouter:enrichment-graph:${model}`, () =>
+      fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://inflexcvi.ai",
+          "X-Title": "Inflexcvi",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: opts.maxTokens ?? 2048,
+          messages,
+          tools: toolSchemas,
+          tool_choice: "auto",
+          usage: { include: true },
+        }),
+        signal: controller.signal,
       }),
-      signal: controller.signal,
-    });
+    );
     if (!resp.ok) {
       const text = await resp.text().catch(() => "");
       throw new Error(`OpenRouter ${resp.status}: ${text.slice(0, 300)}`);

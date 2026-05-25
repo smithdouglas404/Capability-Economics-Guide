@@ -25,6 +25,7 @@ import pino from "pino";
 import { sonnet, haiku, generateObject, NoObjectGeneratedError } from "./models";
 import { retry } from "../../lib/llm-retry";
 import { logLlmCall } from "../llm-usage";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 const logger = pino({ name: "workflows" });
 
@@ -45,18 +46,20 @@ async function perplexity(query: string, model = "sonar-pro"): Promise<Perplexit
   try {
     return await retry(async () => {
       const startedAt = Date.now();
-      const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          messages: [
-            { role: "system", content: "You are a research analyst. Cite sources inline." },
-            { role: "user", content: query },
-          ],
+      const resp = await maybeStepAiWrap(`perplexity:workflows:${model}`, () =>
+        fetch("https://api.perplexity.ai/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model,
+            max_tokens: 4096,
+            messages: [
+              { role: "system", content: "You are a research analyst. Cite sources inline." },
+              { role: "user", content: query },
+            ],
+          }),
         }),
-      });
+      );
       if (!resp.ok) {
         logLlmCall({ provider: "perplexity", model, endpoint: "workflows", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
         throw new Error(`Perplexity ${resp.status}`);

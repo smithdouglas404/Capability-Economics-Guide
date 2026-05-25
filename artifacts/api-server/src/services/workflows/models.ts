@@ -24,12 +24,37 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import * as ai from "ai";
 import { wrapAISDK } from "langsmith/experimental/vercel";
 import { logLlmCall } from "../llm-usage";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 const wrapped = wrapAISDK(ai);
 
-export const generateObject = wrapped.generateObject;
-export const generateText = wrapped.generateText;
-export const streamText = wrapped.streamText;
+// step.ai.wrap every Vercel-AI-SDK call so each becomes a durable, retriable,
+// observable Inngest step when invoked from inside an Inngest function. The
+// raw `wrapped.generateObject` is preserved (langsmith tracing still works);
+// `maybeStepAiWrap` is purely additive on top, no-op when not in Inngest
+// context.
+const _generateObject = wrapped.generateObject;
+const _generateText = wrapped.generateText;
+const _streamText = wrapped.streamText;
+
+function modelIdFromOpts(opts: unknown): string {
+  const m = (opts as { model?: { modelId?: string } } | null)?.model;
+  return m?.modelId ?? "unknown";
+}
+
+export const generateObject: typeof _generateObject = ((opts: Parameters<typeof _generateObject>[0]) =>
+  maybeStepAiWrap(`vercel-ai:generateObject:${modelIdFromOpts(opts)}`, () =>
+    _generateObject(opts as never),
+  )) as typeof _generateObject;
+
+export const generateText: typeof _generateText = ((opts: Parameters<typeof _generateText>[0]) =>
+  maybeStepAiWrap(`vercel-ai:generateText:${modelIdFromOpts(opts)}`, () =>
+    _generateText(opts as never),
+  )) as typeof _generateText;
+
+// streamText returns SSE — not a single round-trip. Leave it un-wrapped for
+// now; Inngest's step.ai is designed for terminal responses, not streams.
+export const streamText = _streamText;
 
 export { NoObjectGeneratedError } from "ai";
 

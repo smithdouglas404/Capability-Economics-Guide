@@ -22,6 +22,7 @@ import { invokeWorkflowAndWait, buildIdempotencyKey } from "../../inngest/invoke
 import { z } from "zod";
 import { sonnet, generateObject } from "../workflows/models";
 import { logLlmCall } from "../llm-usage";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 // ── Zod schemas for the three enrichment LLM calls ─────────────────────────
 
@@ -104,23 +105,25 @@ async function perplexitySearch(query: string): Promise<PerplexityResult> {
   if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
   return retry(async () => {
     const startedAt = Date.now();
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          {
-            role: "system",
-            content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
-          },
-          { role: "user", content: query },
-        ],
+    const resp = await maybeStepAiWrap("perplexity:enrichment-runners:sonar", () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [
+            {
+              role: "system",
+              content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
+            },
+            { role: "user", content: query },
+          ],
+        }),
       }),
-    });
+    );
     if (!resp.ok) {
       const errText = await resp.text();
       logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "enrichment.runners", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${errText.slice(0, 200)}` });
