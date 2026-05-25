@@ -5,8 +5,9 @@
  * in — produce a build / buy / outsource recommendation per gap.
  *
  * AI-FIRST changes (replacing the original heuristic rules engine):
- * 1. Neo4j graph traversal: findRelated() surfaces upstream capability blockers
- *    that must be resolved before the target capability can improve.
+ * 1. World-model graph traversal: findRelated() surfaces upstream capability
+ *    blockers that must be resolved before the target capability can improve.
+ *    Backed by Graphiti+FalkorDB when configured, Postgres fallback otherwise.
  * 2. Mem0 pattern recall: historical validated patterns about similar decisions
  *    are injected into the reasoning context.
  * 3. Claude Haiku: synthesizes a causal recommendation that explains the
@@ -60,7 +61,7 @@ export interface CapabilityRecommendation {
   gap: number;
   recommended: Approach;
   rationale: string;
-  /** Upstream capabilities that must be addressed before this one (from Neo4j graph traversal) */
+  /** Upstream capabilities that must be addressed before this one (from world-model graph traversal) */
   upstreamBlockers: Array<{ capabilityId: number; capabilityName: string; relationType: string; weight: number }>;
   /** Historical pattern context from Mem0 that informed this recommendation */
   patternContext: string | null;
@@ -120,7 +121,7 @@ type RecommendationArgs = {
 type CapabilityContext = { upstreamBlockers: UpstreamBlocker[]; patternContext: string | null };
 
 /**
- * Per-capability prefetch (Neo4j + Mem0). No LLM call.
+ * Per-capability prefetch (world-model graph + Mem0). No LLM call.
  *
  * recommendStack calls this in parallel via Promise.all so a 50-capability
  * request triggers one fan-out, not 50 sequential per-capability prefetches.
@@ -422,7 +423,7 @@ export async function recommendStack(input: StackOptimizerInput): Promise<StackO
     });
   }
 
-  // ── Phase 2: parallel context prefetch (Neo4j + Mem0) for every capability ─
+  // ── Phase 2: parallel context prefetch (world-model graph + Mem0) for every capability ─
   const contexts = await Promise.all(
     plans.map(p => gatherCapabilityContext({
       capabilityId: p.args.capabilityId,

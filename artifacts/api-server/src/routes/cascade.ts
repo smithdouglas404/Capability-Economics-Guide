@@ -7,8 +7,9 @@
  * total cascade-impact $ figure alongside per-node risk.
  *
  * Read path:
- *  - When USE_NEO4J_CAPABILITY_GRAPH=1 → uses cypherCascadeImpacted for
- *    multi-hop traversal in Neo4j (path-aware, faster on dense graphs).
+ *  - When USE_GRAPHITI_WORLD_MODEL=1 → uses cypherCascadeImpacted for
+ *    multi-hop traversal in Graphiti+FalkorDB (path-aware, faster on
+ *    dense graphs).
  *  - Otherwise → recursive Postgres CTE on capability_dependencies. The
  *    semantics match: starting from the root, walk dependencies in reverse
  *    (anything where depends_on_id = root) and recurse.
@@ -21,7 +22,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod/v4";
 import { db, capabilitiesTable, capabilityAlphaTable } from "@workspace/db";
 import { eq, inArray, sql } from "drizzle-orm";
-import { cypherCascadeImpacted, useNeo4jCapabilityGraph } from "../services/agent/capabilityGraphSync";
+import { cypherCascadeImpacted, useGraphitiWorldModel } from "../services/agent/capabilityGraphSync";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -42,7 +43,7 @@ interface CascadeResponse {
   rootCapabilityId: number;
   rootCapabilityName: string;
   depth: number;
-  source: "neo4j" | "postgres";
+  source: "graph" | "postgres";
   totalImpactUsdMm: number;
   nodes: CascadeNode[];
 }
@@ -70,15 +71,15 @@ router.get("/cascade/:capabilityId", async (req, res) => {
       return;
     }
 
-    // ── Stage 1: enumerate (id, distance) via Neo4j or Postgres CTE ──
+    // ── Stage 1: enumerate (id, distance) via Graphiti or Postgres CTE ──
     let rawNodes: Array<{ id: number; distance: number }> = [];
-    let source: "neo4j" | "postgres" = "postgres";
+    let source: "graph" | "postgres" = "postgres";
 
-    if (useNeo4jCapabilityGraph()) {
+    if (useGraphitiWorldModel()) {
       const cypher = await cypherCascadeImpacted(rootId, depth);
       if (cypher) {
         rawNodes = cypher.map(c => ({ id: c.pgId, distance: c.hops }));
-        source = "neo4j";
+        source = "graph";
       }
     }
 
@@ -152,7 +153,7 @@ router.get("/cascade/:capabilityId", async (req, res) => {
     // For each node, pathFrom is [root.name, …intermediates…, node.name].
     // We materialize one map of "shortest predecessor in cascade" using a BFS
     // over capability_dependencies starting from the root (Postgres-only, even
-    // when Neo4j returned the ids — keeps the implementation small).
+    // when Graphiti returned the ids — keeps the implementation small).
     const predecessorByCap = new Map<number, number>(); // capId → its parent in the BFS tree
     {
       const queue: number[] = [rootId];

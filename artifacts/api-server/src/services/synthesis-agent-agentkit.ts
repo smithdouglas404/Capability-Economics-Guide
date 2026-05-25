@@ -78,7 +78,7 @@ const readAllDigestsTool = createTool({
 const readGraphCorrelationsTool = createTool({
   name: "read_graph_correlations",
   description:
-    "Read the strongest capability relationships from the Neo4j graph for a given industry. These represent empirically observed co-dependencies between capabilities, not just theoretical ones.",
+    "Read the strongest capability relationships from the world-model graph (Graphiti+FalkorDB, Postgres fallback) for a given industry. These represent empirically observed co-dependencies between capabilities, not just theoretical ones.",
   parameters: z.object({
     industry: z.string().describe("Industry name to query correlations for, e.g. 'Healthcare', 'Financial Services'"),
   }),

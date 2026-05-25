@@ -294,70 +294,6 @@ async function runSeeds(): Promise<void> {
   log(`all seeds applied in ${Date.now() - overallStart}ms`);
 }
 
-/**
- * Phase 4 — Neo4j MIRRORS (NOT seeds).
- *
- * These scripts are pure Postgres → Neo4j mirrors. They have NO external
- * source — they read existing Postgres rows and idempotently MERGE the
- * matching shape into Neo4j. They CANNOT create rows that don't already
- * exist in Postgres. If Postgres is empty, Neo4j stays empty.
- *
- * Treated as a SEPARATE chain from `SEED_CHAIN` (above) because:
- *   - Seeds may insert data from external sources (Perplexity, config).
- *   - Mirrors only ever copy already-accepted Postgres data sideways.
- *   - Conflating them in docs/logs is exactly the confusion that caused
- *     the May 17 audit gap (Neo4j thought to be "populated" when only
- *     dual-writes from ongoing ops touched it, leaving prior data dark).
- *
- * Mirrors silently skip when:
- *   - NEO4J_URI is not set (no graph backend wired)
- *   - SKIP_NEO4J_MIRROR=1 is set
- *
- * Failures here NEVER fail the deploy — Neo4j is a downstream optimization.
- * The api-server's customer-facing reads still hit Postgres directly,
- * so a missing or partial Neo4j mirror only impacts the opt-in Cypher
- * read paths (USE_NEO4J_CAPABILITY_GRAPH=1).
- */
-const NEO4J_MIRROR_CHAIN: Array<{ name: string; script: string }> = [
-  { name: "memory_entities + memory_relations → :Entity nodes", script: "backfill:memory-to-neo4j" },
-  { name: "capabilities + capability_dependencies → :Capability nodes + :DEPENDS_ON", script: "backfill:capability-graph-to-neo4j" },
-];
-
-async function runNeo4jMirrors(): Promise<void> {
-  if (process.env.SKIP_NEO4J_MIRROR === "1" || process.env.SKIP_NEO4J_MIRROR === "true") {
-    log("SKIP_NEO4J_MIRROR set — skipping Neo4j mirror phase");
-    return;
-  }
-  if (!process.env.NEO4J_URI) {
-    log("NEO4J_URI not set — skipping Neo4j mirror phase (Postgres reads continue to serve all customer-facing paths)");
-    return;
-  }
-  log(`running ${NEO4J_MIRROR_CHAIN.length} Neo4j mirrors (Postgres → Neo4j, idempotent, never creates fake data)…`);
-  const overallStart = Date.now();
-  const scriptsDir = path.resolve(__dirname, "..");
-  for (const mirror of NEO4J_MIRROR_CHAIN) {
-    const start = Date.now();
-    log(`  → ${mirror.script} (${mirror.name})`);
-    const result = spawnSync("pnpm", ["run", mirror.script], {
-      cwd: scriptsDir,
-      stdio: "inherit",
-      env: process.env,
-    });
-    const elapsed = Date.now() - start;
-    // Mirror failures NEVER fail the deploy — Neo4j is downstream.
-    if (result.error) {
-      log(`    ⚠ ${mirror.script} spawn error: ${result.error.message} (non-fatal — Postgres reads unaffected)`);
-      continue;
-    }
-    if (result.status !== 0) {
-      log(`    ⚠ ${mirror.script} exited with status ${result.status} after ${elapsed}ms (non-fatal — Postgres reads unaffected)`);
-      continue;
-    }
-    log(`    ✓ ${mirror.script} done in ${elapsed}ms`);
-  }
-  log(`all Neo4j mirrors complete in ${Date.now() - overallStart}ms`);
-}
-
 async function main(): Promise<void> {
   if (process.env.SKIP_MIGRATE === "1" || process.env.SKIP_MIGRATE === "true") {
     log("SKIP_MIGRATE set — skipping ALL phases (migrations + drizzle push + seeds + mirrors)");
@@ -381,9 +317,6 @@ async function main(): Promise<void> {
 
   // Phase 3: idempotent seed chain (must run AFTER schema is current)
   await runSeeds();
-
-  // Phase 4: Neo4j mirrors (Postgres → Neo4j, pure mirror, never fatal)
-  await runNeo4jMirrors();
 }
 
 main().catch(err => fail(`unexpected error: ${err instanceof Error ? err.message : String(err)}`));

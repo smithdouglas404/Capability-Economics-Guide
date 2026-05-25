@@ -182,28 +182,24 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
     : null;
 
   // Macro events affecting this cap or any dependency, started in last 90 days.
-  // Read path: Postgres direct (default), OR Cypher (multi-hop) when EITHER
-  //   USE_GRAPHITI_WORLD_MODEL=1   (Phase A target — preferred)
-  //   USE_NEO4J_CAPABILITY_GRAPH=1 (legacy Neo4j path — preserved during cutover)
-  // cypherCascadeImpacted() picks Graphiti over Neo4j when both are on. The
-  // Cypher path traverses arbitrary depth which is more accurate for cascading
-  // macro impact. Default behavior unchanged (1-hop Postgres) when no flag set.
+  // Read path: Postgres direct (default), OR Cypher (multi-hop) when
+  //   USE_GRAPHITI_WORLD_MODEL=1 is set. The Cypher path traverses
+  // arbitrary depth, more accurate for cascading macro impact. Default
+  // behavior unchanged (1-hop Postgres) when the flag is unset.
   let dependsOnIds: number[];
-  const { useNeo4jCapabilityGraph, useGraphitiWorldModel, cypherCascadeImpacted } = await import("./agent/capabilityGraphSync");
-  const cypherCascadeEnabled = useGraphitiWorldModel() || useNeo4jCapabilityGraph();
-  if (cypherCascadeEnabled) {
-    // The graph stores 1-hop edges as (dependent)-[:DEPENDS_ON]->(prerequisite).
-    // We still hit Postgres for the direct 1-hop list (faster than going through
-    // the MCP hop for a single-edge query) and only opt in to the Cypher path
-    // for the multi-hop cascade enrichment below.
+  const { useGraphitiWorldModel, cypherCascadeImpacted } = await import("./agent/capabilityGraphSync");
+  if (useGraphitiWorldModel()) {
+    // Graphiti stores 1-hop edges as (dependent)-[:DEPENDS_ON]->(prerequisite).
+    // We still hit Postgres for the direct 1-hop list (faster than going
+    // through the MCP hop for a single-edge query) and only opt in to the
+    // Cypher path for the multi-hop cascade enrichment below.
     const pgDeps = await db
       .select({ id: capabilityDependenciesTable.dependsOnId })
       .from(capabilityDependenciesTable)
       .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
     dependsOnIds = pgDeps.map(d => d.id);
     // Multi-hop upstream cascade — captures downstream macro impact for caps
-    // 2-3 hops up the dependency chain. Stays no-op when the selected graph
-    // store returns null (driver missing or unreachable).
+    // 2-3 hops up the dependency chain. No-op when Graphiti is unreachable.
     const cascade = await cypherCascadeImpacted(capabilityId, 3);
     if (cascade) {
       for (const c of cascade) if (!dependsOnIds.includes(c.pgId)) dependsOnIds.push(c.pgId);

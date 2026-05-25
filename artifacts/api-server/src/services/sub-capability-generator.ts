@@ -91,7 +91,7 @@ export async function insertSubCapabilities(
     }).returning({ id: capabilitiesTable.id });
     insertedIds.push(row.id);
 
-    // Mirror into Neo4j capability graph (dual-write, fire-and-forget).
+    // Mirror into the world-model capability graph (Graphiti, fire-and-forget).
     import("./agent/capabilityGraphSync").then((m) =>
       m.mirrorCapability({
         pgId: row.id,

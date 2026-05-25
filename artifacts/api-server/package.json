@@ -29,7 +29,6 @@
     "mammoth": "^1.12.0",
     "mem0ai": "^2.4.6",
     "multer": "^2.1.1",
-    "neo4j-driver": "^5.28.1",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.17.2",

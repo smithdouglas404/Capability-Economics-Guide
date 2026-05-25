@@ -256,7 +256,7 @@ Output ONLY the JSON array. No markdown, no commentary.`;
         targetCapabilityIds: [cap.id],
         targetIndustryIds: [industry.id],
       }).catch(err => console.error("[dynamic-industries] enrichment agent failed", err));
-      // Mirror into Neo4j capability graph (dual-write).
+      // Mirror into the world-model capability graph (Graphiti, fire-and-forget).
       import("../services/agent/capabilityGraphSync").then((m) =>
         m.mirrorCapability({
           pgId: cap.id,

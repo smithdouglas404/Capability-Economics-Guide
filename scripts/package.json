@@ -4,8 +4,7 @@
   "dependencies": {
     "@hashgraph/sdk": "^2.50.0",
     "@workspace/db": "workspace:*",
-    "drizzle-orm": "catalog:",
-    "neo4j-driver": "^5.28.1"
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -21,8 +20,6 @@
     "seed:gdp-weights-wb": "tsx ./src/seed-gdp-weights-from-worldbank.ts",
     "seed:reference-org-rule": "tsx ./src/seed-reference-org-rule.ts",
     "seed:reference-orgs": "tsx ./src/seed-reference-orgs.ts",
-    "backfill:memory-to-neo4j": "tsx ./src/backfill-memory-to-neo4j.ts",
-    "backfill:capability-graph-to-neo4j": "tsx ./src/backfill-capability-graph-to-neo4j.ts",
     "backfill:graphiti-world-model": "tsx ./src/backfill-graphiti-world-model.ts",
     "seed:patterns": "tsx ./src/seed-patterns.ts",
     "seed:reports": "tsx ./src/seed-marketplace-reports.ts",

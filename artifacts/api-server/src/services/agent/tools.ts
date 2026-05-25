@@ -233,13 +233,13 @@ export const queryGraphTool = tool(
           return JSON.stringify({ error: "capabilityId required for cascade_dependents" });
         }
         // Routes through capabilityGraphSync.cypherCascadeImpacted which
-        // itself picks Graphiti (USE_GRAPHITI_WORLD_MODEL=1) or Neo4j
-        // (USE_NEO4J_CAPABILITY_GRAPH=1) and returns null if neither is on.
+        // uses Graphiti when USE_GRAPHITI_WORLD_MODEL=1 and returns null
+        // when the flag is unset.
         const cascade = await cypherCascadeImpacted(capabilityId, hops ?? 3);
         if (cascade === null) {
           return JSON.stringify({
             source: "none",
-            note: "Neither USE_GRAPHITI_WORLD_MODEL=1 nor USE_NEO4J_CAPABILITY_GRAPH=1 — cascade unavailable. Use query_database with capabilities/cvi_components for 1-hop relational lookups.",
+            note: "USE_GRAPHITI_WORLD_MODEL=1 not set — cascade unavailable. Use query_database with capabilities/cvi_components for 1-hop relational lookups.",
             results: [],
           });
         }
@@ -809,7 +809,7 @@ export const generateInsightsTool = tool(
       console.warn("[generateInsightsTool] Mem0 recall failed:", memErr instanceof Error ? memErr.message : memErr);
     }
 
-    // ── AI-FIRST: Pull graph correlations from Neo4j ───────────────────────
+    // ── AI-FIRST: Pull graph correlations from the world-model graph ──────
     // findCorrelations traverses the capability relationship graph to surface
     // structural co-dependencies observed across research cycles. This reveals
     // which capabilities move together and which are upstream blockers.
@@ -832,7 +832,7 @@ export const generateInsightsTool = tool(
           ).join("\n");
       }
     } catch (graphErr) {
-      console.warn("[generateInsightsTool] Neo4j correlation fetch failed:", graphErr instanceof Error ? graphErr.message : graphErr);
+      console.warn("[generateInsightsTool] world-model correlation fetch failed:", graphErr instanceof Error ? graphErr.message : graphErr);
     }
 
     const prompt = `You are a Inflexcvi advisor analyzing the ${industry.name} industry using real market data, institutional memory, and graph intelligence.

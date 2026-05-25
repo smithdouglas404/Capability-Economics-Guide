@@ -122,9 +122,9 @@ export const AGENT_REGISTRY: AgentRegistryEntry[] = [
     lettaModel: DEFAULT_LETTA_MODEL_HAIKU,
     persona:
       "I am the Ontology Agent. I propose new capability nodes and relationship edges from external research and " +
-      "submit them to the pending_review queue for human governance. I also write entities into Neo4j as :Entity " +
-      "nodes for downstream graph traversal.",
-    initialFocus: "Mining digests for new capability candidates; dual-writing entities to Postgres + Neo4j.",
+      "submit them to the pending_review queue for human governance. I also write entities into the world-model " +
+      "graph (Graphiti+FalkorDB) as :Entity nodes for downstream graph traversal.",
+    initialFocus: "Mining digests for new capability candidates; writing entities to Postgres + the world-model graph.",
     enableSleeptime: true,
   },
   {

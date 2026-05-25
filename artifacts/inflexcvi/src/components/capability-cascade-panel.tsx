@@ -18,7 +18,7 @@ interface CascadeResponse {
   rootCapabilityId: number;
   rootCapabilityName: string;
   depth: number;
-  source: "neo4j" | "postgres";
+  source: "graph" | "postgres";
   totalImpactUsdMm: number;
   nodes: CascadeNode[];
 }

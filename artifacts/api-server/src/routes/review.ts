@@ -88,7 +88,7 @@ router.post("/review/draft", async (req, res) => {
     enrichmentUpdatedAt: new Date(),
   }).returning();
   fireDraftEnrichment(cap.id, industryId);
-  // Mirror capability into Neo4j (dual-write, fire-and-forget — Postgres remains source of truth).
+  // Mirror capability into the world-model graph (Graphiti, fire-and-forget — Postgres remains source of truth).
   import("../services/agent/capabilityGraphSync").then((m) =>
     m.mirrorCapability({
       pgId: cap.id,
