@@ -32,6 +32,7 @@ import {
 import { chatWithFallback, EDITORIAL_FALLBACK_CHAIN } from "../llm-fallback";
 import { logLlmCall } from "../llm-usage";
 import { inngest } from "../../inngest/client";
+import { maybeStepAiWrap } from "../../inngest/step-context";
 
 type AnthropicClient = Awaited<typeof import("@workspace/integrations-anthropic-ai")>["anthropic"];
 let _anthropic: AnthropicClient | null = null;
@@ -59,23 +60,25 @@ async function perplexityContextSearch(query: string, callerLabel: string = "age
   const startedAt = Date.now();
   const endpoint = `agent.${callerLabel}`;
   try {
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar",
-        messages: [
-          {
-            role: "system",
-            content: "You are a management consulting research analyst. Provide concise, factual research context with specific numbers, benchmarks, and real examples from 2023-2026 data. Focus on practical, measurable outcomes.",
-          },
-          { role: "user", content: query },
-        ],
+    const resp = await maybeStepAiWrap(`perplexity:context-search:${callerLabel}`, () =>
+      fetch("https://api.perplexity.ai/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "sonar",
+          messages: [
+            {
+              role: "system",
+              content: "You are a management consulting research analyst. Provide concise, factual research context with specific numbers, benchmarks, and real examples from 2023-2026 data. Focus on practical, measurable outcomes.",
+            },
+            { role: "user", content: query },
+          ],
+        }),
       }),
-    });
+    );
     if (!resp.ok) {
       logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
       return "";
@@ -508,11 +511,13 @@ Return ONLY valid JSON:
   "metrics": ["Specific named KPI with measured outcome grounded in real data, e.g. Return on Capability Investment (ROCI): 340%", "Metric 2 with number", "Metric 3 with number", "Metric 4 with number", "Metric 5 with number"]
 }`;
 
-        const message = await anthropic.messages.create({
-          model: rm("claude-sonnet-4-6"),
-          max_tokens: 1024,
-          messages: [{ role: "user", content: sonnetPrompt }],
-        });
+        const message = await maybeStepAiWrap(`anthropic:csuite-perspective:${role.id}`, () =>
+          anthropic.messages.create({
+            model: rm("claude-sonnet-4-6"),
+            max_tokens: 1024,
+            messages: [{ role: "user", content: sonnetPrompt }],
+          }),
+        );
 
         const text = message.content[0].type === "text" ? message.content[0].text : "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -659,22 +664,25 @@ All ROI numbers are $M. Metrics must be real ${industry.name} KPIs grounded in t
       const abortTimer = setTimeout(() => controller.abort(), 180_000);
       let gResp: Response;
       try {
-        gResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${openrouterKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://inflexcvi.ai",
-            "X-Title": "Inflexcvi",
-          },
-          body: JSON.stringify({
-            model: process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6",
-            max_tokens: 4096,
-            messages: [{ role: "user", content: prompt }],
-            usage: { include: true },
+        const modelName = process.env.LLM_MODEL || "anthropic/claude-sonnet-4.6";
+        gResp = await maybeStepAiWrap(`openrouter:capability-research:${modelName}`, () =>
+          fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${openrouterKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "https://inflexcvi.ai",
+              "X-Title": "Inflexcvi",
+            },
+            body: JSON.stringify({
+              model: modelName,
+              max_tokens: 4096,
+              messages: [{ role: "user", content: prompt }],
+              usage: { include: true },
+            }),
+            signal: controller.signal,
           }),
-          signal: controller.signal,
-        });
+        );
       } finally {
         clearTimeout(abortTimer);
       }
@@ -855,11 +863,13 @@ Return ONLY valid JSON array:
 Severity rules: "critical" = immediate revenue or operational risk, "warning" = 6-month strategic concern, "info" = growth opportunity. Use at least 1 critical and 1 info.`;
 
     try {
-      const message = await anthropic.messages.create({
-        model: rm("claude-haiku-4-5"),
-        max_tokens: 2048,
-        messages: [{ role: "user", content: prompt }],
-      });
+      const message = await maybeStepAiWrap(`anthropic:insights:${industry.slug}`, () =>
+        anthropic.messages.create({
+          model: rm("claude-haiku-4-5"),
+          max_tokens: 2048,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      );
       const text = message.content[0].type === "text" ? message.content[0].text : "";
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error("No JSON array in response");
@@ -967,11 +977,13 @@ Return ONLY valid JSON array of exactly 4 companies, ranked 1-4:
 All scores must be integers 40-100. Use real companies from the research. Investment level and trend must reflect real analyst data.`;
 
     try {
-      const message = await anthropic.messages.create({
-        model: rm("claude-haiku-4-5"),
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      });
+      const message = await maybeStepAiWrap(`anthropic:leaderboard:${industry.slug}`, () =>
+        anthropic.messages.create({
+          model: rm("claude-haiku-4-5"),
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      );
       const text = message.content[0].type === "text" ? message.content[0].text : "";
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error("No JSON array in response");
@@ -1056,11 +1068,13 @@ Return ONLY valid JSON array of exactly 3 papers:
 Only include REAL publications. If unsure of exact title, use the organization's well-known research series. relevanceScore must be 75-98.`;
 
     try {
-      const message = await anthropic.messages.create({
-        model: rm("claude-haiku-4-5"),
-        max_tokens: 1024,
-        messages: [{ role: "user", content: prompt }],
-      });
+      const message = await maybeStepAiWrap(`anthropic:white-papers:${industry.slug}`, () =>
+        anthropic.messages.create({
+          model: rm("claude-haiku-4-5"),
+          max_tokens: 1024,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      );
       const text = message.content[0].type === "text" ? message.content[0].text : "";
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (!jsonMatch) throw new Error("No JSON array in response");
@@ -1162,21 +1176,23 @@ Generate 8-12 relationships. Use only slugs from the provided capability list. r
 
     try {
       // DeepSeek — most precise logical relationship typing (enables/depends_on/competes_with/substitutes)
-      const dsResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://inflexcvi.ai",
-          "X-Title": "Inflexcvi",
-        },
-        body: JSON.stringify({
-          model: "deepseek/deepseek-chat",
-          max_tokens: 4096,
-          messages: [{ role: "user", content: relationshipsPrompt }],
-          usage: { include: true },
+      const dsResp = await maybeStepAiWrap(`openrouter:ontology-relationships:${industry.slug}`, () =>
+        fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://inflexcvi.ai",
+            "X-Title": "Inflexcvi",
+          },
+          body: JSON.stringify({
+            model: "deepseek/deepseek-chat",
+            max_tokens: 4096,
+            messages: [{ role: "user", content: relationshipsPrompt }],
+            usage: { include: true },
+          }),
         }),
-      });
+      );
       const dsData = await dsResp.json() as { choices?: Array<{ message: { content: string } }>; error?: { message: string } };
       if (dsData.error) throw new Error(`DeepSeek error: ${dsData.error.message}`);
       const text = dsData.choices?.[0]?.message?.content ?? "";
