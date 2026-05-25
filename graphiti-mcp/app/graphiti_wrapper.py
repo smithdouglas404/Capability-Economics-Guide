@@ -173,10 +173,13 @@ class GraphitiWrapper:
     ) -> list[dict[str, Any]]:
         """Escape hatch — raw Cypher against FalkorDB. Bypasses Graphiti's
         bitemporal helpers; use sparingly (e.g. for the disruption cascade
-        traversal which Graphiti's high-level search doesn't model directly)."""
-        # FalkorDB driver exposes the underlying connection via .execute_query
-        # in recent graphiti-core versions. Verify against installed version.
-        result = await self.client.driver.execute_query(cypher, params or {})
+        traversal which Graphiti's high-level search doesn't model directly).
+
+        FalkorDriver.execute_query in graphiti-core 0.29.x takes the cypher as
+        a positional arg and ALL params as **kwargs (signature:
+        `execute_query(self, cypher_query_, **kwargs)`). We unpack the params
+        dict so caller-side ergonomics stay {"key": value}."""
+        result = await self.client.driver.execute_query(cypher, **(params or {}))
         # Normalise to list of dicts — FalkorDB returns a Result object whose
         # shape varies by client version.
         rows: list[dict[str, Any]] = []
