@@ -84,6 +84,12 @@ export const cviAgentCron = inngest.createFunction(
     // The throttle below is a defense-in-depth backstop against a
     // cron-trigger backlog after a Railway restart.
     throttle: { limit: 6, period: "1h", key: "global" },
+    // Daily LLM budget cap — drops events that arrive past the limit
+    // instead of queuing them. The CVI cron at 48h fires 0.5×/day, so
+    // limit=1 is a generous ceiling; the point is to catch any unexpected
+    // re-trigger (event re-replay, manual fire from admin, etc.) before
+    // it doubles the day's spend.
+    rateLimit: { limit: 1, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -99,6 +105,7 @@ export const macroEventAgentCron = inngest.createFunction(
     id: "macro-event-agent",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 2, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -119,6 +126,7 @@ export const disruptionAgentCron = inngest.createFunction(
     id: "disruption-agent",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 2, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -139,6 +147,7 @@ export const peerCoopAgentCron = inngest.createFunction(
     id: "peer-coop-agent",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 2, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -159,6 +168,7 @@ export const stackOptimizerAgentCron = inngest.createFunction(
     id: "stack-optimizer-agent",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 2, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -179,6 +189,7 @@ export const ontologyAgentCron = inngest.createFunction(
     id: "ontology-agent",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 2, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -214,6 +225,7 @@ export const synthesisAgentOnDigest = inngest.createFunction(
     ],
     debounce: { period: "10m", key: "synthesis" },
     concurrency: { limit: 1 },
+    rateLimit: { limit: 5, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -232,6 +244,7 @@ export const synthesisAgentDailyFloor = inngest.createFunction(
     id: "synthesis-agent-daily-floor",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 1, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -262,6 +275,7 @@ export const autoEnrichCron = inngest.createFunction(
     id: "agent.auto-enrich",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 1, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
@@ -298,6 +312,7 @@ export const disruptionVectorAgentCron = inngest.createFunction(
     id: "agent.disruption-vector",
     triggers: [{ cron: "0 0 */2 * *" }],
     concurrency: { limit: 1 },
+    rateLimit: { limit: 1, period: "1d", key: "global" },
     retries: 2,
   },
   async ({ step }) => {
