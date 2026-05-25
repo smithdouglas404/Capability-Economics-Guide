@@ -109,6 +109,7 @@ import apiVolumeRouter from "./api-volume";
 import metricsRouter from "./metrics";
 import adminSecurityRouter from "./admin-security";
 import adminSystemFlagsRouter from "./admin-system-flags";
+import adminAgentSchedulesRouter from "./admin-agent-schedules";
 import { requireTier } from "../middlewares/requireTier";
 
 const router: IRouter = Router();
@@ -260,5 +261,6 @@ router.use(adminSecurityRouter);
 // maintenance gate (see middlewares/maintenanceGate.ts allowlist) so admins
 // can always re-enable from the UI.
 router.use(adminSystemFlagsRouter);
+router.use(adminAgentSchedulesRouter);
 
 export default router;

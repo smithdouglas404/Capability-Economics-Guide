@@ -24,6 +24,7 @@ import { logger } from "../lib/logger";
 const ALLOW_PREFIXES = [
   "/health",
   "/admin/system-flags",
+  "/admin/agent-schedules",
 ];
 
 function isAllowed(reqPath: string): boolean {

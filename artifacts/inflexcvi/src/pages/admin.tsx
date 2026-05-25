@@ -29,6 +29,7 @@ import FeaturedContentScheduler from "@/components/featured-content-scheduler";
 import FoundrySyncPanel from "@/components/foundry-sync-panel";
 import ProductsAdmin from "@/components/products-admin";
 import ApiVolumePanel from "@/components/api-volume-panel";
+import AgentsControlPanel from "@/components/agents-control-panel";
 
 const API_BASE = "/api";
 
@@ -302,6 +303,7 @@ export default function AdminDashboard() {
     { value: "products",    label: "Products",     icon: Layers },
     { value: "assessments", label: "Assessments",  icon: Users },
     { value: "marketplace", label: "Marketplace",  icon: Store },
+    { value: "agents",      label: "Agents & LLM", icon: Cpu },
     { value: "system",      label: "System",       icon: Settings },
   ];
 
@@ -844,6 +846,11 @@ export default function AdminDashboard() {
         {/* ─────────────────────── Marketplace tab ─────────────────────── */}
         <TabsContent value="marketplace">
           <MarketplaceModeration />
+        </TabsContent>
+
+        {/* ─────────────────── Agents & LLM tab ─────────────────────── */}
+        <TabsContent value="agents" className="space-y-6">
+          <AgentsControlPanel />
         </TabsContent>
 
         {/* ─────────────────────── System tab ─────────────────────── */}
