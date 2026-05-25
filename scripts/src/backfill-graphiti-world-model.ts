@@ -46,6 +46,12 @@ const DRY_RUN = process.env.DRY_RUN === "1";
 const SKIP_STRUCTURAL = process.env.SKIP_STRUCTURAL === "1";
 const SKIP_CVI = process.env.SKIP_CVI === "1";
 const CVI_LIMIT = process.env.CVI_LIMIT ? parseInt(process.env.CVI_LIMIT, 10) : null;
+// CVI_OFFSET skips the N most-recent snapshots (descending order). Use when
+// resuming a backfill that was killed partway — set to the number of
+// Episodic nodes already in FalkorDB (count via query_cypher MATCH (e:Episodic)
+// RETURN count(e)). Graphiti's add_episode does NOT dedup, so re-running
+// without offset would create duplicates.
+const CVI_OFFSET = process.env.CVI_OFFSET ? parseInt(process.env.CVI_OFFSET, 10) : 0;
 
 const STRUCT_BATCH = 500;
 const CVI_BATCH = 100;
@@ -228,9 +234,14 @@ async function backfillStructural(): Promise<{ industries: number; capabilities:
 // ── Pass 2: CVI snapshots as bitemporal episodes ──────────────────────────
 
 async function backfillCviEpisodes(): Promise<{ snapshots: number }> {
-  console.log(`[backfill:graphiti] pass 2: CVI snapshots → episodes${CVI_LIMIT ? ` (limit ${CVI_LIMIT})` : ""}`);
+  const parts = [
+    CVI_LIMIT ? `limit ${CVI_LIMIT}` : null,
+    CVI_OFFSET ? `offset ${CVI_OFFSET}` : null,
+  ].filter(Boolean);
+  const suffix = parts.length ? ` (${parts.join(", ")})` : "";
+  console.log(`[backfill:graphiti] pass 2: CVI snapshots → episodes${suffix}`);
   let snapshots = 0;
-  let offset = 0;
+  let offset = CVI_OFFSET;
   while (true) {
     const remaining = CVI_LIMIT ? Math.max(0, CVI_LIMIT - snapshots) : Infinity;
     if (remaining === 0) break;
