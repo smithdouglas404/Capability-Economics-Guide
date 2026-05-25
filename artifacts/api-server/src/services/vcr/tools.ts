@@ -1,4 +1,4 @@
-import { tool } from "@langchain/core/tools";
+import { tool } from "../../lib/tool-adapter";
 import { z } from "zod";
 import { maybeStepAiWrap } from "../../inngest/step-context";
 import { perplexityChat } from "../perplexity";

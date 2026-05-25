@@ -1,6 +1,7 @@
 # LangChain / LangGraph removal — Phase 10 plan
 
-**Status:** scheduled, not started.
+**Status:** Category B + C landed 2026-05-25. Category A (5 LangGraph
+workflows) is the remaining work.
 **Origin:** 2026-05-25 conversation. The user noted that Phase 9 (AgentKit
 migration) was supposed to remove LangChain/LangGraph entirely but
 stopped at the 7 main autonomous agents, leaving 8 files still on the
@@ -35,42 +36,31 @@ workflow — not a search-and-replace.
 | `services/bots/workflows/cross-bot-system.ts` | Multi-persona cross-talk loop | Inngest event-driven | Bot conversations stall |
 | `services/bots/workflows/persona-cycles.ts` | Per-persona think-act-reflect loop | Inngest cron per persona | Persona work stops |
 
-### Category B — Lone LangChain agent (1 file)
+### Category B — Lone LangChain agent (1 file) ✅ DONE 2026-05-25
 | File | Purpose | Migration shape |
 |------|---------|---|
-| `services/disruption-vector-agent.ts` | The 8th autonomous agent. Uses `runReactAgent` from `services/agent/base-agent.ts`. Phase 9 migrated 7 of 8 agents; this one was skipped. | Same shape as the 7 Phase-9 migrations — wrap as an AgentKit Agent inside a Network. |
+| ~~`services/disruption-vector-agent.ts`~~ → `services/disruption-vector-agent-agentkit.ts` | The 8th autonomous agent. Was on `runReactAgent`. Migrated to AgentKit (Sonnet, `createTool` + `createNetwork`) mirroring `disruption-agent-agentkit.ts`. Both call sites (`inngest/functions/agents.ts`, `routes/admin-disruption-index.ts`) updated. |
 
-### Category C — Tool-definition helpers (2 files)
-These use `tool()` from `@langchain/core/tools` to define tool wrappers
-with Zod schemas. The migrated AgentKit agents currently call these via
-the LangChain `.invoke()` interface that `tool()` provides.
+`services/agent/base-agent.ts` was deleted (zero remaining importers).
+`@langchain/anthropic` + `langchain` (meta) packages removed; the
+`probeLangChain` health probe was retired alongside.
 
-| File | Why it stayed | What replacing it costs |
-|------|----------------|---|
-| `services/agent/tools.ts` | Every Phase-9 AgentKit agent imports tools from here | Need to either (a) rewrite every tool as an AgentKit-native tool, OR (b) write a thin adapter that exposes `.invoke()` without needing `@langchain/core` |
-| `services/vcr/tools.ts` | Used by `services/vcr/graph.ts` and possibly other consumers | Same as above |
-| `services/agent/base-agent.ts` | Hosts `runReactAgent` for the Category-B agent | Goes away naturally once Category B is migrated |
+### Category C — Tool-definition helpers (2 files) ✅ DONE 2026-05-25
+Adapter at `artifacts/api-server/src/lib/tool-adapter.ts` exposes
+`tool(handler, {name, description, schema}) → {invoke}` with zero
+LangChain dependency. The 18 callers in `services/agent/tools.ts` (14)
+and `services/vcr/tools.ts` (5) swapped their import without any other
+edits. `@langchain/core` still in `package.json` because
+`@langchain/langgraph` (still used by Category A) imports it transitively;
+once Category A lands, both come out together.
 
 ---
 
 ## Recommended migration order
 
-**1. Category B first (smallest, most isolated)**
-- Migrate `services/disruption-vector-agent.ts` to its own
-  `services/disruption-vector-agent-agentkit.ts`, mirroring the Phase-9
-  pattern (`cvi-agent-agentkit.ts` is the reference).
-- Once this is done, `services/agent/base-agent.ts` is deletable —
-  nothing else imports `runReactAgent`.
-- **Estimate:** 2-3 hours. **Risk:** low — single agent, isolated cron.
+**1. Category B first (smallest, most isolated)** ✅ DONE 2026-05-25
 
-**2. Category C tool helpers — write a tiny adapter**
-- Don't rewrite the tool definitions; write a `lib/tool-adapter.ts` that
-  exposes a `tool()` function with the same `.invoke()` shape but with
-  zero LangChain dependency. The AgentKit agents call `.invoke()` already
-  so they don't need to change.
-- This unblocks dropping `@langchain/core` from `package.json` once
-  Category A is also done.
-- **Estimate:** 1-2 hours. **Risk:** low — pure refactor.
+**2. Category C tool helpers — write a tiny adapter** ✅ DONE 2026-05-25
 
 **3. Category A workflows (the bulk of the work)**
 - One workflow at a time. For each:

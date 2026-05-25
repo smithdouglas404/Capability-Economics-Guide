@@ -20,7 +20,7 @@ import { Router, type Request, type Response } from "express";
 import { requireAdmin } from "../middlewares/requireAdmin";
 import { scoreCapabilityDisruption, persistDisruptionScore, listStaleCapabilityIds } from "../services/disruption-index";
 import { composeDisruptionNarrative, findCandidateDisruptors } from "../services/disruption-narrative";
-import { runDisruptionVectorAgent } from "../services/disruption-vector-agent";
+import { runDisruptionVectorAgentAgentKit } from "../services/disruption-vector-agent-agentkit";
 import { db, capabilitiesTable, industriesTable, disruptionPlaybookArchetypesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 
@@ -98,7 +98,7 @@ router.post("/admin/disruption-index/recompute-all", requireAdmin, async (req: R
 
 router.post("/admin/disruption-index/run-agent", requireAdmin, async (_req: Request, res: Response) => {
   try {
-    const result = await runDisruptionVectorAgent();
+    const result = await runDisruptionVectorAgentAgentKit();
     res.json({ ok: true, ...result });
   } catch (err) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

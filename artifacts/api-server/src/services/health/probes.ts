@@ -678,19 +678,12 @@ const probeAgentEnrichment: Probe = async () => {
  * failures (those show up in per-agent probes above) but do catch broken
  * installs / missing exports that would otherwise crash agents at first
  * tool call.
+ *
+ * The `@langchain/anthropic` probe was retired alongside the Phase 10
+ * removal of `services/agent/base-agent.ts` — `@langchain/anthropic` is
+ * no longer a dependency. `@langchain/langgraph` remains until the
+ * Category A workflows (enrichment, vcr, bots) finish migrating.
  */
-const probeLangChain: Probe = async () => {
-  try {
-    const mod = await import("@langchain/anthropic");
-    if (!mod.ChatAnthropic) {
-      return { status: "down", latencyMs: null, lastError: "@langchain/anthropic loaded but ChatAnthropic export missing" };
-    }
-    return { status: "ok", latencyMs: null, lastError: null };
-  } catch (err) {
-    return { status: "down", latencyMs: null, lastError: `@langchain/anthropic import failed: ${describeError(err).slice(0, 160)}` };
-  }
-};
-
 const probeLangGraph: Probe = async () => {
   try {
     const mod = await import("@langchain/langgraph");
@@ -755,7 +748,6 @@ const PROBES: Record<string, Probe> = {
   agent_enrichment: probeAgentEnrichment,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
-  langchain: probeLangChain,
   langgraph: probeLangGraph,
   langsmith: probeLangSmith,
   openrouter: probeOpenRouter,

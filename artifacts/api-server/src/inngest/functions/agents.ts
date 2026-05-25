@@ -8,7 +8,7 @@ import { runStackOptimizerAgentAgentKit } from "../../services/stack-optimizer-a
 import { runOntologyAgentAgentKit } from "../../services/ontology-agent-agentkit";
 import { runSynthesisAgentAgentKit } from "../../services/synthesis-agent-agentkit";
 import { autoEnrichTick } from "../../services/agent/scheduler";
-import { runDisruptionVectorAgent } from "../../services/disruption-vector-agent";
+import { runDisruptionVectorAgentAgentKit } from "../../services/disruption-vector-agent-agentkit";
 import { shouldRunAgent } from "../../services/agent/scheduling";
 
 // Phase 2 — Inngest cron wrappers around the 7 agents, using AsyncLocalStorage
@@ -298,14 +298,9 @@ export const autoEnrichCron = inngest.createFunction(
  * "disruption frontier" digest to the shared store for synthesis-agent.
  *
  * Cadence: every 6 hours (matches the cost discipline noted in
- * services/disruption-vector-agent.ts — ~$0.56/cycle Sonnet budget).
+ * services/disruption-vector-agent-agentkit.ts — ~$0.56/cycle Sonnet budget).
  * Activate via INNGEST_OWNS_DISRUPTION_INDEX=1 on capabilityeconomics.
  * No in-process setInterval counterpart — this agent is Inngest-only.
- *
- * NOTE: disruption-vector-agent is NOT one of the 7 migrated agents —
- * it still uses services/agent/base-agent.ts (LangChain `createAgent` +
- * ChatAnthropic). Migrating it is out of scope for the Phase 9 7-agent
- * AgentKit migration. base-agent.ts is retained for that single caller.
  */
 export const disruptionVectorAgentCron = inngest.createFunction(
   {
@@ -319,7 +314,7 @@ export const disruptionVectorAgentCron = inngest.createFunction(
     if (!ownedBy("INNGEST_OWNS_DISRUPTION_INDEX")) return { skipped: "flag-off" };
     const sched = await shouldRunAgent("disruption-vector-agent");
     if (!sched.run) return { skipped: sched.reason };
-    const result = await withStep(step, () => runDisruptionVectorAgent());
+    const result = await withStep(step, () => runDisruptionVectorAgentAgentKit());
     return { ok: true, toolCallCount: result.toolCallCount, durationMs: result.durationMs };
   },
 );
