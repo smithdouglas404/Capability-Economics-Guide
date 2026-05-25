@@ -179,24 +179,18 @@ ${capMenu}
 
 Tag 2-6 capabilities per company. Skip companies you can't tag. Return a JSON array.`;
 
-    const startedAt = Date.now();
-    const resp = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+    let data: { choices: Array<{ message: { content: string } }>; citations?: string[] };
+    try {
+      const { perplexityChat } = await import("../services/perplexity");
+      data = await perplexityChat({
         model: "sonar",
+        endpoint: "benchmarking",
+        timeoutMs: 120_000,
         messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
-      }),
-      signal: AbortSignal.timeout(120_000),
-    });
-
-    if (!resp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "benchmarking", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-      res.status(502).json({ error: `Perplexity returned ${resp.status}` }); return;
+      });
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : String(err) }); return;
     }
-
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "benchmarking", startedAt, httpStatus: resp.status, responseJson: data });
     const content = data.choices[0]?.message?.content ?? "";
     const citations = data.citations ?? [];
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();

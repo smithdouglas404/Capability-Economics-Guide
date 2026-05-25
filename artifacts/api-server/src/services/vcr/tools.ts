@@ -1,9 +1,9 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { maybeStepAiWrap } from "../../inngest/step-context";
+import { perplexityChat } from "../perplexity";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const PERPLEXITY_URL = "https://api.perplexity.ai/chat/completions";
 
 async function glmCallOnce(prompt: string, opts: { maxTokens: number; timeoutMs: number; jsonMode: boolean; model: string }): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -121,26 +121,15 @@ export const glmReasonTool = tool(
 // - tier "deep":  sonar-deep-research  (~$5/1k + reasoning tokens). Use sparingly (cycle 1, or when breadth is critical).
 // - tier "pro":   sonar-pro            (~5-10x cheaper than deep). Use for refinement cycles.
 // - tier "basic": sonar                (cheapest, single-pass). Final fallback on error.
-async function runPerplexity(model: string, sysPrompt: string, query: string, apiKey: string, timeoutMs: number) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const resp = await maybeStepAiWrap(`perplexity:vcr-deep-research:${model}`, () =>
-      fetch(PERPLEXITY_URL, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        signal: ctrl.signal,
-        body: JSON.stringify({ model, messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }] }),
-      }),
-    );
-    return resp;
-  } finally { clearTimeout(timer); }
-}
+//
+// Routes through services/perplexity.ts:perplexityChat() so each tier
+// benefits from the content-hash cache + concurrency limiter. The cache
+// key includes the model name, so the tier chain doesn't conflate
+// deep-research responses with sonar responses.
 
 export const perplexityDeepResearchTool = tool(
   async ({ query, recencyHint, tier }: { query: string; recencyHint?: string; tier?: "deep" | "pro" | "basic" }) => {
-    const apiKey = process.env.PERPLEXITY_API_KEY;
-    if (!apiKey) return JSON.stringify({ success: false, error: "PERPLEXITY_API_KEY missing" });
+    if (!process.env.PERPLEXITY_API_KEY) return JSON.stringify({ success: false, error: "PERPLEXITY_API_KEY missing" });
     try {
       const sysPrompt = `You are a PhD-level management consulting research analyst. Provide rigorous, citation-rich research with: (1) specific numbers and percentages from primary sources, (2) named real-world examples and case studies, (3) explicit dates from 2023-2026, (4) directly contradicting evidence where it exists, (5) structural causal mechanisms (not just correlations). Cite every numeric claim. ${recencyHint ?? ""}`;
       // Cost-ordered chain starting from the requested tier; fall back downward on failure.
@@ -153,9 +142,12 @@ export const perplexityDeepResearchTool = tool(
       for (const model of chain) {
         try {
           const timeoutMs = model === "sonar-deep-research" ? 240_000 : 120_000;
-          const resp = await runPerplexity(model, sysPrompt, query, apiKey, timeoutMs);
-          if (!resp.ok) { lastErr = `Perplexity ${model} ${resp.status}`; continue; }
-          const data = await resp.json() as { choices: Array<{ message: { content: string } }>; search_results?: Array<{ url: string; title?: string }>; citations?: string[] };
+          const data = await perplexityChat({
+            model,
+            endpoint: "vcr-deep-research",
+            timeoutMs,
+            messages: [{ role: "system", content: sysPrompt }, { role: "user", content: query }],
+          }) as { choices: Array<{ message: { content: string } }>; search_results?: Array<{ url: string; title?: string }>; citations?: string[] };
           const content = data.choices[0]?.message?.content ?? "";
           if (!content.trim()) { lastErr = `Perplexity ${model} empty content`; continue; }
           const sources = (data.search_results ?? []).map(s => ({ url: s.url, title: s.title ?? s.url }));

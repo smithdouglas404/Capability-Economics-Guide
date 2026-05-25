@@ -174,31 +174,18 @@ ${capMenu}
 Tag 2-6 capabilities per company. Skip companies you can't tag with at least one capability from the menu.
 Return a JSON array of ${limit} entries.`;
 
-  let resp: Response;
-  const _coStart = Date.now();
+  let data: { choices: Array<{ message: { content: string } }>; citations?: string[] };
   try {
-    resp = await maybeStepAiWrap("perplexity:companies-ingest:sonar", () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
-        }),
-        signal: AbortSignal.timeout(120_000),
-      }),
-    );
+    const { perplexityChat } = await import("./perplexity");
+    data = await perplexityChat({
+      model: "sonar",
+      endpoint: "companies.ingest",
+      timeoutMs: 120_000,
+      messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
+    });
   } catch (err) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { inserted: 0, updated: 0, companies: [], errors: [err instanceof Error ? err.message : String(err)] };
   }
-  if (!resp.ok) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-    return { inserted: 0, updated: 0, companies: [], errors: [`perplexity ${resp.status}`] };
-  }
-
-  const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-  logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "companies.ingest", startedAt: _coStart, httpStatus: resp.status, responseJson: data });
   const content = data.choices[0]?.message?.content ?? "";
   const citations = data.citations ?? [];
   const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();

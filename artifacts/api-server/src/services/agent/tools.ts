@@ -55,39 +55,22 @@ function isContentStale(generatedAt: Date): boolean {
 }
 
 async function perplexityContextSearch(query: string, callerLabel: string = "agent.unspecified"): Promise<string> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return "";
-  const startedAt = Date.now();
-  const endpoint = `agent.${callerLabel}`;
+  if (!process.env.PERPLEXITY_API_KEY) return "";
   try {
-    const resp = await maybeStepAiWrap(`perplexity:context-search:${callerLabel}`, () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+    const { perplexityChat } = await import("../perplexity");
+    const data = await perplexityChat({
+      model: "sonar",
+      endpoint: `agent.${callerLabel}`,
+      messages: [
+        {
+          role: "system",
+          content: "You are a management consulting research analyst. Provide concise, factual research context with specific numbers, benchmarks, and real examples from 2023-2026 data. Focus on practical, measurable outcomes.",
         },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [
-            {
-              role: "system",
-              content: "You are a management consulting research analyst. Provide concise, factual research context with specific numbers, benchmarks, and real examples from 2023-2026 data. Focus on practical, measurable outcomes.",
-            },
-            { role: "user", content: query },
-          ],
-        }),
-      }),
-    );
-    if (!resp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-      return "";
-    }
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, httpStatus: resp.status, responseJson: data });
+        { role: "user", content: query },
+      ],
+    });
     return data.choices[0]?.message?.content ?? "";
-  } catch (err) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint, startedAt, errorMessage: err instanceof Error ? err.message : String(err) });
+  } catch {
     return "";
   }
 }

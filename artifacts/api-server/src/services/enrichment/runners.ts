@@ -101,39 +101,21 @@ async function tryWorkflowResearch(
 }
 
 async function perplexitySearch(query: string): Promise<PerplexityResult> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) throw new Error("PERPLEXITY_API_KEY not set");
+  if (!process.env.PERPLEXITY_API_KEY) throw new Error("PERPLEXITY_API_KEY not set");
+  const { perplexityChat } = await import("../perplexity");
   return retry(async () => {
-    const startedAt = Date.now();
-    const resp = await maybeStepAiWrap("perplexity:enrichment-runners:sonar", () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
+    const data = await perplexityChat({
+      model: "sonar",
+      endpoint: "enrichment.runners",
+      messages: [
+        {
+          role: "system",
+          content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
         },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [
-            {
-              role: "system",
-              content: "You are a management consulting research analyst specializing in capability economics. Provide concise, factual research with specific numbers, percentages, dollar figures, company names, and real-world data from 2023-2026. Focus on measurable outcomes, adoption rates, patent trends, and startup activity.",
-            },
-            { role: "user", content: query },
-          ],
-        }),
-      }),
-    );
-    if (!resp.ok) {
-      const errText = await resp.text();
-      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "enrichment.runners", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${errText.slice(0, 200)}` });
-      throw new Error(`Perplexity error ${resp.status}: ${errText}`);
-    }
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "enrichment.runners", startedAt, httpStatus: resp.status, responseJson: data });
-    const content = data.choices[0]?.message?.content ?? "";
-    const sources = data.citations ?? [];
-    return { content, sources };
+        { role: "user", content: query },
+      ],
+    });
+    return { content: data.choices[0]?.message?.content ?? "", sources: data.citations ?? [] };
   }, { label: "enrich.perplexity" });
 }
 

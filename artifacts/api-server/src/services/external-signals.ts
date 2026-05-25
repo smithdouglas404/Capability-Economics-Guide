@@ -1,6 +1,5 @@
 import { db } from "@workspace/db";
-import { logLlmCall } from "./llm-usage";
-import { maybeStepAiWrap } from "../inngest/step-context";
+import { perplexityChat } from "./perplexity";
 import { capabilitiesTable, industriesTable } from "@workspace/db/schema";
 import { eq, and } from "drizzle-orm";
 
@@ -73,25 +72,17 @@ export async function ingestExternalSignalsForCapability(capId: number): Promise
 }
 If unknown for any field, use null. Return one JSON object only.`;
 
-  const _esStart = Date.now();
   try {
-    const resp = await maybeStepAiWrap("perplexity:external-signals:sonar", () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [{ role: "system", content: sysPrompt }, { role: "user", content: userPrompt }],
-        }),
-        signal: AbortSignal.timeout(45_000),
-      }),
-    );
-    if (!resp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "external-signals", startedAt: _esStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-      return { ok: false, error: `perplexity ${resp.status}` };
-    }
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }> };
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "external-signals", startedAt: _esStart, httpStatus: resp.status, responseJson: data });
+    const data = await perplexityChat({
+      model: "sonar",
+      endpoint: "external-signals",
+      context: { capabilityId: capId, capabilityName: cap[0].name },
+      timeoutMs: 45_000,
+      messages: [
+        { role: "system", content: sysPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    });
     const content = data.choices[0]?.message?.content ?? "";
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
     const start = cleaned.indexOf("{");
@@ -108,7 +99,6 @@ If unknown for any field, use null. Return one JSON object only.`;
 
     return { ok: true, data: parsed };
   } catch (err) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "external-signals", startedAt: _esStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

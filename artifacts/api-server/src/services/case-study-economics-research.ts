@@ -112,41 +112,22 @@ function extractJsonObject(text: string): string | null {
 }
 
 export async function researchEconomicsBreakdown(req: ResearchRequest): Promise<EconomicsBreakdown | null> {
-  const apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) {
+  if (!process.env.PERPLEXITY_API_KEY) {
     logger.warn("[case-study-economics-research] PERPLEXITY_API_KEY not set — skipping");
     return null;
   }
-  const startedAt = Date.now();
   try {
-    const resp = await maybeStepAiWrap("perplexity:case-study-economics:sonar-deep-research", () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "sonar-deep-research",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: buildPrompt(req) },
-          ],
-          temperature: 0.1,
-        }),
-      }),
-    );
-    if (!resp.ok) {
-      const text = await resp.text().catch(() => "");
-      logLlmCall({ provider: "perplexity", model: "sonar-deep-research", endpoint: "case-study-economics-research", startedAt, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}: ${text.slice(0, 200)}` });
-      logger.error(
-        { status: resp.status, body: text.slice(0, 240), company: req.companyName },
-        "[case-study-economics-research] Perplexity returned non-2xx",
-      );
-      return null;
-    }
-    const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
-    logLlmCall({ provider: "perplexity", model: "sonar-deep-research", endpoint: "case-study-economics-research", startedAt, httpStatus: resp.status, responseJson: data });
+    const { perplexityChat } = await import("./perplexity");
+    const data = await perplexityChat({
+      model: "sonar-deep-research",
+      endpoint: "case-study-economics-research",
+      context: { company: req.companyName },
+      timeoutMs: 240_000,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildPrompt(req) },
+      ],
+    });
     const content = data?.choices?.[0]?.message?.content ?? "";
     const jsonStr = extractJsonObject(content);
     if (!jsonStr) {

@@ -265,25 +265,14 @@ Return JSON array (max 5 entries):
 }]
 Tag 1-4 capabilities per event. Skip the field only if no capability in the menu is materially affected.`;
 
-  const _meStart = Date.now();
   try {
-    const resp = await maybeStepAiWrap("perplexity:macro-events-scan:sonar", () =>
-      fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "sonar",
-          messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
-        }),
-        signal: AbortSignal.timeout(60_000),
-      }),
-    );
-    if (!resp.ok) {
-      logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, httpStatus: resp.status, errorMessage: `HTTP ${resp.status}` });
-      throw new Error(`Perplexity ${resp.status}`);
-    }
-    const data = await resp.json() as { choices: Array<{ message: { content: string } }>; citations?: string[] };
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, httpStatus: resp.status, responseJson: data });
+    const { perplexityChat } = await import("./perplexity");
+    const data = await perplexityChat({
+      model: "sonar",
+      endpoint: "macro-events.scan",
+      timeoutMs: 60_000,
+      messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
+    });
     const content = data.choices[0]?.message?.content ?? "";
     const citations = data.citations ?? [];
     const cleaned = content.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
@@ -339,7 +328,6 @@ Tag 1-4 capabilities per event. Skip the field only if no capability in the menu
     const maxSeverity = inserted.reduce((m, e) => Math.max(m, e.severity), 0);
     return { inserted: inserted.length, events: inserted, errors: [], maxSeverity };
   } catch (err) {
-    logLlmCall({ provider: "perplexity", model: "sonar", endpoint: "macro-events.scan", startedAt: _meStart, errorMessage: err instanceof Error ? err.message : String(err) });
     return { inserted: 0, events: [], errors: [err instanceof Error ? err.message : String(err)], maxSeverity: 0 };
   }
 }
