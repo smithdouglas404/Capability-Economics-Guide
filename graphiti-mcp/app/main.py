@@ -35,7 +35,13 @@ log = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ARG001
     await graphiti.initialize()
-    yield
+    # FastMCP's StreamableHTTPSessionManager owns an anyio task group that
+    # must be started before any request is served — when the MCP sub-app is
+    # `app.mount()`ed (rather than launched via mcp.run()) the parent FastAPI
+    # lifespan is the right place to drive it. Without this, every /mcp
+    # request crashes with "Task group is not initialized."
+    async with mcp.session_manager.run():
+        yield
 
 
 app = FastAPI(
@@ -84,7 +90,9 @@ async def health() -> dict:
     }
 
 
-# Mount the MCP server's streamable-http transport at /mcp. AgentKit's
-# MCP client (createMCPClient or equivalent in the TypeScript SDK) points
-# at https://<host>/mcp with the X-API-Key header set.
-app.mount("/mcp", mcp.streamable_http_app())
+# Mount the MCP server's streamable-http transport. FastMCP's sub-app
+# already exposes the route at `/mcp` internally (settings.streamable_http_path
+# default), so we mount at "/" — mounting at "/mcp" would double-prefix the
+# path to /mcp/mcp. AgentKit's MCP client (createMCPClient or equivalent in
+# the TypeScript SDK) points at https://<host>/mcp with X-API-Key set.
+app.mount("/", mcp.streamable_http_app())
