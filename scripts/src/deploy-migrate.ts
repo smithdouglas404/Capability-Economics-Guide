@@ -96,10 +96,13 @@
  *        seeded data does NOT serve traffic.
  *
  * Skip mechanism:
- *   SKIP_MIGRATE=1            — bypass everything (use very cautiously)
- *   SKIP_SQL_MIGRATIONS=1     — skip phase 1 only
- *   SKIP_SEEDS=1              — skip phase 3 only
- *   SKIP_<NAME>_SEED=1        — skip a specific seed (script-by-script)
+ *   SKIP_MIGRATE=1                  — bypass everything (use very cautiously)
+ *   SKIP_SQL_MIGRATIONS=1           — skip phase 1 only
+ *   SKIP_SCHEMA_COVERAGE_AUDIT=1    — skip phase 2.5 only (emergency bypass
+ *                                     against the drizzle silent-drop check;
+ *                                     expect potential broken features in prod)
+ *   SKIP_SEEDS=1                    — skip phase 3 only
+ *   SKIP_<NAME>_SEED=1              — skip a specific seed (script-by-script)
  */
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -157,6 +160,42 @@ async function applySqlMigrations(): Promise<void> {
   }
   // Don't close the pool — drizzle-kit push runs as a child process with its
   // own connection, and api-server boot will reuse this pool. Leaving open.
+}
+
+/**
+ * Phase 2.5 — schema coverage audit. Fails fast if any table declared
+ * in lib/db/src/schema/*.ts is missing from the live DB after Phase 2's
+ * drizzle-kit push completed. Defense against the well-documented
+ * drizzle-push silent-drop failure mode (interactive rename prompt
+ * with no stdin → wrong default → aborted diff → some tables never
+ * created → deploy reports success → features die in prod).
+ *
+ * Runs BEFORE seeds (Phase 3) so a broken schema fails fast without
+ * wasting time on seed work. Skip with SKIP_SCHEMA_COVERAGE_AUDIT=1
+ * — see scripts/src/check-schema-coverage.ts for the rationale and
+ * how to fix any failure it surfaces.
+ */
+async function runSchemaCoverageAudit(): Promise<void> {
+  if (process.env.SKIP_SCHEMA_COVERAGE_AUDIT === "1" || process.env.SKIP_SCHEMA_COVERAGE_AUDIT === "true") {
+    log("SKIP_SCHEMA_COVERAGE_AUDIT set — skipping coverage audit (emergency bypass; expect potential silent table drops)");
+    return;
+  }
+  const scriptsDir = path.resolve(__dirname, "..");
+  log("auditing schema coverage (drizzle-push silent-drop detector)…");
+  const start = Date.now();
+  const result = spawnSync("pnpm", ["run", "check:schema-coverage"], {
+    cwd: scriptsDir,
+    stdio: "inherit",
+    env: process.env,
+  });
+  const elapsed = Date.now() - start;
+  if (result.error) {
+    fail(`schema-coverage spawn error: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    fail(`schema coverage audit failed after ${elapsed}ms — see output above for the missing tables and how to backfill them. Aborting deploy before seeds run on a broken schema.`);
+  }
+  log(`schema coverage audit passed in ${elapsed}ms`);
 }
 
 async function runDrizzlePush(): Promise<void> {
@@ -333,6 +372,12 @@ async function main(): Promise<void> {
 
   // Phase 2: drizzle-kit push (idempotent schema sync)
   await runDrizzlePush();
+
+  // Phase 2.5: schema coverage audit — fails fast if drizzle-push
+  // silently dropped any schema-declared table (rename-prompt trap).
+  // Runs BEFORE seeds so a broken schema aborts without wasting seed
+  // time. Skip with SKIP_SCHEMA_COVERAGE_AUDIT=1.
+  await runSchemaCoverageAudit();
 
   // Phase 3: idempotent seed chain (must run AFTER schema is current)
   await runSeeds();

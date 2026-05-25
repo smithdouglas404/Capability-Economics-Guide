@@ -62,6 +62,7 @@
     "check:contract": "tsx ./src/check-contract.ts",
     "check:routes": "tsx ./src/check-contract.ts routes",
     "check:codegen": "tsx ./src/check-contract.ts codegen",
+    "check:schema-coverage": "tsx ./src/check-schema-coverage.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "type": "module"
