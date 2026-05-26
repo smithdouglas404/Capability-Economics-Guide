@@ -191,6 +191,89 @@ export async function recordCapabilityEpisode(args: {
 }
 
 /**
+ * Record a platform-wide CVI snapshot as a Graphiti episode. Mirrors the
+ * exact name/body shape the backfill script uses (cvi-snapshot-{pgId}),
+ * so /api/cvi/platform-history-bitemporal sees newly-written live episodes
+ * the same way it sees the historical ones — no migration, no parser fork.
+ */
+export async function recordPlatformCviEpisode(args: {
+  snapshotPgId: number;
+  snapshotAt: Date;
+  overallIndex: number;
+  overallCiLow?: number | null;
+  overallCiHigh?: number | null;
+  industryBreakdowns: Record<string, { industryName: string; indexValue: number; velocity: number }>;
+  methodologyVersion: string;
+}): Promise<void> {
+  if (!isGraphitiAvailable()) return;
+  try {
+    const industryParts = Object.entries(args.industryBreakdowns)
+      .slice(0, 8)
+      .map(([_slug, b]) => `${b.industryName}: ${b.indexValue.toFixed(1)} (Δ${b.velocity >= 0 ? "+" : ""}${b.velocity.toFixed(1)})`)
+      .join("; ");
+    const ci = args.overallCiLow != null && args.overallCiHigh != null
+      ? ` (95% CI ${args.overallCiLow.toFixed(1)}–${args.overallCiHigh.toFixed(1)})`
+      : "";
+    const body = `Platform CVI snapshot at ${args.snapshotAt.toISOString()}: overall ${args.overallIndex.toFixed(2)}${ci}. Industries: ${industryParts}. Methodology v${args.methodologyVersion}.`;
+    const result = await graphitiAddEpisode({
+      name: `cvi-snapshot-${args.snapshotPgId}`,
+      episodeBody: body,
+      groupId: "global",
+      sourceDescription: `live:cvi-engine:${args.snapshotPgId}`,
+      referenceTime: args.snapshotAt.toISOString(),
+    });
+    if (!result.ok) {
+      logger.warn({ err: result.error, snapshotPgId: args.snapshotPgId }, "[capability-graph-sync] recordPlatformCviEpisode returned error");
+    }
+  } catch (err) {
+    logger.warn({ err, snapshotPgId: args.snapshotPgId }, "[capability-graph-sync] recordPlatformCviEpisode failed");
+  }
+}
+
+/**
+ * Record a macro event as a Graphiti episode. Macro events are narrative-
+ * worthy by definition (admin-curated or world-scan-detected disruptions
+ * with severity + decay) and are rare enough that one episode per event
+ * doesn't move the LLM cost needle.
+ */
+export async function recordMacroEventEpisode(args: {
+  eventPgId: number;
+  eventType: string;
+  severity: number;
+  title: string;
+  description: string;
+  sentimentDirection: string;
+  affectedIndustryIds?: number[] | null;
+  affectedCapabilityIds?: number[] | null;
+  startedAt: Date;
+}): Promise<void> {
+  if (!isGraphitiAvailable()) return;
+  try {
+    const affected: string[] = [];
+    if (args.affectedIndustryIds && args.affectedIndustryIds.length > 0) {
+      affected.push(`industries=[${args.affectedIndustryIds.join(",")}]`);
+    }
+    if (args.affectedCapabilityIds && args.affectedCapabilityIds.length > 0) {
+      affected.push(`capabilities=[${args.affectedCapabilityIds.join(",")}]`);
+    }
+    const affectedStr = affected.length > 0 ? ` Affected: ${affected.join(" ")}.` : "";
+    const body = `Macro event "${args.title}" (${args.eventType}, severity ${args.severity}/10, ${args.sentimentDirection}): ${args.description}.${affectedStr}`;
+    const result = await graphitiAddEpisode({
+      name: `macro-event-${args.eventPgId}`,
+      episodeBody: body,
+      groupId: "global",
+      sourceDescription: `live:macro-events:${args.eventPgId}`,
+      referenceTime: args.startedAt.toISOString(),
+    });
+    if (!result.ok) {
+      logger.warn({ err: result.error, eventPgId: args.eventPgId }, "[capability-graph-sync] recordMacroEventEpisode returned error");
+    }
+  } catch (err) {
+    logger.warn({ err, eventPgId: args.eventPgId }, "[capability-graph-sync] recordMacroEventEpisode failed");
+  }
+}
+
+/**
  * Read path — multi-hop cascade traversal. Returns every capability
  * transitively reachable downstream from `rootPgId` within `maxHops`
  * hops. Used by services/disruption.ts:computeDisruptionRisk when

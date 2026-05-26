@@ -89,7 +89,7 @@ router.post("/review/draft", async (req, res) => {
   }).returning();
   fireDraftEnrichment(cap.id, industryId);
   // Mirror capability into the world-model graph (Graphiti, fire-and-forget — Postgres remains source of truth).
-  import("../services/agent/capabilityGraphSync").then((m) =>
+  import("../services/agent/capabilityGraphSync").then((m) => {
     m.mirrorCapability({
       pgId: cap.id,
       slug: cap.slug,
@@ -99,8 +99,17 @@ router.post("/review/draft", async (req, res) => {
       isLeaf: cap.isLeaf,
       reviewStatus: cap.reviewStatus,
       benchmarkScore: cap.benchmarkScore,
-    })
-  ).catch(() => { /* mirror is downstream; Postgres write already succeeded */ });
+    });
+    // Also fire a lifecycle :Episodic so the bi-temporal graph records
+    // the submission event itself, not just the structural mirror.
+    m.recordCapabilityEpisode({
+      capabilityPgId: cap.id,
+      capabilityName: cap.name,
+      eventName: "submitted",
+      narrative: `Submitted for review by ${cap.submittedBy ?? "unknown"}. Industry ${industry.slug}. Initial benchmark ${cap.benchmarkScore}/100. Status: ${cap.reviewStatus}.`,
+      occurredAt: cap.createdAt ?? new Date(),
+    });
+  }).catch(() => { /* mirror is downstream; Postgres write already succeeded */ });
   // Fire-and-forget: notify bot trigger dispatcher so persona bots can evaluate.
   import("../services/bots/workflows/triggers").then((m) =>
     m.dispatchBotEvent("capability.added", { capabilityId: cap.id, industrySlug: industry.slug })

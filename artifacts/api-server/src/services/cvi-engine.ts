@@ -434,17 +434,41 @@ export async function computeCVI(opts: ComputeCVIOptions = {}): Promise<CVIResul
   const marketSentiment = Math.max(0, Math.min(100, Math.round((baseSentiment + macroShock.sentimentShock) * 10) / 10));
   const volatility = Math.round((baseVolatility + macroShock.volatilityBoost) * 1000) / 1000;
 
+  let insertedSnapshotId: number | null = null;
   const snapshotAt = persist
-    ? (await db.insert(cviSnapshotsTable).values({
+    ? await (async () => {
+        const [row] = await db.insert(cviSnapshotsTable).values({
+          overallIndex,
+          overallCiLow,
+          overallCiHigh,
+          industryBreakdowns,
+          marketSentiment,
+          volatility,
+          methodologyVersion: "1.1",
+        }).returning();
+        insertedSnapshotId = row.id;
+        return row.snapshotAt;
+      })()
+    : new Date();
+
+  // Fire-and-forget: write a Graphiti :Episodic node for this snapshot so
+  // /api/cvi/platform-history-bitemporal sees live data accumulate on top
+  // of the backfilled 322. Shape mirrors the backfill script's exact
+  // `cvi-snapshot-{id}` format. No-op when Graphiti isn't configured.
+  if (insertedSnapshotId != null) {
+    const sid = insertedSnapshotId;
+    import("./agent/capabilityGraphSync").then((m) =>
+      m.recordPlatformCviEpisode({
+        snapshotPgId: sid,
+        snapshotAt,
         overallIndex,
         overallCiLow,
         overallCiHigh,
         industryBreakdowns,
-        marketSentiment,
-        volatility,
         methodologyVersion: "1.1",
-      }).returning())[0].snapshotAt
-    : new Date();
+      }),
+    ).catch(() => { /* episode is downstream — Postgres write already succeeded */ });
+  }
 
   // Bank per-capability history rows in parallel to the industry-level
   // snapshot. Lets the capability-detail sparkline show per-cap trend

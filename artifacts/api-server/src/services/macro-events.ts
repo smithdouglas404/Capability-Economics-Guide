@@ -209,6 +209,22 @@ export async function createMacroEvent(input: CreateEventInput): Promise<MacroEv
   } catch (err) {
     console.warn("[macro-events] subscription evaluation failed:", err);
   }
+  // Fire-and-forget: write a Graphiti :Episodic node so the bi-temporal
+  // graph carries the macro event narrative alongside the structural
+  // mirror. Rare event volume (~10/day) makes the Haiku cost trivial.
+  import("./agent/capabilityGraphSync").then((m) =>
+    m.recordMacroEventEpisode({
+      eventPgId: row.id,
+      eventType: row.eventType,
+      severity: row.severity,
+      title: row.title,
+      description: row.description,
+      sentimentDirection: row.sentimentDirection,
+      affectedIndustryIds: row.affectedIndustryIds,
+      affectedCapabilityIds: row.affectedCapabilityIds,
+      startedAt: row.startedAt,
+    }),
+  ).catch(() => { /* episode is downstream — Postgres write already succeeded */ });
   return row;
 }
 

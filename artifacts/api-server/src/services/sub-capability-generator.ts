@@ -92,7 +92,7 @@ export async function insertSubCapabilities(
     insertedIds.push(row.id);
 
     // Mirror into the world-model capability graph (Graphiti, fire-and-forget).
-    import("./agent/capabilityGraphSync").then((m) =>
+    import("./agent/capabilityGraphSync").then((m) => {
       m.mirrorCapability({
         pgId: row.id,
         slug,
@@ -102,8 +102,16 @@ export async function insertSubCapabilities(
         isLeaf: true,
         reviewStatus: "approved",
         benchmarkScore: seedScore,
-      })
-    ).catch(() => {});
+      });
+      // Lifecycle :Episodic for the decomposition event itself — captures
+      // the parent → child ontology relationship in the bi-temporal graph.
+      m.recordCapabilityEpisode({
+        capabilityPgId: row.id,
+        capabilityName: s.name,
+        eventName: "decomposed",
+        narrative: `Decomposed from parent capability "${parent.name}" (pgId=${parent.id}) via Haiku auto-decomposition. Seed score ${seedScore}/100, pending triangulation.`,
+      });
+    }).catch(() => {});
 
     await db.insert(cviComponentsTable).values({
       capabilityId: row.id,
