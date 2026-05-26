@@ -455,19 +455,55 @@ export async function computeCVI(opts: ComputeCVIOptions = {}): Promise<CVIResul
   // /api/cvi/platform-history-bitemporal sees live data accumulate on top
   // of the backfilled 322. Shape mirrors the backfill script's exact
   // `cvi-snapshot-{id}` format. No-op when Graphiti isn't configured.
+  //
+  // Throttled by agent_tuning.cviEpisodeMinIntervalMinutes (default 10,
+  // operators commonly raise to 1440 for one episode/day since the
+  // bitemporal endpoint serves date-X queries). Bookkeeping uses
+  // system_flags.last_cvi_episode_at — keeps state outside the
+  // hot cvi_snapshots table.
   if (insertedSnapshotId != null) {
     const sid = insertedSnapshotId;
-    import("./agent/capabilityGraphSync").then((m) =>
-      m.recordPlatformCviEpisode({
-        snapshotPgId: sid,
-        snapshotAt,
-        overallIndex,
-        overallCiLow,
-        overallCiHigh,
-        industryBreakdowns,
-        methodologyVersion: "1.1",
-      }),
-    ).catch(() => { /* episode is downstream — Postgres write already succeeded */ });
+    void (async () => {
+      try {
+        const [{ getTuning }, { setFlag }, { db: theDb }, { systemFlagsTable }, { eq: theEq }, m] = await Promise.all([
+          import("./agent-tuning"),
+          import("./system-flags"),
+          import("@workspace/db"),
+          import("@workspace/db"),
+          import("drizzle-orm"),
+          import("./agent/capabilityGraphSync"),
+        ]);
+        const tuning = await getTuning();
+        const throttleMin = tuning.cviEpisodeMinIntervalMinutes ?? 10;
+        if (throttleMin > 0) {
+          const [flagRow] = await theDb
+            .select()
+            .from(systemFlagsTable)
+            .where(theEq(systemFlagsTable.flagName, "last_cvi_episode_at"))
+            .limit(1);
+          const lastAt = flagRow?.flagValue ? Date.parse(flagRow.flagValue) : 0;
+          if (Number.isFinite(lastAt) && (Date.now() - lastAt) < throttleMin * 60_000) {
+            return; // within throttle window — skip episode write
+          }
+        }
+        await m.recordPlatformCviEpisode({
+          snapshotPgId: sid,
+          snapshotAt,
+          overallIndex,
+          overallCiLow,
+          overallCiHigh,
+          industryBreakdowns,
+          methodologyVersion: "1.1",
+        });
+        // Only mark "last episode" after a successful write attempt. We
+        // run AFTER the helper instead of before so a Graphiti outage
+        // doesn't shift the throttle window forward and silently skip
+        // a future window.
+        await setFlag("last_cvi_episode_at", new Date().toISOString(), "cvi-engine");
+      } catch {
+        /* fire-and-forget — Postgres write already succeeded */
+      }
+    })();
   }
 
   // Bank per-capability history rows in parallel to the industry-level

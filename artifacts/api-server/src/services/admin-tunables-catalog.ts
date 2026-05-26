@@ -252,6 +252,9 @@ export interface SystemTuningSnapshot {
 
   defaultBotBudgetUsdCap: number;
   defaultDefaultBotBudgetUsdCap: number;
+
+  cviEpisodeMinIntervalMinutes: number;
+  defaultCviEpisodeMinIntervalMinutes: number;
 }
 
 export async function snapshotSystem(): Promise<SystemTuningSnapshot> {
@@ -271,6 +274,9 @@ export async function snapshotSystem(): Promise<SystemTuningSnapshot> {
 
     defaultBotBudgetUsdCap: tuning.defaultBotBudgetUsdCap,
     defaultDefaultBotBudgetUsdCap: TUNING_DEFAULTS.defaultBotBudgetUsdCap,
+
+    cviEpisodeMinIntervalMinutes: tuning.cviEpisodeMinIntervalMinutes,
+    defaultCviEpisodeMinIntervalMinutes: TUNING_DEFAULTS.cviEpisodeMinIntervalMinutes,
   };
 }
 

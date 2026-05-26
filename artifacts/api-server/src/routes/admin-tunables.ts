@@ -39,8 +39,12 @@
  *             "agentPerplexityCap"?: number,
  *             "routineIntervalHours"?: number,
  *             "detailBackfillLimit"?: number,
- *             "defaultBotBudgetUsdCap"?: number }
+ *             "defaultBotBudgetUsdCap"?: number,
+ *             "cviEpisodeMinIntervalMinutes"?: number }
  *     Update one or more system-wide knobs. All fields optional.
+ *     cviEpisodeMinIntervalMinutes throttles Graphiti :Episodic writes for
+ *     platform CVI snapshots (0=no throttle, default 10, common ops value
+ *     1440 for daily). Macro events + capability lifecycle are unaffected.
  *
  * Every route requires x-admin-key (or ADMIN_AUTH_BYPASS=1 in dev).
  */
@@ -224,6 +228,7 @@ const SystemPatch = z.object({
   detailBackfillLimit: z.number().int().min(0).max(500).optional(),
   agentPerplexityCap: z.number().int().min(0).max(100).optional(),
   defaultBotBudgetUsdCap: z.number().min(0).max(10000).optional(),
+  cviEpisodeMinIntervalMinutes: z.number().int().min(0).max(10080).optional(),
 });
 
 router.patch("/admin/tunables/system", requireAdmin, async (req: Request, res: Response) => {

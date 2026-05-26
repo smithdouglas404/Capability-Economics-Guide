@@ -83,8 +83,7 @@ Key files (post-AgentKit migration, 2026-05-24):
 - `memory.ts` — Mem0 client (auto-detects cloud vs self-hosted from hostname; currently pointed at self-hosted `mem0-server-production-8f56.up.railway.app`) with local-DB fallback. Stores mirror to the `agent_memories` table with `metadata.mem0Id` linking Mem0 ↔ local rows; `getAllMemories` dedupes on that.
 - `temporal-shift-detector.ts` — 6h scheduled detector + `writeMemoryRelationSnapshots` daily writer + `getCachedTemporalShiftReport` cached read for the Synthesis Agent tool.
 - `recommendation-feedback.ts` — scores insights > 60 days old against CVI trajectory; writes validated/contradicted patterns to Mem0 (`category: "recommendation_outcome"`). Dormant until day 60+ post-deploy.
-- `agentkit-shared.ts` — shared `AgentRunResult` type for the AgentKit migration (replaces what `base-agent.ts` used to export).
-- `base-agent.ts` — **KEPT during the AgentKit migration** because the 8th `services/disruption-vector-agent.ts` (not one of the 7 migrated) still uses `runReactAgent` from here. Provides the legacy Mem0-pattern + prior-block + synthesis-brief context injection used by that one remaining LangChain agent. The 7 migrated agents do this inline in their own `buildMemoryContext()` helpers.
+- `agentkit-shared.ts` — shared `AgentRunResult` type for the AgentKit migration (replaces what the now-deleted `base-agent.ts` used to export).
 - `../synthesis-agent-agentkit.ts` — daily cross-agent intelligence layer; uses Sonnet. Reads all 5 specialized-agent digests + world-model graph correlations (Graphiti+FalkorDB primary, Postgres fallback) + Mem0 patterns + cached temporal-shift report; publishes brief to `NS.sharedKnowledge("synthesis_brief")`.
 - `store.ts` — **Letta-backed adapter** preserving the original `getSharedStore` / `NS` / `getAgentPriorBlock` / `putAgentPriorBlock` / `appendAgentArchive` / `searchAgentArchive` / `storePing` surface so the AgentKit agents read/write the same Letta state the LangGraph versions did. Core block labels map to `lettaReadBlock`/`lettaUpdateBlock`; namespaced put/search maps to Letta archival memory with `[NS:<ns>|<key>]` prefix. See `### Letta — back to self-hosted` below for the full story.
 - `events.ts` — in-process pub/sub for SSE.
@@ -93,7 +92,7 @@ All three managed integrations (Mem0, Letta, Perplexity) **graceful-degrade** wh
 
 Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memories`. Perplexity calls per run are capped at 6 (cost control) — see `tools.ts`.
 
-**The 7 agents now run on `@inngest/agent-kit`** (Phase 9 migration, 2026-05-24): `services/cvi-agent-agentkit.ts` for the autonomous CVI agent, and `services/<agent>-agentkit.ts` for the 5 specialized agents + synthesis. The legacy LangGraph implementations (`services/agent/graph.ts`, `services/macro-event-agent.ts`, etc.) are deleted. Vercel AI SDK continues to handle one-shot structured-output calls (the 14 workflows in `services/workflows/` + the 8 Tier-1 service callers); AgentKit handles stateful multi-step agent loops. See `### AgentKit migration complete (Phase 9, 2026-05-24)` below for the kill-switch + observation-window details. The 8th `disruption-vector-agent` is NOT migrated and still uses LangChain — see the note in the AgentKit section.
+**All 8 agents now run on `@inngest/agent-kit`** (Phase 9 migration, 2026-05-24; disruption-vector-agent followed shortly after): `services/cvi-agent-agentkit.ts` for the autonomous CVI agent, and `services/<agent>-agentkit.ts` for the 6 specialized agents (macro-event, disruption, peer-coop, stack-optimizer, ontology, disruption-vector) + synthesis. The legacy LangGraph implementations (`services/agent/graph.ts`, `services/macro-event-agent.ts`, etc.) are deleted. Vercel AI SDK continues to handle one-shot structured-output calls (the 14 workflows in `services/workflows/` + the 8 Tier-1 service callers); AgentKit handles stateful multi-step agent loops. See `### AgentKit migration complete (Phase 9, 2026-05-24)` below for details.
 
 ### LangMem / Shared Agent Store
 
@@ -101,7 +100,7 @@ Agent run metadata lives in `agent_runs`; persistent learnings in `agent_memorie
 
 Implementation files:
 - `artifacts/api-server/src/services/agent/store.ts` — `PostgresStore` singleton with namespace helpers (`NS.*`). This is the shared blackboard all agents read from and write to. Backed by the existing `DATABASE_URL` Postgres — no new service. Tables auto-created via `ensureSharedStoreReady()` on boot. **Import path is `@langchain/langgraph-checkpoint-postgres/store` (the subpath), NOT the package root** (root only exports `PostgresSaver` for run checkpointing).
-- `artifacts/api-server/src/services/agent/optimizer.ts` — `optimizeAgentInstructions(agentName, lookbackRuns?)`: the TypeScript equivalent of LangMem's `create_prompt_optimizer`. Reads recent `agent_runs`, scores them (errored=0, otherwise memoriesStored/5), asks Haiku 4.5 to rewrite the standing instructions, persists back to `NS.agentPriors(agentName)`. Runs weekly via `OPTIMIZER_INTERVAL_MS` cron in `scheduler.ts`.
+- ~~`artifacts/api-server/src/services/agent/optimizer.ts`~~ — DELETED. See `### Letta — back to self-hosted` below; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
 
 **Shared store namespaces** (always go through `NS.*`, never inline string arrays):
 - `NS.industryPatterns(industryName)` — validated industry patterns published by the CVI Agent
@@ -165,7 +164,6 @@ Notable tables: `industries` / `capabilities` / `capability_metrics` / `capabili
 
 - **Mandatory**: `DATABASE_URL` (api-server + scripts + drizzle), `PORT` (api-server runtime)
 - **Feature-gated** (graceful degrade): `PERPLEXITY_API_KEY`, `MEM0_BASE_URL` + `MEM0_API_KEY` (self-hosted at `https://mem0-server-production-8f56.up.railway.app` — `MEM0_API_KEY` must match Mem0 service's `ADMIN_API_KEY`), `LETTA_BASE_URL` + `LETTA_API_KEY` (self-hosted at `https://letta-production-1b3f.up.railway.app`), `ANTHROPIC_API_KEY` (via `@workspace/integrations-anthropic-ai` AND via `@langchain/anthropic` in the 5 specialized agents — cron silently skips if missing). The weekly LangMem-equivalent optimizer is gone; Letta's sleeptime + core_memory_replace handles autonomous learning natively.
-- **LangSmith tracing** (purely additive, off by default): `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` + `LANGCHAIN_PROJECT`. NOTE: as of the Phase 9 AgentKit migration (2026-05-24) these vars NO LONGER affect the 7 main agents (they use AgentKit, not LangChain). They still affect the remaining LangChain consumers: `disruption-vector-agent`, `vcr/graph.ts`, `enrichment/graph.ts`, `bots/workflows/*`.
 - **LLM model override**: `LLM_MODEL` — overrides the default `anthropic/claude-sonnet-4.6` (or `anthropic/claude-haiku-4.5` for `/api/insights`) for all single-shot OpenRouter calls. Set to e.g. `google/gemini-2.0-flash-001` or `deepseek/deepseek-chat-v3` to switch when OpenRouter credits run low. Note: this does NOT affect the fallback chain in `services/llm-fallback.ts` (which already cascades Sonnet → Haiku → GLM 5.1 on budget errors) — only the direct `model:` literals in `services/alpha/{enrich,thesis}.ts`, `services/enrichment/runners.ts`, `services/vcr/tools.ts`, `services/agent/tools.ts`, `routes/{insights,assess,dynamic-industries}.ts`.
 - **World-model graph reads (opt-in)**: `USE_GRAPHITI_WORLD_MODEL=1` — switches `services/disruption.ts:computeDisruptionRisk` and the `/api/cascade/:id` route from 1-hop Postgres lookup to Cypher multi-hop traversal via `services/agent/capabilityGraphSync.ts:cypherCascadeImpacted`. Default off. Requires a populated Graphiti+FalkorDB instance (run `pnpm --filter @workspace/scripts run backfill:graphiti-world-model` after first wiring up Graphiti). The Postgres path is preserved as the fallback; if Graphiti is unreachable mid-request, the function silently returns Postgres-only results.
 
@@ -176,6 +174,13 @@ Two graph subsystems live in the world-model graph (Graphiti+FalkorDB); do not c
 1. **Memory entity graph** (`memory_entities` / `memory_relations` tables → `:Entity` nodes). Written by `services/agent/graphMemory.ts:upsertEntity` / `recordRelation` (Postgres-only writes after the Neo4j removal; Graphiti receives entities through separate ingestion paths). Read by the core CVI agent's `memory.ts` recall and by `ontology-agent.ts`. **NOT** used by any customer-facing analytical surface.
 
 2. **Capability graph** (`capabilities` / `capability_dependencies` tables → `:Capability` nodes + `:DEPENDS_ON` relationships). Mirror-written to Graphiti by `services/agent/capabilityGraphSync.ts:mirrorCapability` / `mirrorDependency`. Wired at: `routes/review.ts`, `routes/dynamic-industries.ts`, `services/sub-capability-generator.ts`. Read by `services/disruption.ts:computeDisruptionRisk` and `/api/cascade/:id` ONLY when `USE_GRAPHITI_WORLD_MODEL=1`. **All other readers (Fragility, Explainability, Stack Optimizer, generateInsightsTool, Alpha tabs, business-case analyzer) still query Postgres `capability_dependencies` directly.**
+
+3. **Bi-temporal :Episodic nodes** (live since 2026-05-26). `services/agent/capabilityGraphSync.ts` exposes three episode writers that fire-and-forget through `addEpisode`:
+   - `recordPlatformCviEpisode` — called from `services/cvi-engine.ts` after every cvi_snapshots insert. Throttled by `agent_tuning.cviEpisodeMinIntervalMinutes` (default 10 min; common ops value 1440 for daily; 0 disables throttle). Bookkeeping in `system_flags.last_cvi_episode_at`. Name shape `cvi-snapshot-{id}` exactly mirrors the backfill, so `/api/cvi/platform-history-bitemporal` sees live + backfilled episodes the same way.
+   - `recordMacroEventEpisode` — called from `services/macro-events.ts:createMacroEvent`. Not throttled (events are rare and narrative-worthy). Name shape `macro-event-{id}`.
+   - `recordCapabilityEpisode` — called from `routes/review.ts` (event=submitted) and `services/sub-capability-generator.ts` (event=decomposed). Not throttled. Name shape `cap-{pgId}-{eventName}`.
+
+   Each `addEpisode` invokes Graphiti's configured LLM (Haiku 4.5 by default) for entity extraction. Steady-state cost ~$1/yr at 1440-min throttle, ~$137/yr at 10-min default, ~$274/yr unthrottled. Tune via `PATCH /api/admin/tunables/system { "cviEpisodeMinIntervalMinutes": <N> }`.
 
 Backfill (run once after first wiring Graphiti; safe to re-run for drift recovery):
 - `pnpm --filter @workspace/scripts run backfill:graphiti-world-model` — populates :Entity + :Capability nodes
@@ -352,7 +357,7 @@ All flags default OFF. The cutover order is per-feature — flipping one flag ha
 
 ### AgentKit migration kill-switch (Phase 9, 2026-05-24) — historical
 
-The migration commits 1–8 of Phase 9 introduced a per-agent `USE_LANGGRAPH_*` env-var kill-switch so any single AgentKit agent could be reverted to its LangGraph implementation without a redeploy. Commit 9 of the migration removed those branches along with the underlying LangGraph implementations — the kill-switch flags are NO LONGER read. All 7 agents unconditionally run their AgentKit version.
+The migration commits 1–8 of Phase 9 introduced a per-agent `USE_LANGGRAPH_*` env-var kill-switch so any single AgentKit agent could be reverted to its LangGraph implementation without a redeploy. Commit 9 of the migration removed those branches along with the underlying LangGraph implementations — the kill-switch flags are NO LONGER read. All 8 agents unconditionally run their AgentKit version.
 
 To roll back if AgentKit proves problematic, recover the legacy implementations from git history (commits prior to the Phase 9 commit 9 — `services/agent/graph.ts`, `services/macro-event-agent.ts`, `services/disruption-agent.ts`, `services/peer-coop-agent.ts`, `services/stack-optimizer-agent.ts`, `services/synthesis-agent.ts`, and the legacy `services/ontology-agent.ts`).
 
@@ -360,7 +365,7 @@ Letta agent names (e.g. `cvi-macro-event-agent`) were preserved across the migra
 
 ### AgentKit migration complete (Phase 9, 2026-05-24)
 
-All 7 agents now run on `@inngest/agent-kit` (v0.13.2, Apache-2.0):
+All 8 agents now run on `@inngest/agent-kit` (v0.13.2, Apache-2.0):
 - `cvi-autonomous-agent` → `services/cvi-agent-agentkit.ts` (procedural 9-phase orchestration with a single-agent AgentKit Network for the memorize-phase prior refinement)
 - `macro-event-agent` → `services/macro-event-agent-agentkit.ts`
 - `disruption-agent` → `services/disruption-agent-agentkit.ts`
@@ -368,8 +373,9 @@ All 7 agents now run on `@inngest/agent-kit` (v0.13.2, Apache-2.0):
 - `stack-optimizer-agent` → `services/stack-optimizer-agent-agentkit.ts`
 - `ontology-agent` → `services/ontology-agent-agentkit.ts` (was the Phase 8 shadow target; now authoritative)
 - `synthesis-agent` → `services/synthesis-agent-agentkit.ts` (Sonnet model)
+- `disruption-vector-agent` → `services/disruption-vector-agent-agentkit.ts` (followed shortly after the Phase 9 batch; the legacy `services/disruption-vector-agent.ts` is deleted)
 
-LangGraph + LangChain dependencies removed; the legacy `services/agent/graph.ts`, `services/agent/base-agent.ts`, `services/agent/optimizer.ts`, and per-agent legacy entry points (`runMacroEventAgent` etc.) are deleted in commit 9 of the migration. The Phase 8 shadow Inngest function (`ontologyAgentShadow`) and `INNGEST_SHADOW_ONTOLOGY` flag references are retired; the `agent_shadow_runs` table is preserved for historical data.
+LangGraph + LangChain dependencies removed; the legacy `services/agent/graph.ts`, `services/agent/base-agent.ts`, `services/agent/optimizer.ts`, `services/disruption-vector-agent.ts`, and per-agent legacy entry points (`runMacroEventAgent` etc.) are deleted in commit 9 of the migration. The Phase 8 shadow Inngest function (`ontologyAgentShadow`) and `INNGEST_SHADOW_ONTOLOGY` flag references are retired; the `agent_shadow_runs` table is preserved for historical data. The `langsmith` npm dep was the last LangChain-ecosystem package; dropped 2026-05-26 alongside this CLAUDE.md cleanup.
 
 Kill-switch flags `USE_LANGGRAPH_<AGENT>` from commits 1–8 of this migration are NO LONGER read — the legacy LangGraph code paths were removed in commit 9 along with the legacy `services/<agent>.ts` files. Rollback now requires reverting from git history.
 
@@ -389,7 +395,7 @@ Forward-looking sibling of CVI (current value) and DVX (current disruption signa
 - Composite = weighted sum (enabling_tech 25% > asset 20% > jtbd/trust/supply 15% each > margin 10%)
 - Playbook matching uses **Pearson correlation on sub-score deviations** (NOT raw cosine) — matches shape, not magnitude. Sharp #1 vs #2 spread.
 
-**Disruption Vector Agent (`services/disruption-vector-agent.ts`):**
+**Disruption Vector Agent (`services/disruption-vector-agent-agentkit.ts`):**
 - 8th specialized agent in the autonomous network (sibling to macro-event, disruption, peer-coop, stack-optimizer, ontology, synthesis + CVI autonomous)
 - Inngest cron `0 */6 * * *` (every 6 hours), 8 caps per cycle, Sonnet-class scoring (~$0.56/cycle budget)
 - Activated via `INNGEST_OWNS_DISRUPTION_INDEX=1` on capabilityeconomics
@@ -423,6 +429,4 @@ Schema: `disruption_simulations` carries the full snapshot — inputs + trajecto
 
 ### Observability
 
-The 7 agents trace through Inngest's dashboard (run-by-run timing, retries, step traces, debug payloads) at the configured `INNGEST_BASE_URL`. The legacy LangSmith env vars (`LANGCHAIN_TRACING_V2`, `LANGCHAIN_API_KEY`, `LANGCHAIN_PROJECT`) NO LONGER apply to the 7 migrated agents — AgentKit doesn't auto-instrument LangSmith.
-
-LangSmith env vars CAN still be set for the remaining LangChain consumers (`services/disruption-vector-agent.ts`, `services/vcr/graph.ts`, `services/enrichment/graph.ts`, `services/bots/workflows/*`) — those will continue to ship traces if the vars are present. Without them they still work, tracing is purely additive.
+The 8 agents trace through Inngest's dashboard (run-by-run timing, retries, step traces, debug payloads) at the configured `INNGEST_BASE_URL`. LangSmith tracing was removed entirely on 2026-05-26 when the `langsmith` npm dep was dropped — it was the last LangChain-ecosystem package and after the Phase 10 LangGraph removal nothing else imported from it. The `LANGCHAIN_TRACING_V2` / `LANGCHAIN_API_KEY` / `LANGCHAIN_PROJECT` env vars are no longer read anywhere; `/api/health/services` no longer reports a `langsmith` field.

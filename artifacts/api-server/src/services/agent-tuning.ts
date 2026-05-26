@@ -6,6 +6,7 @@ const DEFAULTS = {
   detailBackfillLimit: 15,
   agentPerplexityCap: 6,
   defaultBotBudgetUsdCap: 40,
+  cviEpisodeMinIntervalMinutes: 10,
 } as const;
 
 const CACHE_TTL_MS = 60_000;
@@ -24,6 +25,7 @@ function defaultRow(): AgentTuning {
     detailBackfillLimit: DEFAULTS.detailBackfillLimit,
     agentPerplexityCap: DEFAULTS.agentPerplexityCap,
     defaultBotBudgetUsdCap: DEFAULTS.defaultBotBudgetUsdCap,
+    cviEpisodeMinIntervalMinutes: DEFAULTS.cviEpisodeMinIntervalMinutes,
     updatedAt: new Date(0),
     updatedBy: null,
   };
@@ -60,6 +62,7 @@ export interface TuningPatch {
   detailBackfillLimit?: number;
   agentPerplexityCap?: number;
   defaultBotBudgetUsdCap?: number;
+  cviEpisodeMinIntervalMinutes?: number;
   updatedBy?: string | null;
 }
 
@@ -89,6 +92,11 @@ export async function saveTuning(patch: TuningPatch): Promise<AgentTuning> {
       throw new Error("defaultBotBudgetUsdCap must be between 0 and 10000 USD");
     }
   }
+  if (patch.cviEpisodeMinIntervalMinutes != null) {
+    if (!Number.isInteger(patch.cviEpisodeMinIntervalMinutes) || patch.cviEpisodeMinIntervalMinutes < 0 || patch.cviEpisodeMinIntervalMinutes > 10080) {
+      throw new Error("cviEpisodeMinIntervalMinutes must be an integer between 0 (no throttle) and 10080 (one week)");
+    }
+  }
 
   const existing = await db.select().from(agentTuningTable).where(eq(agentTuningTable.id, 1)).limit(1);
   const next = {
@@ -97,6 +105,7 @@ export async function saveTuning(patch: TuningPatch): Promise<AgentTuning> {
     detailBackfillLimit: patch.detailBackfillLimit ?? existing[0]?.detailBackfillLimit ?? DEFAULTS.detailBackfillLimit,
     agentPerplexityCap: patch.agentPerplexityCap ?? existing[0]?.agentPerplexityCap ?? DEFAULTS.agentPerplexityCap,
     defaultBotBudgetUsdCap: patch.defaultBotBudgetUsdCap ?? existing[0]?.defaultBotBudgetUsdCap ?? DEFAULTS.defaultBotBudgetUsdCap,
+    cviEpisodeMinIntervalMinutes: patch.cviEpisodeMinIntervalMinutes ?? existing[0]?.cviEpisodeMinIntervalMinutes ?? DEFAULTS.cviEpisodeMinIntervalMinutes,
     updatedAt: new Date(),
     updatedBy: patch.updatedBy ?? null,
   };

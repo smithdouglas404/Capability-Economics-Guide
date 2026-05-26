@@ -20,6 +20,14 @@ import { pgTable, integer, real, timestamp, text } from "drizzle-orm/pg-core";
  *   each newly-provisioned synthetic agent. Per-bot overrides at provision
  *   time still win, but the system-wide default is admin-editable here so
  *   no value is ever truly hardcoded.
+ * - cviEpisodeMinIntervalMinutes: minimum time between consecutive Graphiti
+ *   :Episodic writes for the platform-wide CVI snapshot. 0 = no throttle
+ *   (fire on every snapshot, ~$274/yr at the 5-min CVI cadence). Default
+ *   10 minutes (~$137/yr). Operators commonly raise this to 1440 (one
+ *   episode/day, ~$1/yr) since /api/cvi/platform-history-bitemporal serves
+ *   date-X queries, not minute-X. Macro-event + capability-lifecycle
+ *   episodes are NOT throttled by this knob — only the high-volume CVI
+ *   snapshot stream.
  */
 export const agentTuningTable = pgTable("agent_tuning", {
   id: integer("id").primaryKey().default(1),
@@ -27,6 +35,7 @@ export const agentTuningTable = pgTable("agent_tuning", {
   detailBackfillLimit: integer("detail_backfill_limit").notNull().default(15),
   agentPerplexityCap: integer("agent_perplexity_cap").notNull().default(6),
   defaultBotBudgetUsdCap: real("default_bot_budget_usd_cap").notNull().default(40),
+  cviEpisodeMinIntervalMinutes: integer("cvi_episode_min_interval_minutes").notNull().default(10),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   updatedBy: text("updated_by"),
 });
