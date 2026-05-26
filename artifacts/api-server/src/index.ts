@@ -1,3 +1,9 @@
+// Side-effect import — must run BEFORE any AgentKit consumer. Adds
+// `toJSONSchema` to the v3 zod root namespace so AgentKit 0.13.2's
+// tool-registration step (which calls `z.toJSONSchema(schema)`) doesn't
+// crash. See lib/agent-kit-zod-polyfill.ts for the full story.
+import "./lib/agent-kit-zod-polyfill";
+
 import app from "./app";
 import { logger } from "./lib/logger";
 import { startScheduler } from "./services/agent";
