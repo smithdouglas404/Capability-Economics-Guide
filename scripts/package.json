@@ -21,6 +21,7 @@
     "seed:reference-org-rule": "tsx ./src/seed-reference-org-rule.ts",
     "seed:reference-orgs": "tsx ./src/seed-reference-orgs.ts",
     "backfill:graphiti-world-model": "tsx ./src/backfill-graphiti-world-model.ts",
+    "backfill:capability-embeddings": "tsx ./src/backfill-capability-embeddings.ts",
     "seed:patterns": "tsx ./src/seed-patterns.ts",
     "seed:reports": "tsx ./src/seed-marketplace-reports.ts",
     "seed:alpha-config": "tsx ./src/seed-alpha-config.ts",
