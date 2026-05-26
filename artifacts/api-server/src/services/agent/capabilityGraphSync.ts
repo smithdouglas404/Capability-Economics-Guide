@@ -22,10 +22,6 @@
  *    individual readers to Cypher is opt-in via USE_GRAPHITI_WORLD_MODEL.
  *  - A two-way sync. Postgres is the only writer; Graphiti is downstream.
  *
- * History — the legacy Neo4j dual-write / dual-read paths were removed
- * on 2026-05-25 alongside the Neo4j Railway service teardown. Recover
- * from git history if you need the old code.
- *
  * Companion script:
  *   scripts/src/backfill-graphiti-world-model.ts
  *

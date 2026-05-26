@@ -2,18 +2,13 @@
  * Graph Memory — entity + relation extraction and traversal.
  *
  * BACKEND SELECTION:
- *   1. Graphiti+FalkorDB (Phase A target) — read primary when both
+ *   1. Graphiti+FalkorDB — read primary when both
  *      `USE_GRAPHITI_WORLD_MODEL=1` and `GRAPHITI_MCP_URL` are set.
  *      Provides native Cypher traversal via the Graphiti MCP server.
  *   2. PostgreSQL (Drizzle) — always-on write path + read fallback.
  *      Uses memory_entities + memory_relations as the source of truth.
  *      Every write goes here; reads use it as the fallback if Graphiti
  *      is unavailable or unconfigured.
- *
- * The legacy Neo4j dual-write / dual-read paths were removed on
- * 2026-05-25 (commit landing in main). Neo4j had been deprecated in
- * favor of Graphiti+FalkorDB for weeks but the removal step wasn't
- * done. See git history if you need to recover.
  *
  * ENTITY/RELATION MODEL:
  *   Entities: industry | capability | concept | metric | actor

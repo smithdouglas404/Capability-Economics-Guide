@@ -585,7 +585,7 @@ export default function CapabilityDetailPage() {
         </Card>
       )}
 
-      {/* ─── Downstream impact cascade (Neo4j-graph-driven) ──────────────── */}
+      {/* ─── Downstream impact cascade (FalkorDB-graph-driven, Postgres fallback) ── */}
       {cap && <CapabilityCascadePanel capabilityId={id} />}
 
       {/* ─── CVI trend sparkline ───────────────────────────────────────────── */}
