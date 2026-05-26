@@ -603,9 +603,127 @@ export default function CapabilityDetailPage() {
       {/* ─── Peer benchmark card ───────────────────────────────────────────── */}
       {cap && <PeerBenchmarkCard capabilityId={id} industryId={cap.industryId} />}
 
+      {/* ─── Strategic cluster (CDLP) + cross-industry analogues (vector) ───── */}
+      {cap && <StrategicClusterCard capabilityId={id} />}
+      {cap && <IndustryAnaloguesCard capabilityId={id} />}
+
       {/* ─── Analyst annotations widget ────────────────────────────────────── */}
       <CapabilityAnnotations capabilityId={id} />
     </div>
+  );
+}
+
+interface CommunityPeer {
+  pgId: number;
+  name: string;
+  slug: string;
+  industry: { id: number; name: string; slug: string } | null;
+}
+
+function StrategicClusterCard({ capabilityId }: { capabilityId: number }) {
+  const [data, setData] = useState<{ communityId: number | null; peers: CommunityPeer[]; peerCount: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/community-peers`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled) setData(j); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId]);
+  if (loading) return null;
+  if (!data || data.communityId === null || data.peers.length === 0) return null;
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Strategic Cluster</h3>
+          <span className="text-xs text-muted-foreground font-mono">
+            {data.peerCount} peer{data.peerCount === 1 ? "" : "s"} · CDLP graph
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Capabilities in the same FalkorDB community as this one. Communities are derived from {":DEPENDS_ON"} traversal via Label Propagation.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {data.peers.slice(0, 10).map(p => (
+            <Link
+              key={p.pgId}
+              href={`/capability/${p.pgId}`}
+              className="px-3 py-2 border border-border hover:border-primary transition-colors text-sm group flex items-center justify-between"
+            >
+              <span className="truncate group-hover:text-primary">{p.name}</span>
+              {p.industry && (
+                <Badge variant="outline" className="ml-2 text-[10px] uppercase tracking-[0.12em] shrink-0">
+                  {p.industry.name}
+                </Badge>
+              )}
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface IndustryAnalogue {
+  pgId: number;
+  name: string;
+  slug: string;
+  industry: { id: number; name: string; slug: string } | null;
+  similarity: number;
+}
+
+function IndustryAnaloguesCard({ capabilityId }: { capabilityId: number }) {
+  const [data, setData] = useState<{ analogues: IndustryAnalogue[]; available: boolean } | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch(`${API_BASE}/capabilities/${capabilityId}/industry-analogues`)
+      .then(r => r.json())
+      .then(j => { if (!cancelled) setData(j); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [capabilityId]);
+  if (loading) return null;
+  if (!data || !data.available || data.analogues.length === 0) return null;
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-baseline justify-between mb-3">
+          <h3 className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">Cross-Industry Analogues</h3>
+          <span className="text-xs text-muted-foreground font-mono">vector similarity</span>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Semantically nearest capabilities in <em>other</em> industries — FalkorDB vector index over OpenAI embeddings.
+        </p>
+        <div className="space-y-2">
+          {data.analogues.map(a => (
+            <Link
+              key={a.pgId}
+              href={`/capability/${a.pgId}`}
+              className="px-3 py-2 border border-border hover:border-primary transition-colors text-sm group flex items-center justify-between gap-3"
+            >
+              <span className="truncate group-hover:text-primary">{a.name}</span>
+              <div className="flex items-center gap-2 shrink-0">
+                {a.industry && (
+                  <Badge variant="outline" className="text-[10px] uppercase tracking-[0.12em]">
+                    {a.industry.name}
+                  </Badge>
+                )}
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {(a.similarity * 100).toFixed(0)}%
+                </span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -72,34 +72,39 @@ export default function MarketplacePage() {
   const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<SortMode>("newest");
-  // "keyword_fallback" when results came back from server-side search;
-  // "all" when no query is active (initial load). Drives the small label
-  // near the input.
-  const [searchSource, setSearchSource] = useState<"all" | "keyword_fallback">("all");
+  // Smart match: when on, hit /search?mode=semantic which embeds the query
+  // via OpenAI text-embedding-3-small and ranks listings by vector
+  // similarity to their underlying capability (FalkorDB vector index over
+  // :Capability.embedding). Off by default — keyword ILIKE is faster for
+  // short literal queries and matches existing behavior. The server tags
+  // its response with `source` so we can show the user which path won.
+  const [smartMatch, setSmartMatch] = useState(false);
+  const [searchSource, setSearchSource] = useState<"all" | "keyword_fallback" | "semantic" | "semantic_fallback_keyword">("all");
 
   // Debounced server-side search. When query is empty → fetch full listings
-  // (initial load behaviour). When non-empty → call /search. 350ms debounce
-  // so typing doesn't fire one fetch per keystroke.
+  // (initial load behaviour). When non-empty → call /search with the
+  // selected mode. 350ms debounce so typing doesn't fire one fetch per
+  // keystroke.
   useEffect(() => {
     let cancelled = false;
     const q = query.trim();
     const timer = setTimeout(() => {
       setLoading(true);
       const url = q
-        ? `${API_BASE}/marketplace/listings/search?q=${encodeURIComponent(q)}`
+        ? `${API_BASE}/marketplace/listings/search?q=${encodeURIComponent(q)}${smartMatch ? "&mode=semantic" : ""}`
         : `${API_BASE}/marketplace/listings`;
       fetch(url, { credentials: "include" })
         .then(r => r.json())
         .then(j => {
           if (cancelled) return;
           setListings(j.listings ?? []);
-          setSearchSource(q ? "keyword_fallback" : "all");
+          setSearchSource(q ? (j.source ?? "keyword_fallback") : "all");
         })
         .catch(() => { if (!cancelled) setListings([]); })
         .finally(() => { if (!cancelled) setLoading(false); });
     }, q ? 350 : 0);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [query]);
+  }, [query, smartMatch]);
 
   const filtered = useMemo(() => {
     // Server already filtered by query when present. Local filters (segment,
@@ -164,12 +169,24 @@ export default function MarketplacePage() {
               onChange={e => setQuery(e.target.value)}
               className="rounded-none pl-9"
             />
-            {query && searchSource === "keyword_fallback" && (
+            {query && searchSource !== "all" && (
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] uppercase tracking-[0.16em] text-muted-foreground font-mono">
-                keyword
+                {searchSource === "semantic" ? "semantic" : searchSource === "semantic_fallback_keyword" ? "kw (no embed match)" : "keyword"}
               </span>
             )}
           </div>
+          <label
+            className="flex items-center gap-1.5 text-xs cursor-pointer select-none px-2.5 py-1.5 border border-input rounded-none"
+            title="Smart match — uses OpenAI embeddings + FalkorDB vector index to rank listings by semantic similarity. Falls back to keyword if no matches."
+          >
+            <input
+              type="checkbox"
+              checked={smartMatch}
+              onChange={e => setSmartMatch(e.target.checked)}
+              className="w-3.5 h-3.5 accent-primary cursor-pointer"
+            />
+            <span className="uppercase tracking-[0.14em] font-mono text-muted-foreground">Smart match</span>
+          </label>
           <select
             value={typeFilter}
             onChange={e => setTypeFilter(e.target.value as TypeFilter)}

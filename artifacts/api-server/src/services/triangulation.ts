@@ -275,10 +275,41 @@ export async function getStaleCapabilities(limit: number, industryId?: number): 
     lastTriangulatedAt: lastByCap.get(c.id) || null,
   }));
 
+  // PageRank bias — systemic-importance signal from FalkorDB. High-PageRank
+  // caps (the ones a lot of others depend on) get a 1× to 2× multiplier on
+  // their staleness clock so when two caps are equally stale, the more
+  // structurally important one is researched first. Falls back to flat
+  // ordering (multiplier=1.0 everywhere) when:
+  //   - USE_GRAPHITI_WORLD_MODEL is off
+  //   - PageRank cache hasn't warmed yet
+  //   - the cap doesn't appear in the graph
+  // The fetch is module-cached for 1h in capability-graph-algorithms.ts,
+  // so the cost of this lookup is one Cypher round-trip every hour, not
+  // per rotation call.
+  const pageRankScores = await (async () => {
+    try {
+      const { getPageRankScores } = await import("./capability-graph-algorithms");
+      return await getPageRankScores();
+    } catch {
+      return new Map<number, number>();
+    }
+  })();
+  const maxPageRank = pageRankScores.size > 0
+    ? Math.max(...Array.from(pageRankScores.values()), 0)
+    : 0;
+  const boostFor = (pgId: number): number => {
+    if (maxPageRank <= 0) return 1;
+    const score = pageRankScores.get(pgId) ?? 0;
+    return 1 + score / maxPageRank;
+  };
+
+  const now = Date.now();
   ranked.sort((a, b) => {
-    const aT = a.lastTriangulatedAt?.getTime() ?? 0;
-    const bT = b.lastTriangulatedAt?.getTime() ?? 0;
-    return aT - bT;
+    const aAge = now - (a.lastTriangulatedAt?.getTime() ?? 0);
+    const bAge = now - (b.lastTriangulatedAt?.getTime() ?? 0);
+    const aWeighted = aAge * boostFor(a.capabilityId);
+    const bWeighted = bAge * boostFor(b.capabilityId);
+    return bWeighted - aWeighted; // most weighted-stale first
   });
 
   return ranked.slice(0, limit);

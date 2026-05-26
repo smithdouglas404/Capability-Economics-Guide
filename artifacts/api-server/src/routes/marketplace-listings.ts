@@ -66,17 +66,23 @@ router.get("/marketplace/listings", async (_req, res) => {
 });
 
 /**
- * Keyword search across approved marketplace listings (Postgres ILIKE).
+ * Search across approved marketplace listings. Two modes:
  *
- * Response shape matches `/marketplace/listings` exactly (same select
- * columns) so the marketplace-library page can drop the result array into
- * the same renderer. Empty/missing `q` redirects to the full list.
+ *  - mode=keyword (default): Postgres ILIKE substring over title + description.
+ *  - mode=semantic: hybrid Cypher + vector via FalkorDB. Embeds the query
+ *    with OpenAI's text-embedding-3-small, finds top-K :Capability nodes
+ *    by cosine similarity, then returns listings whose `tags` jsonb array
+ *    overlaps with those caps' slugs. Falls back to keyword if vector
+ *    search is unavailable (no embeddings, OPENAI_API_KEY missing, etc.)
+ *    so the route never returns 0 results just because the index is empty.
  *
- * Catalog scale: ~22 listings at time of writing — keyword search is fine.
- * Revisit with pgvector embeddings if catalog grows past ~500 listings.
+ * Response shape matches /marketplace/listings exactly (plus a `source`
+ * field for the UI label) so the marketplace-library page renders the
+ * same way regardless of which path produced the results.
  */
 router.get("/marketplace/listings/search", async (req, res) => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const mode = typeof req.query.mode === "string" ? req.query.mode : "keyword";
   if (!q) {
     res.redirect("/api/marketplace/listings");
     return;
@@ -99,8 +105,75 @@ router.get("/marketplace/listings/search", async (req, res) => {
     approvedAt: marketplaceListingsTable.approvedAt,
   };
 
-  // Postgres ILIKE substring match. 22 listings is small enough that keyword
-  // search is fine; revisit with pgvector if the catalog grows past ~500.
+  // ── Semantic path ───────────────────────────────────────
+  if (mode === "semantic") {
+    try {
+      const { isVectorSearchAvailable, searchCapabilitiesByText } = await import("../services/capability-graph-vector");
+      if (isVectorSearchAvailable()) {
+        const hits = await searchCapabilitiesByText(q, 20);
+        const pgIds = hits.map((h) => h.pgId);
+        if (pgIds.length > 0) {
+          // Pull the caps' slugs from Postgres — listings are tagged by slug.
+          const { capabilitiesTable } = await import("@workspace/db");
+          const slugRows = await db
+            .select({ id: capabilitiesTable.id, slug: capabilitiesTable.slug })
+            .from(capabilitiesTable)
+            .where(inArray(capabilitiesTable.id, pgIds));
+          const slugByPgId = new Map(slugRows.map((r) => [r.id, r.slug]));
+          const orderedSlugs = pgIds
+            .map((id) => slugByPgId.get(id))
+            .filter((s): s is string => typeof s === "string" && s.length > 0);
+          if (orderedSlugs.length > 0) {
+            // Postgres jsonb `?|` array operator: any matching tag.
+            const rows = await db
+              .select(baseSelect)
+              .from(marketplaceListingsTable)
+              .leftJoin(marketplaceSellersTable, eq(marketplaceListingsTable.sellerId, marketplaceSellersTable.id))
+              .where(and(
+                eq(marketplaceListingsTable.status, "approved"),
+                sql`${marketplaceListingsTable.tags} ?| ARRAY[${sql.raw(orderedSlugs.map((s) => `'${s.replace(/'/g, "''")}'`).join(","))}]::text[]`,
+                or(
+                  isNull(marketplaceListingsTable.expiresAt),
+                  gt(marketplaceListingsTable.expiresAt, sql`now()`),
+                ),
+              ))
+              .limit(50);
+            // Rank by semantic ordering: first listing whose tags include the
+            // earliest-ranked slug wins, then by featured + approvedAt.
+            const slugRank = new Map(orderedSlugs.map((s, i) => [s, i]));
+            const ranked = rows
+              .map((r) => {
+                const tagList = (r.tags ?? []) as string[];
+                const best = tagList.reduce(
+                  (lo, t) => Math.min(lo, slugRank.get(t) ?? Number.POSITIVE_INFINITY),
+                  Number.POSITIVE_INFINITY,
+                );
+                return { row: r, semanticRank: best };
+              })
+              .sort((a, b) => {
+                if (a.semanticRank !== b.semanticRank) return a.semanticRank - b.semanticRank;
+                if ((a.row.featured ? 1 : 0) !== (b.row.featured ? 1 : 0)) return (b.row.featured ? 1 : 0) - (a.row.featured ? 1 : 0);
+                return (b.row.approvedAt?.getTime() ?? 0) - (a.row.approvedAt?.getTime() ?? 0);
+              })
+              .map((x) => x.row);
+            res.json({
+              listings: ranked,
+              source: "semantic",
+              query: q,
+              matchedCapabilities: orderedSlugs.length,
+            });
+            return;
+          }
+        }
+      }
+      // If we get here, semantic path returned nothing — fall through to keyword
+      // so the user still sees relevant listings.
+    } catch (err) {
+      logger.warn({ err }, "[marketplace.search] semantic mode failed, falling back to keyword");
+    }
+  }
+
+  // ── Keyword (default + semantic-fallback) path ──────────
   const like = `%${q}%`;
   const rows = await db
     .select(baseSelect)
@@ -119,7 +192,7 @@ router.get("/marketplace/listings/search", async (req, res) => {
     ))
     .orderBy(desc(marketplaceListingsTable.featured), desc(marketplaceListingsTable.approvedAt))
     .limit(50);
-  res.json({ listings: rows, source: "keyword_fallback", query: q });
+  res.json({ listings: rows, source: mode === "semantic" ? "semantic_fallback_keyword" : "keyword_fallback", query: q });
 });
 
 /**
