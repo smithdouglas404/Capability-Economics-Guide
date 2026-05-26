@@ -33,18 +33,18 @@ interface CountResult {
 async function countQuery(cypher: string): Promise<CountResult> {
   try {
     const r = await queryCypher({ cypher });
-    if (!r.ok || !r.rows) return { ok: false, error: r.error ?? "no rows" };
-    // Graphiti's query_cypher returns rows shaped like:
-    //   [{"row": [{"count": N}]}, {"row": ["count"]}, {"row": null}]
-    // i.e. a header row + a separator row mixed in with the data row.
-    // We pick the first row whose `row[0]` is an object with a `count` key.
-    for (const row of r.rows) {
-      const inner = (row as { row?: unknown[] }).row?.[0];
-      if (inner && typeof inner === "object" && "count" in (inner as Record<string, unknown>)) {
-        return { ok: true, count: Number((inner as { count: number }).count) };
-      }
+    if (!r.ok) return { ok: false, error: r.error ?? "query failed" };
+    // queryCypher unwraps the FalkorDB driver's 3-row block centrally, so
+    // r.rows is `Array<Record<string, unknown>>` with the actual records.
+    // An empty array is a legitimate "0" answer (no rows for a count(*) is
+    // unusual — Cypher always returns one row — but we tolerate it).
+    const first = r.rows?.[0];
+    const raw = first && typeof first === "object" ? (first as Record<string, unknown>).count : 0;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) {
+      return { ok: false, error: `count was not a finite number (got ${JSON.stringify(raw)})` };
     }
-    return { ok: false, error: "no count row found" };
+    return { ok: true, count: n };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : "query failed" };
   }
@@ -68,9 +68,16 @@ router.get("/admin/graphiti/counts", requireAdmin, async (_req: Request, res: Re
     Promise.all(relationships.map(async (r) => [r, await countQuery(`MATCH ()-[r:\`${r}\`]->() RETURN count(r) AS count`)] as const)),
   ]);
 
+  const allResults: CountResult[] = [
+    ...labelResults.map(([, v]) => v),
+    ...relResults.map(([, v]) => v),
+  ];
+  const partialFailure = allResults.some((r) => !r.ok);
+
   res.json({
     graphitiConfigured: true,
     graphitiEnabled: isGraphitiEnabled(),
+    partialFailure,
     nodes: Object.fromEntries(labelResults),
     relationships: Object.fromEntries(relResults),
     checkedAt: new Date().toISOString(),

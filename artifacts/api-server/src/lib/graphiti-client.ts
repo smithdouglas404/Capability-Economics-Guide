@@ -221,12 +221,55 @@ export interface QueryCypherResult extends GraphitiToolResult {
   rows?: Array<Record<string, unknown>>;
 }
 
+/**
+ * The FalkorDB driver (via graphiti-mcp's wrapper) returns query results in a
+ * 3-row block per the falkordb-py convention:
+ *   rows: [
+ *     { row: [...record objects...] },   // 0: the actual data
+ *     { row: [...column names...] },     // 1: header (string array)
+ *     { row: null },                      // 2: separator / statistics
+ *   ]
+ *
+ * Every caller wants the flat record array. Doing the unwrap once here keeps
+ * `QueryCypherResult.rows` honest to its TypeScript type
+ * (`Array<Record<string, unknown>>`) and prevents the silent-NaN class of bug
+ * where callers `.map((r) => Number(r.someField))` against the wrapper and
+ * get NaN because `r.someField` is undefined on the wrapper objects.
+ *
+ * If the upstream MCP wrapper is ever changed to return already-flat records,
+ * the heuristic below (detect the wrapper by looking for `row` on the first
+ * element) cleanly passes them through.
+ */
+function unwrapFalkorRows(raw: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  const first = raw[0];
+  if (first && typeof first === "object" && "row" in (first as Record<string, unknown>)) {
+    const inner = (first as { row: unknown }).row;
+    if (Array.isArray(inner)) {
+      return inner.filter(
+        (r): r is Record<string, unknown> =>
+          r !== null && typeof r === "object" && !Array.isArray(r),
+      );
+    }
+    // Driver returned an empty data row (`{ row: [] }` or `{ row: null }`) —
+    // a real "no matches" result. Surface as an empty array so callers can
+    // distinguish "graph empty" from "graph has data".
+    return [];
+  }
+  // Already flat (or shape we don't recognise) — return as-is.
+  return (raw as Array<Record<string, unknown>>).filter(
+    (r) => r !== null && typeof r === "object",
+  );
+}
+
 export async function queryCypher(args: {
   cypher: string;
   params?: Record<string, unknown>;
 }): Promise<QueryCypherResult> {
-  return callGraphitiTool<QueryCypherResult>("query_cypher", {
-    cypher: args.cypher,
-    params: args.params ?? {},
-  });
+  const raw = await callGraphitiTool<GraphitiToolResult & { rows?: unknown }>(
+    "query_cypher",
+    { cypher: args.cypher, params: args.params ?? {} },
+  );
+  if (!raw.ok) return { ok: false, error: raw.error };
+  return { ok: true, rows: unwrapFalkorRows(raw.rows) };
 }

@@ -217,13 +217,17 @@ export const queryGraphTool = tool(
         }
         // Routes through capabilityGraphSync.cypherCascadeImpacted which
         // uses Graphiti when USE_GRAPHITI_WORLD_MODEL=1 and returns null
-        // when the flag is unset.
+        // when the flag is unset. Response shape is uniform: every branch
+        // returns { source, count, results, note? } so downstream LLM
+        // parsing isn't broken by an optional field appearing only on the
+        // empty/unavailable cases.
         const cascade = await cypherCascadeImpacted(capabilityId, hops ?? 3);
         if (cascade === null) {
           return JSON.stringify({
             source: "none",
-            note: "USE_GRAPHITI_WORLD_MODEL=1 not set — cascade unavailable. Use query_database with capabilities/cvi_components for 1-hop relational lookups.",
+            count: 0,
             results: [],
+            note: "USE_GRAPHITI_WORLD_MODEL=1 not set — cascade unavailable. Use query_database with capabilities/cvi_components for 1-hop relational lookups.",
           });
         }
         if (cascade.length === 0) {
@@ -234,7 +238,12 @@ export const queryGraphTool = tool(
             note: "Graphiti returned empty cascade. This may indicate an incomplete :Capability mirror — consider using query_database with capability_dependencies for a Postgres-authoritative answer.",
           });
         }
-        return JSON.stringify({ source: "graph", count: cascade.length, results: cascade });
+        return JSON.stringify({
+          source: "graph",
+          count: cascade.length,
+          results: cascade,
+          note: null,
+        });
       }
 
       if (operation === "find_related_entities") {

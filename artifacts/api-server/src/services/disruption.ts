@@ -199,10 +199,20 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
       .where(eq(capabilityDependenciesTable.capabilityId, capabilityId));
     dependsOnIds = pgDeps.map(d => d.id);
     // Multi-hop upstream cascade — captures downstream macro impact for caps
-    // 2-3 hops up the dependency chain. No-op when Graphiti is unreachable.
+    // 2-3 hops up the dependency chain. No-op when Graphiti is unreachable
+    // (cascade === null) OR when the :Capability mirror is empty/incomplete
+    // (cascade.length === 0). Without the length check, `if (cascade)` would
+    // pass for [] and the for-loop would no-op silently — fine — but the
+    // length check makes the intent explicit and matches the fix in
+    // routes/cascade.ts. Critically, `c.pgId` must be a real number; the
+    // Number(NaN) guard below trims any stray bad rows that slip through.
     const cascade = await cypherCascadeImpacted(capabilityId, 3);
-    if (cascade) {
-      for (const c of cascade) if (!dependsOnIds.includes(c.pgId)) dependsOnIds.push(c.pgId);
+    if (cascade && cascade.length > 0) {
+      for (const c of cascade) {
+        if (Number.isFinite(c.pgId) && !dependsOnIds.includes(c.pgId)) {
+          dependsOnIds.push(c.pgId);
+        }
+      }
     }
   } else {
     const pgDeps = await db
