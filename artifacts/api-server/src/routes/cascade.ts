@@ -77,9 +77,17 @@ router.get("/cascade/:capabilityId", async (req, res) => {
 
     if (useGraphitiWorldModel()) {
       const cypher = await cypherCascadeImpacted(rootId, depth);
-      if (cypher) {
+      // Fall back to Postgres CTE if Graphiti errored (cypher === null) OR
+      // returned an empty array. The "successful but empty" case is treated as
+      // a fall-back signal because the structural :Capability mirror in Graphiti
+      // can be empty (eg pre-backfill or partial backfill) while Postgres has
+      // the canonical dependency edges. Without this, a stale graph would
+      // silently degrade /api/cascade to "no dependents" for every capability.
+      if (cypher && cypher.length > 0) {
         rawNodes = cypher.map(c => ({ id: c.pgId, distance: c.hops }));
         source = "graph";
+      } else if (cypher && cypher.length === 0) {
+        logger.warn({ rootId, depth }, "[cascade] Graphiti returned empty cascade — falling back to Postgres CTE (structural mirror may be incomplete)");
       }
     }
 

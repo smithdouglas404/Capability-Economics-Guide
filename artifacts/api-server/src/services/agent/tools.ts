@@ -226,6 +226,14 @@ export const queryGraphTool = tool(
             results: [],
           });
         }
+        if (cascade.length === 0) {
+          return JSON.stringify({
+            source: "graph",
+            count: 0,
+            results: [],
+            note: "Graphiti returned empty cascade. This may indicate an incomplete :Capability mirror — consider using query_database with capability_dependencies for a Postgres-authoritative answer.",
+          });
+        }
         return JSON.stringify({ source: "graph", count: cascade.length, results: cascade });
       }
 

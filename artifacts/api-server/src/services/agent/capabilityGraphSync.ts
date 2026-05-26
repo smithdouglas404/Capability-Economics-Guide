@@ -179,7 +179,13 @@ export async function recordCapabilityEpisode(args: {
  * USE_GRAPHITI_WORLD_MODEL=1 is set.
  *
  * Returns null when Graphiti is not available so callers can fall back
- * to the Postgres recursive CTE path.
+ * to the Postgres recursive CTE path. **A successful empty result is
+ * also a "fall back" signal** — callers should treat it as suspicious
+ * unless Postgres also returns empty, because it almost always means
+ * the structural mirror hasn't been backfilled. The helper logs a warn
+ * on empty so this state is visible in the logs; the responsibility
+ * for falling back lives with the caller (because what counts as a
+ * valid Postgres fallback differs per consumer).
  */
 export async function cypherCascadeImpacted(rootPgId: number, maxHops = 3): Promise<Array<{ pgId: number; name: string; hops: number }> | null> {
   if (!useGraphitiWorldModel() || !isGraphitiAvailable()) return null;
@@ -194,11 +200,18 @@ export async function cypherCascadeImpacted(rootPgId: number, maxHops = 3): Prom
       logger.warn({ err: result.error, rootPgId }, "[capability-graph-sync] cypherCascadeImpacted returned error; caller should fall back to Postgres");
       return null;
     }
-    return result.rows.map((r) => ({
+    const rows = result.rows.map((r) => ({
       pgId: Number(r.pgId),
       name: String(r.name ?? ""),
       hops: Number(r.hops),
     }));
+    if (rows.length === 0) {
+      logger.warn(
+        { rootPgId, maxHops },
+        "[capability-graph-sync] cypherCascadeImpacted returned empty — structural :Capability mirror may be incomplete. Caller should fall back to Postgres CTE.",
+      );
+    }
+    return rows;
   } catch (err) {
     logger.warn({ err, rootPgId }, "[capability-graph-sync] cypherCascadeImpacted failed; caller should fall back to Postgres");
     return null;
