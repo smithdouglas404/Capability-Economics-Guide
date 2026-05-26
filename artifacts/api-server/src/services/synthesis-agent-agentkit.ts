@@ -264,11 +264,12 @@ async function writePostRunMemory(output: string): Promise<void> {
 export async function runSynthesisAgentAgentKit(): Promise<AgentRunResult> {
   const start = Date.now();
   const memoryContext = await buildMemoryContext();
+  const graphContext = await (await import("./agent/build-graph-context")).buildGraphContext();
 
   const agent = createAgent({
     name: SYNTHESIS_AGENT_NAME,
     description: "Cross-agent intelligence layer: reads all agent digests + graph correlations + Mem0 patterns + temporal shifts and publishes a unified strategic brief.",
-    system: SYNTHESIS_SYSTEM_PROMPT + memoryContext,
+    system: SYNTHESIS_SYSTEM_PROMPT + memoryContext + graphContext,
     model: anthropic({
       model: SONNET_MODEL,
       defaultParameters: { max_tokens: 4000, temperature: 0.3 },

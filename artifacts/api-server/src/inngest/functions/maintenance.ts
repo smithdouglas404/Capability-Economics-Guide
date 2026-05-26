@@ -5,6 +5,7 @@ import {
 } from "../../services/agent/temporal-shift-detector";
 import { scoreRecommendationByInsightId } from "../../services/agent/recommendation-feedback";
 import { sendFoundryExpiryEmail } from "../../services/foundry/expiry-alert";
+import { mem0Prune } from "../../services/agent/memory";
 
 // Phase 6 — Inngest wrappers around long-running maintenance crons.
 // Same flag-gated cutover pattern as Phase 1.
@@ -106,9 +107,29 @@ export const foundryTokenExpiryAlert = inngest.createFunction(
   },
 );
 
+// Mem0 TTL sweep — deletes memories whose metadata.expiresAt has elapsed.
+// Daily cadence is plenty: TTLs are stamped per memory at write time
+// (see services/agent/memory.ts:storeMemory) so a 24h enforcement lag
+// doesn't materially change recall behaviour. Gated by
+// INNGEST_OWNS_MEM0_PRUNE so it can be flipped on/off without a deploy.
+export const mem0PruneCron = inngest.createFunction(
+  {
+    id: "mem0-prune",
+    triggers: [{ cron: "0 4 * * *" }], // 04:00 UTC daily — off-peak
+    concurrency: { limit: 1 },
+    rateLimit: { limit: 1, period: "1d", key: "global" },
+    retries: 2,
+  },
+  async ({ step }) => {
+    if (!ownedBy("INNGEST_OWNS_MEM0_PRUNE")) return { skipped: "flag-off" };
+    return await step.run("prune", () => mem0Prune({ batchLimit: 500 }));
+  },
+);
+
 export const maintenanceFunctions = [
   temporalShiftDetectorCron,
   memoryRelationSnapshotCron,
   recommendationFeedbackOnInsight,
   foundryTokenExpiryAlert,
+  mem0PruneCron,
 ];

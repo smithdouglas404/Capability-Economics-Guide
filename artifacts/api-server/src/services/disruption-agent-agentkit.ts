@@ -182,11 +182,12 @@ async function writePostRunMemory(output: string): Promise<void> {
 export async function runDisruptionAgentAgentKit(): Promise<AgentRunResult> {
   const start = Date.now();
   const memoryContext = await buildMemoryContext();
+  const graphContext = await (await import("./agent/build-graph-context")).buildGraphContext();
 
   const agent = createAgent({
     name: DISRUPTION_AGENT_NAME,
     description: "Reads macro digest, recomputes DVX, ranks disruption, publishes digest.",
-    system: SYSTEM_PROMPT + memoryContext,
+    system: SYSTEM_PROMPT + memoryContext + graphContext,
     model: anthropic({
       model: HAIKU_MODEL,
       defaultParameters: {

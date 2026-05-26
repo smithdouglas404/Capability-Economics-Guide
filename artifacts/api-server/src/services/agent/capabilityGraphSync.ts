@@ -85,6 +85,28 @@ export async function mirrorCapability(fields: CapabilityNodeFields): Promise<vo
   } catch (err) {
     logger.warn({ err, pgId: fields.pgId }, "[capability-graph-sync] mirrorCapability failed (Postgres write already succeeded)");
   }
+
+  // Fire-and-forget embedding write. Lazy import to avoid pulling the
+  // vector service (and its OpenAI fetch dep) into call sites that
+  // mirror capability writes thousands of times during backfill — the
+  // .then(...).catch(...) ensures we never block or throw upstream.
+  void (async () => {
+    try {
+      const [{ isVectorSearchAvailable, embedText, setCapabilityEmbedding }] = await Promise.all([
+        import("../capability-graph-vector"),
+      ]);
+      if (!isVectorSearchAvailable()) return;
+      const parts: string[] = [fields.name];
+      if (fields.slug) parts.push(`slug: ${fields.slug}`);
+      const text = parts.join(" — ").slice(0, 4000);
+      const vec = await embedText(text);
+      if (!vec) return;
+      await setCapabilityEmbedding(fields.pgId, vec);
+    } catch {
+      // Non-fatal — embedding is a nice-to-have that will be refilled
+      // on the next backfill run if it ever fails here.
+    }
+  })();
 }
 
 export interface DependencyEdgeFields {

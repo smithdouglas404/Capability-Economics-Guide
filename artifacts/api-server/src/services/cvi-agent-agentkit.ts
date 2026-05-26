@@ -61,6 +61,12 @@ import { maybeStepRun } from "../inngest/step-context";
 
 const HAIKU_MODEL = "claude-haiku-4-5-20251001";
 
+// Canonical agent identifier — used to scope every Mem0 read/write to
+// this agent's own pool (instead of the shared cvi-autonomous-agent
+// fallback that earlier versions of this file used by accident of code
+// path). Matches the AGENT_REGISTRY shortName.
+const AGENT_NAME = "cvi-autonomous-agent";
+
 interface CapabilityTarget {
   capabilityId: number;
   capabilityName: string;
@@ -153,6 +159,23 @@ async function evaluatePhase(): Promise<{ targets: CapabilityTarget[]; cviBefore
   const compMap = new Map<string, typeof components[0]>();
   for (const c of components) compMap.set(`${c.industryId}-${c.capabilityId}`, c);
 
+  // FalkorDB graph signals — PageRank (systemic importance) + community
+  // membership — let the CVI agent prioritize structurally-important
+  // capabilities over equally-stale peripheral ones. Cached 1h in the
+  // algorithm service so this is one Cypher round-trip every hour, not
+  // per-cycle. Empty maps when Graphiti is off; the agent degrades to
+  // pure-staleness ordering in that case (matches pre-graph behavior).
+  const { getPageRankScores } = await import("./capability-graph-algorithms");
+  const pageRankScores = await getPageRankScores().catch(() => new Map<number, number>());
+  const maxPageRank = pageRankScores.size > 0
+    ? Math.max(...Array.from(pageRankScores.values()), 0)
+    : 0;
+  const pageRankBoost = (pgId: number): number => {
+    if (maxPageRank <= 0) return 0;
+    const score = pageRankScores.get(pgId) ?? 0;
+    return (score / maxPageRank) * 2; // 0..2 priority points
+  };
+
   const now = Date.now();
   const targets: CapabilityTarget[] = [];
 
@@ -168,6 +191,7 @@ async function evaluatePhase(): Promise<{ targets: CapabilityTarget[]; cviBefore
       if (comp && Math.abs(comp.velocity) > HIGH_VOLATILITY_THRESHOLD) priority += 2;
       if (comp && comp.confidence < LOW_CONFIDENCE_THRESHOLD) priority += 3;
       if (!comp) priority += 5;
+      priority += pageRankBoost(cap.id); // FalkorDB systemic-importance bias
 
       targets.push({
         capabilityId: cap.id,
@@ -203,10 +227,10 @@ async function recallPhase(
   emitAgentEvent({ type: "phase", phase: "recalling", message: "Recalling institutional memory..." });
 
   const [patterns, insights, observations, decisions] = await Promise.all([
-    recallMemoriesBatch("pattern", 60),
-    recallMemoriesBatch("insight", 30),
-    recallMemoriesBatch("observation", 30),
-    recallMemoriesBatch("decision_context", 20),
+    recallMemoriesBatch("pattern", 60, { agentName: AGENT_NAME }),
+    recallMemoriesBatch("insight", 30, { agentName: AGENT_NAME }),
+    recallMemoriesBatch("observation", 30, { agentName: AGENT_NAME }),
+    recallMemoriesBatch("decision_context", 20, { agentName: AGENT_NAME }),
   ]);
   const merged = [...patterns, ...insights, ...observations, ...decisions];
   const seen = new Set<string>();
@@ -486,6 +510,7 @@ async function memorizePhase(args: {
         {
           category: "decision",
           runId: args.runId,
+          agentName: AGENT_NAME,
           context: `The CVI agent just finished its #${args.runId} research cycle. Summarize the outcome in durable, queryable terms so future cycles can recall and reason about what was learned, what was skipped, and how the index moved.`,
         },
       );

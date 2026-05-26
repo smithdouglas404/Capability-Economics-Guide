@@ -37,6 +37,36 @@ WORKDIR /app/server
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Bet B: FalkorDB as Mem0's graph backend.
+#
+# Mem0 supports plugging in a graph store separately from its vector store.
+# Out of the box the server runs pgvector-only — `enable_graph: true` on
+# the client side is a no-op against a server with no graph_store
+# configured (which is exactly what we hit in prod: 1774 memories landed
+# in pgvector, zero in the graph).
+#
+# Installing mem0_falkordb + a thin patch to the server's config loader
+# lets Mem0 also write entities/relations into FalkorDB. We point it at
+# the same FalkorDB instance Graphiti already uses on the AI Genome
+# Railway project (falkordb.railway.internal:6379) so there's one graph
+# substrate for both Mem0's per-agent semantic memory AND Graphiti's
+# capability world-model.
+#
+# The plugin needs to be `register()`'d before `Memory.from_config(...)`
+# is called. The upstream Mem0 server (`main.py`) imports Memory in its
+# startup, so we patch a wrapper that calls register() first.
+RUN pip install --no-cache-dir 'falkordb>=1.0.10' && \
+    pip install --no-cache-dir git+https://github.com/falkordb/mem0_falkordb.git@main || \
+    pip install --no-cache-dir 'mem0_falkordb>=0.1.0'
+
+# Drop in a runtime patch that:
+#   1. Calls mem0_falkordb.register() at import time so FalkorDB becomes
+#      a registered graph_store provider.
+#   2. Reads MEM0_GRAPH_STORE_FALKORDB_HOST/PORT/DATABASE/USERNAME/PASSWORD
+#      env vars and injects them into Memory.from_config's graph_store
+#      config automatically when MEM0_GRAPH_STORE_PROVIDER=falkordb.
+COPY mem0_falkordb_patch.py /app/server/mem0_falkordb_patch.py
+
 # Mem0 keeps a SQLite "history" DB alongside its pgvector store. The default
 # path comes from HISTORY_DB_PATH env var (e.g. /app/history/history.db) and
 # Mem0 won't create the parent directory itself — it just calls sqlite3.connect
@@ -46,4 +76,6 @@ RUN mkdir -p /app/history && chmod 755 /app/history
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Import the patch BEFORE main:app so register() runs and graph_store env
+# vars get picked up by Memory.from_config.
+CMD ["sh", "-c", "python -c 'import mem0_falkordb_patch' && uvicorn main:app --host 0.0.0.0 --port 8000"]

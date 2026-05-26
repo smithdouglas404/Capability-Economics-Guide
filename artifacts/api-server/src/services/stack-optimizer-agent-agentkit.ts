@@ -150,11 +150,12 @@ async function writePostRunMemory(output: string): Promise<void> {
 export async function runStackOptimizerAgentAgentKit(): Promise<AgentRunResult> {
   const start = Date.now();
   const memoryContext = await buildMemoryContext();
+  const graphContext = await (await import("./agent/build-graph-context")).buildGraphContext();
 
   const agent = createAgent({
     name: STACK_OPTIMIZER_AGENT_NAME,
     description: "Reads disruption + peer digests, generates build/buy/outsource recommendations.",
-    system: SYSTEM_PROMPT + memoryContext,
+    system: SYSTEM_PROMPT + memoryContext + graphContext,
     model: anthropic({
       model: HAIKU_MODEL,
       defaultParameters: { max_tokens: 2500, temperature: 0.2 },

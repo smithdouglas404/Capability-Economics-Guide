@@ -636,8 +636,13 @@ export async function recallMemories(
   return [...results, ...localResults].slice(0, limit);
 }
 
-export async function recallMemoriesBatch(type: MemoryType, limit: number = 100): Promise<AgentMemory[]> {
+export async function recallMemoriesBatch(
+  type: MemoryType,
+  limit: number = 100,
+  options: { agentName?: string } = {},
+): Promise<AgentMemory[]> {
   const results: AgentMemory[] = [];
+  const resolvedAgentId = options.agentName ? mem0AgentIdFor(options.agentName) : MEM0_AGENT_ID;
 
   const cfg = getMem0Config();
   if (cfg) {
@@ -646,14 +651,14 @@ export async function recallMemoriesBatch(type: MemoryType, limit: number = 100)
       if (cfg.isCloud) {
         const client = getMem0Client();
         if (!client) throw new Error("Mem0 SDK client unavailable for cloud mode");
-        found = await client.getAll({ agent_id: MEM0_AGENT_ID, page_size: limit });
+        found = await client.getAll({ agent_id: resolvedAgentId, page_size: limit });
       } else {
         // Self-hosted OSS: GET /memories?agent_id=…&page_size=… returns
         // { results: Memory[] } directly.
         found = await mem0SelfHostedRequest<{ results?: Mem0Memory[] }>(
           cfg,
           "GET",
-          `/memories?agent_id=${encodeURIComponent(MEM0_AGENT_ID)}&page_size=${limit}`,
+          `/memories?agent_id=${encodeURIComponent(resolvedAgentId)}&page_size=${limit}`,
         );
       }
       const list = Array.isArray(found) ? found : (found as { results?: Mem0Memory[] }).results ?? [];

@@ -611,6 +611,7 @@ const probeAgentRegistry: Probe = async () => {
  */
 function makeAgentProbe(entry: AgentRegistryEntry): Probe {
   return async () => {
+    // 1. Letta-registration check (existing logic).
     const registered = getRegisteredAgents();
     const found = registered.find((r) => r.shortName === entry.shortName);
     if (!found) {
@@ -625,6 +626,54 @@ function makeAgentProbe(entry: AgentRegistryEntry): Probe {
         status: "degraded",
         latencyMs: null,
         lastError: `Registered (agent_id=${found.agentId.slice(0, 8)}…) but archive not attached — archival memory partial`,
+      };
+    }
+    // 2. Schedule-row check — surfaces when an agent hasn't run recently
+    //    OR has been disabled via the admin tunables. Stale = older than
+    //    3× intervalSeconds. Disabled = enabled=false on the row. Missing
+    //    row = "no schedule recorded" (shouldRunAgent falls through to
+    //    running unguarded, so this is informational, not degraded).
+    try {
+      const { db, agentSchedulesTable } = await import("@workspace/db");
+      const { eq } = await import("drizzle-orm");
+      const [row] = await db
+        .select()
+        .from(agentSchedulesTable)
+        .where(eq(agentSchedulesTable.agentName, entry.shortName))
+        .limit(1);
+      if (!row) {
+        return {
+          status: "ok",
+          latencyMs: null,
+          lastError: "Registered; no schedule row yet (will run on next cron tick)",
+        };
+      }
+      if (!row.enabled) {
+        return {
+          status: "degraded",
+          latencyMs: null,
+          lastError: "Paused via admin tunables (enabled=false)",
+        };
+      }
+      if (row.lastRunAt) {
+        const elapsedMs = Date.now() - row.lastRunAt.getTime();
+        const staleAfterMs = row.intervalSeconds * 1000 * 3;
+        if (elapsedMs > staleAfterMs) {
+          const hoursStale = Math.round(elapsedMs / 3600000);
+          return {
+            status: "degraded",
+            latencyMs: null,
+            lastError: `Last run ${hoursStale}h ago — exceeds 3× cadence (${row.intervalSeconds}s); cron may be skipping or flag off`,
+          };
+        }
+      }
+    } catch (err) {
+      // Schema not migrated yet, DB blip — don't downgrade the probe over
+      // a transient lookup failure.
+      return {
+        status: "ok",
+        latencyMs: null,
+        lastError: `Registered; schedule lookup deferred (${err instanceof Error ? err.message.slice(0, 80) : "?"})`,
       };
     }
     return { status: "ok", latencyMs: null, lastError: null };

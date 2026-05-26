@@ -190,11 +190,12 @@ async function writePostRunMemory(output: string): Promise<void> {
 export async function runMacroEventAgentAgentKit(): Promise<AgentRunResult> {
   const start = Date.now();
   const memoryContext = await buildMemoryContext();
+  const graphContext = await (await import("./agent/build-graph-context")).buildGraphContext();
 
   const agent = createAgent({
     name: MACRO_EVENT_AGENT_NAME,
     description: "Polls EDGAR + sweeps active macro events; publishes a digest for downstream agents.",
-    system: SYSTEM_PROMPT + memoryContext,
+    system: SYSTEM_PROMPT + memoryContext + graphContext,
     model: anthropic({
       model: HAIKU_MODEL,
       defaultParameters: {

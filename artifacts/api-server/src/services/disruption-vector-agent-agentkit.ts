@@ -252,11 +252,12 @@ export async function runDisruptionVectorAgentAgentKit(): Promise<AgentRunResult
   const start = Date.now();
   lastCycleScored = 0;
   const memoryContext = await buildMemoryContext();
+  const graphContext = await (await import("./agent/build-graph-context")).buildGraphContext();
 
   const agent = createAgent({
     name: DISRUPTION_VECTOR_AGENT_NAME,
     description: "Computes the forward-looking Capability Disruption Index for stale leaf capabilities and publishes a frontier digest.",
-    system: SYSTEM_PROMPT + memoryContext,
+    system: SYSTEM_PROMPT + memoryContext + graphContext,
     model: anthropic({
       model: SONNET_MODEL,
       defaultParameters: {
