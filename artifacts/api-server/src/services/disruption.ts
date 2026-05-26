@@ -44,6 +44,15 @@ export interface DisruptionRisk {
   lifecycleStage: string;
   factors: DisruptionFactor[];
   topDrivers: string[];      // human-readable top 2 drivers
+  /**
+   * Percentile rank of this capability's FalkorDB PageRank score among
+   * all caps in the world-model graph. 0–1, where 1 = most systemically
+   * important (most other caps depend on this one transitively). null
+   * when Graphiti is off or the cap isn't in the graph. Advisory; does
+   * NOT factor into `probability` — surfaced so consumers can render
+   * "this is a hub" badges alongside the scoring math.
+   */
+  systemicImportance: number | null;
   computedAt: string;
 }
 
@@ -252,6 +261,12 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
     benchmarkScore: cap.benchmarkScore,
   });
 
+  // Advisory PageRank-based systemic importance. Cached for 1h in the
+  // algorithm service; runs sub-ms on the current ~500-cap graph.
+  // Returns null when Graphiti is off / the cap is not in the graph.
+  const { getSystemicImportance } = await import("./capability-graph-algorithms");
+  const systemicImportance = await getSystemicImportance(capabilityId);
+
   return {
     capabilityId,
     capabilityName: cap.name,
@@ -260,6 +275,7 @@ export async function computeDisruptionRisk(capabilityId: number): Promise<Disru
     lifecycleStage,
     factors,
     topDrivers,
+    systemicImportance,
     computedAt: new Date().toISOString(),
   };
 }
