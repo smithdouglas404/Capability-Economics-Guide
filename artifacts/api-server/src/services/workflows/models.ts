@@ -1,17 +1,9 @@
 /**
- * OpenRouter-backed model clients for the Vercel AI SDK, plus the
- * LangSmith-wrapped `generateObject` / `generateText` / `streamText`
- * entry points.
- *
- * `wrapAISDK(ai)` (from `langsmith/experimental/vercel`) wraps the entire
- * `ai` namespace so every call auto-traces to LangSmith when
- * `LANGCHAIN_TRACING_V2=true` + `LANGCHAIN_API_KEY` are set on the
- * api-server service. When those env vars are absent, wrapping is a
- * no-op — calls still execute, they just don't ship traces.
+ * OpenRouter-backed model clients for the Vercel AI SDK.
  *
  * Everywhere else in the codebase should import `generateObject` from
- * THIS module (not from `"ai"` directly), otherwise the call bypasses
- * tracing.
+ * THIS module (not from `"ai"` directly) so per-call observability
+ * (Inngest step.ai wrapping, llm_usage cost logging) stays consistent.
  *
  * We point `@ai-sdk/openai-compatible` at https://openrouter.ai/api/v1
  * instead of going to Anthropic / OpenAI direct so we keep:
@@ -22,20 +14,15 @@
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import * as ai from "ai";
-import { wrapAISDK } from "langsmith/experimental/vercel";
 import { logLlmCall } from "../llm-usage";
 import { maybeStepAiWrap } from "../../inngest/step-context";
 
-const wrapped = wrapAISDK(ai);
-
 // step.ai.wrap every Vercel-AI-SDK call so each becomes a durable, retriable,
-// observable Inngest step when invoked from inside an Inngest function. The
-// raw `wrapped.generateObject` is preserved (langsmith tracing still works);
-// `maybeStepAiWrap` is purely additive on top, no-op when not in Inngest
-// context.
-const _generateObject = wrapped.generateObject;
-const _generateText = wrapped.generateText;
-const _streamText = wrapped.streamText;
+// observable Inngest step when invoked from inside an Inngest function.
+// No-op when not in Inngest context.
+const _generateObject = ai.generateObject;
+const _generateText = ai.generateText;
+const _streamText = ai.streamText;
 
 function modelIdFromOpts(opts: unknown): string {
   const m = (opts as { model?: { modelId?: string } } | null)?.model;

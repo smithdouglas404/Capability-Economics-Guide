@@ -48,7 +48,7 @@ const BOOT_SENSITIVE_SERVICES = new Set<string>([
   "agent_peer_coop", "agent_stack_optimizer", "agent_ontology",
   "agent_synthesis", "agent_enrichment",
   "synthesis_agent", "temporal_shifts",
-  "anthropic", "langsmith",
+  "anthropic",
 ]);
 
 export interface ServiceHealth {
@@ -730,49 +730,6 @@ const probeAgentEnrichment: Probe = async () => {
   }
 };
 
-/**
- * Framework probes — the LLM-agent stack itself. Don't catch runtime
- * failures (those show up in per-agent probes above) but do catch broken
- * installs / missing exports that would otherwise crash agents at first
- * tool call.
- *
- * The `@langchain/anthropic` and `@langchain/langgraph` probes were
- * retired alongside the Phase 10 LangChain/LangGraph removal — neither
- * package is a dependency anymore. The `langsmith` package remains for
- * Vercel-AI-SDK tracing in `services/workflows/models.ts`.
- */
-const probeLangSmith: Probe = async () => {
-  const tracing = process.env.LANGCHAIN_TRACING_V2;
-  const key = process.env.LANGCHAIN_API_KEY;
-  const project = process.env.LANGCHAIN_PROJECT ?? "inflexcvi";
-  if (tracing !== "true" || !key) {
-    return {
-      status: "not_configured",
-      latencyMs: null,
-      lastError: "LANGCHAIN_TRACING_V2=true and LANGCHAIN_API_KEY required — trace shipping disabled",
-    };
-  }
-  try {
-    const { value, latencyMs } = await timed(() =>
-      withTimeout(
-        fetch(`https://api.smith.langchain.com/api/v1/sessions?name=${encodeURIComponent(project)}`, {
-          headers: { "X-API-Key": key },
-        }),
-        PROBE_TIMEOUT_MS,
-        "langsmith",
-      ),
-    );
-    if (!value.ok) return { status: "down", latencyMs, lastError: `LangSmith API → ${value.status}` };
-    const sessions = (await value.json().catch(() => [])) as Array<{ name?: string }>;
-    if (!Array.isArray(sessions) || sessions.length === 0) {
-      return { status: "degraded", latencyMs, lastError: `Project "${project}" not found in workspace — no traces will land` };
-    }
-    return { status: "ok", latencyMs, lastError: null };
-  } catch (err) {
-    return { status: "down", latencyMs: null, lastError: describeError(err).slice(0, 240) };
-  }
-};
-
 // Per-agent probe registration: one entry per AGENT_REGISTRY row + the
 // enrichment agent. Keys are normalised to `agent_<short>` so the JSON
 // shape stays stable.
@@ -793,7 +750,6 @@ const PROBES: Record<string, Probe> = {
   agent_enrichment: probeAgentEnrichment,
   synthesis_agent: probeSynthesisAgent,
   temporal_shifts: probeTemporalShifts,
-  langsmith: probeLangSmith,
   openrouter: probeOpenRouter,
   anthropic: probeAnthropic,
   perplexity: probePerplexity,
