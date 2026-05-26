@@ -708,7 +708,15 @@ const probeAgentEnrichment: Probe = async () => {
       return { status: "ok", latencyMs: null, lastError: `Run #${latest.id} in progress` };
     }
     if (latest.status === "failed" || latest.status === "interrupted") {
-      return { status: "degraded", latencyMs: null, lastError: `Last run #${latest.id} ${latest.status}` };
+      // Recent failure (< 24h) = degraded — the operator should look at it.
+      // Old failure (> 24h) is historical context, not an active alert.
+      // The completedAt-staleness check below catches "we haven't run a
+      // successful job in too long" regardless.
+      const ageMs = Date.now() - new Date(latest.startedAt).getTime();
+      if (ageMs < 24 * 60 * 60 * 1000) {
+        return { status: "degraded", latencyMs: null, lastError: `Last run #${latest.id} ${latest.status}` };
+      }
+      // Old failure — fall through to the completedAt-staleness check.
     }
     if (latest.completedAt) {
       const ageHours = (Date.now() - new Date(latest.completedAt).getTime()) / 3600000;
