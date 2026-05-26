@@ -278,6 +278,14 @@ export async function runDisruptionVectorAgentAgentKit(): Promise<AgentRunResult
     name: "disruption-vector-agentkit-network",
     agents: [agent],
     maxIter: 20,
+    // AgentKit's default router needs a model when no explicit router is passed,
+    // even for a single-agent network. Without it network.run() fails with
+    // "No router or model defined in network". Cheap routing-LLM only used for
+    // termination decisions.
+    defaultModel: anthropic({
+      model: SONNET_MODEL,
+      defaultParameters: { max_tokens: 1000, temperature: 0.2 },
+    }),
   });
 
   try {

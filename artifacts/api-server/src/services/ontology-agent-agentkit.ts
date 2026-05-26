@@ -152,6 +152,13 @@ const network = createNetwork({
   name: "ontology-agentkit-network",
   agents: [ontologyAgentAgentKit],
   maxIter: 5,
+  // AgentKit's default router needs a model when no explicit router is
+  // passed. Without it network.run() fails with "No router or model
+  // defined in network". Cheap routing-LLM only used for termination.
+  defaultModel: anthropic({
+    model: HAIKU_MODEL,
+    defaultParameters: { max_tokens: 1000, temperature: 0.2 },
+  }),
 });
 
 /**

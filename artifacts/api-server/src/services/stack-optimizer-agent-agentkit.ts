@@ -167,6 +167,14 @@ export async function runStackOptimizerAgentAgentKit(): Promise<AgentRunResult> 
     name: "stack-optimizer-agentkit-network",
     agents: [agent],
     maxIter: 6,
+    // AgentKit's default router needs a model when no explicit router is passed,
+    // even for a single-agent network. Without it network.run() fails with
+    // "No router or model defined in network". Cheap routing-LLM only used for
+    // termination decisions.
+    defaultModel: anthropic({
+      model: HAIKU_MODEL,
+      defaultParameters: { max_tokens: 1000, temperature: 0.2 },
+    }),
   });
 
   try {

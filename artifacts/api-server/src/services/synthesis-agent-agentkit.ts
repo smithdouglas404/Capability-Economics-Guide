@@ -287,6 +287,15 @@ export async function runSynthesisAgentAgentKit(): Promise<AgentRunResult> {
     name: "synthesis-agentkit-network",
     agents: [agent],
     maxIter: 8,
+    // AgentKit's default router requires a model when no explicit router
+    // is passed, even for single-agent networks. Without it
+    // `network.run()` fails with "No router or model defined in network".
+    // Matches the model on the agent so the router uses the same Sonnet
+    // for routing decisions (no separate routing-LLM cost).
+    defaultModel: anthropic({
+      model: SONNET_MODEL,
+      defaultParameters: { max_tokens: 1000, temperature: 0.2 },
+    }),
   });
 
   try {
